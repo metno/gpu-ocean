@@ -6,6 +6,9 @@ int main(int argc, char *argv[])
 {
     // *** Phase 1: Initialize Manager
     Manager::init(argc, argv);
+    if (!Manager::initialized())
+        return 0;
+
     Manager &mgr = Manager::instance();
 
 

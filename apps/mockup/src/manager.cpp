@@ -1,4 +1,5 @@
 #include "manager.h"
+#include "programoptions.h"
 #include <stdexcept>
 #include <vector>
 
@@ -10,8 +11,25 @@ void Manager::init(int argc, char *argv[])
     if (initialized_)
         throw runtime_error("manager already initialized");
 
-    // configure using boost::program_options ... TBD
+    options_ = new ProgramOptions;
+    if (!options_->parse(argc, argv)) {
+        cerr << options_->message() << endl;
+        return;
+    }
+
+    cout << "successfully parsed program options:\n";
+    cout << "nx: " << options_->nx() << endl;
+    cout << "ny: " << options_->ny() << endl;
+    cout << "width: " << options_->width() << endl;
+    cout << "height: " << options_->height() << endl;
+    cout << "duration: " << options_->duration() << endl;
+
     initialized_ = true;
+}
+
+bool Manager::initialized()
+{
+    return initialized_;
 }
 
 // Returns the singleton instance (thread-safe in C++11).
@@ -47,7 +65,8 @@ vector<float> Manager::simResults() const
 
 Manager::Manager()
 {
-    // create simulator object(s) from config ... TBD
+    // create simulator object(s) based on options_ ... TBD
 }
 
 bool Manager::initialized_ = false;
+ProgramOptions *Manager::options_ = 0;
