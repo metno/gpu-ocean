@@ -9,11 +9,11 @@ namespace po = boost::program_options;
 using namespace std;
 
 ProgramOptions::ProgramOptions()
-    : nx_(0)
-    , ny_(0)
-    , width_(0)
-    , height_(0)
-    , duration_(0)
+    : nx_(-1)
+    , ny_(-1)
+    , width_(-1)
+    , height_(-1)
+    , duration_(-1)
 {
 }
 

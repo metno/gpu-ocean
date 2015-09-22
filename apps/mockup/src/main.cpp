@@ -1,10 +1,19 @@
 #include "manager.h"
+#include "programoptions.h"
 #include <vector>
 #include <iostream>
 
+using namespace std;
+
+static void processResults(const vector<float> &results, int step, int final_step, ProgramOptions *options)
+{
+    cout << "processResults(): results.size(): " << results.size() << ", step: " << step << ", final_step: " << final_step
+         << ", options.nx(): " << options->nx() << ((step > final_step) ? "(final results!)" : "") << endl;
+}
+
 int main(int argc, char *argv[])
 {
-    // *** Phase 1: Initialize Manager
+    // *** Phase 1: Initialize manager
     Manager::init(argc, argv);
     if (!Manager::initialized())
         return 0;
@@ -13,18 +22,20 @@ int main(int argc, char *argv[])
 
 
     // *** Phase 2: Initialize a new simulation run
-    mgr.simInit();
+    mgr.initSim();
 
 
-    // *** Phase 3: Run simulation
-    while (mgr.simInProgress())
-        mgr.simStep();
+    // *** Phase 3: Run simulation and process results at each step
+    while (mgr.nextStep() <= mgr.finalStep()) {
+        processResults(mgr.results(), mgr.nextStep(), mgr.finalStep(), mgr.options());
+        mgr.execNextStep();
+    }
 
 
-    // *** Phase 4: Process results of simulation
-    std::vector<float> results = mgr.simResults();
+    // *** Phase 4: Process final simulation results
+    processResults(mgr.results(), mgr.nextStep(), mgr.finalStep(), mgr.options());
 
-    std::cout << "bravo!\n";
+    cout << "bravo!\n";
 
     return 0;
 }

@@ -42,28 +42,47 @@ Manager &Manager::instance()
     return mgr;
 }
 
-// Initializes a new simulation run (aborting one that is already in progress, if necessary).
-void Manager::simInit()
+ProgramOptions *Manager::options() const
 {
+    return options_;
 }
 
-// Returns true iff a simulation is in progress.
-bool Manager::simInProgress() const
+// Initializes a new simulation run (aborting one that is already in progress, if necessary).
+void Manager::initSim()
 {
-    return false;
+    next_step_ = 0;
+    //final_step_ = stepsFromDuraton(options_->duration());
+    final_step_ = 9; // ### for now
+}
+
+// Returns the next simulation step.
+int Manager::nextStep() const
+{
+    return next_step_;
+}
+
+// Returns the final simulation step.
+int Manager::finalStep() const
+{
+    return final_step_;
 }
 
 // Advances the simulation one time step.
-void Manager::simStep()
+void Manager::execNextStep()
 {
+    // process next simulation step ... TBD
+    next_step_++;
 }
 
-vector<float> Manager::simResults() const
+// Returns simulation results at the current step.
+vector<float> Manager::results() const
 {
     return vector<float>();
 }
 
 Manager::Manager()
+    : next_step_(0)
+    , final_step_(-1)
 {
     // create simulator object(s) based on options_ ... TBD
 }
