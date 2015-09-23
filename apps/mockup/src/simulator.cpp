@@ -21,7 +21,7 @@ void Simulator::init()
 {
     next_step_ = 0;
 
-    //final_step_ = stepsFromDuraton(options_->duration());
+    //final_step_ = calculate from options_->duration();
     final_step_ = 4; // ### for now
 }
 
@@ -40,7 +40,8 @@ void Simulator::execNextStep()
     if (next_step_ > final_step_)
         throw runtime_error((boost::format("error: next_step_ (%1%) > final_step_ (%2%)") % next_step_ % final_step_).str());
 
-    cout << "Simulator::execNextStep() ...\n";
+    // executing next step ... TBD
+
     next_step_++;
 }
 
