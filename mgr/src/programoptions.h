@@ -18,12 +18,8 @@ public:
     float height() const;
     float duration() const;
 private:
-    std::string msg_;
-    int nx_; // number of grid horizontal grid cells
-    int ny_; // number of vertical grid cells
-    float width_; // horizontal extension of grid (in meters)
-    float height_; // vertical extension of grid (in meters)
-    float duration_; // duration of simulation (in seconds)
+    struct ProgramOptionsImpl;
+    ProgramOptionsImpl *pimpl;
 };
 
 // Formats output of a ProgramOptions object.

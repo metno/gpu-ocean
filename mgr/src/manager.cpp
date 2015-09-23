@@ -6,69 +6,83 @@
 
 using namespace std;
 
+struct Manager::ManagerImpl
+{
+    SimPtr sim;
+    ManagerImpl(const OptionsPtr &);
+};
+
+Manager::ManagerImpl::ManagerImpl(const OptionsPtr &options)
+    : sim(new Simulator(options))
+{
+}
+
 // Initializes the manager.
 void Manager::init(int argc, char *argv[])
 {
-    if (initialized_)
+    if (INITIALIZED)
         throw runtime_error("manager already initialized");
 
-    options_.reset(new ProgramOptions);
-    if (!options_->parse(argc, argv)) {
-        cerr << options_->message() << endl;
+    OPTIONS.reset(new ProgramOptions);
+    if (!OPTIONS->parse(argc, argv)) {
+        cerr << OPTIONS->message() << endl;
         return;
     }
 
-    initialized_ = true;
+    INITIALIZED = true;
 }
 
+// Returns true iff the manager is initialized.
 bool Manager::initialized()
 {
-    return initialized_;
+    return INITIALIZED;
 }
 
 // Returns the singleton instance (thread-safe in C++11).
 Manager &Manager::instance()
 {
-    if (!initialized_)
+    if (!INITIALIZED)
         throw runtime_error("manager not initialized");
 
-    static Manager mgr;
-    return mgr;
+    static Manager MGR;
+    return MGR;
 }
 
+// Returns the program options object.
 OptionsPtr Manager::options() const
 {
-    return options_;
+    return OPTIONS;
 }
 
+// Returns the simulator object.
 SimPtr Manager::sim() const
 {
-    return sim_;
+    return pimpl->sim;
 }
 
 // Initializes a new simulation run (aborting one that is already in progress, if necessary).
 void Manager::initSim()
 {
-    sim_->init();
+    pimpl->sim->init();
 }
 
 // Returns the next simulation step.
 int Manager::nextStep() const
 {
-    return sim_->nextStep();
+    return pimpl->sim->nextStep();
 }
 
 // Returns the final simulation step.
 int Manager::finalStep() const
 {
-    return sim_->finalStep();
+    return pimpl->sim->finalStep();
 }
 
 // Advances the simulation one time step.
 void Manager::execNextStep()
 {
     // process next simulation step ... TBD
-    sim_->execNextStep();
+    pimpl->sim->execNextStep();
 }
 
 // Returns simulation results at the current step.
@@ -78,9 +92,9 @@ vector<float> Manager::results() const
 }
 
 Manager::Manager()
-    : sim_(new Simulator(options_))
+    : pimpl(new ManagerImpl(OPTIONS))
 {
 }
 
-bool Manager::initialized_ = false;
-OptionsPtr Manager::options_;
+bool Manager::INITIALIZED = false;
+OptionsPtr Manager::OPTIONS;

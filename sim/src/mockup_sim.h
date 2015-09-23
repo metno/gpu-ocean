@@ -16,9 +16,8 @@ public:
     void execNextStep();
     void printStatus() const;
 private:
-    OptionsPtr options_;
-    int next_step_;
-    int final_step_;
+    struct SimulatorImpl;
+    SimulatorImpl *pimpl;
 };
 
 typedef boost::shared_ptr<Simulator> SimPtr;

@@ -8,12 +8,28 @@ namespace po = boost::program_options;
 
 using namespace std;
 
+struct ProgramOptions::ProgramOptionsImpl
+{
+    std::string msg;
+    int nx; // number of grid horizontal grid cells
+    int ny; // number of vertical grid cells
+    float width; // horizontal extension of grid (in meters)
+    float height; // vertical extension of grid (in meters)
+    float duration; // duration of simulation (in seconds)
+    ProgramOptionsImpl();
+};
+
+ProgramOptions::ProgramOptionsImpl::ProgramOptionsImpl()
+    : nx(-1)
+    , ny(-1)
+    , width(-1)
+    , height(-1)
+    , duration(-1)
+{
+};
+
 ProgramOptions::ProgramOptions()
-    : nx_(-1)
-    , ny_(-1)
-    , width_(-1)
-    , height_(-1)
-    , duration_(-1)
+    : pimpl(new ProgramOptionsImpl)
 {
 }
 
@@ -39,11 +55,11 @@ bool ProgramOptions::parse(int argc, char *argv[])
         // declare options that will be allowed both on command line and in config file
         po::options_description cfgfile_opts("Options allowed both on command line and in config file (the former overrides the latter)");
         cfgfile_opts.add_options()
-                ("nx", po::value<int>(&nx_)->default_value(10), "number of horizontal grid cells")
-                ("ny", po::value<int>(&ny_)->default_value(10), "number of vertical grid cells")
-                ("width", po::value<float>(&width_)->default_value(1000), "horizontal extension of grid (in meters)")
-                ("height", po::value<float>(&height_)->default_value(1000), "vertical extension of grid (in meters)")
-                ("duration", po::value<float>(&duration_)->default_value(100), "duration of simulation (in seconds)")
+                ("nx", po::value<int>(&pimpl->nx)->default_value(10), "number of horizontal grid cells")
+                ("ny", po::value<int>(&pimpl->ny)->default_value(10), "number of vertical grid cells")
+                ("width", po::value<float>(&pimpl->width)->default_value(1000), "horizontal extension of grid (in meters)")
+                ("height", po::value<float>(&pimpl->height)->default_value(1000), "vertical extension of grid (in meters)")
+                ("duration", po::value<float>(&pimpl->duration)->default_value(100), "duration of simulation (in seconds)")
                 ;
 
         po::options_description all_options;
@@ -68,7 +84,7 @@ bool ProgramOptions::parse(int argc, char *argv[])
         // parse config file
         ifstream ifs(config_file.c_str());
         if ((!ifs) && (!config_file.empty())) {
-            msg_ = (boost::format("error: can not open config file: %1%") % config_file).str();
+            pimpl->msg = (boost::format("error: can not open config file: %1%") % config_file).str();
             return false;
         } else {
             store(parse_config_file(ifs, cfgfile_options), vm);
@@ -81,18 +97,18 @@ bool ProgramOptions::parse(int argc, char *argv[])
         if (vm.count("help")) {
             ostringstream oss;
             visible_options.print(oss);
-            msg_ = oss.str();
+            pimpl->msg = oss.str();
             return false;
         }
 
         if (vm.count("version")) {
-            msg_ = "GPU EPS HAV, version 1.0\n";
+            pimpl->msg = "GPU EPS HAV, version 1.0\n";
             return false;
         }
     }
     catch(exception &e)
     {
-        msg_ = e.what();
+        pimpl->msg = e.what();
         return false;
     }
 
@@ -102,32 +118,32 @@ bool ProgramOptions::parse(int argc, char *argv[])
 // Returns the message resulting when the latest call to parse() returned false.
 string ProgramOptions::message() const
 {
-    return msg_;
+    return pimpl->msg;
 }
 
 int ProgramOptions::nx() const
 {
-    return nx_;
+    return pimpl->nx;
 }
 
 int ProgramOptions::ny() const
 {
-    return ny_;
+    return pimpl->ny;
 }
 
 float ProgramOptions::width() const
 {
-    return width_;
+    return pimpl->width;
 }
 
 float ProgramOptions::height() const
 {
-    return height_;
+    return pimpl->height;
 }
 
 float ProgramOptions::duration() const
 {
-    return duration_;
+    return pimpl->duration;
 }
 
 // Formats output of a ProgramOptions object.

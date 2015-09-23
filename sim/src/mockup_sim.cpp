@@ -6,10 +6,23 @@
 
 using namespace std;
 
+struct Simulator::SimulatorImpl
+{
+    OptionsPtr options;
+    int nextStep;
+    int finalStep;
+    SimulatorImpl(const OptionsPtr &);
+};
+
+Simulator::SimulatorImpl::SimulatorImpl(const OptionsPtr &options)
+    : options(options)
+    , nextStep(-1)
+    , finalStep(-1)
+{
+}
+
 Simulator::Simulator(const OptionsPtr &options)
-    : options_(options)
-    , next_step_(-1)
-    , final_step_(-1)
+    : pimpl(new SimulatorImpl(options))
 {
 }
 
@@ -19,33 +32,33 @@ Simulator::~Simulator()
 
 void Simulator::init()
 {
-    next_step_ = 0;
+    pimpl->nextStep = 0;
 
-    //final_step_ = calculate from options_->duration();
-    final_step_ = 4; // ### for now
+    //pimpl->finalStep = calculate from options_->duration();
+    pimpl->finalStep = 4; // ### for now
 }
 
 int Simulator::nextStep() const
 {
-    return next_step_;
+    return pimpl->nextStep;
 }
 
 int Simulator::finalStep() const
 {
-    return final_step_;
+    return pimpl->finalStep;
 }
 
 void Simulator::execNextStep()
 {
-    if (next_step_ > final_step_)
-        throw runtime_error((boost::format("error: next_step_ (%1%) > final_step_ (%2%)") % next_step_ % final_step_).str());
+    if (pimpl->nextStep > pimpl->finalStep)
+        throw runtime_error((boost::format("error: next_step_ (%1%) > final_step_ (%2%)") % pimpl->nextStep % pimpl->finalStep).str());
 
     // executing next step ... TBD
 
-    next_step_++;
+    pimpl->nextStep++;
 }
 
 void Simulator::printStatus() const
 {
-    cout << "Simulator::printStatus(); options: " << *options_ << endl;
+    cout << "Simulator::printStatus(); options: " << *pimpl->options << endl;
 }

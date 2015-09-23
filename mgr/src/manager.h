@@ -22,9 +22,10 @@ public:
     void execNextStep();
     std::vector<float> results() const;
 private:
-    static bool initialized_;
-    static OptionsPtr options_;
-    SimPtr sim_;
+    static bool INITIALIZED;
+    static OptionsPtr OPTIONS;
+    struct ManagerImpl;
+    ManagerImpl *pimpl;
     Manager();
     Manager(const Manager &);
     Manager &operator=(const Manager &);
