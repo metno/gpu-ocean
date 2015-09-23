@@ -1,24 +1,10 @@
-#include "../../../mgr/src/manager.h"
-#include "../../../mgr/src/programoptions.h"
-#include "../../../sim/src/mockup_sim.h"
+#include "manager.h"
+#include "programoptions.h"
+#include "simulator.h"
 #include <vector>
 #include <iostream>
 
 using namespace std;
-
-/**
- *
- * Jo:
- *
- * USE "apps/src/main.cpp" (copy of "apps/mockup/src/main.cpp" from your last commit)
- *
- * I think "apps/mockup/*" can be deleted now, right?
- *
- *
- *
- *
- */
-
 
 static void processResults(const vector<float> &results, int step, int finalStep, const OptionsPtr &options)
 {

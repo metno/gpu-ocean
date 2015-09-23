@@ -1,8 +1,8 @@
 #ifndef SIMULATOR_H
 #define SIMULATOR_H
 
-#include "../../mgr/src/programoptions.h"
-#include "../../mgr/src/initconditions.h"
+#include "programoptions.h"
+#include "initconditions.h"
 #include <boost/shared_ptr.hpp>
 
 // This class manages the low-level aspects of a simulation.

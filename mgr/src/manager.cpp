@@ -1,7 +1,7 @@
 #include "manager.h"
 #include "programoptions.h"
 #include "initconditions.h"
-#include "../../sim/src/mockup_sim.h"
+#include "simulator.h"
 #include <stdexcept>
 #include <vector>
 

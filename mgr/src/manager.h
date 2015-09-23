@@ -1,12 +1,12 @@
 #ifndef MANAGER_H
 #define MANAGER_H
 
-#include "../../sim/src/mockup_sim.h"
 #include "programoptions.h"
 #include "initconditions.h"
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+#include "simulator.h"
 
 // This class manages the high-level aspects of a simulation.
 class Manager
