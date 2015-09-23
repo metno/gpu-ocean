@@ -1,7 +1,7 @@
 #ifndef MANAGER_H
 #define MANAGER_H
 
-#include "simulator.h"
+#include "../../sim/src/mockup_sim.h"
 #include "programoptions.h"
 #include <iostream>
 #include <stdexcept>

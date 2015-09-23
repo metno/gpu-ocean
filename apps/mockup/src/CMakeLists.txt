@@ -1,6 +1,8 @@
 project(mockup)
 cmake_minimum_required(VERSION 2.8)
 aux_source_directory(. SRC_LIST)
+aux_source_directory(../../../mgr/src SRC_LIST)
+aux_source_directory(../../../sim/src SRC_LIST)
 add_executable(${PROJECT_NAME} ${SRC_LIST})
 target_link_libraries(${PROJECT_NAME} boost_program_options)
 set(CMAKE_BUILD_TYPE Debug)

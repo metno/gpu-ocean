@@ -1,5 +1,5 @@
-#include "simulator.h"
-#include "programoptions.h"
+#include "mockup_sim.h"
+#include "../../mgr/src/programoptions.h"
 #include <boost/format.hpp>
 #include <iostream>
 #include <stdexcept>

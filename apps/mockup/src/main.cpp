@@ -1,6 +1,6 @@
-#include "manager.h"
-#include "programoptions.h"
-#include "simulator.h"
+#include "../../../mgr/src/manager.h"
+#include "../../../mgr/src/programoptions.h"
+#include "../../../sim/src/mockup_sim.h"
 #include <vector>
 #include <iostream>
 
