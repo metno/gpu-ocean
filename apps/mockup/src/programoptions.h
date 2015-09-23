@@ -2,6 +2,7 @@
 #define PROGRAMOPTIONS_H
 
 #include <string>
+#include <ostream>
 
 // This class holds the program options.
 class ProgramOptions
@@ -23,5 +24,8 @@ private:
     float height_; // vertical extension of grid (in meters)
     float duration_; // duration of simulation (in seconds)
 };
+
+// Formats output of a ProgramOptions object.
+std::ostream &operator<<(std::ostream &, const ProgramOptions &);
 
 #endif // PROGRAMOPTIONS_H

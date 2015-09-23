@@ -1,5 +1,6 @@
 #include "manager.h"
 #include "programoptions.h"
+#include "simulator.h"
 #include <stdexcept>
 #include <vector>
 
@@ -16,13 +17,6 @@ void Manager::init(int argc, char *argv[])
         cerr << options_->message() << endl;
         return;
     }
-
-    cout << "successfully parsed program options:\n";
-    cout << "nx: " << options_->nx() << endl;
-    cout << "ny: " << options_->ny() << endl;
-    cout << "width: " << options_->width() << endl;
-    cout << "height: " << options_->height() << endl;
-    cout << "duration: " << options_->duration() << endl;
 
     initialized_ = true;
 }
@@ -50,28 +44,26 @@ ProgramOptions *Manager::options() const
 // Initializes a new simulation run (aborting one that is already in progress, if necessary).
 void Manager::initSim()
 {
-    next_step_ = 0;
-    //final_step_ = stepsFromDuraton(options_->duration());
-    final_step_ = 9; // ### for now
+    sim_->init();
 }
 
 // Returns the next simulation step.
 int Manager::nextStep() const
 {
-    return next_step_;
+    return sim_->nextStep();
 }
 
 // Returns the final simulation step.
 int Manager::finalStep() const
 {
-    return final_step_;
+    return sim_->finalStep();
 }
 
 // Advances the simulation one time step.
 void Manager::execNextStep()
 {
     // process next simulation step ... TBD
-    next_step_++;
+    sim_->execNextStep();
 }
 
 // Returns simulation results at the current step.
@@ -80,11 +72,14 @@ vector<float> Manager::results() const
     return vector<float>();
 }
 
-Manager::Manager()
-    : next_step_(0)
-    , final_step_(-1)
+SimPtr Manager::sim() const
 {
-    // create simulator object(s) based on options_ ... TBD
+    return sim_;
+}
+
+Manager::Manager()
+    : sim_(new Simulator(options_))
+{
 }
 
 bool Manager::initialized_ = false;

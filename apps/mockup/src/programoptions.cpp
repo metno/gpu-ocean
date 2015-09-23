@@ -129,3 +129,11 @@ float ProgramOptions::duration() const
 {
     return duration_;
 }
+
+// Formats output of a ProgramOptions object.
+ostream &operator<<(ostream &os, const ProgramOptions &po)
+{
+    os << "nx: " << po.nx() << ", ny: " << po.ny() << ", width: " << po.width() << ", height: "
+       << po.height() << ", duration: " << po.duration();
+    return os;
+}

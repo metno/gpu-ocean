@@ -1,5 +1,6 @@
 #include "manager.h"
 #include "programoptions.h"
+#include "simulator.h"
 #include <vector>
 #include <iostream>
 
@@ -8,7 +9,7 @@ using namespace std;
 static void processResults(const vector<float> &results, int step, int final_step, ProgramOptions *options)
 {
     cout << "processResults(): results.size(): " << results.size() << ", step: " << step << ", final_step: " << final_step
-         << ", options.nx(): " << options->nx() << ((step > final_step) ? "(final results!)" : "") << endl;
+         << "; options: " << *options << ((step > final_step) ? "; (final results!)" : "") << endl;
 }
 
 int main(int argc, char *argv[])
@@ -35,7 +36,11 @@ int main(int argc, char *argv[])
     // *** Phase 4: Process final simulation results
     processResults(mgr.results(), mgr.nextStep(), mgr.finalStep(), mgr.options());
 
-    cout << "bravo!\n";
+    cout << "done\n";
+
+    // get pointer to simulator object
+    SimPtr sim = mgr.sim();
+    sim->printStatus();
 
     return 0;
 }

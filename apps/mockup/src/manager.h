@@ -1,13 +1,17 @@
 #ifndef MANAGER_H
 #define MANAGER_H
 
+#include <boost/shared_ptr.hpp>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
 
 class ProgramOptions;
+class Simulator;
 
-// This class manages a simulation run.
+typedef boost::shared_ptr<Simulator> SimPtr;
+
+// This class manages the high-level aspects of a simulation.
 class Manager
 {
 public:
@@ -20,11 +24,11 @@ public:
     int finalStep() const;
     void execNextStep();
     std::vector<float> results() const;
+    SimPtr sim() const;
 private:
     static bool initialized_;
     static ProgramOptions *options_;
-    int next_step_;
-    int final_step_;
+    SimPtr sim_;
     Manager();
     Manager(const Manager &);
     Manager &operator=(const Manager &);
