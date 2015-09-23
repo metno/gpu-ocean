@@ -6,7 +6,7 @@
 
 using namespace std;
 
-Simulator::Simulator(ProgramOptions *options)
+Simulator::Simulator(const OptionsPtr &options)
     : options_(options)
     , next_step_(-1)
     , final_step_(-1)

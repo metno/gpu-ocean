@@ -6,10 +6,10 @@
 
 using namespace std;
 
-static void processResults(const vector<float> &results, int step, int final_step, ProgramOptions *options)
+static void processResults(const vector<float> &results, int step, int final_step, const OptionsPtr &options)
 {
     cout << "processResults(): results.size(): " << results.size() << ", step: " << step << ", final_step: " << final_step
-         << "; options: " << *options << ((step > final_step) ? "; (final results!)" : "") << endl;
+         << "; options: " << options << ((step > final_step) ? "; (final results!)" : "") << endl;
 }
 
 int main(int argc, char *argv[])

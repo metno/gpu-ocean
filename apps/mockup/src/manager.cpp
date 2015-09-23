@@ -12,7 +12,7 @@ void Manager::init(int argc, char *argv[])
     if (initialized_)
         throw runtime_error("manager already initialized");
 
-    options_ = new ProgramOptions;
+    options_.reset(new ProgramOptions);
     if (!options_->parse(argc, argv)) {
         cerr << options_->message() << endl;
         return;
@@ -36,9 +36,14 @@ Manager &Manager::instance()
     return mgr;
 }
 
-ProgramOptions *Manager::options() const
+OptionsPtr Manager::options() const
 {
     return options_;
+}
+
+SimPtr Manager::sim() const
+{
+    return sim_;
 }
 
 // Initializes a new simulation run (aborting one that is already in progress, if necessary).
@@ -72,15 +77,10 @@ vector<float> Manager::results() const
     return vector<float>();
 }
 
-SimPtr Manager::sim() const
-{
-    return sim_;
-}
-
 Manager::Manager()
     : sim_(new Simulator(options_))
 {
 }
 
 bool Manager::initialized_ = false;
-ProgramOptions *Manager::options_ = 0;
+OptionsPtr Manager::options_;

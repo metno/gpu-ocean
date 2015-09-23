@@ -1,13 +1,14 @@
 #ifndef SIMULATOR_H
 #define SIMULATOR_H
 
-class ProgramOptions;
+#include "programoptions.h"
+#include <boost/shared_ptr.hpp>
 
 // This class manages the low-level aspects of a simulation.
 class Simulator
 {
 public:
-    Simulator(ProgramOptions *);
+    Simulator(const OptionsPtr &);
     virtual ~Simulator();
     void init();
     int nextStep() const;
@@ -15,9 +16,11 @@ public:
     void execNextStep();
     void printStatus() const;
 private:
-    ProgramOptions *options_;
+    OptionsPtr options_;
     int next_step_;
     int final_step_;
 };
+
+typedef boost::shared_ptr<Simulator> SimPtr;
 
 #endif // SIMULATOR_H

@@ -1,15 +1,11 @@
 #ifndef MANAGER_H
 #define MANAGER_H
 
-#include <boost/shared_ptr.hpp>
+#include "simulator.h"
+#include "programoptions.h"
 #include <iostream>
 #include <stdexcept>
 #include <vector>
-
-class ProgramOptions;
-class Simulator;
-
-typedef boost::shared_ptr<Simulator> SimPtr;
 
 // This class manages the high-level aspects of a simulation.
 class Manager
@@ -18,16 +14,16 @@ public:
     static void init(int, char *[]);
     static bool initialized();
     static Manager &instance();
-    ProgramOptions *options() const;
+    OptionsPtr options() const;
+    SimPtr sim() const;
     void initSim();
     int nextStep() const;
     int finalStep() const;
     void execNextStep();
     std::vector<float> results() const;
-    SimPtr sim() const;
 private:
     static bool initialized_;
-    static ProgramOptions *options_;
+    static OptionsPtr options_;
     SimPtr sim_;
     Manager();
     Manager(const Manager &);
