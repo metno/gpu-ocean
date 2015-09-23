@@ -3,6 +3,7 @@
 
 #include "../../sim/src/mockup_sim.h"
 #include "programoptions.h"
+#include "initconditions.h"
 #include <iostream>
 #include <stdexcept>
 #include <vector>
@@ -24,6 +25,7 @@ public:
 private:
     static bool INITIALIZED;
     static OptionsPtr OPTIONS;
+    static InitCondPtr INIT_COND;
     struct ManagerImpl;
     ManagerImpl *pimpl;
     Manager();

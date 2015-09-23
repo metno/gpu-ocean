@@ -1,5 +1,6 @@
 #include "manager.h"
 #include "programoptions.h"
+#include "initconditions.h"
 #include "../../sim/src/mockup_sim.h"
 #include <stdexcept>
 #include <vector>
@@ -9,11 +10,11 @@ using namespace std;
 struct Manager::ManagerImpl
 {
     SimPtr sim;
-    ManagerImpl(const OptionsPtr &);
+    ManagerImpl(const OptionsPtr &, const InitCondPtr &);
 };
 
-Manager::ManagerImpl::ManagerImpl(const OptionsPtr &options)
-    : sim(new Simulator(options))
+Manager::ManagerImpl::ManagerImpl(const OptionsPtr &options, const InitCondPtr &initCond)
+    : sim(new Simulator(options, initCond))
 {
 }
 
@@ -28,6 +29,9 @@ void Manager::init(int argc, char *argv[])
         cerr << OPTIONS->message() << endl;
         return;
     }
+
+    INIT_COND.reset(new InitConditions);
+    INIT_COND->init(OPTIONS);
 
     INITIALIZED = true;
 }
@@ -92,9 +96,10 @@ vector<float> Manager::results() const
 }
 
 Manager::Manager()
-    : pimpl(new ManagerImpl(OPTIONS))
+    : pimpl(new ManagerImpl(OPTIONS, INIT_COND))
 {
 }
 
 bool Manager::INITIALIZED = false;
 OptionsPtr Manager::OPTIONS;
+InitCondPtr Manager::INIT_COND;

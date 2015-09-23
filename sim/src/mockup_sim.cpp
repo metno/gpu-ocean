@@ -9,20 +9,22 @@ using namespace std;
 struct Simulator::SimulatorImpl
 {
     OptionsPtr options;
+    InitCondPtr initCond;
     int nextStep;
     int finalStep;
-    SimulatorImpl(const OptionsPtr &);
+    SimulatorImpl(const OptionsPtr &, const InitCondPtr &);
 };
 
-Simulator::SimulatorImpl::SimulatorImpl(const OptionsPtr &options)
+Simulator::SimulatorImpl::SimulatorImpl(const OptionsPtr &options, const InitCondPtr &initCond)
     : options(options)
+    , initCond(initCond)
     , nextStep(-1)
     , finalStep(-1)
 {
 }
 
-Simulator::Simulator(const OptionsPtr &options)
-    : pimpl(new SimulatorImpl(options))
+Simulator::Simulator(const OptionsPtr &options, const InitCondPtr &initCond)
+    : pimpl(new SimulatorImpl(options, initCond))
 {
 }
 

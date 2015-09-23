@@ -2,13 +2,14 @@
 #define SIMULATOR_H
 
 #include "../../mgr/src/programoptions.h"
+#include "../../mgr/src/initconditions.h"
 #include <boost/shared_ptr.hpp>
 
 // This class manages the low-level aspects of a simulation.
 class Simulator
 {
 public:
-    Simulator(const OptionsPtr &);
+    Simulator(const OptionsPtr &, const InitCondPtr &);
     virtual ~Simulator();
     void init();
     int nextStep() const;
