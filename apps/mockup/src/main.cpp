@@ -9,7 +9,7 @@ using namespace std;
 static void processResults(const vector<float> &results, int step, int finalStep, const OptionsPtr &options)
 {
     cout << "processResults(): results.size(): " << results.size() << ", step: " << step << ", finalStep: " << finalStep
-         << "; options: " << options << ((step > finalStep) ? "; (final results!)" : "") << endl;
+         << "; options: " << *options << ((step > finalStep) ? "; (final results!)" : "") << endl;
 }
 
 int main(int argc, char *argv[])
