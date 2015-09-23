@@ -42,5 +42,8 @@ int main(int argc, char *argv[])
     SimPtr sim = mgr.sim();
     sim->printStatus();
 
+    // stack smashing, I know... did not have time to figure it out :-)
+    sim->countOCLDevices();
+
     return 0;
 }

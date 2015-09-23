@@ -16,6 +16,9 @@ public:
     int finalStep() const;
     void execNextStep();
     void printStatus() const;
+
+    void countOCLDevices() const;
+
 private:
     struct SimulatorImpl;
     SimulatorImpl *pimpl;

@@ -5,6 +5,13 @@
 #include <iostream>
 #include <stdexcept>
 
+// All OpenCL headers
+#if defined (__APPLE__) || defined(MACOSX)
+    #include <OpenCL/opencl.h>
+#else
+    #include <CL/opencl.h>
+#endif
+
 using namespace std;
 
 struct Simulator::SimulatorImpl
@@ -64,4 +71,17 @@ void Simulator::execNextStep()
 void Simulator::printStatus() const
 {
     cout << "Simulator::printStatus(); options: " << *pimpl->options << endl;
+}
+
+void Simulator::countOCLDevices() const
+{
+	cl_uint countEntries = 999;
+	cl_platform_id clSelectedPlatformID = NULL;
+	cl_uint countPlatforms;
+	cl_int ciErrNum = clGetPlatformIDs(countEntries, &clSelectedPlatformID, &countPlatforms);
+
+	cl_uint ciDeviceCount;
+	ciErrNum = clGetDeviceIDs(clSelectedPlatformID, CL_DEVICE_TYPE_ALL, 0, NULL, &ciDeviceCount);
+
+    cout << "Number of available OpenCL devices: " << ciDeviceCount << endl;
 }

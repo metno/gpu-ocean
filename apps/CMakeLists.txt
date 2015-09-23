@@ -52,7 +52,7 @@ FOREACH(filename ${apps_app})
 	apps
 	${sim_LIBRARIES}
 	${mgr_LIBRARIES}
-	${OPENCL_LIBRARIES})
+	${OpenCL_LIBRARY})
 	
   IF(apps_USE_NETCDF)
     TARGET_LINK_LIBRARIES(${name} ${NetCDF_LIBRARIES})
