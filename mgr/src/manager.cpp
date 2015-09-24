@@ -22,41 +22,41 @@ Manager::ManagerImpl::ManagerImpl(const OptionsPtr &options, const InitCondPtr &
 // Initializes the manager.
 void Manager::init(int argc, char *argv[])
 {
-    if (INITIALIZED)
+    if (isInit)
         throw runtime_error("manager already initialized");
 
-    OPTIONS.reset(new ProgramOptions);
-    if (!OPTIONS->parse(argc, argv)) {
-        cerr << OPTIONS->message() << endl;
+    opts.reset(new ProgramOptions);
+    if (!opts->parse(argc, argv)) {
+        cerr << opts->message() << endl;
         return;
     }
 
-    INIT_COND.reset(new InitConditions);
-    INIT_COND->init(OPTIONS);
+    initCond.reset(new InitConditions);
+    initCond->init(opts);
 
-    INITIALIZED = true;
+    isInit = true;
 }
 
 // Returns true iff the manager is initialized.
 bool Manager::initialized()
 {
-    return INITIALIZED;
+    return isInit;
 }
 
 // Returns the singleton instance (thread-safe in C++11).
 Manager &Manager::instance()
 {
-    if (!INITIALIZED)
+    if (!isInit)
         throw runtime_error("manager not initialized");
 
-    static Manager MGR;
-    return MGR;
+    static Manager mgr;
+    return mgr;
 }
 
 // Returns the program options object.
 OptionsPtr Manager::options() const
 {
-    return OPTIONS;
+    return opts;
 }
 
 // Returns the simulator object.
@@ -97,10 +97,10 @@ vector<float> Manager::results() const
 }
 
 Manager::Manager()
-    : pimpl(new ManagerImpl(OPTIONS, INIT_COND))
+    : pimpl(new ManagerImpl(opts, initCond))
 {
 }
 
-bool Manager::INITIALIZED = false;
-OptionsPtr Manager::OPTIONS;
-InitCondPtr Manager::INIT_COND;
+bool Manager::isInit = false;
+OptionsPtr Manager::opts;
+InitCondPtr Manager::initCond;

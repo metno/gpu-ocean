@@ -23,9 +23,9 @@ public:
     void execNextStep();
     std::vector<float> results() const;
 private:
-    static bool INITIALIZED;
-    static OptionsPtr OPTIONS;
-    static InitCondPtr INIT_COND;
+    static bool isInit;
+    static OptionsPtr opts;
+    static InitCondPtr initCond;
     struct ManagerImpl;
     ManagerImpl *pimpl;
     Manager();
