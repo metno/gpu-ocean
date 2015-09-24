@@ -4,13 +4,33 @@
 #include <boost/format.hpp>
 #include <iostream>
 #include <stdexcept>
+#include <cstdio>
 
-// All OpenCL headers
-#if defined (__APPLE__) || defined(MACOSX)
-    #include <OpenCL/opencl.h>
-#else
-    #include <CL/opencl.h>
-#endif
+///XXX
+//#define NDEBUG
+
+/*
+ * XXX: Extract this to OCL utils class
+ */
+#define CL_CHECK(_expr)                                                          \
+	do {                                                                         \
+		cl_int _err = _expr;                                                     \
+		if (_err == CL_SUCCESS)                                                  \
+			break;                                                               \
+		fprintf(stderr, "OpenCL Error: '%s' returned %d!\n", #_expr, (int)_err); \
+		abort();                                                                 \
+	} while (0)
+
+#define CL_CHECK_ERR(_expr)                                                          \
+	({                                                                               \
+		cl_int _err = CL_INVALID_VALUE;                                              \
+		typeof(_expr) _ret = _expr;                                                  \
+		if (_err != CL_SUCCESS) {                                                    \
+			fprintf(stderr, "OpenCL Error: '%s' returned %d!\n", #_expr, (int)_err); \
+			abort();                                                                 \
+		}                                                                            \
+		_ret;                                                                        \
+	})
 
 using namespace std;
 
@@ -73,15 +93,31 @@ void Simulator::printStatus() const
     cout << "Simulator::printStatus(); options: " << *pimpl->options << endl;
 }
 
-void Simulator::countOCLDevices() const
+cl_uint Simulator::getOCLPlatforms(vector<cl_platform_id> &clPlatformIDs)
 {
-	cl_uint countEntries = 999;
-	cl_platform_id clSelectedPlatformID = NULL;
 	cl_uint countPlatforms;
-	cl_int ciErrNum = clGetPlatformIDs(countEntries, &clSelectedPlatformID, &countPlatforms);
+	CL_CHECK(clGetPlatformIDs(0, NULL, &countPlatforms));
 
-	cl_uint ciDeviceCount;
-	ciErrNum = clGetDeviceIDs(clSelectedPlatformID, CL_DEVICE_TYPE_ALL, 0, NULL, &ciDeviceCount);
+	clPlatformIDs.resize(countPlatforms);
 
-    cout << "Number of available OpenCL devices: " << ciDeviceCount << endl;
+	CL_CHECK(clGetPlatformIDs(countPlatforms, clPlatformIDs.data(), NULL));
+
+#ifndef NDEBUG
+    cout << "Number of available OpenCL platforms: " << countPlatforms << endl;
+#endif
+
+    return countPlatforms;
+}
+
+cl_uint Simulator::countOCLDevices(cl_platform_id clPlatformID) const
+{
+	cl_uint countDevices;
+
+	CL_CHECK(clGetDeviceIDs(clPlatformID, CL_DEVICE_TYPE_ALL, 0, NULL, &countDevices));
+
+#ifndef NDEBUG
+	cout << "Number of available OpenCL devices: " << countDevices << endl;
+#endif
+
+    return countDevices;
 }

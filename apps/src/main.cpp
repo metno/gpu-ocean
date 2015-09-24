@@ -42,8 +42,11 @@ int main(int argc, char *argv[])
     SimPtr sim = mgr.sim();
     sim->printStatus();
 
-    // stack smashing, I know... did not have time to figure it out :-)
-    sim->countOCLDevices();
+    // do some OpenCL stuff
+    vector<cl_platform_id> oclPlatforms;
+    sim->getOCLPlatforms(oclPlatforms);
+    if(oclPlatforms.size())
+    	sim->countOCLDevices(oclPlatforms[0]);
 
     return 0;
 }
