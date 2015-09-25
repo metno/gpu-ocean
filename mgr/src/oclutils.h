@@ -36,8 +36,9 @@
 class OpenCLUtils
 {
 public:
-    static cl_uint getOCLPlatforms(std::vector<cl_platform_id> &);
-    static cl_uint countOCLDevices(cl_platform_id);
+    static cl_uint getPlatforms(std::vector<cl_platform_id> &);
+    static cl_uint countDevices(cl_platform_id);
+    static void listDevices();
 };
 
 #endif // OCLUTILS_H

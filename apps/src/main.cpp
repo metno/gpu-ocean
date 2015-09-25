@@ -45,9 +45,12 @@ int main(int argc, char *argv[])
 
     // do some OpenCL stuff
     vector<cl_platform_id> oclPlatforms;
-    OpenCLUtils::getOCLPlatforms(oclPlatforms);
+    OpenCLUtils::getPlatforms(oclPlatforms);
     if(oclPlatforms.size())
-        OpenCLUtils::countOCLDevices(oclPlatforms[0]);
+        OpenCLUtils::countDevices(oclPlatforms[0]);
+
+    cout << "available platforms and devices:\n";
+    OpenCLUtils::listDevices();
 
     return 0;
 }
