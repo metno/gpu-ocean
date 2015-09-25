@@ -1,6 +1,7 @@
 #include "manager.h"
 #include "programoptions.h"
 #include "simulator.h"
+#include "oclutils.h"
 #include <vector>
 #include <iostream>
 
@@ -44,9 +45,9 @@ int main(int argc, char *argv[])
 
     // do some OpenCL stuff
     vector<cl_platform_id> oclPlatforms;
-    sim->getOCLPlatforms(oclPlatforms);
+    OpenCLUtils::getOCLPlatforms(oclPlatforms);
     if(oclPlatforms.size())
-    	sim->countOCLDevices(oclPlatforms[0]);
+        OpenCLUtils::countOCLDevices(oclPlatforms[0]);
 
     return 0;
 }
