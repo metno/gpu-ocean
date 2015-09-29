@@ -6,7 +6,7 @@ IF(NOT EXECUTABLE_OUTPUT_PATH)
 	SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 ENDIF(NOT EXECUTABLE_OUTPUT_PATH)
 
-FIND_PACKAGE(Boost REQUIRED COMPONENTS filesystem system thread program_options)
+FIND_PACKAGE(Boost REQUIRED COMPONENTS filesystem system thread program_options unit_test_framework)
 FIND_PACKAGE(OpenCL REQUIRED)
 FIND_PACKAGE(NetCDF QUIET)
 
@@ -36,6 +36,34 @@ ENDIF()
 LINK_DIRECTORIES(
 	${Boost_LIBRARY_DIRS})
 
+# - Create test executables
+file(GLOB TEST_SRCS "test/*.cpp")
+foreach(testSrc ${TEST_SRCS})
+	get_filename_component(testName ${testSrc} NAME_WE)
+
+    add_executable(${testName} ${testSrc})
+
+    target_link_libraries(${testName} ${Boost_LIBRARIES}
+		${mgr_LIBRARIES}
+        ${sim_LIBRARIES}
+		${OpenCL_LIBRARY})
+		
+	IF(apps_USE_NETCDF)
+	    TARGET_LINK_LIBRARIES(${testName} ${NetCDF_LIBRARIES})
+  	ENDIF()
+
+  	IF(NOT CMAKE_HOST_WIN32)
+    	TARGET_LINK_LIBRARIES(${testName}	${Boost_LIBRARIES})
+  	ENDIF()
+
+	# (test binary resides in root project's bin directory)
+    add_test(NAME ${testName} 
+    	WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/../bin 
+        COMMAND ${PROJECT_BINARY_DIR}/../bin/${testName})
+        
+    SET_TARGET_PROPERTIES(${testName} PROPERTIES OUTPUT_NAME "${testName}")
+endforeach(testSrc)
+
 # - Create objects needed
 FILE(GLOB apps_src "src/*.cpp")
 ADD_LIBRARY(apps STATIC ${apps_src})
@@ -50,8 +78,8 @@ FOREACH(filename ${apps_app})
   ADD_EXECUTABLE(${name} ${filename})
   TARGET_LINK_LIBRARIES(${name} 
 	apps
-	${sim_LIBRARIES}
 	${mgr_LIBRARIES}
+	${sim_LIBRARIES}
 	${OpenCL_LIBRARY})
 	
   IF(apps_USE_NETCDF)
