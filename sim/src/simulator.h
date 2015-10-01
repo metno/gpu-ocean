@@ -1,28 +1,27 @@
 #ifndef SIMULATOR_H
 #define SIMULATOR_H
 
-#include "programoptions.h"
-#include "initconditions.h"
-#include <boost/shared_ptr.hpp>
+#include "simbase.h"
 
-#include <vector>
-
-// This class manages the low-level aspects of a simulation.
-class Simulator
+/**
+ * @brief This class implements the real simulator.
+ */
+class Simulator : public SimBase
 {
 public:
     Simulator(const OptionsPtr &, const InitCondPtr &);
     virtual ~Simulator();
-    void init();
-    int nextStep() const;
-    int finalStep() const;
-    void execNextStep();
-    void printStatus() const;
+
 private:
+    virtual void init();
+    virtual int nextStep() const;
+    virtual int finalStep() const;
+    virtual void execNextStep();
+    virtual std::vector<float> results() const;
+    virtual void printStatus() const;
+
     struct SimulatorImpl;
     SimulatorImpl *pimpl;
 };
-
-typedef boost::shared_ptr<Simulator> SimPtr;
 
 #endif // SIMULATOR_H

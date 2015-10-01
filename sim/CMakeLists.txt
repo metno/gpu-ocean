@@ -30,7 +30,7 @@ IF(sim_SIMULATOR_VERSION STREQUAL "")
     MESSAGE(FATAL_ERROR "sim_SIMULATOR_VERSION not defined")
 ENDIF()
 
-ADD_LIBRARY(sim STATIC src/simulator.cpp)
+ADD_LIBRARY(sim STATIC src/simbase.cpp src/simulator.cpp src/dummysim.cpp)
 # MLS: Do need this next line?
 TARGET_LINK_LIBRARIES(sim ${OPENCL_LIBRARIES})
 SET_TARGET_PROPERTIES(sim PROPERTIES DEBUG_POSTFIX "d")

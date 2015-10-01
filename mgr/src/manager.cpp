@@ -1,21 +1,30 @@
 #include "manager.h"
 #include "programoptions.h"
 #include "initconditions.h"
+#include "simbase.h"
 #include "simulator.h"
+#include "dummysim.h"
 #include <stdexcept>
 #include <vector>
 #include <iostream>
+
+///XXX
+#define DUMMYSIM
 
 using namespace std;
 
 struct Manager::ManagerImpl
 {
-    SimPtr sim;
+    SimBasePtr sim;
     ManagerImpl(const OptionsPtr &, const InitCondPtr &);
 };
 
 Manager::ManagerImpl::ManagerImpl(const OptionsPtr &options, const InitCondPtr &initCond)
+#ifdef DUMMYSIM
+    : sim(new DummySim(options, initCond))
+#else
     : sim(new Simulator(options, initCond))
+#endif
 {
 }
 
@@ -60,7 +69,7 @@ OptionsPtr Manager::options() const
 }
 
 // Returns the simulator object.
-SimPtr Manager::sim() const
+SimBasePtr Manager::sim() const
 {
     return pimpl->sim;
 }
@@ -86,14 +95,13 @@ int Manager::finalStep() const
 // Advances the simulation one time step.
 void Manager::execNextStep()
 {
-    // process next simulation step ... TBD
     pimpl->sim->execNextStep();
 }
 
 // Returns simulation results at the current step.
 vector<float> Manager::results() const
 {
-    return vector<float>();
+    return pimpl->sim->results();
 }
 
 Manager::Manager()

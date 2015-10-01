@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
     cout << "done\n";
 
     // get pointer to simulator object
-    SimPtr sim = mgr.sim();
+    SimBasePtr sim = mgr.sim();
     sim->printStatus();
 
     // do some OpenCL stuff

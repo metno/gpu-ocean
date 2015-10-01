@@ -1,32 +1,32 @@
-#include "simulator.h"
-#include <boost/format.hpp>
+#include "dummysim.h"
+#include "boost/format.hpp"
 
 using namespace std;
 
-struct Simulator::SimulatorImpl
+struct DummySim::DummySimImpl
 {
     int nextStep;
     int finalStep;
-    SimulatorImpl();
+    DummySimImpl();
 };
 
-Simulator::SimulatorImpl::SimulatorImpl()
+DummySim::DummySimImpl::DummySimImpl()
     : nextStep(-1)
     , finalStep(-1)
 {
 }
 
-Simulator::Simulator(const OptionsPtr &options, const InitCondPtr &initCond)
+DummySim::DummySim(const OptionsPtr &options, const InitCondPtr &initCond)
     : SimBase(options, initCond)
-    , pimpl(new SimulatorImpl)
+    , pimpl(new DummySimImpl)
 {
 }
 
-Simulator::~Simulator()
+DummySim::~DummySim()
 {
 }
 
-void Simulator::init()
+void DummySim::init()
 {
     pimpl->nextStep = 0;
 
@@ -34,17 +34,17 @@ void Simulator::init()
     pimpl->finalStep = 4; // ### for now
 }
 
-int Simulator::nextStep() const
+int DummySim::nextStep() const
 {
     return pimpl->nextStep;
 }
 
-int Simulator::finalStep() const
+int DummySim::finalStep() const
 {
     return pimpl->finalStep;
 }
 
-void Simulator::execNextStep()
+void DummySim::execNextStep()
 {
     if (pimpl->nextStep > pimpl->finalStep)
         throw runtime_error((boost::format("error: next_step_ (%1%) > final_step_ (%2%)") % pimpl->nextStep % pimpl->finalStep).str());
@@ -54,12 +54,12 @@ void Simulator::execNextStep()
     pimpl->nextStep++;
 }
 
-vector<float> Simulator::results() const
+vector<float> DummySim::results() const
 {
     return vector<float>(); // ### for now
 }
 
-void Simulator::printStatus() const
+void DummySim::printStatus() const
 {
-    cout << "Simulator::printStatus(); options: " << options() << endl;
+    cout << "DummySim::printStatus(); options: " << options() << endl;
 }
