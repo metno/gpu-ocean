@@ -10,6 +10,7 @@
 
 #include <cstdio>
 #include <vector>
+#include <string>
 
 // define macros to assert that an expression evaluates to CL_SUCCESS
 // version 1:
@@ -37,8 +38,12 @@ class OpenCLUtils
 {
 public:
     static cl_uint getPlatforms(std::vector<cl_platform_id> &);
+    static std::string getPlatformName(cl_platform_id);
+    static std::string getDeviceName(cl_device_id);
     static cl_uint countDevices(cl_platform_id);
     static void listDevices();
+    static std::string loadKernel(const char *);
+    static cl_program createProgram(const cl_context &, const std::string &);
 };
 
 #endif // OCLUTILS_H

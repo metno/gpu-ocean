@@ -22,6 +22,9 @@ int main(int argc, char *argv[])
 
     Manager &mgr = Manager::instance();
 
+    // get pointer to simulator object and print status
+    SimBasePtr sim = mgr.sim();
+    sim->printStatus();
 
     // *** Phase 2: Initialize a new simulation run
     mgr.initSim();
@@ -38,10 +41,6 @@ int main(int argc, char *argv[])
     processResults(mgr.results(), mgr.nextStep(), mgr.finalStep(), mgr.options());
 
     cout << "done\n";
-
-    // get pointer to simulator object
-    SimBasePtr sim = mgr.sim();
-    sim->printStatus();
 
     // do some OpenCL stuff
     vector<cl_platform_id> oclPlatforms;

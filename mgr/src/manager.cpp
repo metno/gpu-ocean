@@ -8,7 +8,7 @@
 #include <vector>
 #include <iostream>
 
-///XXX
+// comment out the following line to run the real simulator:
 #define DUMMYSIM
 
 using namespace std;

@@ -1,6 +1,9 @@
 #include "oclutils.h"
 #include <boost/algorithm/string.hpp>
+#include <boost/format.hpp>
 #include <iostream>
+#include <fstream>
+#include <stdexcept>
 
 ///XXX
 //#define NDEBUG
@@ -95,12 +98,22 @@ private:
     }
 };
 
-static string platformName(cl_platform_id id)
+/**
+ * Gets platform name from ID.
+ * @param id Input: Platform ID
+ * @return Platform name
+ */
+string OpenCLUtils::getPlatformName(cl_platform_id id)
 {
     return PlatformNameGetter(id).get();
 }
 
-static string deviceName(cl_device_id id)
+/**
+ * Gets device name from ID.
+ * @param id Input: Device ID
+ * @return Device name
+ */
+string OpenCLUtils::getDeviceName(cl_device_id id)
 {
     return DeviceNameGetter(id).get();
 }
@@ -114,7 +127,7 @@ void OpenCLUtils::listDevices()
     OpenCLUtils::getPlatforms(platforms);
     for (int i = 0; i < platforms.size(); ++i) {
         cout << "  platform " << i << endl;
-        cout << "    name: " << platformName(platforms[i]) << endl;
+        cout << "    name: " << getPlatformName(platforms[i]) << endl;
         cout << "    devices:\n";
 
         cl_uint deviceCount = 0;
@@ -124,6 +137,40 @@ void OpenCLUtils::listDevices()
         clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, deviceCount, devices.data (), 0);
 
         for (cl_uint j = 0; j < deviceCount; ++j)
-            cout << "      " << (j + 1) << ": " << deviceName(devices[j]) << endl;
+            cout << "      " << (j + 1) << ": " << getDeviceName(devices[j]) << endl;
     }
+}
+
+/**
+ * Loads a kernel file.
+ * @param name Input: Kernel file name
+ * @return Contents of kernel file name as a string
+ */
+string OpenCLUtils::loadKernel(const char *name)
+{
+    const char *kernelDir = getenv("KERNELDIR");
+    if (!kernelDir)
+        throw runtime_error("KERNELDIR environment variable not set");
+    ifstream in((boost::format("%s/%s") % kernelDir % name).str().c_str());
+    if (!in.good())
+        throw runtime_error((boost::format("failed to open kernel file >%s<") % name).str());
+    string result((istreambuf_iterator<char>(in)), istreambuf_iterator<char>());
+    return result;
+}
+
+/**
+ * Creates a program from a kernel.
+ * @param source Input: Kernel source
+ * @return Program
+ */
+cl_program OpenCLUtils::createProgram(const cl_context &context, const string &source)
+{
+    size_t lengths[1] = { source.size() };
+    const char *sources[1] = { source.data() };
+
+    cl_int error = 0;
+    cl_program program = clCreateProgramWithSource(context, 1, sources, lengths, &error);
+    CL_CHECK(error);
+
+    return program;
 }
