@@ -1,0 +1,43 @@
+Dependencies
+------------
+
+To compile:
+- CMake 2.8
+- A native build system compatible with CMake 2.8
+- Boost 1.48.0.2
+- OpenCL 1.1
+
+To run the OpenCL code:
+- An OpenCL-capable device with the appropriate driver installed
+
+
+Fast and easy install (Unix/Linux)
+----------------------------------
+
+This is how to build the project in a directory "build" residing in the project 
+root directory:
+
+> cd <project root directory>
+> mkdir build 
+> cd build
+> cmake ..
+> make
+
+The binaries can now be found in "build/bin".
+
+
+When "fast and easy" fails, or more configuration is necessary
+--------------------------------------------------------------
+
+1. Make a build directory.
+2. Change directory into the build directory.
+3. Run "cmake <project root dir>" for default configuration or 
+"ccmake <project root dir>"/"cmake-gui <project root dir>" for interactive 
+configuration.
+4. For ccmake/cmake-gui choose "Configure" (for cmake-gui choose correct
+generator) and "Generate". (If you need to add additional cmake modules, due to
+an old cmake installation, copy these to "<project root dir>/cmake/Modules".)
+5. Exit ccmake/cmake-gui and run the appropriate build command, e.g., "make"
+for "Unix Makefiles".
+6. Run "ctest" for testing.
+7. Binaries are found in the "bin" directory in the chosen build directory.
