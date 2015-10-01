@@ -61,5 +61,5 @@ vector<float> Simulator::results() const
 
 void Simulator::printStatus() const
 {
-    cout << "Simulator::printStatus(); options: " << options() << endl;
+    cout << "Simulator::printStatus(); options: " << *options() << endl;
 }

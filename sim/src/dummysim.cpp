@@ -61,5 +61,5 @@ vector<float> DummySim::results() const
 
 void DummySim::printStatus() const
 {
-    cout << "DummySim::printStatus(); options: " << options() << endl;
+    cout << "DummySim::printStatus(); options: " << *options() << endl;
 }
