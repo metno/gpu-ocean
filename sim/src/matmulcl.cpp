@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include "boost/format.hpp"
 
+#define NDEBUG
+
 using namespace std;
 
 static void errorCallback(const char *errInfo, const void *privateInfo, size_t cb, void *userData)
@@ -178,12 +180,16 @@ cl_int MatMulExecutor::createContext(vector<cl_device_id> *deviceIds)
     if (platforms.empty()) {
         throw runtime_error("No OpenCL platform found");
     } else {
+#ifndef NDEBUG
         cout << "Found " << platforms.size() << " platform(s)" << endl;
+#endif
     }
 
+#ifndef NDEBUG
     for (cl_uint i = 0; i < platforms.size(); ++i) {
         cout << "\t (" << (i + 1) << ") : " << OpenCLUtils::getPlatformName(platforms[i]) << endl;
     }
+#endif
 
     cl_uint deviceIdCount = 0;
     cl_uint pfIndex = 0;
@@ -196,7 +202,9 @@ cl_int MatMulExecutor::createContext(vector<cl_device_id> *deviceIds)
     if (pfIndex == platforms.size()) {
         throw runtime_error("No OpenCL devices found for any platform");
     } else {
+#ifndef NDEBUG
         cout << "Found " << deviceIdCount << " device(s)" << endl;
+#endif
     }
 
     platformName_ = OpenCLUtils::getPlatformName(platforms[pfIndex]);
@@ -204,9 +212,11 @@ cl_int MatMulExecutor::createContext(vector<cl_device_id> *deviceIds)
     deviceIds->resize(deviceIdCount);
     clGetDeviceIDs(platforms[pfIndex], deviceType_, deviceIds->size(), deviceIds->data(), 0);
 
+#ifndef NDEBUG
     for (cl_uint i = 0; i < deviceIds->size(); ++i) {
         cout << "\t (" << (i + 1) << ") : " << OpenCLUtils::getDeviceName(deviceIds->at(i)) << endl;
     }
+#endif
 
     deviceName_ = OpenCLUtils::getDeviceName(deviceIds->front()); // for now, use first device
 
@@ -295,8 +305,10 @@ bool matmul(int size, bool execOnCpu)
     if (!execKernel(size, a, b, deviceType, "matmul_noop.cl", msecs_noop))
         return false;
 
+#ifndef NDEBUG
     cout << (boost::format("matrix size: %4d x %4d;   msecs: %12.6f;   noop msecs: %12.6f   (platform: %s; device: %s)")
             % size % size % msecs_full % msecs_noop % platformName % deviceName) << endl;
+#endif
 
     return true;
 }

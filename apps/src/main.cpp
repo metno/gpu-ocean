@@ -5,6 +5,8 @@
 #include <vector>
 #include <iostream>
 
+#define NDEBUG
+
 using namespace std;
 
 static void processResults(const vector<float> &results, int step, int finalStep, const OptionsPtr &options)
@@ -22,9 +24,11 @@ int main(int argc, char *argv[])
 
     Manager &mgr = Manager::instance();
 
+#ifndef NDEBUG
     // get pointer to simulator object and print status
     SimBasePtr sim = mgr.sim();
     sim->printStatus();
+#endif
 
     // *** Phase 2: Initialize a new simulation run
     mgr.initSim();
@@ -40,7 +44,9 @@ int main(int argc, char *argv[])
     // *** Phase 4: Process final simulation results
     processResults(mgr.results(), mgr.nextStep(), mgr.finalStep(), mgr.options());
 
+#ifndef NDEBUG
     cout << "done\n";
+#endif
 
     // do some OpenCL stuff
     vector<cl_platform_id> oclPlatforms;
@@ -48,8 +54,10 @@ int main(int argc, char *argv[])
     if(oclPlatforms.size())
         OpenCLUtils::countDevices(oclPlatforms[0]);
 
+#ifndef NDEBUG
     cout << "available platforms and devices:\n";
     OpenCLUtils::listDevices();
+#endif
 
     return 0;
 }

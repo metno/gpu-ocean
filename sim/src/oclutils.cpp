@@ -5,8 +5,7 @@
 #include <fstream>
 #include <stdexcept>
 
-///XXX
-//#define NDEBUG
+#define NDEBUG
 
 using namespace std;
 
