@@ -1,6 +1,7 @@
 #include "dummysim.h"
 #include "matmulcl.h"
 #include "boost/format.hpp"
+#include <iostream>
 
 using namespace std;
 

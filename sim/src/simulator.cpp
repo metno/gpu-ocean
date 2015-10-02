@@ -1,5 +1,6 @@
 #include "simulator.h"
 #include <boost/format.hpp>
+#include <iostream>
 
 using namespace std;
 
