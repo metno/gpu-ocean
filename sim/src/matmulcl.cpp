@@ -22,7 +22,7 @@ class MatMulExecutor
 public:
     MatMulExecutor(size_t, const vector<float> &ha, const vector<float> &hb, cl_device_type, const string &);
     virtual ~MatMulExecutor();
-    bool initialize();
+    void initialize();
     void execute();
     float elapsedMilliseconds() const;
     string platformName() const;
@@ -88,7 +88,10 @@ MatMulExecutor::~MatMulExecutor()
         releaseObjects();
 }
 
-bool MatMulExecutor::initialize()
+/**
+ * Initializes the executor. Throws std::runtime_error if the matrix size is null.
+ */
+void MatMulExecutor::initialize()
 {
     if (pimpl->size <= 0)
         throw std::runtime_error((boost::format("size (%1%) <= 0") % pimpl->size).str());
@@ -140,9 +143,11 @@ bool MatMulExecutor::initialize()
     CL_CHECK(error);
 
     pimpl->initialized = true;
-    return true;
 }
 
+/**
+ * Executes the OpenCL kernel.
+ */
 void MatMulExecutor::execute()
 {
     size_t offset[3] = { 0 };
@@ -158,6 +163,9 @@ void MatMulExecutor::execute()
     // copy result back to host ... TBD
 }
 
+/**
+ * Releases OpenCL objects.
+ */
 void MatMulExecutor::releaseObjects() const
 {
     if (!pimpl->initialized)
@@ -173,21 +181,38 @@ void MatMulExecutor::releaseObjects() const
     CL_CHECK(clReleaseContext(pimpl->context));
 }
 
+/**
+ * Returns the execution time.
+ * @return Elapsed execution time in milliseconds
+ */
 float MatMulExecutor::elapsedMilliseconds() const
 {
     return (pimpl->cmdEnd - pimpl->cmdStart) * .000001; // note: cmdEnd and cmdStart are both in nanoseconds
 }
 
+/**
+ * Returns the platform on which the kernel will be executed.
+ * @return Platform name
+ */
 string MatMulExecutor::platformName() const
 {
     return pimpl->platformName;
 }
 
+/**
+ * Returns the device on which the kernel will be executed.
+ * @return Device name
+ */
 string MatMulExecutor::deviceName() const
 {
     return pimpl->deviceName;
 }
 
+/**
+ * Creates the OpenCL context. Throws std::runtime_error if no relevant device is found.
+ * @param deviceIds Output: IDs of devices matching this->pimpl->deviceType
+ * @return OpenCL error code
+ */
 cl_int MatMulExecutor::createContext(vector<cl_device_id> *deviceIds)
 {
     vector<cl_platform_id> platforms;
@@ -210,13 +235,14 @@ cl_int MatMulExecutor::createContext(vector<cl_device_id> *deviceIds)
     cl_uint deviceIdCount = 0;
     cl_uint pfIndex = 0;
 
+    // loop over platforms
     for (pfIndex = 0; pfIndex < platforms.size(); ++pfIndex) {
         clGetDeviceIDs(platforms[pfIndex], pimpl->deviceType, 0, 0, &deviceIdCount);
         if (deviceIdCount > 0)
-            break; // found device for this platform
+            break; // found at last one relevant device on this platform
     }
     if (pfIndex == platforms.size()) {
-        throw runtime_error("No OpenCL devices found for any platform");
+        throw runtime_error("No relevant OpenCL devices found on any platform");
     } else {
 #ifndef NDEBUG
         cout << "Found " << deviceIdCount << " device(s)" << endl;
@@ -246,6 +272,10 @@ cl_int MatMulExecutor::createContext(vector<cl_device_id> *deviceIds)
     return error;
 }
 
+/**
+ * Creates OpenCL buffer objects, one for each of the two input matrices A and B.
+ * @return OpenCL error code
+ */
 cl_int MatMulExecutor::createInputBuffers()
 {
     cl_int error = CL_SUCCESS;
@@ -265,6 +295,12 @@ cl_int MatMulExecutor::createInputBuffers()
     return CL_SUCCESS;
 }
 
+/**
+ * Creates two NxN input matrices A and B with random values.
+ * @param size Input: The size of N
+ * @param a Output: The A matrix with random values
+ * @param b Output: The B matrix with random values
+ */
 static void createInputMatrices(size_t size, vector<float> &a, vector<float> &b)
 {
     srand48(time(0));
@@ -278,32 +314,37 @@ static void createInputMatrices(size_t size, vector<float> &a, vector<float> &b)
     }
 }
 
-static bool execKernel(
+/**
+ * Multiplies two NxN matrices A and B.
+ * @param size Input: The size of N
+ * @param a Input: The A matrix
+ * @param b Input: The B matrix
+ * @param deviceType Input: The device type: CL_DEVICE_TYPE_CPU or CL_DEVICE_TYPE_GPU
+ * @param kernelFileName Input: The name of the kernel file (note: the value of the KERNELDIR environment variable will be prepended)
+ * @param msecs Output: The elapsed execution time in milliseconds
+ * @param platformName Output: If non-null, the name of the platform used for the execution
+ * @param deviceName Output: If non-null, the name of the device used for the execution
+ */
+static void matmulExec(
         size_t size, const vector<float> &a, const vector<float> &b, cl_device_type deviceType, const string &kernelFileName,
         float &msecs, string *platformName = 0, string *deviceName = 0)
 {
-    MatMulExecutor matMulExec(size, a, b, deviceType, kernelFileName);
-    if (!matMulExec.initialize())
-        return false;
-
-    matMulExec.execute();
-
-    msecs = matMulExec.elapsedMilliseconds();
+    MatMulExecutor executor(size, a, b, deviceType, kernelFileName);
+    executor.initialize();
+    executor.execute();
+    msecs = executor.elapsedMilliseconds();
     if (platformName)
-        *platformName = matMulExec.platformName();
+        *platformName = executor.platformName();
     if (deviceName)
-        *deviceName = matMulExec.deviceName();
-
-    return true;
+        *deviceName = executor.deviceName();
 }
 
 /**
- * Multiplies two NxN matrices.
+ * Public function for multiplying two NxN matrices. Throws std::runtime_error if something goes wrong.
  * @param size: The size of N
  * @param execOnCpu Input: Whether to execute the kernel on the CPU
- * @return Success status
  */
-bool matmul(size_t size, bool execOnCpu)
+void matmul(size_t size, bool execOnCpu)
 {
     // generate random input
     vector<float> a;
@@ -317,18 +358,14 @@ bool matmul(size_t size, bool execOnCpu)
 
     // execute full multiplication
     float msecs_full = -1.0;
-    if (!execKernel(size, a, b, deviceType, "matmul.cl", msecs_full, &platformName, &deviceName))
-        return false;
+    matmulExec(size, a, b, deviceType, "matmul.cl", msecs_full, &platformName, &deviceName);
 
     // execute noop (only copying memory between host and device)
     float msecs_noop = -1.0;
-    if (!execKernel(size, a, b, deviceType, "matmul_noop.cl", msecs_noop))
-        return false;
+    matmulExec(size, a, b, deviceType, "matmul_noop.cl", msecs_noop);
 
 #ifndef NDEBUG
     cout << (boost::format("matrix size: %4d x %4d;   msecs: %12.6f;   noop msecs: %12.6f   (platform: %s; device: %s)")
             % size % size % msecs_full % msecs_noop % platformName % deviceName) << endl;
 #endif
-
-    return true;
 }
