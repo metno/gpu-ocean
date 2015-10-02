@@ -19,7 +19,7 @@ static void errorCallback(const char *errInfo, const void *privateInfo, size_t c
 class MatMulExecutor
 {
 public:
-    MatMulExecutor(int, const vector<float> &ha, const vector<float> &hb, cl_device_type, const string &);
+    MatMulExecutor(size_t, const vector<float> &ha, const vector<float> &hb, cl_device_type, const string &);
     virtual ~MatMulExecutor();
     bool initialize();
     void execute();
@@ -38,7 +38,7 @@ private:
 
 struct MatMulExecutor::MatMulExecutorImpl
 {
-    int size;
+    size_t size;
     cl_device_type deviceType;
     string kernelFileName;
     bool initialized;
@@ -59,11 +59,11 @@ struct MatMulExecutor::MatMulExecutorImpl
     cl_command_queue queue;
     cl_event event;
 
-    MatMulExecutorImpl(int, const vector<float> &, const vector<float> &, cl_device_type, const string &);
+    MatMulExecutorImpl(size_t, const vector<float> &, const vector<float> &, cl_device_type, const string &);
 };
 
 MatMulExecutor::MatMulExecutorImpl::MatMulExecutorImpl(
-        int size, const vector<float> &ha, const vector<float> &hb, cl_device_type deviceType, const string &kernelFileName)
+        size_t size, const vector<float> &ha, const vector<float> &hb, cl_device_type deviceType, const string &kernelFileName)
     : size(size)
     , ha(ha)
     , hb(hb)
@@ -76,7 +76,7 @@ MatMulExecutor::MatMulExecutorImpl::MatMulExecutorImpl(
 }
 
 MatMulExecutor::MatMulExecutor(
-        int size, const vector<float> &ha, const vector<float> &hb, cl_device_type deviceType, const string &kernelFileName)
+        size_t size, const vector<float> &ha, const vector<float> &hb, cl_device_type deviceType, const string &kernelFileName)
     : pimpl(new MatMulExecutorImpl(size, ha, hb, deviceType, kernelFileName))
 {
 }
@@ -264,7 +264,7 @@ cl_int MatMulExecutor::createInputBuffers()
     return CL_SUCCESS;
 }
 
-static void createInputMatrices(int size, vector<float> &a, vector<float> &b)
+static void createInputMatrices(size_t size, vector<float> &a, vector<float> &b)
 {
     srand48(time(0));
     a.resize(size * size);
@@ -278,7 +278,7 @@ static void createInputMatrices(int size, vector<float> &a, vector<float> &b)
 }
 
 static bool execKernel(
-        int size, const vector<float> &a, const vector<float> &b, cl_device_type deviceType, const string &kernelFileName,
+        size_t size, const vector<float> &a, const vector<float> &b, cl_device_type deviceType, const string &kernelFileName,
         float &msecs, string *platformName = 0, string *deviceName = 0)
 {
     MatMulExecutor matMulExec(size, a, b, deviceType, kernelFileName);
@@ -302,7 +302,7 @@ static bool execKernel(
  * @param execOnCpu Input: Whether to execute the kernel on the CPU
  * @return Success status
  */
-bool matmul(int size, bool execOnCpu)
+bool matmul(size_t size, bool execOnCpu)
 {
     // generate random input
     vector<float> a;
