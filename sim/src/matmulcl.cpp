@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include "boost/format.hpp"
 
+#undef NDEBUG
 #define NDEBUG
 
 using namespace std;
