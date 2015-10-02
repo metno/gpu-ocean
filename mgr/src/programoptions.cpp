@@ -3,6 +3,7 @@
 #include <boost/format.hpp>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 
 namespace po = boost::program_options;
 
@@ -105,6 +106,18 @@ bool ProgramOptions::parse(int argc, char *argv[])
             pimpl->msg = "GPU EPS HAV, version 1.0\n";
             return false;
         }
+
+        // final validation
+        if (pimpl->nx <= 0)
+            throw runtime_error((boost::format("error: nx (%1%) <= 0") % pimpl->nx).str());
+        if (pimpl->ny <= 0)
+            throw runtime_error((boost::format("error: ny (%1%) <= 0") % pimpl->ny).str());
+        if (pimpl->width <= 0)
+            throw runtime_error((boost::format("error: width (%1%) <= 0") % pimpl->width).str());
+        if (pimpl->height <= 0)
+            throw runtime_error((boost::format("error: height (%1%) <= 0") % pimpl->height).str());
+        if (pimpl->duration <= 0)
+            throw runtime_error((boost::format("error: duratuion (%1%) <= 0") % pimpl->duration).str());
     }
     catch(exception &e)
     {
