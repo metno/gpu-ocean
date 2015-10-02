@@ -3,7 +3,7 @@
 
 #include "programoptions.h"
 #include "initconditions.h"
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <vector>
 
 /**
@@ -62,6 +62,6 @@ private:
     SimBaseImpl *pimpl;
 };
 
-typedef boost::shared_ptr<SimBase> SimBasePtr;
+typedef std::shared_ptr<SimBase> SimBasePtr;
 
 #endif // SIMBASE_H

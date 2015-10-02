@@ -2,10 +2,10 @@
 #define INITCONDITIONS_H
 
 #include "programoptions.h"
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <vector>
 
-typedef boost::shared_ptr<std::vector<float> > FieldPtr;
+typedef std::shared_ptr<std::vector<float> > FieldPtr;
 
 // This class holds initial conditions for a simulation.
 class InitConditions
@@ -19,6 +19,6 @@ private:
     InitConditionsImpl *pimpl;
 };
 
-typedef boost::shared_ptr<InitConditions> InitCondPtr;
+typedef std::shared_ptr<InitConditions> InitCondPtr;
 
 #endif // INITCONDITIONS_H

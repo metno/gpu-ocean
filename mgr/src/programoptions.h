@@ -1,7 +1,7 @@
 #ifndef PROGRAMOPTIONS_H
 #define PROGRAMOPTIONS_H
 
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <string>
 #include <ostream>
 
@@ -25,6 +25,6 @@ private:
 // Formats output of a ProgramOptions object.
 std::ostream &operator<<(std::ostream &, const ProgramOptions &);
 
-typedef boost::shared_ptr<ProgramOptions> OptionsPtr;
+typedef std::shared_ptr<ProgramOptions> OptionsPtr;
 
 #endif // PROGRAMOPTIONS_H

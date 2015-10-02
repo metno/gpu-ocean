@@ -28,6 +28,9 @@ IF(NOT CMAKE_HOST_WIN32)
 	ENDIF()
 ENDIF()
 
+# Enable C++11
+SET(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}" CACHE STRING " " FORCE)
+
 SET(Boost_USE_MULTITHREADED ON)
 
 #Set the paths we know

@@ -23,7 +23,7 @@ void InitConditions::init(const OptionsPtr &)
     // TBD
 }
 
-boost::shared_ptr<vector<float> > InitConditions::field() const
+std::shared_ptr<vector<float> > InitConditions::field() const
 {
     return pimpl->field;
 }
