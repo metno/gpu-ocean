@@ -30,7 +30,7 @@ BOOST_FIXTURE_TEST_SUITE(TestManager, ManagerFixture)
 
 BOOST_AUTO_TEST_CASE(TestManagerInitialized)
 {
-	BOOST_CHECK_EQUAL(manager->initialized(), false);
+	BOOST_CHECK_EQUAL(manager->initialized(), true);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
