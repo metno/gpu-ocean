@@ -1,13 +1,7 @@
 #ifndef OCLUTILS_H
 #define OCLUTILS_H
 
-// All OpenCL headers
-#if defined (__APPLE__) || defined(MACOSX)
-    #include <OpenCL/opencl.h>
-#else
-    #include <CL/opencl.h>
-#endif
-
+#include <CL/cl.hpp>
 #include <cstdio>
 #include <vector>
 #include <string>
@@ -37,12 +31,12 @@
 class OpenCLUtils
 {
 public:
-    static cl_uint getPlatforms(std::vector<cl_platform_id> &);
-    static std::string getPlatformName(cl_platform_id);
-    static std::string getDeviceName(cl_device_id);
-    static cl_uint countDevices(cl_platform_id);
+    static cl_uint getPlatforms(std::vector<cl::Platform> *);
+    static std::string getPlatformName(const cl::Platform &);
+    static std::string getDeviceName(const cl::Device &);
+    static cl_uint countDevices(const cl::Platform &);
     static void listDevices();
-    static std::string loadKernel(const char *);
+    static cl::Program::Sources loadSingleKernel(const char *);
     static cl_program createProgram(const cl_context &, const std::string &);
 };
 

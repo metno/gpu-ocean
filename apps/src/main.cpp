@@ -49,9 +49,9 @@ int main(int argc, char *argv[])
 #endif
 
     // do some OpenCL stuff
-    vector<cl_platform_id> oclPlatforms;
-    OpenCLUtils::getPlatforms(oclPlatforms);
-    if(oclPlatforms.size())
+    vector<cl::Platform> oclPlatforms;
+    OpenCLUtils::getPlatforms(&oclPlatforms);
+    if (!oclPlatforms.empty())
         OpenCLUtils::countDevices(oclPlatforms[0]);
 
 #ifndef NDEBUG

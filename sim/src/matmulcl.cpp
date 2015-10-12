@@ -21,7 +21,7 @@ class MatMulExecutor
 {
 public:
     MatMulExecutor(size_t, const vector<float> &ha, const vector<float> &hb, cl_device_type, const string &);
-    virtual ~MatMulExecutor();
+    virtual ~MatMulExecutor() {}
     void initialize();
     void execute();
     float elapsedMilliseconds() const;
@@ -29,8 +29,7 @@ public:
     string deviceName() const;
 
 private:
-    void releaseObjects() const;
-    cl_int createContext(vector<cl_device_id> *);
+    cl_int createContext(vector<cl::Device> *);
     cl_int createInputBuffers();
 
     struct MatMulExecutorImpl;
@@ -51,14 +50,14 @@ struct MatMulExecutor::MatMulExecutorImpl
     vector<float> ha;
     vector<float> hb;
 
-    cl_context context;
-    cl_program program;
-    cl_kernel kernel;
-    cl_mem a;
-    cl_mem b;
-    cl_mem ab;
-    cl_command_queue queue;
-    cl_event event;
+    cl::Context context;
+    cl::Program program;
+    cl::Kernel kernel;
+    cl::Buffer a;
+    cl::Buffer b;
+    cl::Buffer ab;
+    cl::CommandQueue queue;
+    cl::Event event;
 
     MatMulExecutorImpl(size_t, const vector<float> &, const vector<float> &, cl_device_type, const string &);
 };
@@ -82,12 +81,6 @@ MatMulExecutor::MatMulExecutor(
 {
 }
 
-MatMulExecutor::~MatMulExecutor()
-{
-    if (pimpl->initialized)
-        releaseObjects();
-}
-
 /**
  * Initializes the executor. Throws std::runtime_error if the matrix size is null.
  */
@@ -97,29 +90,28 @@ void MatMulExecutor::initialize()
         throw std::runtime_error((boost::format("size (%1%) <= 0") % pimpl->size).str());
 
     cl_int error;
-    vector<cl_device_id> deviceIds;
+    vector<cl::Device> devices;
 
     // create context
-    CL_CHECK(createContext(&deviceIds));
+    CL_CHECK(createContext(&devices));
 
     // create random input matrices
     CL_CHECK(createInputBuffers());
 
     // create program from source
-    pimpl->program = OpenCLUtils::createProgram(pimpl->context, OpenCLUtils::loadKernel(pimpl->kernelFileName.c_str()));
+    pimpl->program = cl::Program(pimpl->context, OpenCLUtils::loadSingleKernel(pimpl->kernelFileName.c_str()), &error);
+    CL_CHECK(error);
 
     // compile program
-    error = clBuildProgram(
-                pimpl->program, deviceIds.size(), deviceIds.data(), (boost::format("-D MATRIX_SIZE=%d") % pimpl->size).str().c_str(), 0, 0);
+    error = pimpl->program.build(devices, (boost::format("-D MATRIX_SIZE=%d") % pimpl->size).str().c_str(), 0, 0);
     if (error == CL_BUILD_PROGRAM_FAILURE) {
         string log;
         log.resize(2048);
         cerr << "build program failure detected:\n";
-        for (unsigned int i = 0; i < deviceIds.size(); ++i) {
+        for (unsigned int i = 0; i < devices.size(); ++i) {
             cerr << "============ build log for device " << i << ": ============\n";
-            cl_int error2 = clGetProgramBuildInfo(
-                        pimpl->program, deviceIds[i], CL_PROGRAM_BUILD_LOG, log.size(),
-                        const_cast<char *>(log.data()), 0);
+            cl_int error2;
+            std::string log = pimpl->program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[i], &error2);
             CL_CHECK(error2);
             cerr << log << endl;
         }
@@ -127,19 +119,19 @@ void MatMulExecutor::initialize()
     CL_CHECK(error);
 
     // create kernel
-    pimpl->kernel = clCreateKernel(pimpl->program, "MatMul", &error);
+    pimpl->kernel = cl::Kernel(pimpl->program, "MatMul", &error);
     CL_CHECK(error);
 
     // create buffer for output matrix
-    pimpl->ab = clCreateBuffer(pimpl->context, CL_MEM_WRITE_ONLY, sizeof(float) * pimpl->size * pimpl->size, 0, &error);
+    pimpl->ab = cl::Buffer(pimpl->context, CL_MEM_WRITE_ONLY, sizeof(float) * pimpl->size * pimpl->size, 0, &error);
     CL_CHECK(error);
 
-    clSetKernelArg(pimpl->kernel, 0, sizeof(cl_mem), &pimpl->a);
-    clSetKernelArg(pimpl->kernel, 1, sizeof(cl_mem), &pimpl->b);
-    clSetKernelArg(pimpl->kernel, 2, sizeof(cl_mem), &pimpl->ab);
+    pimpl->kernel.setArg<cl::Buffer>(0, pimpl->a);
+    pimpl->kernel.setArg<cl::Buffer>(1, pimpl->b);
+    pimpl->kernel.setArg<cl::Buffer>(2, pimpl->ab);
 
     // create command queue
-    pimpl->queue = clCreateCommandQueue(pimpl->context, deviceIds[0], CL_QUEUE_PROFILING_ENABLE, &error); // for now, use first device
+    pimpl->queue = cl::CommandQueue(pimpl->context, devices[0], CL_QUEUE_PROFILING_ENABLE, &error); // for now, use first device
     CL_CHECK(error);
 
     pimpl->initialized = true;
@@ -150,35 +142,15 @@ void MatMulExecutor::initialize()
  */
 void MatMulExecutor::execute()
 {
-    size_t offset[3] = { 0 };
-    size_t size[3] = { pimpl->size, pimpl->size, 1 };
+    CL_CHECK(pimpl->queue.enqueueNDRangeKernel(
+                 pimpl->kernel, cl::NullRange, cl::NDRange(pimpl->size, pimpl->size), cl::NullRange, 0, &pimpl->event));
 
-    CL_CHECK(clEnqueueNDRangeKernel(pimpl->queue, pimpl->kernel, 2, offset, size, 0, 0, 0, &pimpl->event));
+    CL_CHECK(pimpl->event.wait());
 
-    CL_CHECK(clWaitForEvents(1, &pimpl->event));
-
-    CL_CHECK(clGetEventProfilingInfo(pimpl->event, CL_PROFILING_COMMAND_START, sizeof(pimpl->cmdStart), &pimpl->cmdStart, 0));
-    CL_CHECK(clGetEventProfilingInfo(pimpl->event, CL_PROFILING_COMMAND_END, sizeof(pimpl->cmdEnd), &pimpl->cmdEnd, 0));
+    pimpl->cmdStart = pimpl->event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+    pimpl->cmdEnd = pimpl->event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
 
     // copy result back to host ... TBD
-}
-
-/**
- * Releases OpenCL objects.
- */
-void MatMulExecutor::releaseObjects() const
-{
-    if (!pimpl->initialized)
-        return;
-
-    CL_CHECK(clReleaseEvent(pimpl->event));
-    CL_CHECK(clReleaseCommandQueue(pimpl->queue));
-    CL_CHECK(clReleaseMemObject(pimpl->ab));
-    CL_CHECK(clReleaseKernel(pimpl->kernel));
-    CL_CHECK(clReleaseProgram(pimpl->program));
-    CL_CHECK(clReleaseMemObject(pimpl->b));
-    CL_CHECK(clReleaseMemObject(pimpl->a));
-    CL_CHECK(clReleaseContext(pimpl->context));
 }
 
 /**
@@ -210,13 +182,13 @@ string MatMulExecutor::deviceName() const
 
 /**
  * Creates the OpenCL context. Throws std::runtime_error if no relevant device is found.
- * @param deviceIds Output: IDs of devices matching this->pimpl->deviceType
+ * @param devices Output: Device objects matching this->pimpl->deviceType
  * @return OpenCL error code
  */
-cl_int MatMulExecutor::createContext(vector<cl_device_id> *deviceIds)
+cl_int MatMulExecutor::createContext(vector<cl::Device> *devices)
 {
-    vector<cl_platform_id> platforms;
-    OpenCLUtils::getPlatforms(platforms);
+    vector<cl::Platform> platforms;
+    OpenCLUtils::getPlatforms(&platforms);
 
     if (platforms.empty()) {
         throw runtime_error("No OpenCL platform found");
@@ -232,43 +204,41 @@ cl_int MatMulExecutor::createContext(vector<cl_device_id> *deviceIds)
     }
 #endif
 
-    cl_uint deviceIdCount = 0;
     cl_uint pfIndex = 0;
 
     // loop over platforms
     for (pfIndex = 0; pfIndex < platforms.size(); ++pfIndex) {
-        clGetDeviceIDs(platforms[pfIndex], pimpl->deviceType, 0, 0, &deviceIdCount);
-        if (deviceIdCount > 0)
+        platforms[pfIndex].getDevices(pimpl->deviceType, devices);
+        if (!devices->empty())
             break; // found at last one relevant device on this platform
     }
     if (pfIndex == platforms.size()) {
         throw runtime_error("No relevant OpenCL devices found on any platform");
     } else {
 #ifndef NDEBUG
-        cout << "Found " << deviceIdCount << " device(s)" << endl;
+        cout << "Found " << devices->size() << " device(s)" << endl;
 #endif
     }
 
     pimpl->platformName = OpenCLUtils::getPlatformName(platforms[pfIndex]);
 
-    deviceIds->resize(deviceIdCount);
-    clGetDeviceIDs(platforms[pfIndex], pimpl->deviceType, deviceIds->size(), deviceIds->data(), 0);
-
 #ifndef NDEBUG
-    for (cl_uint i = 0; i < deviceIds->size(); ++i) {
-        cout << "\t (" << (i + 1) << ") : " << OpenCLUtils::getDeviceName(deviceIds->at(i)) << endl;
+    for (cl_uint i = 0; i < devices.size(); ++i) {
+        cout << "\t (" << (i + 1) << ") : " << OpenCLUtils::getDeviceName(devices[i]) << endl;
     }
 #endif
 
-    pimpl->deviceName = OpenCLUtils::getDeviceName(deviceIds->front()); // for now, use first device
+    pimpl->deviceName = OpenCLUtils::getDeviceName(devices->front()); // for now, use first device
 
-    const cl_context_properties contextProperties[] =
+    cl_context_properties contextProperties[] =
     {
-        CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(platforms[pfIndex]),
-        0, 0
+        CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[pfIndex])(),
+        0
     };
     cl_int error = CL_SUCCESS;
-    pimpl->context = clCreateContext(contextProperties, deviceIds->size(), deviceIds->data(), errorCallback, 0, &error);
+
+    pimpl->context = cl::Context(*devices, contextProperties, errorCallback, 0, &error);
+
     return error;
 }
 
@@ -280,15 +250,15 @@ cl_int MatMulExecutor::createInputBuffers()
 {
     cl_int error = CL_SUCCESS;
 
-    pimpl->a = clCreateBuffer(
-                pimpl->context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float) * pimpl->size * pimpl->size, pimpl->ha.data(),
-                &error);
+    pimpl->a = cl::Buffer(
+                pimpl->context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float) * pimpl->size * pimpl->size,
+                pimpl->ha.data(), &error);
     if (error != CL_SUCCESS)
         return error;
 
-    pimpl->b = clCreateBuffer(
-                pimpl->context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float) * pimpl->size * pimpl->size, pimpl->hb.data(),
-                &error);
+    pimpl->b = cl::Buffer(
+                pimpl->context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float) * pimpl->size * pimpl->size,
+                pimpl->hb.data(), &error);
     if (error != CL_SUCCESS)
         return error;
 
