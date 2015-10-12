@@ -87,7 +87,7 @@ MatMulExecutor::MatMulExecutor(
 void MatMulExecutor::initialize()
 {
     if (pimpl->size <= 0)
-        throw std::runtime_error((boost::format("size (%1%) <= 0") % pimpl->size).str());
+        throw runtime_error((boost::format("size (%1%) <= 0") % pimpl->size).str());
 
     cl_int error;
     vector<cl::Device> devices;
@@ -108,10 +108,10 @@ void MatMulExecutor::initialize()
         string log;
         log.resize(2048);
         cerr << "build program failure detected:\n";
-        for (unsigned int i = 0; i < devices.size(); ++i) {
+        for (int i = 0; i < devices.size(); ++i) {
             cerr << "============ build log for device " << i << ": ============\n";
             cl_int error2;
-            std::string log = pimpl->program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[i], &error2);
+            const string log = pimpl->program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[i], &error2);
             CL_CHECK(error2);
             cerr << log << endl;
         }
