@@ -95,7 +95,7 @@ void matmul(size_t size, bool execOnCpu)
 #ifdef EXECNOOP
     sources.push_back(make_pair("MatMulNoop", "matmul_noop.cl"));
 #endif
-    OpenCLUtils::initKernels(execOnCpu, context, devices, sources, (boost::format("-D MATRIX_SIZE=%d") % size).str());
+    OpenCLUtils::initKernels(context, devices, sources, (boost::format("-D MATRIX_SIZE=%d") % size).str());
     // --- END initialize kernels
 
 

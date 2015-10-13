@@ -140,7 +140,7 @@ static void printProgramBuildLog(const cl::Program &program, const vector<cl::De
 
 // Initializes kernels.
 void OpenCLUtils::initKernels(
-        bool execOnCpu, const cl::Context &context, const vector<cl::Device> &devices,
+        const cl::Context &context, const vector<cl::Device> &devices,
         const vector<pair<string, string> > &sources, const string &programOptions)
 {
     if (kernelsInit)
