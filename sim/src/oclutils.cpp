@@ -86,21 +86,25 @@ void OpenCLUtils::listDevices()
 }
 
 /**
- * Loads a single kernel file.
- * @param name Input: Kernel file name
+ * Loads kernel files.
+ * @param names Input: Kernel file names
  * @return The string contents and size of the kernel
  */
-cl::Program::Sources OpenCLUtils::loadSingleKernel(const char *name)
+cl::Program::Sources OpenCLUtils::loadKernels(const vector<string> &names)
 {
     const char *kernelDir = getenv("KERNELDIR");
     if (!kernelDir)
         throw runtime_error("KERNELDIR environment variable not set");
-    ifstream in((boost::format("%s/%s") % kernelDir % name).str().c_str());
-    if (!in.good())
-        throw runtime_error((boost::format("failed to open kernel file >%s<") % name).str());
-    string result((istreambuf_iterator<char>(in)), istreambuf_iterator<char>());
+
     cl::Program::Sources sources;
-    sources.push_back(std::make_pair(result.c_str(), result.size()));
+    for (vector<string>::const_iterator it = names.begin(); it != names.end(); ++it) {
+        ifstream in((boost::format("%s/%s") % kernelDir % *it).str().c_str());
+        if (!in.good())
+            throw runtime_error((boost::format("failed to open kernel file >%s<") % *it).str());
+        string result((istreambuf_iterator<char>(in)), istreambuf_iterator<char>());
+        sources.push_back(std::make_pair(result.c_str(), result.size()));
+    }
+
     return sources;
 }
 

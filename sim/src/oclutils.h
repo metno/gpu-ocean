@@ -36,7 +36,7 @@ public:
     static std::string getDeviceName(const cl::Device &);
     static cl_uint countDevices(const cl::Platform &);
     static void listDevices();
-    static cl::Program::Sources loadSingleKernel(const char *);
+    static cl::Program::Sources loadKernels(const std::vector<std::string> &);
     static cl_program createProgram(const cl_context &, const std::string &);
 };
 

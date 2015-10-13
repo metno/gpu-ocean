@@ -8,7 +8,7 @@
 #include "boost/format.hpp"
 
 #undef NDEBUG
-#define NDEBUG
+//#define NDEBUG
 
 #define EXECFULL
 #define EXECNOOP
@@ -134,19 +134,26 @@ void matmul(size_t size, bool execOnCpu)
 
     // --- BEGIN set up kernels and output structures ---------------------------
 
+    // create program
+    vector<string> sources;
 #ifdef EXECFULL
-    // create program 1 (full multiplication) from source
-    cl::Program program_full(context, OpenCLUtils::loadSingleKernel("matmul.cl"), &error);
+    sources.push_back("matmul.cl");
+#endif
+#ifdef EXECNOOP
+    sources.push_back("matmul_noop.cl");
+#endif
+    cl::Program program(context, OpenCLUtils::loadKernels(sources), &error);
     CL_CHECK(error);
 
-    // compile program 1
-    error = program_full.build(devices, (boost::format("-D MATRIX_SIZE=%d") % size).str().c_str(), 0, 0);
+    // compile program
+    error = program.build(devices, (boost::format("-D MATRIX_SIZE=%d") % size).str().c_str(), 0, 0);
     if (error == CL_BUILD_PROGRAM_FAILURE)
-        printProgramBuildLog(program_full, devices);
+        printProgramBuildLog(program, devices);
     CL_CHECK(error);
 
-    // create kernel 1
-    cl::Kernel kernel_full(program_full, "MatMul", &error);
+#ifdef EXECFULL
+    // create kernel
+    cl::Kernel kernel_full(program, "MatMul", &error);
     CL_CHECK(error);
 
     // create buffer for output matrix
@@ -159,21 +166,9 @@ void matmul(size_t size, bool execOnCpu)
     kernel_full.setArg<cl::Buffer>(2, ab_full);
 #endif
 
-    // -------------------------------------------------------------------------------
-
 #ifdef EXECNOOP
-    // create program 2 (only copying memory between host and device) from source
-    cl::Program program_noop(context, OpenCLUtils::loadSingleKernel("matmul_noop.cl"), &error);
-    CL_CHECK(error);
-
-    // compile program 2
-    error = program_noop.build(devices, (boost::format("-D MATRIX_SIZE=%d") % size).str().c_str(), 0, 0);
-    if (error == CL_BUILD_PROGRAM_FAILURE)
-        printProgramBuildLog(program_noop, devices);
-    CL_CHECK(error);
-
-    // create kernel 2
-    cl::Kernel kernel_noop(program_noop, "MatMulNoop", &error);
+    // create kernel
+    cl::Kernel kernel_noop(program, "MatMulNoop", &error);
     CL_CHECK(error);
 
     // create buffer for output matrix
