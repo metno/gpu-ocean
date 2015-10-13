@@ -37,6 +37,7 @@ public:
     static std::string getDeviceName(const cl::Device &);
     static cl_uint countDevices(const cl::Platform &);
     static void listDevices();
+    static float elapsedMilliseconds(const cl::Event &);
     static void initKernels(
             bool, const cl::Context &, const std::vector<cl::Device> &, const std::vector<std::pair<std::string, std::string> > &,
             const std::string &);

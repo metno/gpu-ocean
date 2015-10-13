@@ -86,6 +86,17 @@ void OpenCLUtils::listDevices()
 }
 
 /**
+ * Returns the execution time from an event.
+ * @param event Input: The event object
+ * @return Elapsed execution time in milliseconds
+ */
+float OpenCLUtils::elapsedMilliseconds(const cl::Event &event)
+{
+    return (event.getProfilingInfo<CL_PROFILING_COMMAND_END>()
+            - event.getProfilingInfo<CL_PROFILING_COMMAND_START>()) * .000001; // note: _START and _END values are both in nanoseconds
+}
+
+/**
  * Loads kernel files.
  * @param names Input: Kernel file names
  * @return The string contents and size of the kernel
@@ -107,7 +118,6 @@ static cl::Program::Sources loadKernels(const vector<string> &names)
 
     return sources;
 }
-
 
 /**
  * Prints the build log of a program on stderr.

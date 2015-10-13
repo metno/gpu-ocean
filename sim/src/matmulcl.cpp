@@ -41,17 +41,6 @@ static void createInputMatrices(size_t size, vector<float> &a, vector<float> &b)
 }
 
 /**
- * Returns the execution time from an event.
- * @param event Input: The event object
- * @return Elapsed execution time in milliseconds
- */
-static float elapsedMilliseconds(const cl::Event &event)
-{
-    return (event.getProfilingInfo<CL_PROFILING_COMMAND_END>()
-            - event.getProfilingInfo<CL_PROFILING_COMMAND_START>()) * .000001; // note: _START and _END values are both in nanoseconds
-}
-
-/**
  * Public function for multiplying two NxN matrices.
  * Throws std::runtime_error if something goes wrong.
  * @param size Input: The size of N
@@ -159,7 +148,7 @@ void matmul(size_t size, bool execOnCpu)
                  OpenCLUtils::getKernel("MatMul"), cl::NullRange, cl::NDRange(size, size), cl::NullRange, 0, &event));
     CL_CHECK(event.wait());
     // examine contents of ab_full ... TBD
-    const float msecs_full = elapsedMilliseconds(event);
+    const float msecs_full = OpenCLUtils::elapsedMilliseconds(event);
 #else
     const float msecs_full = -1;
 #endif
@@ -170,7 +159,7 @@ void matmul(size_t size, bool execOnCpu)
                  OpenCLUtils::getKernel("MatMulNoop"), cl::NullRange, cl::NDRange(size, size), cl::NullRange, 0, &event));
     CL_CHECK(event.wait());
     // examine contents of ab_noop ... TBD
-    const float msecs_noop = elapsedMilliseconds(event);
+    const float msecs_noop = OpenCLUtils::elapsedMilliseconds(event);
 #else
     const float msecs_noop = -1;
 #endif
