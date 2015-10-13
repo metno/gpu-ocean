@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <vector>
 #include <string>
+#include <map>
 
 // define macros to assert that an expression evaluates to CL_SUCCESS
 // version 1:
@@ -36,8 +37,14 @@ public:
     static std::string getDeviceName(const cl::Device &);
     static cl_uint countDevices(const cl::Platform &);
     static void listDevices();
-    static cl::Program::Sources loadKernels(const std::vector<std::string> &);
-    static cl_program createProgram(const cl_context &, const std::string &);
+    static void initKernels(
+            bool, const cl::Context &, const std::vector<cl::Device> &, const std::vector<std::pair<std::string, std::string> > &,
+            const std::string &);
+    static cl::Kernel &getKernel(const std::string &);
+private:
+    static bool kernelsInit;
+    static std::map<std::string, cl::Kernel> kernels; // tag-to-kernel mapping
+    static cl::Program program;
 };
 
 #endif // OCLUTILS_H

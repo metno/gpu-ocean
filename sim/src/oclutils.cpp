@@ -90,7 +90,7 @@ void OpenCLUtils::listDevices()
  * @param names Input: Kernel file names
  * @return The string contents and size of the kernel
  */
-cl::Program::Sources OpenCLUtils::loadKernels(const vector<string> &names)
+static cl::Program::Sources loadKernels(const vector<string> &names)
 {
     const char *kernelDir = getenv("KERNELDIR");
     if (!kernelDir)
@@ -108,19 +108,70 @@ cl::Program::Sources OpenCLUtils::loadKernels(const vector<string> &names)
     return sources;
 }
 
-/**
- * Creates a program from a kernel.
- * @param source Input: Kernel source
- * @return Program
- */
-cl_program OpenCLUtils::createProgram(const cl_context &context, const string &source)
-{
-    size_t lengths[1] = { source.size() };
-    const char *sources[1] = { source.data() };
 
-    cl_int error = 0;
-    cl_program program = clCreateProgramWithSource(context, 1, sources, lengths, &error);
+/**
+ * Prints the build log of a program on stderr.
+ * @param program Input: The program object
+ * @param devices Input: The device objects
+ */
+static void printProgramBuildLog(const cl::Program &program, const vector<cl::Device> &devices)
+{
+    string log;
+    log.resize(2048);
+    cerr << "build program failure detected:\n";
+    for (int i = 0; i < devices.size(); ++i) {
+        cerr << "============ build log for device " << i << ": ============\n";
+        cl_int error;
+        const string log = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[i], &error);
+        CL_CHECK(error);
+        cerr << log << endl;
+    }
+}
+
+// Initializes kernels.
+void OpenCLUtils::initKernels(
+        bool execOnCpu, const cl::Context &context, const vector<cl::Device> &devices,
+        const vector<pair<string, string> > &sources, const string &programOptions)
+{
+    if (kernelsInit)
+        throw runtime_error("kernels already initialized");
+
+    cl_int error;
+
+    // create program
+    vector<string> srcFiles;
+    for (vector<pair<string, string> >::const_iterator it = sources.begin(); it != sources.end(); ++it) {
+        const string srcFile = it->second;
+        srcFiles.push_back(srcFile);
+    }
+    program = cl::Program(context, loadKernels(srcFiles), &error);
     CL_CHECK(error);
 
-    return program;
+    // compile program
+    error = program.build(devices, programOptions.c_str(), 0, 0);
+    if (error == CL_BUILD_PROGRAM_FAILURE)
+        printProgramBuildLog(program, devices);
+    CL_CHECK(error);
+
+    // create kernels
+    for (vector<pair<string, string> >::const_iterator it = sources.begin(); it != sources.end(); ++it) {
+        const string tag = it->first;
+        kernels[tag] = cl::Kernel(program, tag.c_str(), &error);
+        CL_CHECK(error);
+    }
+
+    kernelsInit = true;
+}
+
+bool OpenCLUtils::kernelsInit = false;
+map<string, cl::Kernel> OpenCLUtils::kernels;
+cl::Program OpenCLUtils::program;
+
+// Returns the kernel object for a given tag.
+cl::Kernel &OpenCLUtils::getKernel(const string &tag)
+{
+    if (!kernelsInit)
+        throw runtime_error("kernels not initialized");
+
+    return kernels[tag];
 }

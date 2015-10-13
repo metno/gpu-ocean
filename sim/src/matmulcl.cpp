@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <map>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -51,25 +52,6 @@ static float elapsedMilliseconds(const cl::Event &event)
 }
 
 /**
- * Prints the build log of a program on stderr.
- * @param program Input: The program object
- * @param devices Input: The device objects
- */
-static void printProgramBuildLog(const cl::Program &program, vector<cl::Device> &devices)
-{
-    string log;
-    log.resize(2048);
-    cerr << "build program failure detected:\n";
-    for (int i = 0; i < devices.size(); ++i) {
-        cerr << "============ build log for device " << i << ": ============\n";
-        cl_int error;
-        const string log = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[i], &error);
-        CL_CHECK(error);
-        cerr << log << endl;
-    }
-}
-
-/**
  * Public function for multiplying two NxN matrices.
  * Throws std::runtime_error if something goes wrong.
  * @param size Input: The size of N
@@ -116,80 +98,56 @@ void matmul(size_t size, bool execOnCpu)
     // --- END get device and create context ---------------------------
 
 
-    // --- BEGIN set up input structures ---------------------------
+    // --- BEGIN initialize kernels
+    vector<pair<string, string> > sources;
+#ifdef EXECFULL
+    sources.push_back(make_pair("MatMul", "matmul.cl"));
+#endif
+#ifdef EXECNOOP
+    sources.push_back(make_pair("MatMulNoop", "matmul_noop.cl"));
+#endif
+    OpenCLUtils::initKernels(execOnCpu, context, devices, sources, (boost::format("-D MATRIX_SIZE=%d") % size).str());
+    // --- END initialize kernels
 
-    // generate matrices with random values
+
+    // --- BEGIN set up kernel arguments ---------------------------
+
+    // generate input matrices with random values
     vector<float> ha;
     vector<float> hb;
     createInputMatrices(size, ha, hb);
 
-    // create buffers
+    // create buffers for input matrices
     cl::Buffer a = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float) * size * size, ha.data(), &error);
     CL_CHECK(error);
     cl::Buffer b = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float) * size * size, hb.data(), &error);
     CL_CHECK(error);
 
-    // --- END set up input structures ---------------------------
-
-
-    // --- BEGIN set up kernels and output structures ---------------------------
-
-    // create program
-    vector<string> sources;
 #ifdef EXECFULL
-    sources.push_back("matmul.cl");
-#endif
-#ifdef EXECNOOP
-    sources.push_back("matmul_noop.cl");
-#endif
-    cl::Program program(context, OpenCLUtils::loadKernels(sources), &error);
-    CL_CHECK(error);
-
-    // compile program
-    error = program.build(devices, (boost::format("-D MATRIX_SIZE=%d") % size).str().c_str(), 0, 0);
-    if (error == CL_BUILD_PROGRAM_FAILURE)
-        printProgramBuildLog(program, devices);
-    CL_CHECK(error);
-
-#ifdef EXECFULL
-    // create kernel
-    cl::Kernel kernel_full(program, "MatMul", &error);
-    CL_CHECK(error);
-
     // create buffer for output matrix
     cl::Buffer ab_full(context, CL_MEM_WRITE_ONLY, sizeof(float) * size * size, 0, &error);
     CL_CHECK(error);
 
     // set kernel args
-    kernel_full.setArg<cl::Buffer>(0, a);
-    kernel_full.setArg<cl::Buffer>(1, b);
-    kernel_full.setArg<cl::Buffer>(2, ab_full);
+    OpenCLUtils::getKernel("MatMul").setArg<cl::Buffer>(0, a);
+    OpenCLUtils::getKernel("MatMul").setArg<cl::Buffer>(1, b);
+    OpenCLUtils::getKernel("MatMul").setArg<cl::Buffer>(2, ab_full);
 #endif
-
 #ifdef EXECNOOP
-    // create kernel
-    cl::Kernel kernel_noop(program, "MatMulNoop", &error);
-    CL_CHECK(error);
-
     // create buffer for output matrix
     cl::Buffer ab_noop(context, CL_MEM_WRITE_ONLY, sizeof(float) * size * size, 0, &error);
     CL_CHECK(error);
 
     // set kernel args
-    kernel_noop.setArg<cl::Buffer>(0, a);
-    kernel_noop.setArg<cl::Buffer>(1, b);
-    kernel_noop.setArg<cl::Buffer>(2, ab_noop);
+    OpenCLUtils::getKernel("MatMulNoop").setArg<cl::Buffer>(0, a);
+    OpenCLUtils::getKernel("MatMulNoop").setArg<cl::Buffer>(1, b);
+    OpenCLUtils::getKernel("MatMulNoop").setArg<cl::Buffer>(2, ab_noop);
 #endif
+    // --- END set up kernel arguments ---------------------------
 
-    // --- END set up kernels and output structures ---------------------------
-
-
-    // --- BEGIN create command queue ---------------------------
-
+    // create command queue
     cl::CommandQueue queue(context, devices[devIndex], CL_QUEUE_PROFILING_ENABLE, &error);
     CL_CHECK(error);
-
-    // --- END create command queue ---------------------------
 
 
     // --- BEGIN execute kernels ---------------------------
@@ -197,7 +155,8 @@ void matmul(size_t size, bool execOnCpu)
 
 #ifdef EXECFULL
     // execute full multiplication
-    CL_CHECK(queue.enqueueNDRangeKernel(kernel_full, cl::NullRange, cl::NDRange(size, size), cl::NullRange, 0, &event));
+    CL_CHECK(queue.enqueueNDRangeKernel(
+                 OpenCLUtils::getKernel("MatMul"), cl::NullRange, cl::NDRange(size, size), cl::NullRange, 0, &event));
     CL_CHECK(event.wait());
     // examine contents of ab_full ... TBD
     const float msecs_full = elapsedMilliseconds(event);
@@ -207,7 +166,8 @@ void matmul(size_t size, bool execOnCpu)
 
 #ifdef EXECNOOP
     // execute noop (only copying memory between host and device)
-    CL_CHECK(queue.enqueueNDRangeKernel(kernel_noop, cl::NullRange, cl::NDRange(size, size), cl::NullRange, 0, &event));
+    CL_CHECK(queue.enqueueNDRangeKernel(
+                 OpenCLUtils::getKernel("MatMulNoop"), cl::NullRange, cl::NDRange(size, size), cl::NullRange, 0, &event));
     CL_CHECK(event.wait());
     // examine contents of ab_noop ... TBD
     const float msecs_noop = elapsedMilliseconds(event);
