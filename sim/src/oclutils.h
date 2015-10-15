@@ -38,14 +38,22 @@ public:
     static cl_uint countDevices(const cl::Platform &);
     static void listDevices();
     static float elapsedMilliseconds(const cl::Event &);
-    static void initKernels(
-            const cl::Context &, const std::vector<cl::Device> &, const std::vector<std::pair<std::string, std::string> > &,
-            const std::string &);
-    static cl::Kernel &getKernel(const std::string &);
+    static void init(const std::vector<std::pair<std::string, std::string> > &, const std::string &, cl_device_type);
+    static cl::Context *getContext();
+    static cl::Kernel *getKernel(const std::string &);
+    static cl::CommandQueue *getQueue();
+    static std::string getPlatformName();
+    static std::string getDeviceName();
 private:
-    static bool kernelsInit;
-    static std::map<std::string, cl::Kernel> kernels; // tag-to-kernel mapping
-    static cl::Program program;
+    static bool isInit;
+    static std::vector<cl::Platform> platforms;
+    static cl_uint pfmIndex;
+    static std::vector<cl::Device> devices;
+    static cl_uint devIndex;
+    static cl::Context *context;
+    static cl::Program *program;
+    static std::map<std::string, cl::Kernel *> kernels; // tag-to-kernel mapping
+    static cl::CommandQueue *queue;
 };
 
 #endif // OCLUTILS_H

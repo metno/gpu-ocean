@@ -3,13 +3,13 @@
 #include "initconditions.h"
 #include "simbase.h"
 #include "simulator.h"
-#include "dummysim.h"
+#include "testsim.h"
 #include <stdexcept>
 #include <vector>
 #include <iostream>
 
 // comment out the following line to run the real simulator:
-#define DUMMYSIM
+#define TESTSIM
 
 using namespace std;
 
@@ -20,8 +20,8 @@ struct Manager::ManagerImpl
 };
 
 Manager::ManagerImpl::ManagerImpl(const OptionsPtr &options, const InitCondPtr &initCond)
-#ifdef DUMMYSIM
-    : sim(new DummySim(options, initCond))
+#ifdef TESTSIM
+    : sim(new TestSim(options, initCond))
 #else
     : sim(new Simulator(options, initCond))
 #endif

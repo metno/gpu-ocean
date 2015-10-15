@@ -124,7 +124,7 @@ static cl::Program::Sources loadKernels(const vector<string> &names)
  * @param program Input: The program object
  * @param devices Input: The device objects
  */
-static void printProgramBuildLog(const cl::Program &program, const vector<cl::Device> &devices)
+static void printProgramBuildLog(const cl::Program *program, const vector<cl::Device> &devices)
 {
     string log;
     log.resize(2048);
@@ -132,21 +132,56 @@ static void printProgramBuildLog(const cl::Program &program, const vector<cl::De
     for (int i = 0; i < devices.size(); ++i) {
         cerr << "============ build log for device " << i << ": ============\n";
         cl_int error;
-        const string log = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[i], &error);
+        const string log = program->getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[i], &error);
         CL_CHECK(error);
         cerr << log << endl;
     }
 }
 
-// Initializes kernels.
-void OpenCLUtils::initKernels(
-        const cl::Context &context, const vector<cl::Device> &devices,
-        const vector<pair<string, string> > &sources, const string &programOptions)
+static void errorCallback(const char *errInfo, const void *privateInfo, size_t cb, void *userData)
 {
-    if (kernelsInit)
-        throw runtime_error("kernels already initialized");
+    cout << "errorCallback:" << errInfo << endl;
+}
+
+// Initializes OpenCL structures.
+void OpenCLUtils::init(const vector<pair<string, string> > &sources, const string &programOptions, cl_device_type deviceType)
+{
+    if (isInit)
+        throw runtime_error("OpenCL structures already initialized");
 
     cl_int error;
+
+    // --- BEGIN get device and create context ---------------------------
+    // get platforms
+    getPlatforms(&platforms);
+    if (platforms.empty())
+        throw runtime_error("No OpenCL platform found");
+
+    // get device
+    for (pfmIndex = 0; pfmIndex < platforms.size(); ++pfmIndex) {
+        platforms[pfmIndex].getDevices(deviceType, &devices);
+        if (!devices.empty())
+            break; // found at last one relevant device on this platform
+    }
+    if (pfmIndex == platforms.size())
+        throw runtime_error("No relevant OpenCL devices found on any platform");
+
+    devIndex = 0; // for now, use first device
+    const string deviceName = getDeviceName(devices[devIndex]);
+    const string platformName = getPlatformName(platforms[pfmIndex]);
+
+    // create context
+    cl_context_properties contextProperties[] =
+    {
+        CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[pfmIndex])(),
+        0
+    };
+    context = new cl::Context(devices, contextProperties, errorCallback, 0, &error);
+    CL_CHECK(error);
+    // --- END get device and create context ---------------------------
+
+
+    // --- BEGIN create kernels -------------------------------
 
     // create program
     vector<string> srcFiles;
@@ -154,11 +189,11 @@ void OpenCLUtils::initKernels(
         const string srcFile = it->second;
         srcFiles.push_back(srcFile);
     }
-    program = cl::Program(context, loadKernels(srcFiles), &error);
+    program = new cl::Program(*context, loadKernels(srcFiles), &error);
     CL_CHECK(error);
 
     // compile program
-    error = program.build(devices, programOptions.c_str(), 0, 0);
+    error = program->build(devices, programOptions.c_str(), 0, 0);
     if (error == CL_BUILD_PROGRAM_FAILURE)
         printProgramBuildLog(program, devices);
     CL_CHECK(error);
@@ -166,22 +201,53 @@ void OpenCLUtils::initKernels(
     // create kernels
     for (vector<pair<string, string> >::const_iterator it = sources.begin(); it != sources.end(); ++it) {
         const string tag = it->first;
-        kernels[tag] = cl::Kernel(program, tag.c_str(), &error);
+        kernels[tag] = new cl::Kernel(*program, tag.c_str(), &error);
         CL_CHECK(error);
     }
+    // --- END create kernels -------------------------------
 
-    kernelsInit = true;
+    // create command queue
+    queue = new cl::CommandQueue(*context, devices[devIndex], CL_QUEUE_PROFILING_ENABLE, &error);
+    CL_CHECK(error);
+
+    isInit = true;
 }
 
-bool OpenCLUtils::kernelsInit = false;
-map<string, cl::Kernel> OpenCLUtils::kernels;
-cl::Program OpenCLUtils::program;
+bool OpenCLUtils::isInit = false;
+vector<cl::Platform> OpenCLUtils::platforms;
+cl_uint OpenCLUtils::pfmIndex = 0;
+vector<cl::Device> OpenCLUtils::devices;
+cl_uint OpenCLUtils::devIndex = 0;
+cl::Context *OpenCLUtils::context = 0;
+cl::Program *OpenCLUtils::program = 0;
+map<string, cl::Kernel *> OpenCLUtils::kernels;
+cl::CommandQueue *OpenCLUtils::queue = 0;
+
+cl::Context *OpenCLUtils::getContext()
+{
+    return context;
+}
 
 // Returns the kernel object for a given tag.
-cl::Kernel &OpenCLUtils::getKernel(const string &tag)
+cl::Kernel *OpenCLUtils::getKernel(const string &tag)
 {
-    if (!kernelsInit)
-        throw runtime_error("kernels not initialized");
+    if (!isInit)
+        throw runtime_error("OpenCL structures not initialized");
 
     return kernels[tag];
+}
+
+cl::CommandQueue *OpenCLUtils::getQueue()
+{
+    return queue;
+}
+
+string OpenCLUtils::getPlatformName()
+{
+    return getPlatformName(platforms[pfmIndex]);
+}
+
+string OpenCLUtils::getDeviceName()
+{
+    return getDeviceName(devices[devIndex]);
 }
