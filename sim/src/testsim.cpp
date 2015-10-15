@@ -32,6 +32,17 @@ TestSim::TestSim(const OptionsPtr &options, const InitCondPtr &initCond)
     : SimBase(options, initCond)
     , pimpl(new TestSimImpl(options->nx())) // use nx for matrix size
 {
+}
+
+TestSim::~TestSim()
+{
+}
+
+void TestSim::_init()
+{
+    pimpl->nextStep = 0;
+    pimpl->finalStep = 10; // run 10 "simulation" steps
+
     // initialize OpenCL structures
     vector<pair<string, string> > sources;
 #ifdef EXECFULL
@@ -43,25 +54,15 @@ TestSim::TestSim(const OptionsPtr &options, const InitCondPtr &initCond)
     OpenCLUtils::init(
                 sources,
                 (boost::format("-D MATRIX_SIZE=%d") % pimpl->size).str(),
-                options->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU);
+                options()->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU);
 }
 
-TestSim::~TestSim()
-{
-}
-
-void TestSim::init()
-{
-    pimpl->nextStep = 0;
-    pimpl->finalStep = 10; // run 10 "simulation" steps
-}
-
-int TestSim::nextStep() const
+int TestSim::_nextStep() const
 {
     return pimpl->nextStep;
 }
 
-int TestSim::finalStep() const
+int TestSim::_finalStep() const
 {
     return pimpl->finalStep;
 }
@@ -85,7 +86,7 @@ static void createInputMatrices(size_t size, vector<float> &a, vector<float> &b)
     }
 }
 
-void TestSim::execNextStep()
+void TestSim::_execNextStep()
 {
     if (pimpl->nextStep > pimpl->finalStep)
         throw runtime_error((boost::format("error: next_step_ (%1%) > final_step_ (%2%)") % pimpl->nextStep % pimpl->finalStep).str());
@@ -166,12 +167,12 @@ void TestSim::execNextStep()
     pimpl->nextStep++;
 }
 
-vector<float> TestSim::results() const
+vector<float> TestSim::_results() const
 {
     return vector<float>(); // ### for now
 }
 
-void TestSim::printStatus() const
+void TestSim::_printStatus() const
 {
     cout << "TestSim::printStatus(); options: " << *options() << endl;
 }

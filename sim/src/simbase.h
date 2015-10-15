@@ -12,54 +12,30 @@
 class SimBase
 {
 public:
-
-    /**
-     * Initializes the simulator. This includes resetting the current and final step values.
-     */
-    virtual void init() = 0;
-
-    /**
-     * Returns the current step value.
-     */
-    virtual int nextStep() const = 0;
-
-    /**
-     * Returns the final step value.
-     */
-    virtual int finalStep() const = 0;
-
-    /**
-     * Executes the next simulation step and increases the step value by one.
-     * Throws std::runtime_error if the current step value exceeds the final one.
-     */
-    virtual void execNextStep() = 0;
-
-    /**
-     * Returns the simulation results at the current step.
-     */
-    virtual std::vector<float> results() const = 0;
-
-    virtual void printStatus() const = 0;
-
-    /**
-     * Returns the options.
-     */
+    void init();
+    int nextStep() const;
+    int finalStep() const;
+    void execNextStep();
+    std::vector<float> results() const;
+    void printStatus() const;
     OptionsPtr options() const;
-
-    /**
-     * Returns the initial conditions.
-     */
     InitCondPtr initCond() const;
 
 protected:
-
     SimBase(const OptionsPtr &, const InitCondPtr &);
     virtual ~SimBase();
+    virtual void _init() = 0;
+    virtual int _nextStep() const = 0;
+    virtual int _finalStep() const = 0;
+    virtual void _execNextStep() = 0;
+    virtual std::vector<float> _results() const = 0;
+    virtual void _printStatus() const = 0;
 
 private:
-
     struct SimBaseImpl;
     SimBaseImpl *pimpl;
+    void assertInitCalled() const;
+    void assertInitNotCalled() const;
 };
 
 typedef std::shared_ptr<SimBase> SimBasePtr;

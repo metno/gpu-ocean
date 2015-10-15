@@ -27,7 +27,7 @@ Simulator::~Simulator()
 {
 }
 
-void Simulator::init()
+void Simulator::_init()
 {
     pimpl->nextStep = 0;
 
@@ -35,17 +35,17 @@ void Simulator::init()
     pimpl->finalStep = 4; // ### for now
 }
 
-int Simulator::nextStep() const
+int Simulator::_nextStep() const
 {
     return pimpl->nextStep;
 }
 
-int Simulator::finalStep() const
+int Simulator::_finalStep() const
 {
     return pimpl->finalStep;
 }
 
-void Simulator::execNextStep()
+void Simulator::_execNextStep()
 {
     if (pimpl->nextStep > pimpl->finalStep)
         throw runtime_error((boost::format("error: next_step_ (%1%) > final_step_ (%2%)") % pimpl->nextStep % pimpl->finalStep).str());
@@ -55,12 +55,12 @@ void Simulator::execNextStep()
     pimpl->nextStep++;
 }
 
-vector<float> Simulator::results() const
+vector<float> Simulator::_results() const
 {
     return vector<float>(); // ### for now
 }
 
-void Simulator::printStatus() const
+void Simulator::_printStatus() const
 {
-    cout << "Simulator::printStatus(); options: " << *options() << endl;
+    cout << "Simulator::_printStatus(); options: " << *options() << endl;
 }

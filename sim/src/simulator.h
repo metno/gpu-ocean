@@ -13,12 +13,12 @@ public:
     virtual ~Simulator();
 
 private:
-    virtual void init();
-    virtual int nextStep() const;
-    virtual int finalStep() const;
-    virtual void execNextStep();
-    virtual std::vector<float> results() const;
-    virtual void printStatus() const;
+    virtual void _init();
+    virtual int _nextStep() const;
+    virtual int _finalStep() const;
+    virtual void _execNextStep();
+    virtual std::vector<float> _results() const;
+    virtual void _printStatus() const;
 
     struct SimulatorImpl;
     SimulatorImpl *pimpl;
