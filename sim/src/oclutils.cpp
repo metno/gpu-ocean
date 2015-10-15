@@ -113,7 +113,9 @@ static cl::Program::Sources loadKernels(const vector<string> &names)
         if (!in.good())
             throw runtime_error((boost::format("failed to open kernel file >%s<") % *it).str());
         string result((istreambuf_iterator<char>(in)), istreambuf_iterator<char>());
-        sources.push_back(std::make_pair(result.c_str(), result.size()));
+        char *buf = (char *)malloc(result.size() + 1);
+        strcpy(buf, result.c_str());
+        sources.push_back(std::make_pair(buf, result.size()));
     }
 
     return sources;
