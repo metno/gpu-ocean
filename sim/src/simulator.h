@@ -13,7 +13,7 @@ public:
     virtual ~Simulator();
 
 private:
-    virtual void _init();
+    virtual bool _init();
     virtual int _nextStep() const;
     virtual int _finalStep() const;
     virtual void _execNextStep();

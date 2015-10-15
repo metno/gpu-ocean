@@ -27,12 +27,14 @@ Simulator::~Simulator()
 {
 }
 
-void Simulator::_init()
+bool Simulator::_init()
 {
     pimpl->nextStep = 0;
 
     //pimpl->finalStep = calculate from options()->duration();
     pimpl->finalStep = 4; // ### for now
+
+    return true;
 }
 
 int Simulator::_nextStep() const

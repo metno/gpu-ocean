@@ -38,7 +38,7 @@ TestSim::~TestSim()
 {
 }
 
-void TestSim::_init()
+bool TestSim::_init()
 {
     pimpl->nextStep = 0;
     pimpl->finalStep = 10; // run 10 "simulation" steps
@@ -55,6 +55,8 @@ void TestSim::_init()
                 sources,
                 (boost::format("-D MATRIX_SIZE=%d") % pimpl->size).str(),
                 options()->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU);
+
+    return true;
 }
 
 int TestSim::_nextStep() const

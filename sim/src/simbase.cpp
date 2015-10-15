@@ -11,14 +11,14 @@ struct SimBase::SimBaseImpl
 {
     OptionsPtr options;
     InitCondPtr initCond;
-    bool initCalled;
+    bool isInit;
     SimBaseImpl(const OptionsPtr &, const InitCondPtr &);
 };
 
 SimBase::SimBaseImpl::SimBaseImpl(const OptionsPtr &options, const InitCondPtr &initCond)
     : options(options)
     , initCond(initCond)
-    , initCalled(false)
+    , isInit(false)
 {
 }
 
@@ -36,26 +36,26 @@ SimBase::~SimBase()
 {
 }
 
-void SimBase::assertInitCalled() const
+void SimBase::assertInitialized() const
 {
-    if (!pimpl->initCalled)
-        throw runtime_error("SimBase: init() not called");
+    if (!pimpl->isInit)
+        throw runtime_error("SimBase: not initialized");
 }
 
-void SimBase::assertInitNotCalled() const
+void SimBase::assertNotInitialized() const
 {
-    if (pimpl->initCalled)
-        throw runtime_error("SimBase: init() already called");
+    if (pimpl->isInit)
+        throw runtime_error("SimBase: already initialized");
 }
 
 /**
  * Initializes the simulator. This includes resetting the current and final step values.
+ * @return Initialization status (true iff initialization was successful)
  */
-void SimBase::init()
+bool SimBase::init()
 {
-    assertInitNotCalled();
-    _init();
-    pimpl->initCalled = true;
+    assertNotInitialized();
+    return pimpl->isInit = _init();
 }
 
 /**
@@ -63,7 +63,7 @@ void SimBase::init()
  */
 int SimBase::nextStep() const
 {
-    assertInitCalled();
+    assertInitialized();
     return _nextStep();
 }
 
@@ -72,7 +72,7 @@ int SimBase::nextStep() const
  */
 int SimBase::finalStep() const
 {
-    assertInitCalled();
+    assertInitialized();
     return _finalStep();
 }
 
@@ -82,7 +82,7 @@ int SimBase::finalStep() const
  */
 void SimBase::execNextStep()
 {
-    assertInitCalled();
+    assertInitialized();
     _execNextStep();
 }
 
@@ -91,7 +91,7 @@ void SimBase::execNextStep()
  */
 std::vector<float> SimBase::results() const
 {
-    assertInitCalled();
+    assertInitialized();
     return _results();
 }
 
@@ -100,7 +100,7 @@ std::vector<float> SimBase::results() const
  */
 void SimBase::printStatus() const
 {
-    assertInitCalled();
+    assertInitialized();
     _printStatus();
 }
 

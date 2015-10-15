@@ -12,7 +12,7 @@
 class SimBase
 {
 public:
-    void init();
+    bool init();
     int nextStep() const;
     int finalStep() const;
     void execNextStep();
@@ -24,7 +24,7 @@ public:
 protected:
     SimBase(const OptionsPtr &, const InitCondPtr &);
     virtual ~SimBase();
-    virtual void _init() = 0;
+    virtual bool _init() = 0;
     virtual int _nextStep() const = 0;
     virtual int _finalStep() const = 0;
     virtual void _execNextStep() = 0;
@@ -34,8 +34,8 @@ protected:
 private:
     struct SimBaseImpl;
     SimBaseImpl *pimpl;
-    void assertInitCalled() const;
-    void assertInitNotCalled() const;
+    void assertInitialized() const;
+    void assertNotInitialized() const;
 };
 
 typedef std::shared_ptr<SimBase> SimBasePtr;
