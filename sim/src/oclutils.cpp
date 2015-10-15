@@ -128,7 +128,6 @@ static void printProgramBuildLog(const cl::Program *program, const vector<cl::De
 {
     string log;
     log.resize(2048);
-    cerr << "build program failure detected:\n";
     for (int i = 0; i < devices.size(); ++i) {
         cerr << "============ build log for device " << i << ": ============\n";
         cl_int error;
@@ -194,8 +193,10 @@ void OpenCLUtils::init(const vector<pair<string, string> > &sources, const strin
 
     // compile program
     error = program->build(devices, programOptions.c_str(), 0, 0);
-    if (error == CL_BUILD_PROGRAM_FAILURE)
+    if (error == CL_BUILD_PROGRAM_FAILURE) {
+        cerr << "program build failure detected:\n";
         printProgramBuildLog(program, devices);
+    }
     CL_CHECK(error);
 
     // create kernels
