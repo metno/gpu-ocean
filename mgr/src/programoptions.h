@@ -17,6 +17,7 @@ public:
     float width() const;
     float height() const;
     float duration() const;
+    float cpu() const;
 private:
     struct ProgramOptionsImpl;
     ProgramOptionsImpl *pimpl;

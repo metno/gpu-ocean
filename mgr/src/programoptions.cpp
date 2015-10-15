@@ -17,6 +17,7 @@ struct ProgramOptions::ProgramOptionsImpl
     float width; // horizontal extension of grid (in meters)
     float height; // vertical extension of grid (in meters)
     float duration; // duration of simulation (in seconds)
+    bool cpu; // whether to run kernels on the CPU instead of the GPU
     ProgramOptionsImpl();
 };
 
@@ -26,6 +27,7 @@ ProgramOptions::ProgramOptionsImpl::ProgramOptionsImpl()
     , width(-1)
     , height(-1)
     , duration(-1)
+    , cpu(false)
 {
 };
 
@@ -51,6 +53,7 @@ bool ProgramOptions::parse(int argc, char *argv[])
                 ("version,v", "print version string")
                 ("help", "print this message")
                 ("config,c", po::value<string>(&config_file)->default_value(cfgfile_default), "configuration file")
+                ("cpu", "run on CPU (default is to run on GPU)")
                 ;
 
         // declare options that will be allowed both on command line and in config file
@@ -107,6 +110,9 @@ bool ProgramOptions::parse(int argc, char *argv[])
             return false;
         }
 
+        if (vm.count("cpu"))
+            pimpl->cpu = true;
+
         // final validation
         if (pimpl->nx <= 0)
             throw runtime_error((boost::format("error: nx (%1%) <= 0") % pimpl->nx).str());
@@ -157,6 +163,11 @@ float ProgramOptions::height() const
 float ProgramOptions::duration() const
 {
     return pimpl->duration;
+}
+
+float ProgramOptions::cpu() const
+{
+    return pimpl->cpu;
 }
 
 // Formats output of a ProgramOptions object.

@@ -40,8 +40,10 @@ TestSim::TestSim(const OptionsPtr &options, const InitCondPtr &initCond)
 #ifdef EXECNOOP
     sources.push_back(make_pair("MatMulNoop", "matmul_noop.cl"));
 #endif
-    const cl_device_type deviceType = CL_DEVICE_TYPE_CPU; // for now
-    OpenCLUtils::init(sources, (boost::format("-D MATRIX_SIZE=%d") % pimpl->size).str(), deviceType);
+    OpenCLUtils::init(
+                sources,
+                (boost::format("-D MATRIX_SIZE=%d") % pimpl->size).str(),
+                options->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU);
 }
 
 TestSim::~TestSim()
