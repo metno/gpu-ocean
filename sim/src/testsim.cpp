@@ -2,9 +2,10 @@
 #include "oclutils.h"
 #include "boost/format.hpp"
 #include <iostream>
+#include <unistd.h>
 
 #undef NDEBUG
-//#define NDEBUG
+#define NDEBUG
 
 #define EXECFULL // execute the kernel that does an actual matrix multiplication
 #define EXECNOOP // execute the kernel that does nothing
@@ -13,15 +14,17 @@ using namespace std;
 
 struct TestSim::TestSimImpl
 {
-    int nextStep;
-    int finalStep;
+    double currTime;
+    double maxTime;
+    double deltaTime;
     int size;
-    TestSimImpl(int);
+    TestSimImpl(int, double);
 };
 
-TestSim::TestSimImpl::TestSimImpl(int size)
-    : nextStep(-1)
-    , finalStep(-1)
+TestSim::TestSimImpl::TestSimImpl(int size, double maxTime)
+    : currTime(0)
+    , maxTime(maxTime)
+    , deltaTime(0.5)
     , size(size)
 {
     if (size <= 0)
@@ -30,7 +33,7 @@ TestSim::TestSimImpl::TestSimImpl(int size)
 
 TestSim::TestSim(const OptionsPtr &options, const InitCondPtr &initCond)
     : SimBase(options, initCond)
-    , pimpl(new TestSimImpl(options->nx())) // use nx for matrix size
+    , pimpl(new TestSimImpl(options->nx(), options->duration())) // use nx for matrix size
 {
 }
 
@@ -40,9 +43,6 @@ TestSim::~TestSim()
 
 bool TestSim::_init()
 {
-    pimpl->nextStep = 0;
-    pimpl->finalStep = 10; // run 10 "simulation" steps
-
     // initialize OpenCL structures
     vector<pair<string, string> > sources;
 #ifdef EXECFULL
@@ -59,14 +59,14 @@ bool TestSim::_init()
     return true;
 }
 
-int TestSim::_nextStep() const
+double TestSim::_currTime() const
 {
-    return pimpl->nextStep;
+    return pimpl->currTime;
 }
 
-int TestSim::_finalStep() const
+double TestSim::_maxTime() const
 {
-    return pimpl->finalStep;
+    return pimpl->maxTime;
 }
 
 /**
@@ -90,12 +90,7 @@ static void createInputMatrices(size_t size, vector<float> &a, vector<float> &b)
 
 void TestSim::_execNextStep()
 {
-    if (pimpl->nextStep > pimpl->finalStep)
-        throw runtime_error((boost::format("error: next_step_ (%1%) > final_step_ (%2%)") % pimpl->nextStep % pimpl->finalStep).str());
-
-
     cl_int error = CL_SUCCESS;
-
 
     // --- BEGIN set up kernel arguments ---------------------------
 
@@ -166,7 +161,9 @@ void TestSim::_execNextStep()
              % pimpl->size % pimpl->size % msecs_full % msecs_noop % OpenCLUtils::getPlatformName() % OpenCLUtils::getDeviceName()) << endl;
 #endif
 
-    pimpl->nextStep++;
+    usleep(0.4 * 1000000); // sleep a little while to simulate a more realistic computation time
+
+    pimpl->currTime += pimpl->deltaTime;
 }
 
 vector<float> TestSim::_results() const

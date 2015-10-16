@@ -16,7 +16,8 @@ public:
     int ny() const;
     float width() const;
     float height() const;
-    float duration() const;
+    double duration() const;
+    double wallDuration() const;
     float cpu() const;
 private:
     struct ProgramOptionsImpl;

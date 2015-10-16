@@ -16,8 +16,8 @@ public:
 
 private:
     virtual bool _init();
-    virtual int _nextStep() const;
-    virtual int _finalStep() const;
+    virtual double _currTime() const;
+    virtual double _maxTime() const;
     virtual void _execNextStep();
     virtual std::vector<float> _results() const;
     virtual void _printStatus() const;

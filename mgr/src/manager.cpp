@@ -80,22 +80,10 @@ void Manager::initSim()
     pimpl->sim->init();
 }
 
-// Returns the next simulation step.
-int Manager::nextStep() const
+// Executes the next simulation step and advances the simulation time.
+bool Manager::execNextStep()
 {
-    return pimpl->sim->nextStep();
-}
-
-// Returns the final simulation step.
-int Manager::finalStep() const
-{
-    return pimpl->sim->finalStep();
-}
-
-// Advances the simulation one time step.
-void Manager::execNextStep()
-{
-    pimpl->sim->execNextStep();
+    return pimpl->sim->execNextStep();
 }
 
 // Returns simulation results at the current step.

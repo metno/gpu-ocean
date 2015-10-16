@@ -18,9 +18,7 @@ public:
     OptionsPtr options() const;
     SimBasePtr sim() const;
     void initSim();
-    int nextStep() const;
-    int finalStep() const;
-    void execNextStep();
+    bool execNextStep();
     std::vector<float> results() const;
 private:
     static bool isInit;

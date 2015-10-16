@@ -59,35 +59,44 @@ bool SimBase::init()
 }
 
 /**
- * Returns the current step value.
+ * Returns the current simulation time.
  */
-int SimBase::nextStep() const
+double SimBase::currTime() const
 {
     assertInitialized();
-    return _nextStep();
+    return _currTime();
 }
 
 /**
- * Returns the final step value.
+ * Returns the maximum simulation time.
  */
-int SimBase::finalStep() const
+double SimBase::maxTime() const
 {
     assertInitialized();
-    return _finalStep();
+    return _maxTime();
 }
 
 /**
- * Executes the next simulation step and increases the step value by one.
- * Throws std::runtime_error if the current step value exceeds the final one.
+ * Executes the next simulation step and returns true if the simulation is not time-bounded
+ * or the current simulation time is still less than the maximum simulation time.
+ * Otherwise, the function returns false without executing the next simulation step.
+ * Note: The simulation is time-bounded iff the program option 'duration' is non-negative.
+ * @return true iff a time-bounded simulation was exhausted
  */
-void SimBase::execNextStep()
+bool SimBase::execNextStep()
 {
     assertInitialized();
+
+    // check if a time-bounded simulation is exhausted
+    if ((pimpl->options->duration() >= 0) && (_currTime() >= _maxTime()))
+        return false;
+
     _execNextStep();
+    return true;
 }
 
 /**
- * Returns the simulation results at the current step.
+ * Returns the results at the current simulation time.
  */
 std::vector<float> SimBase::results() const
 {

@@ -13,9 +13,9 @@ class SimBase
 {
 public:
     bool init();
-    int nextStep() const;
-    int finalStep() const;
-    void execNextStep();
+    double currTime() const;
+    double maxTime() const;
+    bool execNextStep();
     std::vector<float> results() const;
     void printStatus() const;
     OptionsPtr options() const;
@@ -25,8 +25,8 @@ protected:
     SimBase(const OptionsPtr &, const InitCondPtr &);
     virtual ~SimBase();
     virtual bool _init() = 0;
-    virtual int _nextStep() const = 0;
-    virtual int _finalStep() const = 0;
+    virtual double _currTime() const = 0;
+    virtual double _maxTime() const = 0;
     virtual void _execNextStep() = 0;
     virtual std::vector<float> _results() const = 0;
     virtual void _printStatus() const = 0;

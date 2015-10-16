@@ -16,7 +16,8 @@ struct ProgramOptions::ProgramOptionsImpl
     int ny; // number of vertical grid cells
     float width; // horizontal extension of grid (in meters)
     float height; // vertical extension of grid (in meters)
-    float duration; // duration of simulation (in seconds)
+    double duration; // duration of simulation (in simulated seconds)
+    double wallDuration; // duration of simulation (in wall time seconds)
     bool cpu; // whether to run kernels on the CPU instead of the GPU
     ProgramOptionsImpl();
 };
@@ -27,6 +28,7 @@ ProgramOptions::ProgramOptionsImpl::ProgramOptionsImpl()
     , width(-1)
     , height(-1)
     , duration(-1)
+    , wallDuration(-1)
     , cpu(false)
 {
 };
@@ -63,7 +65,8 @@ bool ProgramOptions::parse(int argc, char *argv[])
                 ("ny", po::value<int>(&pimpl->ny)->default_value(10), "number of vertical grid cells")
                 ("width", po::value<float>(&pimpl->width)->default_value(1000), "horizontal extension of grid (in meters)")
                 ("height", po::value<float>(&pimpl->height)->default_value(1000), "vertical extension of grid (in meters)")
-                ("duration", po::value<float>(&pimpl->duration)->default_value(100), "duration of simulation (in seconds)")
+                ("duration", po::value<double>(&pimpl->duration)->default_value(5), "max duration of simulation (in seconds) (< 0 = infinite duration)")
+                ("wallduration", po::value<double>(&pimpl->wallDuration)->default_value(0.5), "max wall time duration (in seconds) (< 0 = infinite duration)")
                 ;
 
         po::options_description all_options;
@@ -160,9 +163,14 @@ float ProgramOptions::height() const
     return pimpl->height;
 }
 
-float ProgramOptions::duration() const
+double ProgramOptions::duration() const
 {
     return pimpl->duration;
+}
+
+double ProgramOptions::wallDuration() const
+{
+    return pimpl->wallDuration;
 }
 
 float ProgramOptions::cpu() const
