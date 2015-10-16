@@ -12,6 +12,8 @@ using namespace std;
 struct ProgramOptions::ProgramOptionsImpl
 {
     std::string msg;
+    int waterElevationNo; // which water elevation to generate for IC
+    int bathymetryNo; // which bathymetry to generate for IC
     int nx; // number of grid horizontal grid cells
     int ny; // number of vertical grid cells
     float width; // horizontal extension of grid (in meters)
@@ -23,7 +25,9 @@ struct ProgramOptions::ProgramOptionsImpl
 };
 
 ProgramOptions::ProgramOptionsImpl::ProgramOptionsImpl()
-    : nx(-1)
+    : waterElevationNo(-1)
+	, bathymetryNo(-1)
+    , nx(-1)
     , ny(-1)
     , width(-1)
     , height(-1)
@@ -61,6 +65,8 @@ bool ProgramOptions::parse(int argc, char *argv[])
         // declare options that will be allowed both on command line and in config file
         po::options_description cfgfile_opts("Options allowed both on command line and in config file (the former overrides the latter)");
         cfgfile_opts.add_options()
+				("waterElevationNo", po::value<int>(&pimpl->waterElevationNo)->default_value(-1), "initial water elevation")
+		        ("bathymetryNo", po::value<int>(&pimpl->bathymetryNo)->default_value(-1), "initial bathymetry")
                 ("nx", po::value<int>(&pimpl->nx)->default_value(10), "number of horizontal grid cells")
                 ("ny", po::value<int>(&pimpl->ny)->default_value(10), "number of vertical grid cells")
                 ("width", po::value<float>(&pimpl->width)->default_value(1000), "horizontal extension of grid (in meters)")
@@ -117,6 +123,10 @@ bool ProgramOptions::parse(int argc, char *argv[])
             pimpl->cpu = true;
 
         // final validation
+        if (pimpl->waterElevationNo < -1)
+            throw runtime_error((boost::format("error: waterElevationNo (%1%) < -1") % pimpl->waterElevationNo).str());
+        if (pimpl->bathymetryNo < -1)
+            throw runtime_error((boost::format("error: bathymetryNo (%1%) < -1") % pimpl->bathymetryNo).str());
         if (pimpl->nx <= 0)
             throw runtime_error((boost::format("error: nx (%1%) <= 0") % pimpl->nx).str());
         if (pimpl->ny <= 0)
@@ -126,7 +136,7 @@ bool ProgramOptions::parse(int argc, char *argv[])
         if (pimpl->height <= 0)
             throw runtime_error((boost::format("error: height (%1%) <= 0") % pimpl->height).str());
         if (pimpl->duration <= 0)
-            throw runtime_error((boost::format("error: duratuion (%1%) <= 0") % pimpl->duration).str());
+            throw runtime_error((boost::format("error: duration (%1%) <= 0") % pimpl->duration).str());
     }
     catch(exception &e)
     {
@@ -141,6 +151,16 @@ bool ProgramOptions::parse(int argc, char *argv[])
 string ProgramOptions::message() const
 {
     return pimpl->msg;
+}
+
+int ProgramOptions::waterElevationNo() const
+{
+	return pimpl->waterElevationNo;
+}
+
+int ProgramOptions::bathymetryNo() const
+{
+	return pimpl->bathymetryNo;
 }
 
 int ProgramOptions::nx() const

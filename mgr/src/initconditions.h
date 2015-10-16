@@ -12,8 +12,10 @@ class InitConditions
 {
 public:
     InitConditions();
-    void init(const OptionsPtr &);
-    FieldPtr field() const;
+    void init(const OptionsPtr &options);
+    FieldPtr waterElevationField() const;
+    FieldPtr bathymetryField() const;
+
 private:
     struct InitConditionsImpl;
     InitConditionsImpl *pimpl;
