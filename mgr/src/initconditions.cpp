@@ -13,26 +13,41 @@ const unsigned int IDEALISED_CIRCULAR_DAM = 4;
 
 struct InitConditions::InitConditionsImpl
 {
-    FieldPtr waterElevationField;
-    FieldPtr bathymetryField;
+    FieldInfo waterElevationField;
+    FieldInfo bathymetryField;
     InitConditionsImpl();
 };
 
 InitConditions::InitConditionsImpl::InitConditionsImpl()
-    : waterElevationField(new vector<float>), bathymetryField(new vector<float>)
 {
-};
+}
 
 InitConditions::InitConditions()
     : pimpl(new InitConditionsImpl)
 {
 }
 
-inline shared_ptr<vector<float> > generateBathymetry(int no, int nx, int ny)
+InitConditions::FieldInfo::FieldInfo()
+    : nx(-1)
+    , ny(-1)
+    , dx(-1)
+    , dy(-1)
 {
-	///FIXME: dx and dy are lost... Maybe we should have a struct that contains f, nx, ny, dx, and dy?
-	int dx;
-	int dy;
+}
+
+InitConditions::FieldInfo::FieldInfo(const FieldPtr &data, int nx, int ny, float dx, float dy)
+    : data(data)
+    , nx(nx)
+    , ny(ny)
+    , dx(dx)
+    , dy(dy)
+{
+}
+
+inline InitConditions::FieldInfo generateBathymetry(int no, int nx, int ny)
+{
+    float dx = -1;
+    float dy = -1;
 
 	if (nx <= 0 || ny <= 0) {
 		stringstream log;
@@ -117,14 +132,13 @@ inline shared_ptr<vector<float> > generateBathymetry(int no, int nx, int ny)
 
 	cout << "' (" << nx << "x" << ny << " values)" << endl;
 
-	return f_;
+    return InitConditions::FieldInfo(f_, nx, ny, dx, dy);
 }
 
-inline shared_ptr<vector<float> > generateWaterElevation(int no, int nx, int ny)
+inline InitConditions::FieldInfo generateWaterElevation(int no, int nx, int ny)
 {
-	///FIXME: dx and dy are lost... Maybe we should have a struct that contains f, nx, ny, dx, and dy?
-	int dx;
-	int dy;
+    float dx = -1;
+    float dy = -1;
 
 	if (nx <= 0 || ny <= 0) {
 		cout << "Invalid nx or ny: [" << nx << ", " << ny << "]." << endl;
@@ -234,7 +248,7 @@ inline shared_ptr<vector<float> > generateWaterElevation(int no, int nx, int ny)
 
 	cout << "' (" << nx << "x" << ny << " values)" << endl;
 
-	return f_;
+    return InitConditions::FieldInfo(f_, nx, ny, dx, dy);
 }
 
 void InitConditions::init(const OptionsPtr &options)
@@ -246,12 +260,12 @@ void InitConditions::init(const OptionsPtr &options)
 	}
 }
 
-shared_ptr<vector<float> > InitConditions::waterElevationField() const
+InitConditions::FieldInfo InitConditions::waterElevationField() const
 {
     return pimpl->waterElevationField;
 }
 
-shared_ptr<vector<float> > InitConditions::bathymetryField() const
+InitConditions::FieldInfo InitConditions::bathymetryField() const
 {
     return pimpl->bathymetryField;
 }

@@ -13,8 +13,18 @@ class InitConditions
 public:
     InitConditions();
     void init(const OptionsPtr &options);
-    FieldPtr waterElevationField() const;
-    FieldPtr bathymetryField() const;
+
+    struct FieldInfo {
+        FieldPtr data;
+        int nx;
+        int ny;
+        float dx;
+        float dy;
+        FieldInfo();
+        FieldInfo(const FieldPtr &, int, int, float, float);
+    };
+    FieldInfo waterElevationField() const;
+    FieldInfo bathymetryField() const;
 
 private:
     struct InitConditionsImpl;
