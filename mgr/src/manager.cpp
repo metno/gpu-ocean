@@ -9,7 +9,7 @@
 #include <iostream>
 
 // comment out the following line to run the real simulator:
-#define TESTSIM
+//#define TESTSIM
 
 using namespace std;
 

@@ -6,14 +6,11 @@ using namespace std;
 
 struct Simulator::SimulatorImpl
 {
-    int nextStep;
-    int finalStep;
+    // ### nothing here yet
     SimulatorImpl();
 };
 
 Simulator::SimulatorImpl::SimulatorImpl()
-    : nextStep(-1)
-    , finalStep(-1)
 {
 }
 
@@ -29,32 +26,23 @@ Simulator::~Simulator()
 
 bool Simulator::_init()
 {
-    pimpl->nextStep = 0;
-
-    //pimpl->finalStep = calculate from options()->duration();
-    pimpl->finalStep = 4; // ### for now
-
+    // ### nothing here yet
     return true;
 }
 
-int Simulator::_nextStep() const
+double Simulator::_currTime() const
 {
-    return pimpl->nextStep;
+    return 0; // ### for now
 }
 
-int Simulator::_finalStep() const
+double Simulator::_maxTime() const
 {
-    return pimpl->finalStep;
+    return -1; // ### for now
 }
 
 void Simulator::_execNextStep()
 {
-    if (pimpl->nextStep > pimpl->finalStep)
-        throw runtime_error((boost::format("error: next_step_ (%1%) > final_step_ (%2%)") % pimpl->nextStep % pimpl->finalStep).str());
-
-    // executing next step ... TBD
-
-    pimpl->nextStep++;
+    // ### nothing here yet
 }
 
 vector<float> Simulator::_results() const
