@@ -3,6 +3,7 @@
 
 #include "programoptions.h"
 #include "initconditions.h"
+#include "field.h"
 #include <memory>
 #include <vector>
 
@@ -16,7 +17,9 @@ public:
     double currTime() const;
     double maxTime() const;
     bool execNextStep();
-    std::vector<float> results() const;
+    FieldInfo U() const;
+    FieldInfo V() const;
+    FieldInfo eta() const;
     void printStatus() const;
     OptionsPtr options() const;
     InitCondPtr initCond() const;
@@ -28,7 +31,9 @@ protected:
     virtual double _currTime() const = 0;
     virtual double _maxTime() const = 0;
     virtual void _execNextStep() = 0;
-    virtual std::vector<float> _results() const = 0;
+    virtual FieldInfo _U() const = 0;
+    virtual FieldInfo _V() const = 0;
+    virtual FieldInfo _eta() const = 0;
     virtual void _printStatus() const = 0;
 
 private:

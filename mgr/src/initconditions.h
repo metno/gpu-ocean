@@ -2,6 +2,7 @@
 #define INITCONDITIONS_H
 
 #include "programoptions.h"
+#include "field.h"
 #include <memory>
 #include <vector>
 
@@ -13,16 +14,6 @@ class InitConditions
 public:
     InitConditions();
     void init(const OptionsPtr &options);
-
-    struct FieldInfo {
-        FieldPtr data;
-        int nx;
-        int ny;
-        float dx;
-        float dy;
-        FieldInfo();
-        FieldInfo(const FieldPtr &, int, int, float, float);
-    };
     FieldInfo waterElevationField() const;
     FieldInfo bathymetryField() const;
     FieldInfo H() const;

@@ -29,24 +29,7 @@ InitConditions::InitConditions()
 {
 }
 
-InitConditions::FieldInfo::FieldInfo()
-    : nx(-1)
-    , ny(-1)
-    , dx(-1)
-    , dy(-1)
-{
-}
-
-InitConditions::FieldInfo::FieldInfo(const FieldPtr &data, int nx, int ny, float dx, float dy)
-    : data(data)
-    , nx(nx)
-    , ny(ny)
-    , dx(dx)
-    , dy(dy)
-{
-}
-
-inline InitConditions::FieldInfo generateBathymetry(int no, int nx, int ny, float width, float height)
+inline FieldInfo generateBathymetry(int no, int nx, int ny, float width, float height)
 {
     const float dx = width / (nx - 1);
     const float dy = height / (ny - 1);
@@ -138,10 +121,10 @@ inline InitConditions::FieldInfo generateBathymetry(int no, int nx, int ny, floa
 
 	cout << "' (" << nx << "x" << ny << " values)" << endl;
 
-    return InitConditions::FieldInfo(f_, nx, ny, dx, dy);
+    return FieldInfo(f_, nx, ny, dx, dy);
 }
 
-inline InitConditions::FieldInfo generateWaterElevation(int no, int nx, int ny, float width, float height)
+inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, float height)
 {
     const float dx = width / (nx - 1);
     const float dy = height / (ny - 1);
@@ -256,7 +239,7 @@ inline InitConditions::FieldInfo generateWaterElevation(int no, int nx, int ny, 
 
 	cout << "' (" << nx << "x" << ny << " values)" << endl;
 
-    return InitConditions::FieldInfo(f_, nx, ny, dx, dy);
+    return FieldInfo(f_, nx, ny, dx, dy);
 }
 
 void InitConditions::init(const OptionsPtr &options)
@@ -270,22 +253,22 @@ void InitConditions::init(const OptionsPtr &options)
 	}
 }
 
-InitConditions::FieldInfo InitConditions::waterElevationField() const
+FieldInfo InitConditions::waterElevationField() const
 {
     return pimpl->waterElevationField;
 }
 
-InitConditions::FieldInfo InitConditions::bathymetryField() const
+FieldInfo InitConditions::bathymetryField() const
 {
     return pimpl->bathymetryField;
 }
 
-InitConditions::FieldInfo InitConditions::H() const
+FieldInfo InitConditions::H() const
 {
     return pimpl->H;
 }
 
-InitConditions::FieldInfo InitConditions::eta() const
+FieldInfo InitConditions::eta() const
 {
     return pimpl->eta;
 }

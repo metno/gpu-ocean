@@ -45,9 +45,19 @@ void Simulator::_execNextStep()
     // ### nothing here yet
 }
 
-vector<float> Simulator::_results() const
+FieldInfo Simulator::_U() const
 {
-    return vector<float>(); // ### for now
+    return FieldInfo(); // ### for now
+}
+
+FieldInfo Simulator::_V() const
+{
+    return FieldInfo(); // ### for now
+}
+
+FieldInfo Simulator::_eta() const
+{
+    return FieldInfo(); // ### for now
 }
 
 void Simulator::_printStatus() const

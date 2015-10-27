@@ -10,9 +10,9 @@
 
 using namespace std;
 
-static void processResults(const vector<float> &results, int step, double currTime, double maxTime, const OptionsPtr &options)
+static void processResults(const FieldInfo &eta, int step, double currTime, double maxTime, const OptionsPtr &options)
 {
-    cout << "processResults(): results.size(): " << results.size() << ", step: " << step << ", currTime: " << currTime
+    cout << "processResults(): eta.data->size(): " << eta.data->size() << ", step: " << step << ", currTime: " << currTime
          << ", maxTime: " << maxTime << "; options: " << *options << ((currTime >= maxTime) ? "; (final results!)" : "") << endl;
 }
 
@@ -42,11 +42,11 @@ int main(int argc, char *argv[])
     while (mgr.execNextStep()) {
 #else // Option 2: Run until max wall time
     const time_t startTime = time(0);
-    processResults(mgr.results(), -1, mgr.sim()->currTime(), mgr.sim()->maxTime(), mgr.options());
+    processResults(mgr.eta(), -1, mgr.sim()->currTime(), mgr.sim()->maxTime(), mgr.options());
     while (((mgr.options()->wallDuration() < 0) || (difftime(time(0), startTime) < mgr.options()->wallDuration()))
            && mgr.execNextStep()) {
 #endif
-        processResults(mgr.results(), step, mgr.sim()->currTime(), mgr.sim()->maxTime(), mgr.options());
+        processResults(mgr.eta(), step, mgr.sim()->currTime(), mgr.sim()->maxTime(), mgr.options());
         step++;
     }
 

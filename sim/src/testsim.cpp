@@ -166,9 +166,19 @@ void TestSim::_execNextStep()
     pimpl->currTime += pimpl->deltaTime;
 }
 
-vector<float> TestSim::_results() const
+FieldInfo TestSim::_U() const
 {
-    return vector<float>(); // ### for now
+    return FieldInfo(); // ### for now
+}
+
+FieldInfo TestSim::_V() const
+{
+    return FieldInfo(); // ### for now
+}
+
+FieldInfo TestSim::_eta() const
+{
+    return FieldInfo(); // ### for now
 }
 
 void TestSim::_printStatus() const

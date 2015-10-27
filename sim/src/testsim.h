@@ -19,7 +19,9 @@ private:
     virtual double _currTime() const;
     virtual double _maxTime() const;
     virtual void _execNextStep();
-    virtual std::vector<float> _results() const;
+    virtual FieldInfo _U() const;
+    virtual FieldInfo _V() const;
+    virtual FieldInfo _eta() const;
     virtual void _printStatus() const;
 
     struct TestSimImpl;

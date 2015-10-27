@@ -86,10 +86,22 @@ bool Manager::execNextStep()
     return pimpl->sim->execNextStep();
 }
 
-// Returns simulation results at the current step.
-vector<float> Manager::results() const
+// Returns U at the current simulation step.
+FieldInfo Manager::U() const
 {
-    return pimpl->sim->results();
+    return pimpl->sim->U();
+}
+
+// Returns V at the current simulation step.
+FieldInfo Manager::V() const
+{
+    return pimpl->sim->V();
+}
+
+// Returns eta at the current simulation step.
+FieldInfo Manager::eta() const
+{
+    return pimpl->sim->eta();
 }
 
 Manager::Manager()

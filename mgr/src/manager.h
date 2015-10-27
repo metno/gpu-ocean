@@ -19,7 +19,9 @@ public:
     SimBasePtr sim() const;
     void initSim();
     bool execNextStep();
-    std::vector<float> results() const;
+    FieldInfo U() const;
+    FieldInfo V() const;
+    FieldInfo eta() const;
 private:
     static bool isInit;
     static OptionsPtr opts;

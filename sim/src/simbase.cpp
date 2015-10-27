@@ -96,12 +96,30 @@ bool SimBase::execNextStep()
 }
 
 /**
- * Returns the results at the current simulation time.
+ * Returns U at the current simulation time.
  */
-std::vector<float> SimBase::results() const
+FieldInfo SimBase::U() const
 {
     assertInitialized();
-    return _results();
+    return _U();
+}
+
+/**
+ * Returns V at the current simulation time.
+ */
+FieldInfo SimBase::V() const
+{
+    assertInitialized();
+    return _V();
+}
+
+/**
+ * Returns eta at the current simulation time.
+ */
+FieldInfo SimBase::eta() const
+{
+    assertInitialized();
+    return _eta();
 }
 
 /**
