@@ -15,6 +15,8 @@ struct InitConditions::InitConditionsImpl
 {
     FieldInfo waterElevationField;
     FieldInfo bathymetryField;
+    FieldInfo H;
+    FieldInfo eta;
     InitConditionsImpl();
 };
 
@@ -263,6 +265,8 @@ void InitConditions::init(const OptionsPtr &options)
 		///XXX: Maybe we should move the data generation outside of this class?
         pimpl->waterElevationField = generateWaterElevation(options->waterElevationNo(), options->nx(), options->ny(), options->width(), options->height());
         pimpl->bathymetryField = generateBathymetry(options->bathymetryNo(), options->nx(), options->ny(), options->width(), options->height());
+
+        // compute H and eta ... TBD
 	}
 }
 
@@ -274,4 +278,14 @@ InitConditions::FieldInfo InitConditions::waterElevationField() const
 InitConditions::FieldInfo InitConditions::bathymetryField() const
 {
     return pimpl->bathymetryField;
+}
+
+InitConditions::FieldInfo InitConditions::H() const
+{
+    return pimpl->H;
+}
+
+InitConditions::FieldInfo InitConditions::eta() const
+{
+    return pimpl->eta;
 }

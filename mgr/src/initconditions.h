@@ -25,6 +25,8 @@ public:
     };
     FieldInfo waterElevationField() const;
     FieldInfo bathymetryField() const;
+    FieldInfo H() const;
+    FieldInfo eta() const;
 
 private:
     struct InitConditionsImpl;
