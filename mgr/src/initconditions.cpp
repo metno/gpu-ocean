@@ -44,10 +44,10 @@ InitConditions::FieldInfo::FieldInfo(const FieldPtr &data, int nx, int ny, float
 {
 }
 
-inline InitConditions::FieldInfo generateBathymetry(int no, int nx, int ny)
+inline InitConditions::FieldInfo generateBathymetry(int no, int nx, int ny, float width, float height)
 {
-    float dx = -1;
-    float dy = -1;
+    const float dx = width / (nx - 1);
+    const float dy = height / (ny - 1);
 
 	if (nx <= 0 || ny <= 0) {
 		stringstream log;
@@ -101,26 +101,30 @@ inline InitConditions::FieldInfo generateBathymetry(int no, int nx, int ny)
 			}
 		}
 		break;
-	case STEADY_FLOW_OVER_BUMP:
-		cout << "Steady Flow Over Bump";
-		dx = 25.0f / (float) nx;
-		dy = 20.0f / (float) ny;
+    case STEADY_FLOW_OVER_BUMP:
+        cout << "Steady Flow Over Bump";
+        // ### use std::min(width, height) instead of width below?
+    {
+        const float x1 = width * 0.32f;
+        const float x2 = width * 0.48f;
+        const float v1 = width * 0.008f;
+        const float v2 = width * 0.002f;
+        const float v3 = width * 0.4f;
 #pragma omp parallel for
-		for (int j=0; j<static_cast<int>(ny); ++j) {
-			for (unsigned int i = 0; i<nx; ++i) {
-				float x = i*dx;
-				if (8.0f < x && x < 12.0f) {
-					f[j*nx+i] = 0.2f - 0.05f*(x-10.0f)*(x-10.0f);
-				}
-				else {
-					f[j*nx+i] = 0.0f;
-				}
-			}
-		}
-		break;
-	case IDEALISED_CIRCULAR_DAM:
-		dx = 100.0f / (float) nx;
-		dy = 100.0f / (float) ny;
+        for (int j=0; j<static_cast<int>(ny); ++j) {
+            for (unsigned int i = 0; i<nx; ++i) {
+                const float x = i*dx;
+                if (x1 < x && x < x2) {
+                    f[j*nx+i] = v1 - v2*(x-v3)*(x-v3);
+                }
+                else {
+                    f[j*nx+i] = 0.0f;
+                }
+            }
+        }
+    }
+        break;
+    case IDEALISED_CIRCULAR_DAM:
 		cout << "idealized circular dam";
 		for (unsigned int i=0; i<nx*ny; ++i)
 			f[i] = 0.0f;
@@ -135,10 +139,10 @@ inline InitConditions::FieldInfo generateBathymetry(int no, int nx, int ny)
     return InitConditions::FieldInfo(f_, nx, ny, dx, dy);
 }
 
-inline InitConditions::FieldInfo generateWaterElevation(int no, int nx, int ny)
+inline InitConditions::FieldInfo generateWaterElevation(int no, int nx, int ny, float width, float height)
 {
-    float dx = -1;
-    float dy = -1;
+    const float dx = width / (nx - 1);
+    const float dy = height / (ny - 1);
 
 	if (nx <= 0 || ny <= 0) {
 		cout << "Invalid nx or ny: [" << nx << ", " << ny << "]." << endl;
@@ -196,8 +200,6 @@ inline InitConditions::FieldInfo generateWaterElevation(int no, int nx, int ny)
 
 	case STEADY_FLOW_OVER_BUMP:
 		cout << "Steady Flow Over Bump";
-		dx = 25.0f / (float) nx;
-		dy = 20.0f / (float) ny;
 #pragma omp parallel for
 		for (int i = 0; i<static_cast<int>(nx*ny); ++i)
 			f[i] = 1.0f;
@@ -205,20 +207,24 @@ inline InitConditions::FieldInfo generateWaterElevation(int no, int nx, int ny)
 
 	case IDEALISED_CIRCULAR_DAM:
 		cout << "Idealised Circular Dam";
-		dx = 100.0f / (float) nx;
-		dy = 100.0f / (float) ny;
+    {
+        const float x1 = width * 0.5f;
+        const float y1 = height * 0.5f;
+        const float v1 = width * 0.1f;
+        const float v2 = width * 0.065f;
 #pragma omp parallel for
-		for (int j=0; j<static_cast<int>(ny); ++j) {
-			float y = dy*(j+0.5f)-50.0f;
-			for (unsigned int i=0; i<nx; ++i) {
-				float x = dx*(i+0.5f)-50.0f;
-				if (sqrt(x*x+y*y) < 6.5f)
-					f[j*nx+i] = 10.0f;
-				else
-					f[j*nx+i] = 0.0f;
-			}
-		}
-		break;
+        for (int j=0; j<static_cast<int>(ny); ++j) {
+            float y = dy*(j+0.5f)-y1;
+            for (unsigned int i=0; i<nx; ++i) {
+                float x = dx*(i+0.5f)-x1;
+                if (sqrt(x*x+y*y) < v2)
+                    f[j*nx+i] = v1;
+                else
+                    f[j*nx+i] = 0.0f;
+            }
+        }
+    }
+        break;
 
 	case 5:
 		cout << "column_wet";
@@ -255,8 +261,8 @@ void InitConditions::init(const OptionsPtr &options)
 {
 	if(options->waterElevationNo() >= 0 && options->bathymetryNo() >= 0) {
 		///XXX: Maybe we should move the data generation outside of this class?
-		pimpl->waterElevationField = generateWaterElevation(options->waterElevationNo(), options->nx(), options->ny());
-		pimpl->bathymetryField = generateBathymetry(options->bathymetryNo(), options->nx(), options->ny());
+        pimpl->waterElevationField = generateWaterElevation(options->waterElevationNo(), options->nx(), options->ny(), options->width(), options->height());
+        pimpl->bathymetryField = generateBathymetry(options->bathymetryNo(), options->nx(), options->ny(), options->width(), options->height());
 	}
 }
 
