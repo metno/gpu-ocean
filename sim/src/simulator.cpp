@@ -32,8 +32,8 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
 
     // check preconditions
     assert(Hfi.data->size() == Hfi.nx * Hfi.ny);
-    assert(Hfi.nx == nx);
-    assert(Hfi.ny == ny);
+    assert(Hfi.nx == nx + 1);
+    assert(Hfi.ny == ny + 1);
     assert(Hfi.nx > 2);
     assert(Hfi.ny > 2);
 
