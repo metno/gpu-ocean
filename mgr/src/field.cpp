@@ -1,10 +1,10 @@
 #include "field.h"
 
 FieldInfo::FieldInfo()
-    : nx(-1)
-    , ny(-1)
-    , dx(-1)
-    , dy(-1)
+    : nx(0)
+    , ny(0)
+    , dx(0)
+    , dy(0)
 {
     data.reset(new std::vector<float>());
 }

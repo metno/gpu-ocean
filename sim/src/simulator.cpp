@@ -7,11 +7,12 @@ using namespace std;
 
 struct Simulator::SimulatorImpl
 {
-    vector<float> Hr_u; // H reconstructed in x-dimension
-    vector<float> Hr_v; // H reconstructed in y-dimension
+    // H reconstructed
+    cl::Buffer Hr_u; // x-dimension
+    cl::Buffer Hr_v; // y-dimension
 
     SimulatorImpl();
-    void reconstructH(const InitCondPtr &);
+    void reconstructH(const OptionsPtr &, const InitCondPtr &);
 };
 
 Simulator::SimulatorImpl::SimulatorImpl()
@@ -21,28 +22,45 @@ Simulator::SimulatorImpl::SimulatorImpl()
 /**
  * Reconstructs H, i.e. computes Hr_u and Hr_v from initCond->H().
  */
-void Simulator::SimulatorImpl::reconstructH(const InitCondPtr &initCond)
+void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const InitCondPtr &initCond)
 {
     cerr << "reconstructing H ...\n";
 
+    const int nx = options->nx();
+    const int ny = options->ny();
+    const FieldInfo Hfi = initCond->H();
+
+    // check preconditions
+    assert(Hfi.data->size() == Hfi.nx * Hfi.ny);
+    assert(Hfi.nx == nx);
+    assert(Hfi.ny == ny);
+    assert(Hfi.nx > 2);
+    assert(Hfi.ny > 2);
+
     cl_int error = CL_SUCCESS;
 
-    // create buffers for input field
+    // create buffer for H (released from device after reconstruction is complete)
     cl::Buffer H = cl::Buffer(
                 *OpenCLUtils::getContext(), CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                sizeof(float) * initCond->H().data->size(), initCond->H().data->data(), &error);
+                sizeof(float) * nx * ny, Hfi.data->data(), &error);
     CL_CHECK(error);
 
-    // set up kernel arguments ...
-    // ... in:
-    OpenCLUtils::getKernel("MatMulNoop")->setArg<cl::Buffer>(0, H);
-    // ... out:
-    // pointers to Hr_u and Hr_v in device memory ... TBD
+    // create buffers for Hr_u and Hr_v (kept on device throughout the simulation)
+    Hr_u = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * nx * (ny + 1), 0, &error);
+    CL_CHECK(error);
+    Hr_v = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * (nx + 1) * ny, 0, &error);
+    CL_CHECK(error);
+
+    cl::Kernel *kernel = OpenCLUtils::getKernel("ReconstructH");
+
+    // set up kernel arguments
+    kernel->setArg<cl::Buffer>(0, H);
+    kernel->setArg<cl::Buffer>(1, Hr_u);
+    kernel->setArg<cl::Buffer>(2, Hr_v);
 
     // execute kernel (computes Hr_u and Hr_v in device memory and returns pointers)
     cl::Event event;
-    CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
-                 *OpenCLUtils::getKernel("ReconstructH"), cl::NullRange, cl::NDRange(initCond->H().nx, initCond->H().ny), cl::NullRange, 0, &event));
+    CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(*kernel, cl::NullRange, cl::NDRange(nx, ny), cl::NullRange, 0, &event));
     CL_CHECK(event.wait());
 
     // ...
@@ -69,7 +87,7 @@ bool Simulator::_init()
                 options()->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU);
 
     // reconstruct H
-    pimpl->reconstructH(initCond());
+    pimpl->reconstructH(options(), initCond());
 
     return true;
 }
