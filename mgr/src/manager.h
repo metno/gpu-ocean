@@ -16,6 +16,7 @@ public:
     static bool initialized();
     static Manager &instance();
     OptionsPtr options() const;
+    InitCondPtr initConditions() const;
     SimBasePtr sim() const;
     void initSim();
     bool execNextStep();

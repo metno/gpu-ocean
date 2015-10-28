@@ -68,6 +68,12 @@ OptionsPtr Manager::options() const
     return opts;
 }
 
+// Returns the initial conditions object.
+InitCondPtr Manager::initConditions() const
+{
+    return initCond;
+}
+
 // Returns the simulator object.
 SimBasePtr Manager::sim() const
 {

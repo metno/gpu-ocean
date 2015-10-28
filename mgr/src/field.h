@@ -14,6 +14,7 @@ struct FieldInfo {
     float dy;
     FieldInfo();
     FieldInfo(const FieldPtr &, int, int, float, float);
+    float &operator()(int, int) const;
 };
 
 #endif // FIELD_H

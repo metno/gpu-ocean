@@ -17,3 +17,11 @@ FieldInfo::FieldInfo(const FieldPtr &data, int nx, int ny, float dx, float dy)
     , dy(dy)
 {
 }
+
+/**
+ * Returns a reference to the element at (i, j), where 0 <= i < nx and 0 <= j < ny.
+ */
+float &FieldInfo::operator()(int i, int j) const
+{
+    return data->at(i * ny + j);
+}
