@@ -1,12 +1,15 @@
+#include "/disk1/gpgpu/gpu-eps-hav/sim/src/reconstructH_types.h"
+
 __kernel void ReconstructH (
     __global const float *H,
     __global float *Hr_u,
     __global float *Hr_v,
-    int nx,
-    int ny)
+    ReconstructH_args args)
 {
     const int i = get_global_id(0);
     const int j = get_global_id(1);
+    const int nx = args.nx;
+    const int ny = args.ny;
 
     if ((i > 0) && (i < (nx - 1)))
         Hr_u[i * ny + j] = 0.5 * (H[i * ny + j] + H[(i + 1) * ny + j]);

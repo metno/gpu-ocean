@@ -1,5 +1,6 @@
 #include "simulator.h"
 #include "oclutils.h"
+#include "reconstructH_types.h"
 #include <boost/format.hpp>
 #include <iostream>
 
@@ -57,8 +58,10 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
     kernel->setArg<cl::Buffer>(0, H);
     kernel->setArg<cl::Buffer>(1, Hr_u);
     kernel->setArg<cl::Buffer>(2, Hr_v);
-    kernel->setArg(3, options->nx());
-    kernel->setArg(4, options->ny());
+    ReconstructH_args args;
+    args.nx = options->nx();
+    args.ny = options->ny();
+    kernel->setArg(3, args);
 
     // execute kernel (computes Hr_u and Hr_v in device memory and returns pointers)
     cl::Event event;
