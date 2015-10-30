@@ -53,8 +53,8 @@ bool TestSim::_init()
 #endif
     OpenCLUtils::init(
                 sources,
-                (boost::format("-D MATRIX_SIZE=%d") % pimpl->size).str(),
-                options()->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU);
+                options()->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU,
+                (boost::format("-D MATRIX_SIZE=%d") % pimpl->size).str());
 
     return true;
 }

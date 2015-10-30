@@ -38,7 +38,7 @@ public:
     static cl_uint countDevices(const cl::Platform &);
     static void listDevices();
     static float elapsedMilliseconds(const cl::Event &);
-    static void init(const std::vector<std::pair<std::string, std::string> > &, const std::string &, cl_device_type);
+    static void init(const std::vector<std::pair<std::string, std::string> > &, cl_device_type, const std::string & = std::string());
     static cl::Context *getContext();
     static cl::Kernel *getKernel(const std::string &);
     static cl::CommandQueue *getQueue();

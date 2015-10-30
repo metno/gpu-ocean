@@ -57,6 +57,8 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
     kernel->setArg<cl::Buffer>(0, H);
     kernel->setArg<cl::Buffer>(1, Hr_u);
     kernel->setArg<cl::Buffer>(2, Hr_v);
+    kernel->setArg(3, options->nx());
+    kernel->setArg(4, options->ny());
 
     // execute kernel (computes Hr_u and Hr_v in device memory and returns pointers)
     cl::Event event;
@@ -81,10 +83,7 @@ bool Simulator::_init()
     // initialize OpenCL structures
     vector<pair<string, string> > sources;
     sources.push_back(make_pair("ReconstructH", "reconstructH.cl"));
-    OpenCLUtils::init(
-                sources,
-                (boost::format("-D NX=%d -D NY=%d") % options()->nx() % options()->ny()).str(),
-                options()->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU);
+    OpenCLUtils::init(sources, options()->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU);
 
     // reconstruct H
     pimpl->reconstructH(options(), initCond());
