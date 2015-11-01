@@ -103,13 +103,9 @@ float OpenCLUtils::elapsedMilliseconds(const cl::Event &event)
  */
 static cl::Program::Sources loadKernels(const vector<string> &names)
 {
-    const char *kernelDir = getenv("KERNELDIR");
-    if (!kernelDir)
-        throw runtime_error("KERNELDIR environment variable not set");
-
     cl::Program::Sources sources;
     for (vector<string>::const_iterator it = names.begin(); it != names.end(); ++it) {
-        ifstream in((boost::format("%s/%s") % kernelDir % *it).str().c_str());
+        ifstream in((boost::format("%s/%s") % OpenCLUtils::getKernelDir() % *it).str().c_str());
         if (!in.good())
             throw runtime_error((boost::format("failed to open kernel file >%s<") % *it).str());
         string result((istreambuf_iterator<char>(in)), istreambuf_iterator<char>());
@@ -253,4 +249,12 @@ string OpenCLUtils::getPlatformName()
 string OpenCLUtils::getDeviceName()
 {
     return getDeviceName(devices[devIndex]);
+}
+
+string OpenCLUtils::getKernelDir()
+{
+    const char *kernelDir = getenv("KERNELDIR");
+    if (!kernelDir)
+        throw runtime_error("KERNELDIR environment variable not set");
+    return kernelDir;
 }

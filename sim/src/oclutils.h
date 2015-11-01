@@ -44,6 +44,7 @@ public:
     static cl::CommandQueue *getQueue();
     static std::string getPlatformName();
     static std::string getDeviceName();
+    static std::string getKernelDir();
 private:
     static bool isInit;
     static std::vector<cl::Platform> platforms;

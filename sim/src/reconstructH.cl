@@ -1,4 +1,4 @@
-#include "/disk1/gpgpu/gpu-eps-hav/sim/src/reconstructH_types.h"
+#include "reconstructH_types.h"
 
 __kernel void ReconstructH (
     __global const float *H,

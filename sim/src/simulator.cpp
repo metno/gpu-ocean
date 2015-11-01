@@ -114,7 +114,9 @@ bool Simulator::_init()
     // initialize OpenCL structures
     vector<pair<string, string> > sources;
     sources.push_back(make_pair("ReconstructH", "reconstructH.cl"));
-    OpenCLUtils::init(sources, options()->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU);
+    OpenCLUtils::init(
+                sources, options()->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU,
+                (boost::format("-I %s") % OpenCLUtils::getKernelDir()).str());
 
     // reconstruct H
     pimpl->reconstructH(options(), initCond());
