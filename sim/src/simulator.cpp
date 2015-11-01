@@ -1,6 +1,7 @@
 #include "simulator.h"
 #include "oclutils.h"
 #include "reconstructH_types.h"
+#include "computeV_types.h"
 #include <boost/format.hpp>
 #include <iostream>
 
@@ -14,6 +15,7 @@ struct Simulator::SimulatorImpl
 
     SimulatorImpl();
     void reconstructH(const OptionsPtr &, const InitCondPtr &);
+    void computeV(const OptionsPtr &, const InitCondPtr &);
 };
 
 Simulator::SimulatorImpl::SimulatorImpl()
@@ -69,6 +71,32 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
     CL_CHECK(event.wait());
 
     // ...
+}
+
+/**
+ * Computes V.
+ */
+void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCondPtr &initCond)
+{
+    cerr << "computing V ...\n";
+
+    // ... more code here ...
+
+    cl::Kernel *kernel = OpenCLUtils::getKernel("computeV");
+
+    // set up kernel arguments
+    // ...
+    computeV_args args;
+    args.nx = options->nx();
+    args.ny = options->ny();
+    args.dt = -1; // ### replace -1 with actual value!
+    args.dy = -1; // ### replace -1 with actual value!
+    args.R = -1; // ### replace -1 with actual value!
+    args.F = -1; // ### replace -1 with actual value!
+    args.g = -1; // ### replace -1 with actual value!
+    kernel->setArg(-1, args); // ### replace -1 with actual index!
+
+    // ... more code here ...
 }
 
 Simulator::Simulator(const OptionsPtr &options, const InitCondPtr &initCond)

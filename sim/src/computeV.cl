@@ -3,9 +3,16 @@ __kernel void computeV (
     __global const float *U,
     __global float *V,
     __global float *Hr_v,
-    int nx, int ny,
-    float dt, float dy, float R, float F, float g)
+    ReconstructH_args args)
 {
+    const int nx = args.nx;
+    const int ny = args.ny;
+    const float dt = args.dt;
+    const float dy = args.dy;
+    const float R = args.R;
+    const float F = args.F;
+    const float g = args.g;
+
 	int gx = get_global_id(0);
 	int gy = get_global_id(1);
 	
