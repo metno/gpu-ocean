@@ -141,7 +141,7 @@ static void errorCallback(const char *errInfo, const void *privateInfo, size_t c
 }
 
 // Initializes OpenCL structures.
-void OpenCLUtils::init(const vector<pair<string, string> > &sources, cl_device_type deviceType, const string &programOptions)
+void OpenCLUtils::init(const vector<pair<string, string> > &sources, cl_device_type deviceType, const string &buildOptions)
 {
     if (isInit)
         throw runtime_error("OpenCL structures already initialized");
@@ -190,7 +190,7 @@ void OpenCLUtils::init(const vector<pair<string, string> > &sources, cl_device_t
     CL_CHECK(error);
 
     // compile program
-    error = program->build(devices, programOptions.empty() ? 0 : programOptions.c_str(), 0, 0);
+    error = program->build(devices, buildOptions.empty() ? 0 : buildOptions.c_str(), 0, 0);
     if (error == CL_BUILD_PROGRAM_FAILURE) {
         cerr << "program build failure detected:\n";
         printProgramBuildLog(program, devices);
