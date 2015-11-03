@@ -45,7 +45,7 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
     // create buffer for H (released from device after reconstruction is complete)
     cl::Buffer H = cl::Buffer(
                 *OpenCLUtils::getContext(), CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                sizeof(float) * nx * ny, Hfi.data->data(), &error);
+                sizeof(float) * Hfi.nx * Hfi.ny, Hfi.data->data(), &error);
     CL_CHECK(error);
 
     // create buffers for Hr_u and Hr_v (kept on device throughout the simulation)
