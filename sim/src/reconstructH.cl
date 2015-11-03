@@ -1,21 +1,31 @@
 #include "reconstructH_types.h"
 
+
+/*
+Reconstructs the equilibrium depth, H, at cell edges.
+Input:
+  - args.nx, args.ny: Internal grid dimension (nx, ny), i.e. not including grid points at the outside of ghost cells.
+  - H: Values defined at the center of each cell, including ghost cells. Dimension: (nx + 1, ny + 1).
+Output:
+  - Hr_u: Values defined at the center of the western and eastern edge of each grid cell, excluding the western edge of the western ghost cells
+          and the eastern edge of the eastern ghost cells. Dimension: (nx, ny + 1)
+  - Hr_v: Values defined at the center of the southern and northern edge of each grid cell, excluding the southern edge of the southern ghost cells
+          and the northern edge of the northern ghost cells. Dimension: (nx + 1, ny)
+*/
 __kernel void ReconstructH (
     __global const float *H,
     __global float *Hr_u,
     __global float *Hr_v,
     ReconstructH_args args)
 {
-    const int i = get_global_id(0);
-    const int j = get_global_id(1);
     const int nx = args.nx;
     const int ny = args.ny;
 
-    if ((i > 0) && (i < (nx - 1)))
-        Hr_u[i * ny + j] = 0.5 * (H[i * ny + j] + H[(i + 1) * ny + j]);
-    if ((j > 0) && (j < (ny - 1)))
-        Hr_v[i * ny + j] = 0.5 * (H[i * ny + j] + H[i * ny + j + 1]);
+    int gx = get_global_id(0);
+    int gy = get_global_id(1);
 
-   // ### The above indexing doesn't work, since none of H, Hr_u, or Hr_v have width=nx and height=ny. ADJUST!
-   // ### Also, consider avoiding the tests (thus saving time) by computing Hr_u and Hr_v in separate kernels
+    if (gx < nx)
+        Hr_u[gx + gy * nx] = 0.5 * (H[gx + gy * (nx + 1)] + H[gx + 1 + gy * (nx + 1)]);
+    if (gy < ny)
+        Hr_v[gx + gy * (nx + 1)] = 0.5 * (H[gx + gy * (nx + 1)] + H[gx + (gy + 1) * (nx + 1)]);
 }
