@@ -372,9 +372,10 @@ void InitConditions::init(const OptionsPtr &options)
 		//pimpl->waterElevationField = generateWaterElevation(options->waterElevationNo(), options->nx(), options->ny(), options->width(), options->height());
 
 		pimpl->bathymetryField = generateBathymetry(options->bathymetryNo(), options->nx(), options->ny(), options->width(), options->height());
+		///XXX: We might want to be able to get w from options
         pimpl->H = generateH(options->nx(), options->ny(), options->width(), options->height(), pimpl->bathymetryField, 1.0f);
 
-        pimpl->eta = generateEta(options->bathymetryNo(), options->nx(), options->ny(), options->width(), options->height());
+        pimpl->eta = generateEta(options->waterElevationNo(), options->nx(), options->ny(), options->width(), options->height());
 	}
 }
 
