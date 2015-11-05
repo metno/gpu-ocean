@@ -16,6 +16,7 @@ __kernel void ReconstructH (
     __global const float *H,
     __global float *Hr_u,
     __global float *Hr_v,
+    __local float *H_local, // dimension: (wgnx + 1, wgny + 1) where wgnx and wgny are the work-group size in each dimension
     ReconstructH_args args)
 {
     const int nx = args.nx;
@@ -47,15 +48,12 @@ __kernel void ReconstructH (
     const int leid_east = lex - 1 + ley * lenx;
     const int leid_south = lex + (ley - 1) * lenx;
 
-    // allocate local work-group memory for H
-    local float16 H_local[lenx * leny];
-
     // copy H from global to local memory
     H_local[leid] = H[gid]; // copy to this cell
     if ((lx == 0) && (gx > 0)) // only if we're at the west side of the work-group, but not if we're at the west side of the global domain
         H_local[ley * lenx] = H[(gx - 1) + gy * (nx + 1)]; // copy to neighbor cell to the west
     if ((ly == 0) && (gy > 0)) // only if we're at the south side of the work-group, but not if we're at the south side of the global domain
-        H_local[lex] = H[gx + (gy - 1) * (nx + 1)] // copy to neighbor cell to the south
+        H_local[lex] = H[gx + (gy - 1) * (nx + 1)]; // copy to neighbor cell to the south
 
     // ensure all work-items have copied their values to local memory before proceeding
     barrier(CLK_LOCAL_MEM_FENCE); // assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item

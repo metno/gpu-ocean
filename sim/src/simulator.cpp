@@ -4,6 +4,7 @@
 #include "computeV_types.h"
 #include <boost/format.hpp>
 #include <iostream>
+#include <stdexcept>
 
 using namespace std;
 
@@ -54,16 +55,31 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
     Hr_v = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * (nx + 1) * ny, 0, &error);
     CL_CHECK(error);
 
+    // define work-group size (### do this globally, since the values are uses throughout the simulation ... TBD)
+    const int wgnx = 16;
+    const int wgny = 16;
+
+    // create buffer for local work-group memory for H
+    const int H_local_size = sizeof(float) * (wgnx + 1) * (wgny + 1);
+    const cl_ulong localDevMemAvail = OpenCLUtils::getDeviceLocalMemSize();
+    if (H_local_size > localDevMemAvail)
+        throw runtime_error(
+                (boost::format("not enough local device memory for reconstructing H: requested: %d bytes, available: %d bytes")
+                 % H_local_size % localDevMemAvail).str());
+    cl::Buffer H_local = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, H_local_size, 0, &error);
+    CL_CHECK(error);
+
     cl::Kernel *kernel = OpenCLUtils::getKernel("ReconstructH");
 
     // set up kernel arguments
     kernel->setArg<cl::Buffer>(0, H);
     kernel->setArg<cl::Buffer>(1, Hr_u);
     kernel->setArg<cl::Buffer>(2, Hr_v);
+    kernel->setArg<cl::Buffer>(3, H_local);
     ReconstructH_args args;
     args.nx = options->nx();
     args.ny = options->ny();
-    kernel->setArg(3, args);
+    kernel->setArg(4, args);
 
     // execute kernel (computes Hr_u and Hr_v in device memory and returns pointers)
     cl::Event event;

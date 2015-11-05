@@ -86,6 +86,17 @@ void OpenCLUtils::listDevices()
 }
 
 /**
+ * Returns the maximum local memory size of the current device in bytes.
+ */
+cl_ulong OpenCLUtils::getDeviceLocalMemSize()
+{
+    cl_ulong size;
+    cl_int error = devices[devIndex].getInfo(CL_DEVICE_LOCAL_MEM_SIZE, &size);
+    CL_CHECK(error);
+    return size;
+}
+
+/**
  * Returns the execution time from an event.
  * @param event Input: The event object
  * @return Elapsed execution time in milliseconds

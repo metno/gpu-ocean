@@ -37,6 +37,7 @@ public:
     static std::string getDeviceName(const cl::Device &);
     static cl_uint countDevices(const cl::Platform &);
     static void listDevices();
+    static cl_ulong getDeviceLocalMemSize();
     static float elapsedMilliseconds(const cl::Event &);
     static void init(const std::vector<std::pair<std::string, std::string> > &, cl_device_type, const std::string & = std::string());
     static cl::Context *getContext();
@@ -48,9 +49,9 @@ public:
 private:
     static bool isInit;
     static std::vector<cl::Platform> platforms;
-    static cl_uint pfmIndex;
+    static cl_uint pfmIndex; // index of current platform
     static std::vector<cl::Device> devices;
-    static cl_uint devIndex;
+    static cl_uint devIndex; // index of current device
     static cl::Context *context;
     static cl::Program *program;
     static std::map<std::string, cl::Kernel *> kernels; // tag-to-kernel mapping
