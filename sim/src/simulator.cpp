@@ -83,7 +83,8 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
 
     // execute kernel (computes Hr_u and Hr_v in device memory and returns pointers)
     cl::Event event;
-    CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(*kernel, cl::NullRange, cl::NDRange(nx + 1, ny + 1), cl::NullRange, 0, &event));
+    CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
+                 *kernel, cl::NullRange, cl::NDRange(nx + 1, ny + 1), cl::NDRange(wgnx, wgny), 0, &event));
     CL_CHECK(event.wait());
 
     // ...
