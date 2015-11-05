@@ -4,19 +4,20 @@
 /*
 Reconstructs the equilibrium depth, H, at the western and southern cell edge.
 Input:
-  - args.nx, args.ny: Internal grid dimension (nx, ny), i.e. not including grid points at the outside of ghost cells.
-  - H: Values defined at the center of each cell, including ghost cells. Dimension: (nx + 1, ny + 1).
+  - args.nx, args.ny: Internal grid size (nx, ny), i.e. not including grid points at the outside of ghost cells.
+  - H: Values defined at the center of each cell, including ghost cells. Size: (nx + 1, ny + 1).
+  - H_local: Local memory buffer for H. Size: (wgnx + 1, wgny + 1) where wgnx and wgny are the work-group size in each dimension.
 Output:
   - Hr_u: Values defined at the center of the western and eastern edge of each grid cell, excluding the western edge of the western ghost cells
-          and the eastern edge of the eastern ghost cells. Dimension: (nx, ny + 1)
+          and the eastern edge of the eastern ghost cells. Size: (nx, ny + 1)
   - Hr_v: Values defined at the center of the southern and northern edge of each grid cell, excluding the southern edge of the southern ghost cells
-          and the northern edge of the northern ghost cells. Dimension: (nx + 1, ny)
+          and the northern edge of the northern ghost cells. Size: (nx + 1, ny)
 */
 __kernel void ReconstructH (
     __global const float *H,
+    __local float *H_local,
     __global float *Hr_u,
     __global float *Hr_v,
-    __local float *H_local, // dimension: (wgnx + 1, wgny + 1) where wgnx and wgny are the work-group size in each dimension
     ReconstructH_args args)
 {
     const int nx = args.nx;

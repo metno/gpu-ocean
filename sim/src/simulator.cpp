@@ -74,9 +74,9 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
 
     // set up kernel arguments
     kernel->setArg<cl::Buffer>(0, H);
-    kernel->setArg<cl::Buffer>(1, Hr_u);
-    kernel->setArg<cl::Buffer>(2, Hr_v);
-    kernel->setArg<cl::Buffer>(3, H_local);
+    kernel->setArg<cl::Buffer>(1, H_local);
+    kernel->setArg<cl::Buffer>(2, Hr_u);
+    kernel->setArg<cl::Buffer>(3, Hr_v);
     ReconstructH_args args;
     args.nx = options->nx();
     args.ny = options->ny();
