@@ -6,6 +6,10 @@
 #include <iostream>
 #include <stdexcept>
 
+// work-group size in each dimension (### maybe get this from a config file and/or program options instead? ... TBD)
+#define WGNX 16
+#define WGNY 16
+
 using namespace std;
 
 struct Simulator::SimulatorImpl
@@ -55,12 +59,9 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
     Hr_v = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * (nx + 1) * ny, 0, &error);
     CL_CHECK(error);
 
-    // define work-group size (### do this globally, since the values are uses throughout the simulation ... TBD)
-    const int wgnx = 16;
-    const int wgny = 16;
-
     // create buffer for local work-group memory for H
-    const int H_local_size = sizeof(float) * (wgnx + 1) * (wgny + 1);
+    const cl::NDRange wgRange(WGNX, WGNY); // work-group range
+    const int H_local_size = sizeof(float) * (wgRange[0] + 1) * (wgRange[1] + 1);
     const cl_ulong localDevMemAvail = OpenCLUtils::getDeviceLocalMemSize();
     if (H_local_size > localDevMemAvail)
         throw runtime_error(
@@ -84,7 +85,7 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
     // execute kernel (computes Hr_u and Hr_v in device memory and returns pointers)
     cl::Event event;
     CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
-                 *kernel, cl::NullRange, cl::NDRange(nx + 1, ny + 1), cl::NDRange(wgnx, wgny), 0, &event));
+                 *kernel, cl::NullRange, cl::NDRange(nx + 1, ny + 1), wgRange, 0, &event));
     CL_CHECK(event.wait());
 
     // ...
