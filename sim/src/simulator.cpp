@@ -1,14 +1,11 @@
 #include "simulator.h"
 #include "oclutils.h"
+#include "config.h"
 #include "reconstructH_types.h"
 #include "computeV_types.h"
 #include <boost/format.hpp>
 #include <iostream>
 #include <stdexcept>
-
-// work-group size in each dimension (### maybe get this from a config file and/or program options instead? ... TBD)
-#define WGNX 16
-#define WGNY 16
 
 using namespace std;
 
@@ -59,33 +56,29 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
     Hr_v = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * (nx + 1) * ny, 0, &error);
     CL_CHECK(error);
 
-    // create buffer for local work-group memory for H
-    const cl::NDRange wgRange(WGNX, WGNY); // work-group range
-    const int H_local_size = sizeof(float) * (wgRange[0] + 1) * (wgRange[1] + 1);
+    // ensure that we have enough local memory for the work-group
+    const int H_local_size = sizeof(float) * (WGNX + 1) * (WGNY + 1);
     const cl_ulong localDevMemAvail = OpenCLUtils::getDeviceLocalMemSize();
     if (H_local_size > localDevMemAvail)
         throw runtime_error(
                 (boost::format("not enough local device memory for reconstructing H: requested: %d bytes, available: %d bytes")
                  % H_local_size % localDevMemAvail).str());
-    cl::Buffer H_local = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, H_local_size, 0, &error);
-    CL_CHECK(error);
 
     cl::Kernel *kernel = OpenCLUtils::getKernel("ReconstructH");
 
     // set up kernel arguments
     kernel->setArg<cl::Buffer>(0, H);
-    kernel->setArg<cl::Buffer>(1, H_local);
-    kernel->setArg<cl::Buffer>(2, Hr_u);
-    kernel->setArg<cl::Buffer>(3, Hr_v);
+    kernel->setArg<cl::Buffer>(1, Hr_u);
+    kernel->setArg<cl::Buffer>(2, Hr_v);
     ReconstructH_args args;
     args.nx = options->nx();
     args.ny = options->ny();
-    kernel->setArg(4, args);
+    kernel->setArg(3, args);
 
     // execute kernel (computes Hr_u and Hr_v in device memory and returns pointers)
     cl::Event event;
     CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
-                 *kernel, cl::NullRange, cl::NDRange(nx + 1, ny + 1), wgRange, 0, &event));
+                 *kernel, cl::NullRange, cl::NDRange(nx + 1, ny + 1), cl::NDRange(WGNX, WGNY), 0, &event));
     CL_CHECK(event.wait());
 
     // ...

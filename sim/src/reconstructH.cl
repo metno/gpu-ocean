@@ -1,12 +1,11 @@
 #include "reconstructH_types.h"
-
+#include "config.h"
 
 /*
 Reconstructs the equilibrium depth, H, at the western and southern cell edge.
 Input:
   - args.nx, args.ny: Internal grid size (nx, ny), i.e. not including grid points at the outside of ghost cells.
   - H: Values defined at the center of each cell, including ghost cells. Size: (nx + 1, ny + 1).
-  - H_local: Local memory buffer for H. Size: (wgnx + 1, wgny + 1) where wgnx and wgny are the work-group size in each dimension.
 Output:
   - Hr_u: Values defined at the center of the western and eastern edge of each grid cell, excluding the western edge of the western ghost cells
           and the eastern edge of the eastern ghost cells. Size: (nx, ny + 1)
@@ -15,7 +14,6 @@ Output:
 */
 __kernel void ReconstructH (
     __global const float *H,
-    __local float *H_local,
     __global float *Hr_u,
     __global float *Hr_v,
     ReconstructH_args args)
@@ -48,6 +46,9 @@ __kernel void ReconstructH (
     const int leid = lex + ley * lenx;
     const int leid_east = lex - 1 + ley * lenx;
     const int leid_south = lex + (ley - 1) * lenx;
+
+    // allocate local work-group memory for H
+    local float H_local[(WGNX + 1) * (WGNY + 1)];
 
     // copy H from global to local memory
     H_local[leid] = H[gid]; // copy to this cell
