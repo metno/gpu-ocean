@@ -34,8 +34,8 @@ __kernel void ReconstructH (
     // local indices ++
     const int lx = get_local_id(0);
     const int ly = get_local_id(1);
-    const int lnx = get_local_size(0);
-    const int lny = get_local_size(1);
+    const int lnx = get_local_size(0); // assert(lnx == WGNX)
+    const int lny = get_local_size(1); // assert(lny == WGNY)
     const int lid = lx + ly * lnx;
 
     // local indices ++ in H_local (extended to accommodate neighbors to the west and south)

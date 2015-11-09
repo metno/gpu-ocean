@@ -1,11 +1,12 @@
 #include "computeV_types.h"
+#include "config.h"
 
 __kernel void computeV (
     __global const float *eta,
     __global const float *U,
     __global float *V,
     __global float *Hr_v,
-    ReconstructH_args args)
+    computeV_args args)
 {
     const int nx = args.nx;
     const int ny = args.ny;
@@ -23,14 +24,14 @@ __kernel void computeV (
 	int lx = get_local_id(0);
     int ly = get_local_id(1);
     
-    int lnx = get_local_size(0);
-    int lny = get_local_size(1);
+    int lnx = get_local_size(0); // assert(lnx == WGNX)
+    int lny = get_local_size(1); // assert(lny == WGNY)
     
     int lid = lx + ly*lnx;
     
-    local float16 Hr_v_local[lnx*(lny+1)];
-    local float16 eta_local[lnx*(lny+1)];
-    local float16 U_local[(lnx+1)*(lny+1)];
+    local float Hr_v_local[WGNX * (WGNY + 1)];
+    local float eta_local[WGNX * (WGNY + 1)];
+    local float U_local[(WGNX + 1) * (WGNY + 1)];
     
     // CONT HERE!
     Hr_v_local[lid] = Hr_v[gid];
@@ -40,7 +41,7 @@ __kernel void computeV (
 		const unsigned int l = gy + j;
 		for (int i=lx; i<lnx+1; i+=lnx) {
 			const unsigned int k = gx + i;
-			if (k < nx+1 && l >= 0 && l < ny) { //!< no reading outside the domain
+            if (k < nx+1 && l < ny) { //!< no reading outside the domain
 				U_local[i + j*lnx] = U[k + l*nx];
 			} else {
 				U_local[i + j*lnx] = 0.0f;
@@ -57,11 +58,11 @@ __kernel void computeV (
     // U (hat) reconstructed
     float Ur;	
 	if (gx == 0) {
-		Ur = 0.5f * (U_shared[lid+1] + U_shared[lx+1 + (ly+1)*lnx]);
+        Ur = 0.5f * (U_local[lid+1] + U_local[lx+1 + (ly+1)*lnx]);
 	} else if (gx == nx-1) {
-		Ur = 0.5f * (U_shared[lid] + U_shared[lx + (ly+1)*lnx]);
+        Ur = 0.5f * (U_local[lid] + U_local[lx + (ly+1)*lnx]);
 	} else {
-		Ur = Ur = 0.25f * (U_local[lid] + U_local[lid+1] + 
+        Ur = 0.25f * (U_local[lid] + U_local[lid+1] +
 						U_local[lx + (ly+1)*lnx] + U_local[lx+1 + (ly+1)*lnx]);
 	}
 

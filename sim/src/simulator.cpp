@@ -71,11 +71,11 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
     kernel->setArg<cl::Buffer>(1, Hr_u);
     kernel->setArg<cl::Buffer>(2, Hr_v);
     ReconstructH_args args;
-    args.nx = options->nx();
-    args.ny = options->ny();
+    args.nx = nx;
+    args.ny = ny;
     kernel->setArg(3, args);
 
-    // execute kernel (computes Hr_u and Hr_v in device memory and returns pointers)
+    // execute kernel (computes Hr_u and Hr_v in device memory)
     cl::Event event;
     CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
                  *kernel, cl::NullRange, cl::NDRange(nx + 1, ny + 1), cl::NDRange(WGNX, WGNY), 0, &event));
@@ -91,6 +91,9 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
 {
     cerr << "computing V ...\n";
 
+    const int nx = options->nx();
+    const int ny = options->ny();
+
     // ... more code here ...
 
     cl::Kernel *kernel = OpenCLUtils::getKernel("computeV");
@@ -98,8 +101,8 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
     // set up kernel arguments
     // ...
     computeV_args args;
-    args.nx = options->nx();
-    args.ny = options->ny();
+    args.nx = nx;
+    args.ny = ny;
     args.dt = -1; // ### replace -1 with actual value!
     args.dy = -1; // ### replace -1 with actual value!
     args.R = -1; // ### replace -1 with actual value!
@@ -108,6 +111,15 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
     kernel->setArg(-1, args); // ### replace -1 with actual index!
 
     // ... more code here ...
+
+    // execute kernel (to do exactly what?)
+    // ### is a computational domain of (nx + 1, ny + 1) correct? (i.e. one work-item per cell, including ghost cells) ... TBD
+//    cl::Event event;
+//    CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
+//                 *kernel, cl::NullRange, cl::NDRange(nx + 1, ny + 1), cl::NDRange(WGNX, WGNY), 0, &event));
+//    CL_CHECK(event.wait());
+
+    // ...
 }
 
 Simulator::Simulator(const OptionsPtr &options, const InitCondPtr &initCond)
@@ -125,6 +137,7 @@ bool Simulator::_init()
     // initialize OpenCL structures
     vector<pair<string, string> > sources;
     sources.push_back(make_pair("ReconstructH", "reconstructH.cl"));
+    sources.push_back(make_pair("computeV", "computeV.cl"));
     OpenCLUtils::init(
                 sources, options()->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU,
                 (boost::format("-I %s") % OpenCLUtils::getKernelDir()).str());
