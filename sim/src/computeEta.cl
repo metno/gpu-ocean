@@ -21,11 +21,7 @@ __kernel void computeEta (
     const int nx = args.nx;
     const int ny = args.ny;
 
-    // global work-item indices and sizes
-    const int gnx = get_global_size(0);
-    const int gny = get_global_size(1);
-    // assert(gnx == nx - 1)
-    // assert(gny == ny - 1)
+    // global work-item indices
     const int gx = get_global_id(0); // range: [0, nx - 2]
     const int gy = get_global_id(1); // range: [0, ny - 2]
     const int gid = gx + gy * (nx - 1); // range: [0, (nx - 2) + (ny - 2) * (nx + 1)]
@@ -35,7 +31,6 @@ __kernel void computeEta (
     const int ly = get_local_id(1);
     const int lnx = get_local_size(0); // assert(lnx == WGNX)
     const int lny = get_local_size(1); // assert(lny == WGNY)
-    const int lid = lx + ly * lnx; // needed?
 
     // U_local indices and sizes
     const int lunx = lnx + 1;

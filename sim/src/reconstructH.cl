@@ -22,10 +22,6 @@ __kernel void ReconstructH (
     const int ny = args.ny;
 
     // global indices ++
-    const int gnx = get_global_size(0);
-    const int gny = get_global_size(1);
-    // assert(gnx == nx + 1)
-    // assert(gny == ny + 1)
     const int gx = get_global_id(0); // range: [0, nx]
     const int gy = get_global_id(1); // range: [0, ny]
     const int gid = gx + gy * (nx + 1); // range: [0, nx + ny * (nx + 1)]
@@ -35,7 +31,6 @@ __kernel void ReconstructH (
     const int ly = get_local_id(1);
     const int lnx = get_local_size(0); // assert(lnx == WGNX)
     const int lny = get_local_size(1); // assert(lny == WGNY)
-    const int lid = lx + ly * lnx;
 
     // local indices ++ in H_local (extended to accommodate neighbors to the west and south)
     const int lex = lx + 1;
