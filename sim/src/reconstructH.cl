@@ -21,12 +21,11 @@ __kernel void ReconstructH (
     const int nx = args.nx;
     const int ny = args.ny;
 
+    // global indices ++
     const int gnx = get_global_size(0);
     const int gny = get_global_size(1);
     // assert(gnx == nx + 1)
     // assert(gny == ny + 1)
-
-    // global indices ++
     const int gx = get_global_id(0); // range: [0, nx]
     const int gy = get_global_id(1); // range: [0, ny]
     const int gid = gx + gy * (nx + 1); // range: [0, nx + ny * (nx + 1)]
