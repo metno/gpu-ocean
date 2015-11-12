@@ -1,4 +1,4 @@
-#include "reconstructH_types.h"
+#include "computeU_types.h"
 #include "config.h"
 
 /*
@@ -21,6 +21,7 @@ __kernel void computeU (
     __global float *U,
     computeU_args args)
 {
+/*
     const int nx = args.nx;
     const int ny = args.ny;
 
@@ -77,4 +78,5 @@ __kernel void computeU (
     // ... at the southern cell edge
     if (gy > 0) // only if we're not a southern ghost cell
         Hr_v[gx + (gy - 1) * (nx + 1)] = 0.5 * (H_local[leid_south] + H_local[leid]);
+*/
 }
