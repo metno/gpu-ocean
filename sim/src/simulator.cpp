@@ -128,7 +128,7 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
     args.nx = nx;
     args.ny = ny;
     args.dt = -1; // ### replace -1 with actual value!
-    args.dy = -1; // ### replace -1 with actual value!
+    args.dx = -1; // ### replace -1 with actual value!
     args.R = -1; // ### replace -1 with actual value!
     args.F = -1; // ### replace -1 with actual value!
     args.g = -1; // ### replace -1 with actual value!

@@ -5,7 +5,7 @@ typedef struct {
     int nx;
     int ny;
     float dt;
-    float dy;
+    float dx;
     float R;
     float F;
     float g;
