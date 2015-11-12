@@ -2,6 +2,7 @@
 #include "oclutils.h"
 #include "config.h"
 #include "reconstructH_types.h"
+#include "computeU_types.h"
 #include "computeV_types.h"
 #include "computeEta_types.h"
 #include <boost/format.hpp>
@@ -24,6 +25,7 @@ struct Simulator::SimulatorImpl
     SimulatorImpl();
     void init(const OptionsPtr &);
     void reconstructH(const OptionsPtr &, const InitCondPtr &);
+    void computeU(const OptionsPtr &, const InitCondPtr &);
     void computeV(const OptionsPtr &, const InitCondPtr &);
     void computeEta(const OptionsPtr &, const InitCondPtr &);
 };
@@ -107,6 +109,44 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
 }
 
 /**
+ * Computes U.
+ */
+void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCondPtr &initCond)
+{
+    cerr << "computing U ...\n";
+
+    const int nx = options->nx();
+    const int ny = options->ny();
+
+    // ... more code here ...
+
+    cl::Kernel *kernel = OpenCLUtils::getKernel("computeU");
+
+    // set up kernel arguments
+    // ...
+    computeU_args args;
+    args.nx = nx;
+    args.ny = ny;
+    args.dt = -1; // ### replace -1 with actual value!
+    args.dy = -1; // ### replace -1 with actual value!
+    args.R = -1; // ### replace -1 with actual value!
+    args.F = -1; // ### replace -1 with actual value!
+    args.g = -1; // ### replace -1 with actual value!
+    kernel->setArg(-1, args); // ### replace -1 with actual index!
+
+    // ... more code here ...
+
+    // execute kernel (computes U in device memory, excluding western sides of western ghost cells and eastern
+    // side of eastern ghost cells)
+    cl::Event event;
+    CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
+                 *kernel, cl::NullRange, cl::NDRange(nx - 1, ny - 1), cl::NDRange(WGNX, WGNY), 0, &event));
+    CL_CHECK(event.wait());
+
+    // ...
+}
+
+/**
  * Computes V.
  */
 void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCondPtr &initCond)
@@ -168,8 +208,6 @@ void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitC
     args.dy = options->height() / float(ny - 1);
     kernel->setArg(3, args);
 
-    cl_int error = CL_SUCCESS;
-
     // execute kernel (computes eta in device memory, excluding ghost cells (hence (nx - 1, ny - 1) instead of (nx + 1, ny + 1));
     // note: eta in ghost cells are part of the boundary conditions and updated separately)
     cl::Event event;
@@ -195,6 +233,7 @@ bool Simulator::_init()
     // initialize OpenCL structures
     vector<pair<string, string> > sources;
     sources.push_back(make_pair("ReconstructH", "reconstructH.cl"));
+    sources.push_back(make_pair("computeU", "computeU.cl"));
     sources.push_back(make_pair("computeV", "computeV.cl"));
     sources.push_back(make_pair("computeEta", "computeEta.cl"));
     OpenCLUtils::init(
@@ -221,7 +260,9 @@ double Simulator::_maxTime() const
 
 void Simulator::_execNextStep()
 {
-    // compute U ... TBD
+    // compute U
+    pimpl->computeU(options(), initCond());
+
     // compute V ... TBD
 
     // compute eta
