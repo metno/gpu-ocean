@@ -170,7 +170,8 @@ void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitC
 
     cl_int error = CL_SUCCESS;
 
-    // execute kernel (computes eta in device memory, excluding ghost cells (hence (nx - 1, ny - 1) instead of (nx + 1, ny + 1)))
+    // execute kernel (computes eta in device memory, excluding ghost cells (hence (nx - 1, ny - 1) instead of (nx + 1, ny + 1));
+    // note: eta in ghost cells are part of the boundary conditions and updated separately)
     cl::Event event;
     CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
                  *kernel, cl::NullRange, cl::NDRange(nx - 1, ny - 1), cl::NDRange(WGNX, WGNY), 0, &event));

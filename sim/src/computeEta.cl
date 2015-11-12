@@ -2,7 +2,7 @@
 #include "config.h"
 
 /*
-Computes Eta at the center of the cell. Eta is the sea surface deviation away from the equilibrium depth (H).
+Computes Eta at the center of the (non-ghost) cell. Eta is the sea surface deviation away from the equilibrium depth (H).
 Input:
   - args.nx, args.ny: Internal grid size (nx, ny), i.e. not including grid points at the outside of ghost cells.
   - U: Depth averaged velocity in the x-direction. Defined at western and eastern cell edges, excluding those of the southern
@@ -10,7 +10,7 @@ Input:
   - V: Depth averaged velocity in the y-direction. Defined at southern and northern cell edges, excluding those of the western
        and eastern ghost cells. Size: (nx - 1, ny + 2).
 Input+output:
-  - eta: Values defined at the center of each cell, excluding ghost cells. Size: (nx - 1, ny - 1).
+  - eta: Values defined at the center of each cell, including ghost cells. Size: (nx + 1, ny + 1).
 */
 __kernel void computeEta (
     __global const float *U,
@@ -66,6 +66,7 @@ __kernel void computeEta (
     barrier(CLK_LOCAL_MEM_FENCE); // assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item
 
     // compute eta
-    eta[gid] = eta[gid] - args.dt / args.dx * (U_local[luid_east] - U_local[luid_west])
-                        - args.dt / args.dy * (V_local[lvid_south] - V_local[lvid_north]);
+    const int geid = (gx + 1) + (gy + 1) * (nx + 1);
+    eta[geid] = eta[geid] - args.dt / args.dx * (U_local[luid_east] - U_local[luid_west])
+                          - args.dt / args.dy * (V_local[lvid_south] - V_local[lvid_north]);
 }
