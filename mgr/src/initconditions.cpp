@@ -376,7 +376,9 @@ void InitConditions::init(const OptionsPtr &options)
         pimpl->H = generateH(options->nx(), options->ny(), options->width(), options->height(), pimpl->bathymetryField, 1.0f);
 
         pimpl->eta = generateEta(options->waterElevationNo(), options->nx(), options->ny(), options->width(), options->height());
-	}
+    } else {
+        cerr << "warning: at least one of waterElevationNo and bathymetryNo is less than zero => bathymetryField, H, and eta not initialized!\n";
+    }
 }
 
 FieldInfo InitConditions::waterElevationField() const
