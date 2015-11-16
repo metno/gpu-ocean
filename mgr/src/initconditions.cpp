@@ -43,46 +43,47 @@ inline FieldInfo generateBathymetry(int no, int nx, int ny, float width, float h
 	cout << "Generating bathymetry: '";
 
 	shared_ptr<vector<float> > f_;
-	f_.reset(new vector<float>(nx+1, ny+1));
+    f_.reset(new vector<float>((nx + 1) * (ny + 1)));
 	vector<float> f = *f_;
 
 	switch (no)
 	{
 	case 0:
 		cout << "flat";
-		for (unsigned int i=0; i<nx*ny; ++i)
+        for (int i = 0; i < f.size(); ++i)
 			f[i] = 0.0f;
 		break;
 	case 1:
 		cout << "peaks";
 #pragma omp parallel for
-		for (int j=0; j<static_cast<int>(ny); ++j) {
+        for (int j = 0; j <= ny; ++j) {
 			float y = j * 6.0f/(float) ny - 3.0f;
-			for (unsigned int i=0; i<nx; ++i) {
-				float x = i * 6.0f/(float) nx - 3.0f;
+            for (int i = 0; i <= nx; ++i) {
+                float x = i * 6.0f/nx - 3.0f;
 				float value = 3.0f*(1-x)*(1-x) * exp(-(x*x) - (y-1)*(y-1))
 								- 10.0f * (x/5.0f - x*x*x - y*y*y*y*y) * exp(-(x*x) - (y*y))
 								- 1.0f/3.0f * exp(-(x+1)*(x+1) - (y*y));
 
-				f[j*nx+i] = 0.1f*value;
+                f[j * (nx + 1) + i] = 0.1f*value;
 			}
 		}
 		break;
 	case 2:
 		cout << "3 bumps";
 #pragma omp parallel for
-		for (int j=0; j<static_cast<int>(ny); ++j) {
-			float y = j / (float) ny;
-			for (unsigned int i=0; i<nx; ++i) {
-				float x = i / (float) nx;
+        for (int j=0; j <= ny; ++j) {
+            const float y = j / (float) ny;
+            for (int i = 0; i <= nx; ++i) {
+                const float x = i / (float) nx;
+                const int index = j * (nx + 1) + i;
 				if ((x-0.25f)*(x-0.25f)+(y-0.25f)*(y-0.25f)<0.01)
-					f[j*nx+i] = 5.0f*(0.01f-(x-0.25f)*(x-0.25f)-(y-0.25f)*(y-0.25f));
+                    f[index] = 5.0f*(0.01f-(x-0.25f)*(x-0.25f)-(y-0.25f)*(y-0.25f));
 				else if ((x-0.75f)*(x-0.75f)+(y-0.25f)*(y-0.25f)<0.01f)
-					f[j*nx+i] = 5.0f*(0.01f-(x-0.75f)*(x-0.75f)-(y-0.25f)*(y-0.25f));
+                    f[index] = 5.0f*(0.01f-(x-0.75f)*(x-0.75f)-(y-0.25f)*(y-0.25f));
 				else if ((x-0.25f)*(x-0.25f)+(y-0.75f)*(y-0.75f)<0.01f)
-					f[j*nx+i] = 5.0f*(0.01f-(x-0.25f)*(x-0.25f)-(y-0.75f)*(y-0.75f));
+                    f[index] = 5.0f*(0.01f-(x-0.25f)*(x-0.25f)-(y-0.75f)*(y-0.75f));
 				else
-					f[j*nx+i] = 0.0f;
+                    f[index] = 0.0f;
 			}
 		}
 		break;
@@ -96,22 +97,19 @@ inline FieldInfo generateBathymetry(int no, int nx, int ny, float width, float h
         const float v2 = width * 0.002f;
         const float v3 = width * 0.4f;
 #pragma omp parallel for
-        for (int j=0; j<static_cast<int>(ny); ++j) {
-            for (unsigned int i = 0; i<nx; ++i) {
+        for (int j = 0; j <= ny; ++j) {
+            for (int i = 0; i <= nx; ++i) {
                 const float x = i*dx;
-                if (x1 < x && x < x2) {
-                    f[j*nx+i] = v1 - v2*(x-v3)*(x-v3);
-                }
-                else {
-                    f[j*nx+i] = 0.0f;
-                }
+                f[j * (nx + 1) + i] = (x1 < x && x < x2)
+                        ? (v1 - v2*(x-v3)*(x-v3))
+                        : 0.0f;
             }
         }
     }
         break;
     case IDEALISED_CIRCULAR_DAM:
 		cout << "idealized circular dam";
-		for (unsigned int i=0; i<nx*ny; ++i)
+        for (int i = 0; i < f.size(); ++i)
 			f[i] = 0.0f;
 		break;
 	default:
@@ -121,7 +119,7 @@ inline FieldInfo generateBathymetry(int no, int nx, int ny, float width, float h
 
 	cout << "' (" << nx << "x" << ny << " values)" << endl;
 
-    return FieldInfo(f_, nx, ny, dx, dy);
+    return FieldInfo(f_, nx + 1, ny + 1, dx, dy);
 }
 
 inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, float height)
@@ -137,7 +135,7 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
 	cout << "Generating water elevation: '";
 
 	shared_ptr<vector<float> > f_;
-	f_.reset(new vector<float>(nx+1, ny+1));
+    f_.reset(new vector<float>((nx + 1) * (ny + 1)));
 	vector<float> f = *f_;
 
 	switch (no)
@@ -145,14 +143,11 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
 	case 0:
 		cout << "column_dry";
 #pragma omp parallel for
-		for (int j=0; j<static_cast<int>(ny); ++j) {
+        for (int j = 0; j <= ny; ++j) {
 			float y = (j+0.5f) / (float) ny - 0.5f;
-			for (unsigned int i=0; i<nx; ++i) {
-				float x = (i+0.5f) / (float) nx - 0.5f;
-				if ((x*x)+(y*y)<0.01f)
-					f[j*nx+i] = 1.0f;
-				else
-					f[j*nx+i] = 0.0f;
+            for (int i = 0; i <= nx; ++i) {
+                float x = (i+0.5f) / (float) nx - 0.5f;
+                f[j * (nx + 1) + i] = ((x*x)+(y*y)<0.01f) ? 1.0f : 0.0f;
 			}
 		}
 		break;
@@ -161,14 +156,14 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
 	case 1:
 		cout << "gaussian";
 #pragma omp parallel for
-		for (int j=0; j<static_cast<int>(ny); ++j) {
+        for (int j = 0; j <= ny; ++j) {
 			float y = (j+0.5f) / (float) ny - 0.5f;
-			for (unsigned int i=0; i<nx; ++i) {
+            for (int i = 0; i <= nx; ++i) {
 				float x = (i+0.5f) / (float) nx - 0.5f;
 				//if ((x*x)+(y*y)<0.01)
-					f[j*nx+i] = exp(-(x*x) - (y*y));
+                    f[j * (nx + 1) + i] = exp(-(x*x) - (y*y));
 				//else
-				//	f[j*nx+i] = 0.0f;
+                //	f[j * (nx + 1) + i] = 0.0f;
 			}
 		}
 		break;
@@ -178,7 +173,7 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
 	case 2:
 		cout << "zero";
 #pragma omp parallel for
-		for (int i=0; i<static_cast<int>(nx*ny); ++i)
+        for (int i = 0; i < f.size(); ++i)
 			f[i] = 0.0f;
 		break;
 
@@ -186,7 +181,7 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
 	case STEADY_FLOW_OVER_BUMP:
 		cout << "Steady Flow Over Bump";
 #pragma omp parallel for
-		for (int i = 0; i<static_cast<int>(nx*ny); ++i)
+        for (int i = 0; i < f.size(); ++i)
 			f[i] = 1.0f;
 		break;
 
@@ -198,14 +193,11 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
         const float v1 = width * 0.1f;
         const float v2 = width * 0.065f;
 #pragma omp parallel for
-        for (int j=0; j<static_cast<int>(ny); ++j) {
+        for (int j = 0; j <= ny; ++j) {
             float y = dy*(j+0.5f)-y1;
-            for (unsigned int i=0; i<nx; ++i) {
+            for (int i = 0; i <= nx; ++i) {
                 float x = dx*(i+0.5f)-x1;
-                if (sqrt(x*x+y*y) < v2)
-                    f[j*nx+i] = v1;
-                else
-                    f[j*nx+i] = 0.0f;
+                f[j * (nx + 1) + i] = (sqrt(x*x+y*y) < v2) ? v1 : 0.0f;
             }
         }
     }
@@ -214,21 +206,18 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
 	case 5:
 		cout << "column_wet";
 #pragma omp parallel for
-		for (int j=0; j<static_cast<int>(ny); ++j) {
+        for (int j = 0; j <= ny; ++j) {
 			float y = (j+0.5f) / (float) ny - 0.5f;
-			for (unsigned int i=0; i<nx; ++i) {
+            for (int i = 0; i <= nx; ++i) {
 				float x = (i+0.5f) / (float) nx - 0.5f;
-				if ((x*x)+(y*y)<0.01f)
-					f[j*nx+i] = 1.5f;
-				else
-					f[j*nx+i] = 1.0f;
+                f[j * (nx + 1) + i] = ((x*x)+(y*y)<0.01f) ? 1.5f : 1.0f;
 			}
 		}
 		break;
 
     case 10:
         cout << "Wet";
-            for (int i=0; i<static_cast<int>(nx*ny); ++i)
+            for (int i = 0; i < f.size(); ++i)
                 f[i] = 0.3f;
         break;
 
@@ -239,7 +228,7 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
 
 	cout << "' (" << nx << "x" << ny << " values)" << endl;
 
-    return FieldInfo(f_, nx, ny, dx, dy);
+    return FieldInfo(f_, nx + 1, ny + 1, dx, dy);
 }
 
 inline FieldInfo generateH(int nx, int ny, float width, float height, FieldInfo B, float w=1.0f)
@@ -255,11 +244,11 @@ inline FieldInfo generateH(int nx, int ny, float width, float height, FieldInfo 
 	cout << "Generating sea surface mean depth (H): '";
 
 	shared_ptr<vector<float> > f_;
-	f_.reset(new vector<float>(nx+1, ny+1));
+    f_.reset(new vector<float>((nx + 1) * (ny + 1)));
 	vector<float> f = *f_;
 
 #pragma omp parallel for
-	for (int i = 0; i<static_cast<int>(nx*ny); ++i) {
+    for (int i = 0; i < f.size(); ++i) {
 		f[i] = w - B.data->at(i);
 		if (f[i] < 0.0f) {
 			cout << "Negative values in H are not allowed. (Increase global water elevation (w) or change bathymetry (B) input.)" << endl;
@@ -269,7 +258,7 @@ inline FieldInfo generateH(int nx, int ny, float width, float height, FieldInfo 
 
 	cout << "' (" << nx << "x" << ny << " values)" << endl;
 
-    return FieldInfo(f_, nx, ny, dx, dy);
+    return FieldInfo(f_, nx + 1, ny + 1, dx, dy);
 }
 
 inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
@@ -285,7 +274,7 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
 	cout << "Generating sea surface deviation (eta): '";
 
 	shared_ptr<vector<float> > f_;
-	f_.reset(new vector<float>(nx+1, ny+1));
+    f_.reset(new vector<float>((nx + 1) * (ny + 1)));
 	vector<float> f = *f_;
 
 	switch (no)
@@ -293,14 +282,11 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
 	case 0:
 		cout << "column";
 #pragma omp parallel for
-		for (int j=0; j<static_cast<int>(ny); ++j) {
+        for (int j = 0; j <= ny; ++j) {
 			float y = (j+0.5f) / (float) ny - 0.5f;
-			for (unsigned int i=0; i<nx; ++i) {
+            for (int i = 0; i <= nx; ++i) {
 				float x = (i+0.5f) / (float) nx - 0.5f;
-				if ((x*x)+(y*y)<0.01f)
-					f[j*nx+i] = 1.0f;
-				else
-					f[j*nx+i] = 0.0f;
+                f[j * (nx + 1) + i] = ((x*x)+(y*y)<0.01f) ? 1.0f : 0.0f;
 			}
 		}
 		break;
@@ -308,11 +294,11 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
 	case 1:
 		cout << "gaussian";
 #pragma omp parallel for
-		for (int j=0; j<static_cast<int>(ny); ++j) {
+        for (int j = 0; j <= ny; ++j) {
 			float y = (j+0.5f) / (float) ny - 0.5f;
-			for (unsigned int i=0; i<nx; ++i) {
+            for (int i = 0; i <= nx; ++i) {
 				float x = (i+0.5f) / (float) nx - 0.5f;
-				f[j*nx+i] = exp(-(x*x) - (y*y));
+                f[j * (nx + 1) + i] = exp(-(x*x) - (y*y));
 			}
 		}
 		break;
@@ -320,7 +306,7 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
 	case 2:
 		cout << "zero";
 #pragma omp parallel for
-		for (int i=0; i<static_cast<int>(nx*ny); ++i)
+        for (int i = 0; i < f.size(); ++i)
 			f[i] = 0.0f;
 		break;
 
@@ -328,7 +314,7 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
 	case STEADY_FLOW_OVER_BUMP:
 		cout << "Steady Flow Over Bump";
 #pragma omp parallel for
-		for (int i = 0; i<static_cast<int>(nx*ny); ++i)
+        for (int i = 0; i < f.size(); ++i)
 			f[i] = 0.0f;
 		break;
 
@@ -340,14 +326,11 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
         const float v1 = width * 0.1f;
         const float v2 = width * 0.065f;
 #pragma omp parallel for
-        for (int j=0; j<static_cast<int>(ny); ++j) {
+        for (int j = 0; j <= ny; ++j) {
             float y = dy*(j+0.5f)-y1;
-            for (unsigned int i=0; i<nx; ++i) {
+            for (int i = 0; i <= nx; ++i) {
                 float x = dx*(i+0.5f)-x1;
-                if (sqrt(x*x+y*y) < v2)
-                    f[j*nx+i] = v1;
-                else
-                    f[j*nx+i] = 0.0f;
+                f[j * (nx + 1) + i] = (sqrt(x*x+y*y) < v2) ? v1 : 0.0f;
             }
         }
     }
@@ -360,7 +343,7 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
 
 	cout << "' (" << nx << "x" << ny << " values)" << endl;
 
-    return FieldInfo(f_, nx, ny, dx, dy);
+    return FieldInfo(f_, nx + 1, ny + 1, dx, dy);
 }
 
 void InitConditions::init(const OptionsPtr &options)
