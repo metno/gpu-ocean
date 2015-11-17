@@ -54,6 +54,30 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options)
     CL_CHECK(error);
 }
 
+// Returns the ceiling of the result of dividing two integers.
+static int idivceil(int a, int b)
+{
+    assert(b > 0);
+    return a / b + ((a % b) ? 1 : 0);
+}
+
+/**
+ * Returns the global 2D work size for a kernel.
+ * @param nx, ny: Requested global work size.
+ * @param lnx, lny: Local work size (i.e. work-group size).
+ * @returns The smallest global work size that will accommodate the requested global work size and still divide the local work size.
+ */
+static cl::NDRange global2DWorkSize(int nx, int ny, int lnx, int lny)
+{
+    assert(nx > 0);
+    assert(ny > 0);
+    assert(lnx > 0);
+    assert(lny > 0);
+    const int q =
+    return cl::NDRange(lnx * idivceil(nx, lnx), lny * idivceil(ny, lny));
+}
+
+
 /**
  * Reconstructs H, i.e. computes Hr_u and Hr_v from initCond->H().
  */
@@ -102,7 +126,7 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
     // execute kernel (computes Hr_u and Hr_v in device memory)
     cl::Event event;
     CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
-                 *kernel, cl::NullRange, cl::NDRange(nx + 1, ny + 1), cl::NDRange(WGNX, WGNY), 0, &event));
+                 *kernel, cl::NullRange, global2DWorkSize(nx + 1, ny + 1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
     CL_CHECK(event.wait());
 
     // ...
@@ -139,8 +163,8 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
     // execute kernel (computes U in device memory, excluding western sides of western ghost cells and eastern
     // side of eastern ghost cells)
     cl::Event event;
-    CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
-                 *kernel, cl::NullRange, cl::NDRange(nx - 1, ny - 1), cl::NDRange(WGNX, WGNY), 0, &event));
+    CL_CHECK(OpenCLUtils::getQueue(|)->enqueueNDRangeKernel(
+                 *kernel, cl::NullRange, global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
     CL_CHECK(event.wait());
 
     // ...
@@ -212,7 +236,7 @@ void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitC
     // note: eta in ghost cells are part of the boundary conditions and updated separately)
     cl::Event event;
     CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
-                 *kernel, cl::NullRange, cl::NDRange(nx - 1, ny - 1), cl::NDRange(WGNX, WGNY), 0, &event));
+                 *kernel, cl::NullRange, global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
     CL_CHECK(event.wait());
 
     // ...

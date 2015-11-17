@@ -32,6 +32,8 @@ __kernel void computeU (
     // global indices ++
     const int gx = get_global_id(0); // range: [0, nx - 2]
     const int gy = get_global_id(1); // range: [0, ny - 2]
+    if (gx > nx - 2 || gy > ny - 2)
+        return; // quit if we're in the padding area
     const int gnx = get_global_size(0); // assert(gnx == nx - 1)
     const int gid = gx + gy * gnx; // range: [0, (nx - 2) + (ny - 2) * (nx - 1)]
 

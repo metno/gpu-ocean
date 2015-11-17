@@ -22,8 +22,10 @@ __kernel void computeEta (
     const int ny = args.ny;
 
     // global work-item indices
-    const int gx = get_global_id(0); // range: [0, nx - 2]
-    const int gy = get_global_id(1); // range: [0, ny - 2]
+    const int gx = get_global_id(0); // range: [0, nx - 2 + padding]
+    const int gy = get_global_id(1); // range: [0, ny - 2 + padding]
+    if (gx > nx - 2 || gy > ny - 2)
+        return; // quit if we're in the padding area
     const int gid = gx + gy * (nx - 1); // range: [0, (nx - 2) + (ny - 2) * (nx + 1)]
 
     // local work-item indices and sizes

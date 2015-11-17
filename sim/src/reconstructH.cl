@@ -22,8 +22,10 @@ __kernel void ReconstructH (
     const int ny = args.ny;
 
     // global indices ++
-    const int gx = get_global_id(0); // range: [0, nx]
-    const int gy = get_global_id(1); // range: [0, ny]
+    const int gx = get_global_id(0); // range: [0, nx + padding]
+    const int gy = get_global_id(1); // range: [0, ny + padding]
+    if (gx > nx || gy > ny)
+        return; // quit if we're in the padding area
     const int gid = gx + gy * (nx + 1); // range: [0, nx + ny * (nx + 1)]
 
     // local indices ++
