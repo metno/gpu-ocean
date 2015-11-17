@@ -30,11 +30,13 @@ __kernel void computeU (
     const float g = args.g;
 
     // global indices ++
-    const int gx = get_global_id(0); // range: [0, nx - 2]
-    const int gy = get_global_id(1); // range: [0, ny - 2]
+    // assert(get_global_size(0) >= nx - 1)
+    // assert(get_global_size(1) >= ny - 1)
+    const int gx = get_global_id(0); // range: [0, nx - 2 + padding]
+    const int gy = get_global_id(1); // range: [0, ny - 2 + padding]
     if (gx > nx - 2 || gy > ny - 2)
         return; // quit if we're in the padding area
-    const int gnx = get_global_size(0); // assert(gnx == nx - 1)
+    const int gnx = nx - 1;
     const int gid = gx + gy * gnx; // range: [0, (nx - 2) + (ny - 2) * (nx - 1)]
 
     // local indices ++

@@ -73,7 +73,6 @@ static cl::NDRange global2DWorkSize(int nx, int ny, int lnx, int lny)
     assert(ny > 0);
     assert(lnx > 0);
     assert(lny > 0);
-    const int q =
     return cl::NDRange(lnx * idivceil(nx, lnx), lny * idivceil(ny, lny));
 }
 
@@ -163,7 +162,7 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
     // execute kernel (computes U in device memory, excluding western sides of western ghost cells and eastern
     // side of eastern ghost cells)
     cl::Event event;
-    CL_CHECK(OpenCLUtils::getQueue(|)->enqueueNDRangeKernel(
+    CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
                  *kernel, cl::NullRange, global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
     CL_CHECK(event.wait());
 

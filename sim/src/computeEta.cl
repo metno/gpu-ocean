@@ -22,6 +22,8 @@ __kernel void computeEta (
     const int ny = args.ny;
 
     // global work-item indices
+    // assert(get_global_size(0) >= nx - 1)
+    // assert(get_global_size(1) >= ny - 1)
     const int gx = get_global_id(0); // range: [0, nx - 2 + padding]
     const int gy = get_global_id(1); // range: [0, ny - 2 + padding]
     if (gx > nx - 2 || gy > ny - 2)
