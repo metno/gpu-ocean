@@ -18,9 +18,14 @@ struct Simulator::SimulatorImpl
     cl::Buffer Hr_v; // y-dimension
 
     // U, V, eta
+    // device buffers:
     cl::Buffer U;
     cl::Buffer V;
     cl::Buffer eta;
+    // host buffers:
+    FieldInfo _U;
+    FieldInfo _V;
+    FieldInfo _eta;
 
     SimulatorImpl();
     void init(const OptionsPtr &);
@@ -46,12 +51,37 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options)
     CL_CHECK(error);
     Hr_v = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * (nx + 1) * ny, 0, &error);
     CL_CHECK(error);
-    U = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * (nx + 2) * (ny - 1), 0, &error);
+
+    const int nx_U = nx + 2;
+    const int ny_U = ny - 1;
+    const int size_U = nx_U * ny_U;
+    U = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * size_U, 0, &error);
     CL_CHECK(error);
-    V = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * (nx - 1) * (ny + 2), 0, &error);
+
+    const int nx_V = nx - 1;
+    const int ny_V = ny + 2;
+    const int size_V = nx_V * ny_V;
+    V = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * size_V, 0, &error);
     CL_CHECK(error);
-    eta = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * (nx + 1) * (ny + 1), 0, &error);
+
+    const int nx_eta = nx + 1;
+    const int ny_eta = ny + 1;
+    const int size_eta = nx_eta * ny_eta;
+    eta = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * size_eta, 0, &error);
     CL_CHECK(error);
+
+    // create host buffers for U, V, and eta
+    _U.data->resize(sizeof(float) * size_U);
+    _U.nx = nx_U;
+    _U.ny = ny_U;
+
+    _V.data->resize(sizeof(float) * size_V);
+    _V.nx = nx_V;
+    _V.ny = ny_V;
+
+    _eta.data->resize(sizeof(float) * size_eta);
+    _eta.nx = nx_eta;
+    _eta.ny = ny_eta;
 }
 
 // Returns the ceiling of the result of dividing two integers.
@@ -146,7 +176,10 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
     cl::Kernel *kernel = OpenCLUtils::getKernel("computeU");
 
     // set up kernel arguments
-    // ...
+    kernel->setArg<cl::Buffer>(0, eta);
+    kernel->setArg<cl::Buffer>(1, V);
+    kernel->setArg<cl::Buffer>(2, Hr_u);
+    kernel->setArg<cl::Buffer>(3, U);
     computeU_args args;
     args.nx = nx;
     args.ny = ny;
@@ -155,18 +188,20 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
     args.R = -1; // ### replace -1 with actual value!
     args.F = -1; // ### replace -1 with actual value!
     args.g = -1; // ### replace -1 with actual value!
-    kernel->setArg(-1, args); // ### replace -1 with actual index!
+    kernel->setArg(4, args);
 
     // ... more code here ...
 
     // execute kernel (computes U in device memory, excluding western sides of western ghost cells and eastern
     // side of eastern ghost cells)
     cl::Event event;
+    cl::NDRange r = global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY);
     CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
                  *kernel, cl::NullRange, global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
     CL_CHECK(event.wait());
 
-    // ...
+    // copy result from device to host
+    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(U, CL_TRUE, 0, sizeof(float) * _U.nx * _U.ny, _U.data->data(), 0, 0));
 }
 
 /**
@@ -238,7 +273,8 @@ void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitC
                  *kernel, cl::NullRange, global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
     CL_CHECK(event.wait());
 
-    // ...
+    // copy result from device to host
+    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(eta, CL_TRUE, 0, sizeof(float) * _eta.nx * _eta.ny, _eta.data->data(), 0, 0));
 }
 
 Simulator::Simulator(const OptionsPtr &options, const InitCondPtr &initCond)
@@ -294,17 +330,17 @@ void Simulator::_execNextStep()
 
 FieldInfo Simulator::_U() const
 {
-    return FieldInfo(); // ### for now
+    return pimpl->_U;
 }
 
 FieldInfo Simulator::_V() const
 {
-    return FieldInfo(); // ### for now
+    return pimpl->_V;
 }
 
 FieldInfo Simulator::_eta() const
 {
-    return FieldInfo(); // ### for now
+    return pimpl->_eta;
 }
 
 void Simulator::_printStatus() const
