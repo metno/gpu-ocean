@@ -25,7 +25,7 @@ static float computeMass(const FieldInfo &H, const FieldInfo &eta)
 
 static void processResults(const FieldInfo &H, const FieldInfo &eta, int step, double currTime, double maxTime, const OptionsPtr &options)
 {
-    const float mass = computeMass(H, eta);
+    const float mass = step < 0 ? -1 : computeMass(H, eta);
     cout << "processResults(): H.nx: " << H.nx << ", H.ny: " << H.ny << ", mass: " << mass << ", step: " << step << ", currTime: " << currTime
          << ", maxTime: " << maxTime << "; options: " << *options << ((currTime >= maxTime) ? "; (final results!)" : "") << endl;
 }
