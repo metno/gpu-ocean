@@ -71,8 +71,8 @@ bool ProgramOptions::parse(int argc, char *argv[])
                 ("ny", po::value<int>(&pimpl->ny)->default_value(10), "number of vertical grid cells")
                 ("width", po::value<float>(&pimpl->width)->default_value(1000), "horizontal extension of grid (in meters)")
                 ("height", po::value<float>(&pimpl->height)->default_value(1000), "vertical extension of grid (in meters)")
-                ("duration", po::value<double>(&pimpl->duration)->default_value(5), "max duration of simulation (in seconds) (< 0 = infinite duration)")
-                ("wallduration", po::value<double>(&pimpl->wallDuration)->default_value(0.5), "max wall time duration (in seconds) (< 0 = infinite duration)")
+                ("duration", po::value<double>(&pimpl->duration)->default_value(-1), "max duration of simulation (in seconds) (< 0 = infinite duration)")
+                ("wallduration", po::value<double>(&pimpl->wallDuration)->default_value(-1), "max wall time duration (in seconds) (< 0 = infinite duration)")
                 ;
 
         po::options_description all_options;
@@ -135,8 +135,10 @@ bool ProgramOptions::parse(int argc, char *argv[])
             throw runtime_error((boost::format("error: width (%1%) <= 0") % pimpl->width).str());
         if (pimpl->height <= 0)
             throw runtime_error((boost::format("error: height (%1%) <= 0") % pimpl->height).str());
-        if (pimpl->duration <= 0)
-            throw runtime_error((boost::format("error: duration (%1%) <= 0") % pimpl->duration).str());
+        if (pimpl->duration < 0 && pimpl->wallDuration < 0)
+            throw runtime_error(
+                    (boost::format("error: duration (%1%) and wallduration (%2%) cannot both be negative")
+                     % pimpl->duration % pimpl->wallDuration).str());
     }
     catch(exception &e)
     {
