@@ -13,6 +13,15 @@ using namespace std;
 
 struct Simulator::SimulatorImpl
 {
+    int nx; // number of grid points excluding points on the outside of ghost cells (number of cells is nx - 1)
+    int ny; // ...
+    float dx; // grid cell size in meters
+    float dy; // ...
+    float dt; // seconds by which to advance simulation in each step
+    float R; // friction
+    float F; // Coriolis effect
+    float g; // standard gravity
+
     // H reconstructed
     cl::Buffer Hr_u; // x-dimension
     cl::Buffer Hr_v; // y-dimension
@@ -41,8 +50,14 @@ Simulator::SimulatorImpl::SimulatorImpl()
 
 void Simulator::SimulatorImpl::init(const OptionsPtr &options)
 {
-    const int nx = options->nx();
-    const int ny = options->ny();
+    nx = options->nx();
+    ny = options->ny();
+    dx = options->width() / nx;
+    dy = options->height() / ny;
+    dt = std::min(dx, dy) * 0.001; // ### for now
+    R = 1; // ### no influence for now
+    F = 1; // ### no influence for now
+    g = 9.8;
 
     cl_int error = CL_SUCCESS;
 
@@ -114,8 +129,6 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
 {
     cerr << "reconstructing H ...\n";
 
-    const int nx = options->nx();
-    const int ny = options->ny();
     const FieldInfo Hfi = initCond->H();
 
     // check preconditions on H
@@ -168,9 +181,6 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
 {
     cerr << "computing U ...\n";
 
-    const int nx = options->nx();
-    const int ny = options->ny();
-
     // ... more code here ...
 
     cl::Kernel *kernel = OpenCLUtils::getKernel("computeU");
@@ -183,11 +193,11 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
     computeU_args args;
     args.nx = nx;
     args.ny = ny;
-    args.dt = -1; // ### replace -1 with actual value!
-    args.dx = -1; // ### replace -1 with actual value!
-    args.R = -1; // ### replace -1 with actual value!
-    args.F = -1; // ### replace -1 with actual value!
-    args.g = -1; // ### replace -1 with actual value!
+    args.dt = dt;
+    args.dx = dx;
+    args.R = R;
+    args.F = F;
+    args.g = g;
     kernel->setArg(4, args);
 
     // ... more code here ...
@@ -211,9 +221,6 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
 {
     cerr << "computing V ...\n";
 
-    const int nx = options->nx();
-    const int ny = options->ny();
-
     // ... more code here ...
 
     cl::Kernel *kernel = OpenCLUtils::getKernel("computeV");
@@ -223,11 +230,11 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
     computeV_args args;
     args.nx = nx;
     args.ny = ny;
-    args.dt = -1; // ### replace -1 with actual value!
-    args.dy = -1; // ### replace -1 with actual value!
-    args.R = -1; // ### replace -1 with actual value!
-    args.F = -1; // ### replace -1 with actual value!
-    args.g = -1; // ### replace -1 with actual value!
+    args.dt = dt;
+    args.dy = dy;
+    args.R = R;
+    args.F = F;
+    args.g = g;
     kernel->setArg(-1, args); // ### replace -1 with actual index!
 
     // ... more code here ...
@@ -248,9 +255,6 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
 void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitCondPtr &initCond)
 {
     cerr << "computing eta ...\n";
-
-    const int nx = options->nx();
-    const int ny = options->ny();
 
     cl::Kernel *kernel = OpenCLUtils::getKernel("computeEta");
 
