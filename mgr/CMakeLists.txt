@@ -21,7 +21,7 @@ ELSE()
 	MESSAGE(ERROR "Could not deduce target architecture: sizeof(void*) is neither 4 or 8...")
 ENDIF()
 
-ADD_LIBRARY(mgr STATIC src/manager.cpp src/programoptions.cpp src/initconditions.cpp src/field.cpp)
+ADD_LIBRARY(mgr STATIC src/manager.cpp src/programoptions.cpp src/initconditions.cpp src/field.cpp src/netcdfwriter.cpp)
 SET_TARGET_PROPERTIES(mgr PROPERTIES DEBUG_POSTFIX "d")
 INSTALL(TARGETS mgr DESTINATION mgr/lib)
 INSTALL(DIRECTORY include DESTINATION mgr PATTERN ".svn" EXCLUDE)
