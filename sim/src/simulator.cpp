@@ -127,8 +127,6 @@ static cl::NDRange global2DWorkSize(int nx, int ny, int lnx, int lny)
  */
 void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const InitCondPtr &initCond)
 {
-    cerr << "reconstructing H ...\n";
-
     const FieldInfo Hfi = initCond->H();
 
     // check preconditions on H
@@ -179,10 +177,6 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
  */
 void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCondPtr &initCond)
 {
-    cerr << "computing U ...\n";
-
-    // ... more code here ...
-
     cl::Kernel *kernel = OpenCLUtils::getKernel("computeU");
 
     // set up kernel arguments
@@ -199,8 +193,6 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
     args.F = F;
     args.g = g;
     kernel->setArg(4, args);
-
-    // ... more code here ...
 
     // execute kernel (computes U in device memory, excluding western sides of western ghost cells and eastern
     // side of eastern ghost cells)
@@ -219,10 +211,6 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
  */
 void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCondPtr &initCond)
 {
-    cerr << "computing V ...\n";
-
-    // ... more code here ...
-
     cl::Kernel *kernel = OpenCLUtils::getKernel("computeV");
 
     // set up kernel arguments
@@ -236,8 +224,6 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
     args.F = F;
     args.g = g;
     kernel->setArg(-1, args); // ### replace -1 with actual index!
-
-    // ... more code here ...
 
     // execute kernel (to do exactly what?)
     // ### is a computational domain of (nx + 1, ny + 1) correct? (i.e. one work-item per cell, including ghost cells) ... TBD
@@ -254,8 +240,6 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
  */
 void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitCondPtr &initCond)
 {
-    cerr << "computing eta ...\n";
-
     cl::Kernel *kernel = OpenCLUtils::getKernel("computeEta");
 
     // set up kernel arguments
@@ -265,9 +249,9 @@ void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitC
     computeEta_args args;
     args.nx = nx;
     args.ny = ny;
-    args.dt = -1; // ### replace -1 with actual value!
-    args.dx = options->width() / float(nx - 1);
-    args.dy = options->height() / float(ny - 1);
+    args.dt = dt;
+    args.dx = dx;
+    args.dy = dx;
     kernel->setArg(3, args);
 
     // execute kernel (computes eta in device memory, excluding ghost cells (hence (nx - 1, ny - 1) instead of (nx + 1, ny + 1));
