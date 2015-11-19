@@ -22,6 +22,9 @@ struct Simulator::SimulatorImpl
     float F; // Coriolis effect
     float g; // standard gravity
 
+    float currTime; // current simulation time
+    float maxTime; // maximum simulation time
+
     // H reconstructed
     cl::Buffer Hr_u; // x-dimension
     cl::Buffer Hr_v; // y-dimension
@@ -60,6 +63,8 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options)
     R = 1; // ### no influence for now
     F = 1; // ### no influence for now
     g = 9.8;
+    currTime = 0;
+    maxTime = options->duration();
 
     cl_int error = CL_SUCCESS;
 
@@ -299,12 +304,12 @@ bool Simulator::_init()
 
 double Simulator::_currTime() const
 {
-    return 0; // ### for now
+    return pimpl->currTime;
 }
 
 double Simulator::_maxTime() const
 {
-    return -1; // ### for now
+    return pimpl->maxTime;
 }
 
 void Simulator::_execNextStep()
@@ -316,6 +321,8 @@ void Simulator::_execNextStep()
 
     // compute eta
     pimpl->computeEta(options(), initCond());
+
+    pimpl->currTime += pimpl->dt; // advance simulation time
 }
 
 FieldInfo Simulator::_U() const
