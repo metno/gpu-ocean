@@ -258,7 +258,7 @@ void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitC
     args.ny = ny;
     args.dt = dt;
     args.dx = dx;
-    args.dy = dx;
+    args.dy = dy;
     kernel->setArg(3, args);
 
     // execute kernel (computes eta in device memory, excluding ghost cells (hence (nx - 1, ny - 1) instead of (nx + 1, ny + 1));
