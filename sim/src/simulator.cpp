@@ -52,8 +52,10 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options)
 {
     nx = options->nx();
     ny = options->ny();
-    dx = options->width() / nx;
-    dy = options->height() / ny;
+    assert(nx > 1);
+    assert(ny > 1);
+    dx = options->width() / (nx - 1);
+    dy = options->height() / (ny - 1);
     dt = std::min(dx, dy) * 0.001; // ### for now
     R = 1; // ### no influence for now
     F = 1; // ### no influence for now
