@@ -59,7 +59,7 @@ bool SimBase::init()
 }
 
 /**
- * Returns the current simulation time.
+ * Returns the current simulation time in seconds.
  */
 double SimBase::currTime() const
 {
@@ -68,12 +68,21 @@ double SimBase::currTime() const
 }
 
 /**
- * Returns the maximum simulation time.
+ * Returns the maximum simulation time in seconds.
  */
 double SimBase::maxTime() const
 {
     assertInitialized();
     return _maxTime();
+}
+
+/**
+ * Returns the time (in seconds) by which to advance the simulation in each step.
+ */
+float SimBase::deltaTime() const
+{
+    assertInitialized();
+    return _deltaTime();
 }
 
 /**
@@ -120,6 +129,24 @@ FieldInfo SimBase::eta() const
 {
     assertInitialized();
     return _eta();
+}
+
+/**
+ * Returns the friction.
+ */
+float SimBase::F() const
+{
+    assertInitialized();
+    return _F();
+}
+
+/**
+ * Returns the Coriolis effect.
+ */
+float SimBase::R() const
+{
+    assertInitialized();
+    return _R();
 }
 
 /**

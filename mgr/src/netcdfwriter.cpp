@@ -4,16 +4,15 @@
 #include <vector>
 #include <ctime>
 #include <cstring>
+#include <stdexcept>
 
-using std::endl;
-using std::cout;
 using std::setw;
 using std::setprecision;
 using std::setfill;
 
 struct NetCDFWriter::NetCDFWriterImpl
 {
-    boost::shared_ptr<NcFile> file;
+    std::shared_ptr<NcFile> file;
 
     struct {
         struct {
@@ -55,12 +54,12 @@ NetCDFWriter::NetCDFWriter()
     std::stringstream ss;
     time_t secs = time(0);
     tm *t = localtime(&secs);
-    ss << "fbl_"
-       << setw(2) << setfill('0') << setprecision(2) << t->tm_year + 1900 << "_"
-       << setw(2) << setfill('0') << setprecision(2) << t->tm_mon + 1 << "_"
-       << setw(2) << setfill('0') << setprecision(2) << t->tm_mday << "_"
-       << setw(2) << setfill('0') << setprecision(2) << t->tm_hour << "_"
-       << setw(2) << setfill('0') << setprecision(2) << t->tm_min << "_"
+    ss << "results_"
+       << setw(2) << setfill('0') << setprecision(2) << t->tm_year + 1900 << "-"
+       << setw(2) << setfill('0') << setprecision(2) << t->tm_mon + 1 << "-"
+       << setw(2) << setfill('0') << setprecision(2) << t->tm_mday << "T"
+       << setw(2) << setfill('0') << setprecision(2) << t->tm_hour << ":"
+       << setw(2) << setfill('0') << setprecision(2) << t->tm_min << ":"
        << setw(2) << setfill('0') << setprecision(2) << t->tm_sec << ".nc";
     initFile(ss.str());
 }
@@ -76,9 +75,8 @@ void NetCDFWriter::initFile(std::string fname)
     pimpl->file.reset(new NcFile(fname.c_str(), NcFile::New));
     if (!pimpl->file->is_valid()) {
         std::stringstream ss;
-        ss << "Could not create '" << fname << "'." << endl;
-        ss << "Check that it does not exist, or that your disk is full." << endl;
-        throw(ss.str());
+        ss << "Failed to create '" << fname << "'. Possible reasons: 1: The file already exists. 2: The disk is full." << std::endl;
+        throw std::runtime_error(ss.str());
     }
     memset(&pimpl->layout, 0, sizeof(pimpl->layout));
 }

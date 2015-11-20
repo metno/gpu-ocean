@@ -3,7 +3,7 @@
 
 #include <netcdfcpp.h>
 //#include <netcdf.h> // ### needed?
-#include <boost/shared_ptr.hpp>
+#include <memory>
 
 class NetCDFWriter {
 public:
@@ -21,5 +21,7 @@ private:
     struct NetCDFWriterImpl;
     NetCDFWriterImpl *pimpl;
 };
+
+typedef std::shared_ptr<NetCDFWriter> NetCDFWriterPtr;
 
 #endif // NETCDFWRITER_H

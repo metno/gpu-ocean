@@ -18,9 +18,12 @@ public:
     int ny() const;
     float width() const;
     float height() const;
+    float dx() const;
+    float dy() const;
     double duration() const;
     double wallDuration() const;
     float cpu() const;
+    std::string outputFile() const;
 private:
     struct ProgramOptionsImpl;
     ProgramOptionsImpl *pimpl;

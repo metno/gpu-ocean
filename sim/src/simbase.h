@@ -16,10 +16,13 @@ public:
     bool init();
     double currTime() const;
     double maxTime() const;
+    float deltaTime() const;
     bool execNextStep();
     FieldInfo U() const;
     FieldInfo V() const;
     FieldInfo eta() const;
+    float F() const;
+    float R() const;
     void printStatus() const;
     OptionsPtr options() const;
     InitCondPtr initCond() const;
@@ -30,10 +33,13 @@ protected:
     virtual bool _init() = 0;
     virtual double _currTime() const = 0;
     virtual double _maxTime() const = 0;
+    virtual float _deltaTime() const = 0;
     virtual void _execNextStep() = 0;
     virtual FieldInfo _U() const = 0;
     virtual FieldInfo _V() const = 0;
     virtual FieldInfo _eta() const = 0;
+    virtual float _F() const = 0;
+    virtual float _R() const = 0;
     virtual void _printStatus() const = 0;
 
 private:

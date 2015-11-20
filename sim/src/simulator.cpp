@@ -55,10 +55,8 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options)
 {
     nx = options->nx();
     ny = options->ny();
-    assert(nx > 1);
-    assert(ny > 1);
-    dx = options->width() / (nx - 1);
-    dy = options->height() / (ny - 1);
+    dx = options->dx();
+    dy = options->dy();
     dt = std::min(dx, dy) * 0.001; // ### for now
     R = 1; // ### no influence for now
     F = 1; // ### no influence for now
@@ -312,6 +310,11 @@ double Simulator::_maxTime() const
     return pimpl->maxTime;
 }
 
+float Simulator::_deltaTime() const
+{
+    return pimpl->dt;
+}
+
 void Simulator::_execNextStep()
 {
     // compute U
@@ -338,6 +341,16 @@ FieldInfo Simulator::_V() const
 FieldInfo Simulator::_eta() const
 {
     return pimpl->_eta;
+}
+
+float Simulator::_F() const
+{
+    return pimpl->F;
+}
+
+float Simulator::_R() const
+{
+    return pimpl->R;
 }
 
 void Simulator::_printStatus() const

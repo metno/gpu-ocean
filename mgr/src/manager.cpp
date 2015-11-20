@@ -4,6 +4,7 @@
 #include "simbase.h"
 #include "simulator.h"
 #include "testsim.h"
+#include "netcdfwriter.h"
 #include <stdexcept>
 #include <vector>
 #include <iostream>
@@ -16,6 +17,7 @@ using namespace std;
 struct Manager::ManagerImpl
 {
     SimBasePtr sim;
+    NetCDFWriterPtr fileWriter;
     ManagerImpl(const OptionsPtr &, const InitCondPtr &);
 };
 
@@ -83,13 +85,35 @@ SimBasePtr Manager::sim() const
 // Initializes a new simulation run (aborting one that is already in progress, if necessary).
 void Manager::initSim()
 {
+    // initialize simulation
     pimpl->sim->init();
+
+    // initialize output file (if requested)
+    const string ofname = options()->outputFile();
+    if (!ofname.empty()) {
+        pimpl->fileWriter.reset(
+                    (ofname == "*")
+                    ? new NetCDFWriter() // generate file names automatically
+                    : new NetCDFWriter(ofname)); // use explicit file name
+        pimpl->fileWriter->init(
+                    options()->nx(), options()->ny(), pimpl->sim->deltaTime(), options()->dx(), options()->dy(),
+                    pimpl->sim->F(), pimpl->sim->R(), initConditions()->H().data->data());
+    }
 }
 
 // Executes the next simulation step and advances the simulation time.
 bool Manager::execNextStep()
 {
+    // execute next step
     return pimpl->sim->execNextStep();
+
+    // append to output file (if requested)
+    if (pimpl->fileWriter.get())
+        pimpl->fileWriter->writeTimestep(
+                    pimpl->sim->eta().data->data(),
+                    pimpl->sim->U().data->data(),
+                    pimpl->sim->V().data->data(),
+                    pimpl->sim->currTime());
 }
 
 // Returns U at the current simulation step.

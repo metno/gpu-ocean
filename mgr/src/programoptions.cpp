@@ -21,6 +21,7 @@ struct ProgramOptions::ProgramOptionsImpl
     double duration; // duration of simulation (in simulated seconds)
     double wallDuration; // duration of simulation (in wall time seconds)
     bool cpu; // whether to run kernels on the CPU instead of the GPU
+    string outputFile; // name of file for storing output in NetCDF format
     ProgramOptionsImpl();
 };
 
@@ -72,7 +73,8 @@ bool ProgramOptions::parse(int argc, char *argv[])
                 ("width", po::value<float>(&pimpl->width)->default_value(1000), "horizontal extension of grid (in meters)")
                 ("height", po::value<float>(&pimpl->height)->default_value(1000), "vertical extension of grid (in meters)")
                 ("duration", po::value<double>(&pimpl->duration)->default_value(-1), "max duration of simulation (in seconds) (< 0 = infinite duration)")
-                ("wallduration", po::value<double>(&pimpl->wallDuration)->default_value(-1), "max wall time duration (in seconds) (< 0 = infinite duration)")
+                ("wallDuration", po::value<double>(&pimpl->wallDuration)->default_value(-1), "max wall time duration (in seconds) (< 0 = infinite duration)")
+                ("outputFile", po::value<string>(&pimpl->outputFile)->default_value(""), "name of file for storing output in NetCDF format (empty = no output)")
                 ;
 
         po::options_description all_options;
@@ -185,6 +187,18 @@ float ProgramOptions::height() const
     return pimpl->height;
 }
 
+float ProgramOptions::dx() const
+{
+    assert(pimpl->nx > 1);
+    return pimpl->width / (pimpl->nx - 1);
+}
+
+float ProgramOptions::dy() const
+{
+    assert(pimpl->ny > 1);
+    return pimpl->height / (pimpl->ny - 1);
+}
+
 double ProgramOptions::duration() const
 {
     return pimpl->duration;
@@ -198,6 +212,11 @@ double ProgramOptions::wallDuration() const
 float ProgramOptions::cpu() const
 {
     return pimpl->cpu;
+}
+
+string ProgramOptions::outputFile() const
+{
+    return pimpl->outputFile;
 }
 
 // Formats output of a ProgramOptions object.
