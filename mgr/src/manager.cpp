@@ -105,7 +105,7 @@ void Manager::initSim()
 bool Manager::execNextStep()
 {
     // execute next step
-    return pimpl->sim->execNextStep();
+    const bool status = pimpl->sim->execNextStep();
 
     // append to output file (if requested)
     if (pimpl->fileWriter.get())
@@ -114,6 +114,8 @@ bool Manager::execNextStep()
                     pimpl->sim->U().data->data(),
                     pimpl->sim->V().data->data(),
                     pimpl->sim->currTime());
+
+    return status;
 }
 
 // Returns U at the current simulation step.
