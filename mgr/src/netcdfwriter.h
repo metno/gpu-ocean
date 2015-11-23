@@ -11,7 +11,7 @@ public:
     NetCDFWriter(std::string);
 	~NetCDFWriter();
 
-    void init(int, int, float, float, float, float, float, float *);
+    void init(int, int, float, float, float, float, float, float *, float *, float *, float *);
 
     void writeTimestep(float *, float *, float *, float);
 

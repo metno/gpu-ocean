@@ -5,6 +5,7 @@
 #include <ctime>
 #include <cstring>
 #include <stdexcept>
+#include <cassert>
 
 using std::setw;
 using std::setprecision;
@@ -16,23 +17,31 @@ struct NetCDFWriter::NetCDFWriterImpl
 
     struct {
         struct {
-            NcDim* x;       //!< integer x coordinates
-            NcDim* y;       //!<
-            NcDim* x_half;  //!< x coordinates at center of cells
-            NcDim* y_half;  //!<
-            NcDim* t;       //!< Time
+            NcDim *x;       //!< integer x coordinates
+            NcDim *y;       //!<
+            NcDim *x_ghost; //!< integer x coordinates, including ghost cells
+            NcDim *y_ghost; //!<
+            NcDim *x_half;  //!< x coordinates at center of cells
+            NcDim *y_half;  //!<
+            NcDim *x_half_ghost; //!< x coordinates at center of cells, including ghost cells
+            NcDim *y_half_ghost; //!<
+            NcDim *t;       //!< Time
         } dims;
 
         struct {
-            NcVar* H;
-            NcVar* eta;
-            NcVar* U;
-            NcVar* V;
-            NcVar* x;        //!< x
-            NcVar* y;        //!< y
-            NcVar* x_half;
-            NcVar* y_half;
-            NcVar* t;        //!< time
+            NcVar *H;
+            NcVar *eta;
+            NcVar *U;
+            NcVar *V;
+            NcVar *x;
+            NcVar *y;
+            NcVar *x_ghost;
+            NcVar *y_ghost;
+            NcVar *x_half;
+            NcVar *y_half;
+            NcVar *x_half_ghost;
+            NcVar *y_half_ghost;
+            NcVar *t;        //!< time
         } vars;
     } layout;
 
@@ -90,27 +99,51 @@ NetCDFWriter::~NetCDFWriter()
     pimpl->file.reset();
 }
 
-void NetCDFWriter::init(int nx, int ny, float dt, float dx, float dy, float f, float r, float *H)
+static void setSpatialVars(NcVar *var, int size, float delta, bool halfOffset = false)
+{
+    assert(size > 0);
+    assert(delta > 0);
+    const float offset = halfOffset ? 0.5 : 0;
+    std::vector<float> tmp;
+    tmp.resize(size);
+    for (int i = 0; i < tmp.size(); ++i)
+        tmp[i] = (i + offset) * delta;
+    var->put(&tmp[0], tmp.size());
+}
+
+void NetCDFWriter::init(int nx, int ny, float dt, float dx, float dy, float f, float r, float *H, float *eta, float *U, float *V)
 {
     pimpl->nx = nx;
     pimpl->ny = ny;
 
     // create dimensions
-    pimpl->layout.dims.x = pimpl->file->add_dim("X", nx+1);
-    pimpl->layout.dims.y = pimpl->file->add_dim("Y", ny+1);
-    pimpl->layout.dims.x_half = pimpl->file->add_dim("X_half", nx);
-    pimpl->layout.dims.y_half = pimpl->file->add_dim("Y_half", ny);
+    pimpl->layout.dims.x = pimpl->file->add_dim("X", nx);
+    pimpl->layout.dims.y = pimpl->file->add_dim("Y", ny);
+    pimpl->layout.dims.x_ghost = pimpl->file->add_dim("X_ghost", nx + 2);
+    pimpl->layout.dims.y_ghost = pimpl->file->add_dim("Y_ghost", ny + 2);
+    pimpl->layout.dims.x_half = pimpl->file->add_dim("X_half", nx - 1);
+    pimpl->layout.dims.y_half = pimpl->file->add_dim("Y_half", ny - 1);
+    pimpl->layout.dims.x_half_ghost = pimpl->file->add_dim("X_half_ghost", nx + 1);
+    pimpl->layout.dims.y_half_ghost = pimpl->file->add_dim("Y_half_ghost", ny + 1);
     pimpl->layout.dims.t = pimpl->file->add_dim("T");
 
     // create indexing variables
     pimpl->layout.vars.x = pimpl->file->add_var("X", ncFloat, pimpl->layout.dims.x);
     pimpl->layout.vars.y = pimpl->file->add_var("Y", ncFloat, pimpl->layout.dims.y);
+    pimpl->layout.vars.x_ghost = pimpl->file->add_var("X_ghost", ncFloat, pimpl->layout.dims.x_ghost);
+    pimpl->layout.vars.y_ghost = pimpl->file->add_var("Y_ghost", ncFloat, pimpl->layout.dims.y_ghost);
     pimpl->layout.vars.x_half = pimpl->file->add_var("X_half", ncFloat, pimpl->layout.dims.x_half);
     pimpl->layout.vars.y_half = pimpl->file->add_var("Y_half", ncFloat, pimpl->layout.dims.y_half);
+    pimpl->layout.vars.x_half_ghost = pimpl->file->add_var("X_half_ghost", ncFloat, pimpl->layout.dims.x_half_ghost);
+    pimpl->layout.vars.y_half_ghost = pimpl->file->add_var("Y_half_ghost", ncFloat, pimpl->layout.dims.y_half_ghost);
     pimpl->layout.vars.x->add_att("description", "Longitudal coordinate for values given at grid cell intersections");
     pimpl->layout.vars.y->add_att("description", "Latitudal coordinate for values given at grid cell intersections");
+    pimpl->layout.vars.x_ghost->add_att("description", "Longitudal coordinate for values given at grid cell intersections, including ghost cells");
+    pimpl->layout.vars.y_ghost->add_att("description", "Latitudal coordinate for values given at grid cell intersections, including ghost cells");
     pimpl->layout.vars.x_half->add_att("description", "Longitudal coordinate for values given at grid cell centers");
     pimpl->layout.vars.y_half->add_att("description", "Latitudal coordinate for values given at grid cell centers");
+    pimpl->layout.vars.x_half_ghost->add_att("description", "Longitudal coordinate for values given at grid cell centers, including ghost cells");
+    pimpl->layout.vars.y_half_ghost->add_att("description", "Latitudal coordinate for values given at grid cell centers, including ghost cells");
 
     pimpl->layout.vars.t = pimpl->file->add_var("T", ncFloat, pimpl->layout.dims.t);
     pimpl->layout.vars.t->add_att("description", "Time");
@@ -125,37 +158,28 @@ void NetCDFWriter::init(int nx, int ny, float dt, float dx, float dy, float f, f
     pimpl->file->add_att("r", r);
 
     // write contents of spatial variables
-    std::vector<float> tmp;
-    tmp.resize(nx+1);
-    for (unsigned int i=0; i<tmp.size(); ++i)
-        tmp[i] = i * dx;
-    pimpl->layout.vars.x->put(&tmp[0], tmp.size());
-
-    tmp.resize(ny+1);
-    for (unsigned int i=0; i<tmp.size(); ++i)
-        tmp[i] = i * dy;
-    pimpl->layout.vars.y->put(&tmp[0], tmp.size());
-
-    tmp.resize(nx);
-    for (unsigned int i=0; i<tmp.size(); ++i)
-        tmp[i] = (i+0.5f) * dx;
-    pimpl->layout.vars.x_half->put(&tmp[0], tmp.size());
-
-    tmp.resize(ny);
-    for (unsigned int i=0; i<tmp.size(); ++i)
-        tmp[i] = (i+0.5f) * dy;
-    pimpl->layout.vars.y_half->put(&tmp[0], tmp.size());
+    setSpatialVars(pimpl->layout.vars.x, nx, dx);
+    setSpatialVars(pimpl->layout.vars.y, ny, dy);
+    setSpatialVars(pimpl->layout.vars.x_ghost, nx + 2, dx);
+    setSpatialVars(pimpl->layout.vars.y_ghost, ny + 2, dy);
+    setSpatialVars(pimpl->layout.vars.x_half, nx - 1, dx, true);
+    setSpatialVars(pimpl->layout.vars.y_half, ny - 1, dy, true);
+    setSpatialVars(pimpl->layout.vars.x_half_ghost, nx + 1, dx, true);
+    setSpatialVars(pimpl->layout.vars.y_half_ghost, ny + 1, dy, true);
 
     pimpl->file->sync();
 
     // create initial condition variables
-    pimpl->layout.vars.H = pimpl->file->add_var("H", ncFloat, pimpl->layout.dims.y_half, pimpl->layout.dims.x_half);
+    pimpl->layout.vars.H = pimpl->file->add_var("H", ncFloat, pimpl->layout.dims.y_half_ghost, pimpl->layout.dims.x_half_ghost);
     pimpl->layout.vars.H->add_att("description", "Mean water depth");
 
     // create the timestep variables
-    pimpl->layout.vars.eta = pimpl->file->add_var("eta", ncFloat, pimpl->layout.dims.t, pimpl->layout.dims.y_half, pimpl->layout.dims.x_half);
-    pimpl->layout.vars.U = pimpl->file->add_var("U", ncFloat, pimpl->layout.dims.t, pimpl->layout.dims.y_half, pimpl->layout.dims.x);
-    pimpl->layout.vars.V = pimpl->file->add_var("V", ncFloat, pimpl->layout.dims.t, pimpl->layout.dims.y, pimpl->layout.dims.x_half);
+    pimpl->layout.vars.eta = pimpl->file->add_var(
+                "eta", ncFloat, pimpl->layout.dims.t, pimpl->layout.dims.y_half_ghost, pimpl->layout.dims.x_half_ghost);
+    pimpl->layout.vars.U = pimpl->file->add_var(
+                "U", ncFloat, pimpl->layout.dims.t, pimpl->layout.dims.y_half, pimpl->layout.dims.x_ghost);
+    pimpl->layout.vars.V = pimpl->file->add_var(
+                "V", ncFloat, pimpl->layout.dims.t, pimpl->layout.dims.y_ghost, pimpl->layout.dims.x_half);
 
     pimpl->layout.vars.eta->add_att("description", "Water elevation disturbances");
     pimpl->layout.vars.U->add_att("description", "Longitudal water discharge");
@@ -168,7 +192,10 @@ void NetCDFWriter::init(int nx, int ny, float dt, float dx, float dy, float f, f
     nc_def_var_deflate(pimpl->file->id(), pimpl->layout.vars.V->id(), 1, 1, 2);
 
     // write data
-    pimpl->layout.vars.H->put(H, ny, nx);
+    pimpl->layout.vars.H->put(H, ny + 1, nx + 1);
+    pimpl->layout.vars.eta->put(eta, 1, ny + 1, nx + 1);
+    pimpl->layout.vars.U->put(U, 1, ny - 1, nx + 2);
+    pimpl->layout.vars.V->put(V, 1, ny + 2, nx - 1);
 
     pimpl->file->sync();
 }
@@ -179,13 +206,13 @@ void NetCDFWriter::writeTimestep(float *eta, float *U, float *V, float t)
     pimpl->layout.vars.t->put(&t, 1);
 
     pimpl->layout.vars.eta->set_cur(pimpl->timestepCounter, 0, 0);
-    pimpl->layout.vars.eta->put(eta, 1, pimpl->ny, pimpl->nx);
+    pimpl->layout.vars.eta->put(eta, 1, pimpl->ny + 1, pimpl->nx + 1);
 
     pimpl->layout.vars.U->set_cur(pimpl->timestepCounter, 0, 0);
-    pimpl->layout.vars.U->put(U, 1, pimpl->ny, pimpl->nx + 1);
+    pimpl->layout.vars.U->put(U, 1, pimpl->ny - 1, pimpl->nx + 2);
 
     pimpl->layout.vars.V->set_cur(pimpl->timestepCounter, 0, 0);
-    pimpl->layout.vars.V->put(V, 1, pimpl->ny + 1, pimpl->nx);
+    pimpl->layout.vars.V->put(V, 1, pimpl->ny + 2, pimpl->nx - 1);
 
     pimpl->file->sync();
     ++pimpl->timestepCounter;

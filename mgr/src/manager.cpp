@@ -97,7 +97,8 @@ void Manager::initSim()
                     : new NetCDFWriter(ofname)); // use explicit file name
         pimpl->fileWriter->init(
                     options()->nx(), options()->ny(), pimpl->sim->deltaTime(), options()->dx(), options()->dy(),
-                    pimpl->sim->F(), pimpl->sim->R(), initConditions()->H().data->data());
+                    pimpl->sim->F(), pimpl->sim->R(), initConditions()->H().data->data(), initConditions()->eta().data->data(),
+                    pimpl->sim->U().data->data(), pimpl->sim->V().data->data());
     }
 }
 

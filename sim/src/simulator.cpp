@@ -40,7 +40,7 @@ struct Simulator::SimulatorImpl
     FieldInfo _eta;
 
     SimulatorImpl();
-    void init(const OptionsPtr &);
+    void init(const OptionsPtr &, const InitCondPtr &);
     void reconstructH(const OptionsPtr &, const InitCondPtr &);
     void computeU(const OptionsPtr &, const InitCondPtr &);
     void computeV(const OptionsPtr &, const InitCondPtr &);
@@ -51,7 +51,7 @@ Simulator::SimulatorImpl::SimulatorImpl()
 {
 }
 
-void Simulator::SimulatorImpl::init(const OptionsPtr &options)
+void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr &initCond)
 {
     nx = options->nx();
     ny = options->ny();
@@ -87,7 +87,7 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options)
     const int nx_eta = nx + 1;
     const int ny_eta = ny + 1;
     const int size_eta = nx_eta * ny_eta;
-    eta = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * size_eta, 0, &error);
+    eta = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * size_eta, initCond->eta().data->data(), &error);
     CL_CHECK(error);
 
     // create host buffers for U, V, and eta
@@ -219,7 +219,10 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
     cl::Kernel *kernel = OpenCLUtils::getKernel("computeV");
 
     // set up kernel arguments
-    // ...
+    kernel->setArg<cl::Buffer>(0, eta);
+    kernel->setArg<cl::Buffer>(1, U);
+    kernel->setArg<cl::Buffer>(2, V);
+    kernel->setArg<cl::Buffer>(3, Hr_v);
     computeV_args args;
     args.nx = nx;
     args.ny = ny;
@@ -228,16 +231,17 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
     args.R = R;
     args.F = F;
     args.g = g;
-    kernel->setArg(-1, args); // ### replace -1 with actual index!
+    kernel->setArg(4, args);
 
-    // execute kernel (to do exactly what?)
-    // ### is a computational domain of (nx + 1, ny + 1) correct? (i.e. one work-item per cell, including ghost cells) ... TBD
-//    cl::Event event;
-//    CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
-//                 *kernel, cl::NullRange, cl::NDRange(nx + 1, ny + 1), cl::NDRange(WGNX, WGNY), 0, &event));
-//    CL_CHECK(event.wait());
+    // execute kernel
+    cl::Event event;
+    cl::NDRange r = global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY);
+    CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
+                 *kernel, cl::NullRange, global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
+    CL_CHECK(event.wait());
 
-    // ...
+    // copy result from device to host
+    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(V, CL_TRUE, 0, sizeof(float) * _V.nx * _V.ny, _V.data->data(), 0, 0));
 }
 
 /**
@@ -292,7 +296,7 @@ bool Simulator::_init()
                 sources, options()->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU,
                 (boost::format("-I %s") % OpenCLUtils::getKernelDir()).str());
 
-    pimpl->init(options());
+    pimpl->init(options(), initCond());
 
     // reconstruct H
     pimpl->reconstructH(options(), initCond());
@@ -320,7 +324,8 @@ void Simulator::_execNextStep()
     // compute U
     pimpl->computeU(options(), initCond());
 
-    // compute V ... TBD
+    // compute V
+    pimpl->computeV(options(), initCond());
 
     // compute eta
     pimpl->computeEta(options(), initCond());
