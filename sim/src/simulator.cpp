@@ -80,7 +80,7 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
     _U.data->resize(size_U);
     for (int i = 0; i < _U.data->size(); ++i)
         _U.data->at(i) = 0.0f;
-    U = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * size_U, _U.data->data(), &error);
+    U = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * size_U, _U.data->data(), &error);
     CL_CHECK(error);
 
     // ... V
@@ -90,7 +90,7 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
     _V.data->resize(size_V);
     for (int i = 0; i < _V.data->size(); ++i)
         _V.data->at(i) = 0.0f;
-    V = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * size_V, _V.data->data(), &error);
+    V = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * size_V, _V.data->data(), &error);
     CL_CHECK(error);
 
     // ... eta
@@ -98,7 +98,7 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
     const int ny_eta = _eta.ny = ny + 1;
     const int size_eta = nx_eta * ny_eta;
     _eta.data->resize(size_eta);
-    eta = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * size_eta, initCond->eta().data->data(), &error);
+    eta = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * size_eta, initCond->eta().data->data(), &error);
     CL_CHECK(error);
 }
 
