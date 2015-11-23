@@ -42,16 +42,14 @@ inline FieldInfo generateBathymetry(int no, int nx, int ny, float width, float h
 
 	cout << "Generating bathymetry: '";
 
-	shared_ptr<vector<float> > f_;
-    f_.reset(new vector<float>((nx + 1) * (ny + 1)));
-	vector<float> f = *f_;
+    vector<float> *f = new vector<float>((nx + 1) * (ny + 1));
 
 	switch (no)
 	{
 	case 0:
-		cout << "flat";
-        for (int i = 0; i < f.size(); ++i)
-			f[i] = 0.0f;
+        cout << "flat";
+        for (int i = 0; i < f->size(); ++i)
+            f->at(i) = 0.0f;
 		break;
 	case 1:
 		cout << "peaks";
@@ -64,7 +62,7 @@ inline FieldInfo generateBathymetry(int no, int nx, int ny, float width, float h
 								- 10.0f * (x/5.0f - x*x*x - y*y*y*y*y) * exp(-(x*x) - (y*y))
 								- 1.0f/3.0f * exp(-(x+1)*(x+1) - (y*y));
 
-                f[j * (nx + 1) + i] = 0.1f*value;
+                f->at(j * (nx + 1) + i) = 0.1f*value;
 			}
 		}
 		break;
@@ -77,13 +75,13 @@ inline FieldInfo generateBathymetry(int no, int nx, int ny, float width, float h
                 const float x = i / (float) nx;
                 const int index = j * (nx + 1) + i;
 				if ((x-0.25f)*(x-0.25f)+(y-0.25f)*(y-0.25f)<0.01)
-                    f[index] = 5.0f*(0.01f-(x-0.25f)*(x-0.25f)-(y-0.25f)*(y-0.25f));
+                    f->at(index) = 5.0f*(0.01f-(x-0.25f)*(x-0.25f)-(y-0.25f)*(y-0.25f));
 				else if ((x-0.75f)*(x-0.75f)+(y-0.25f)*(y-0.25f)<0.01f)
-                    f[index] = 5.0f*(0.01f-(x-0.75f)*(x-0.75f)-(y-0.25f)*(y-0.25f));
+                    f->at(index) = 5.0f*(0.01f-(x-0.75f)*(x-0.75f)-(y-0.25f)*(y-0.25f));
 				else if ((x-0.25f)*(x-0.25f)+(y-0.75f)*(y-0.75f)<0.01f)
-                    f[index] = 5.0f*(0.01f-(x-0.25f)*(x-0.25f)-(y-0.75f)*(y-0.75f));
+                    f->at(index) = 5.0f*(0.01f-(x-0.25f)*(x-0.25f)-(y-0.75f)*(y-0.75f));
 				else
-                    f[index] = 0.0f;
+                    f->at(index) = 0.0f;
 			}
 		}
 		break;
@@ -100,7 +98,7 @@ inline FieldInfo generateBathymetry(int no, int nx, int ny, float width, float h
         for (int j = 0; j <= ny; ++j) {
             for (int i = 0; i <= nx; ++i) {
                 const float x = i*dx;
-                f[j * (nx + 1) + i] = (x1 < x && x < x2)
+                f->at(j * (nx + 1) + i) = (x1 < x && x < x2)
                         ? (v1 - v2*(x-v3)*(x-v3))
                         : 0.0f;
             }
@@ -109,17 +107,17 @@ inline FieldInfo generateBathymetry(int no, int nx, int ny, float width, float h
         break;
     case IDEALISED_CIRCULAR_DAM:
 		cout << "idealized circular dam";
-        for (int i = 0; i < f.size(); ++i)
-			f[i] = 0.0f;
+        for (int i = 0; i < f->size(); ++i)
+            f->at(i) = 0.0f;
 		break;
 	default:
 		cout << "Could not recognize " << no << " as a valid id." << endl;
 		exit(-1);
 	}
 
-	cout << "' (" << nx << "x" << ny << " values)" << endl;
+    cout << "' (" << nx + 1 << "x" << ny + 1 << " values)" << endl;
 
-    return FieldInfo(f_, nx + 1, ny + 1, dx, dy);
+    return FieldInfo(f, nx + 1, ny + 1, dx, dy);
 }
 
 inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, float height)
@@ -134,9 +132,7 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
 
 	cout << "Generating water elevation: '";
 
-	shared_ptr<vector<float> > f_;
-    f_.reset(new vector<float>((nx + 1) * (ny + 1)));
-	vector<float> f = *f_;
+    vector<float> *f = new vector<float>((nx + 1) * (ny + 1));
 
 	switch (no)
 	{
@@ -147,7 +143,7 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
 			float y = (j+0.5f) / (float) ny - 0.5f;
             for (int i = 0; i <= nx; ++i) {
                 float x = (i+0.5f) / (float) nx - 0.5f;
-                f[j * (nx + 1) + i] = ((x*x)+(y*y)<0.01f) ? 1.0f : 0.0f;
+                f->at(j * (nx + 1) + i) = ((x*x)+(y*y)<0.01f) ? 1.0f : 0.0f;
 			}
 		}
 		break;
@@ -161,9 +157,9 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
             for (int i = 0; i <= nx; ++i) {
 				float x = (i+0.5f) / (float) nx - 0.5f;
 				//if ((x*x)+(y*y)<0.01)
-                    f[j * (nx + 1) + i] = exp(-(x*x) - (y*y));
+                    f->at(j * (nx + 1) + i) = exp(-(x*x) - (y*y));
 				//else
-                //	f[j * (nx + 1) + i] = 0.0f;
+                //	f->at(j * (nx + 1) + i) = 0.0f;
 			}
 		}
 		break;
@@ -173,16 +169,16 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
 	case 2:
 		cout << "zero";
 #pragma omp parallel for
-        for (int i = 0; i < f.size(); ++i)
-			f[i] = 0.0f;
+        for (int i = 0; i < f->size(); ++i)
+            f->at(i) = 0.0f;
 		break;
 
 
 	case STEADY_FLOW_OVER_BUMP:
 		cout << "Steady Flow Over Bump";
 #pragma omp parallel for
-        for (int i = 0; i < f.size(); ++i)
-			f[i] = 1.0f;
+        for (int i = 0; i < f->size(); ++i)
+            f->at(i) = 1.0f;
 		break;
 
 	case IDEALISED_CIRCULAR_DAM:
@@ -197,7 +193,7 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
             float y = dy*(j+0.5f)-y1;
             for (int i = 0; i <= nx; ++i) {
                 float x = dx*(i+0.5f)-x1;
-                f[j * (nx + 1) + i] = (sqrt(x*x+y*y) < v2) ? v1 : 0.0f;
+                f->at(j * (nx + 1) + i) = (sqrt(x*x+y*y) < v2) ? v1 : 0.0f;
             }
         }
     }
@@ -210,15 +206,15 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
 			float y = (j+0.5f) / (float) ny - 0.5f;
             for (int i = 0; i <= nx; ++i) {
 				float x = (i+0.5f) / (float) nx - 0.5f;
-                f[j * (nx + 1) + i] = ((x*x)+(y*y)<0.01f) ? 1.5f : 1.0f;
+                f->at(j * (nx + 1) + i) = ((x*x)+(y*y)<0.01f) ? 1.5f : 1.0f;
 			}
 		}
 		break;
 
     case 10:
         cout << "Wet";
-            for (int i = 0; i < f.size(); ++i)
-                f[i] = 0.3f;
+            for (int i = 0; i < f->size(); ++i)
+                f->at(i) = 0.3f;
         break;
 
 	default:
@@ -226,16 +222,13 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
 		exit(-1);
 	}
 
-	cout << "' (" << nx << "x" << ny << " values)" << endl;
+    cout << "' (" << nx + 1 << "x" << ny + 1 << " values)" << endl;
 
-    return FieldInfo(f_, nx + 1, ny + 1, dx, dy);
+    return FieldInfo(f, nx + 1, ny + 1, dx, dy);
 }
 
 inline FieldInfo generateH(int nx, int ny, float width, float height, FieldInfo B, float w=1.0f)
 {
-    const float dx = width / (nx - 1);
-    const float dy = height / (ny - 1);
-
 	if (nx <= 0 || ny <= 0) {
 		cout << "Invalid nx or ny: [" << nx << ", " << ny << "]." << endl;
 		exit(-1);
@@ -243,22 +236,20 @@ inline FieldInfo generateH(int nx, int ny, float width, float height, FieldInfo 
 
 	cout << "Generating sea surface mean depth (H): '";
 
-	shared_ptr<vector<float> > f_;
-    f_.reset(new vector<float>((nx + 1) * (ny + 1)));
-	vector<float> f = *f_;
+    vector<float> *f = new vector<float>((nx + 1) * (ny + 1));
 
 #pragma omp parallel for
-    for (int i = 0; i < f.size(); ++i) {
-		f[i] = w - B.data->at(i);
-		if (f[i] < 0.0f) {
+    for (int i = 0; i < f->size(); ++i) {
+        f->at(i) = w - B.data->at(i);
+        if (f->at(i) < 0.0f) {
 			cout << "Negative values in H are not allowed. (Increase global water elevation (w) or change bathymetry (B) input.)" << endl;
 			exit(-1);
 		}
 	}
 
-	cout << "' (" << nx << "x" << ny << " values)" << endl;
+    cout << "' (" << nx + 1 << "x" << ny + 1 << " values)" << endl;
 
-    return FieldInfo(f_, nx + 1, ny + 1, dx, dy);
+    return FieldInfo(f, nx + 1, ny + 1, width / (nx - 1), height / (ny - 1));
 }
 
 inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
@@ -273,9 +264,7 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
 
 	cout << "Generating sea surface deviation (eta): '";
 
-	shared_ptr<vector<float> > f_;
-    f_.reset(new vector<float>((nx + 1) * (ny + 1)));
-	vector<float> f = *f_;
+    vector<float> *f = new vector<float>((nx + 1) * (ny + 1));
 
 	switch (no)
 	{
@@ -286,7 +275,7 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
 			float y = (j+0.5f) / (float) ny - 0.5f;
             for (int i = 0; i <= nx; ++i) {
 				float x = (i+0.5f) / (float) nx - 0.5f;
-                f[j * (nx + 1) + i] = ((x*x)+(y*y)<0.01f) ? 1.0f : 0.0f;
+                f->at(j * (nx + 1) + i) = ((x*x)+(y*y)<0.01f) ? 1.0f : 0.0f;
 			}
 		}
 		break;
@@ -298,7 +287,7 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
 			float y = (j+0.5f) / (float) ny - 0.5f;
             for (int i = 0; i <= nx; ++i) {
 				float x = (i+0.5f) / (float) nx - 0.5f;
-                f[j * (nx + 1) + i] = exp(-(x*x) - (y*y));
+                f->at(j * (nx + 1) + i) = exp(-(x*x) - (y*y));
 			}
 		}
 		break;
@@ -306,16 +295,16 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
 	case 2:
 		cout << "zero";
 #pragma omp parallel for
-        for (int i = 0; i < f.size(); ++i)
-			f[i] = 0.0f;
+        for (int i = 0; i < f->size(); ++i)
+            f->at(i) = 0.0f;
 		break;
 
 
 	case STEADY_FLOW_OVER_BUMP:
 		cout << "Steady Flow Over Bump";
 #pragma omp parallel for
-        for (int i = 0; i < f.size(); ++i)
-			f[i] = 0.0f;
+        for (int i = 0; i < f->size(); ++i)
+            f->at(i) = 0.0f;
 		break;
 
 	case IDEALISED_CIRCULAR_DAM:
@@ -330,7 +319,7 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
             float y = dy*(j+0.5f)-y1;
             for (int i = 0; i <= nx; ++i) {
                 float x = dx*(i+0.5f)-x1;
-                f[j * (nx + 1) + i] = (sqrt(x*x+y*y) < v2) ? v1 : 0.0f;
+                f->at(j * (nx + 1) + i) = (sqrt(x*x+y*y) < v2) ? v1 : 0.0f;
             }
         }
     }
@@ -341,9 +330,9 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
 		exit(-1);
 	}
 
-	cout << "' (" << nx << "x" << ny << " values)" << endl;
+    cout << "' (" << nx + 1 << "x" << ny + 1 << " values)" << endl;
 
-    return FieldInfo(f_, nx + 1, ny + 1, dx, dy);
+    return FieldInfo(f, nx + 1, ny + 1, dx, dy);
 }
 
 void InitConditions::init(const OptionsPtr &options)

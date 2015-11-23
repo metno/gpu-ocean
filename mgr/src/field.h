@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <vector>
+#include <string>
 
 typedef std::shared_ptr<std::vector<float> > FieldPtr;
 
@@ -14,7 +15,9 @@ struct FieldInfo {
     float dy;
     FieldInfo();
     FieldInfo(const FieldPtr &, int, int, float, float);
+    FieldInfo(std::vector<float> *, int, int, float, float);
     float &operator()(int, int) const;
+    void dump(const std::string & = std::string()) const;
 };
 
 #endif // FIELD_H
