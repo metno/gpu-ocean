@@ -66,42 +66,40 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
 
     cl_int error = CL_SUCCESS;
 
-    // create buffers that will be kept in global device memory throughout the simulation
+    // create buffers ...
+    // ... H reconstructed
     Hr_u = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * nx * (ny + 1), 0, &error);
     CL_CHECK(error);
     Hr_v = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * (nx + 1) * ny, 0, &error);
     CL_CHECK(error);
 
-    const int nx_U = nx + 2;
-    const int ny_U = ny - 1;
+    // ... U
+    const int nx_U = _U.nx = nx + 2;
+    const int ny_U = _U.ny = ny - 1;
     const int size_U = nx_U * ny_U;
-    U = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * size_U, 0, &error);
+    _U.data->resize(size_U);
+    for (int i = 0; i < _U.data->size(); ++i)
+        _U.data->at(i) = 0.0f;
+    U = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * size_U, _U.data->data(), &error);
     CL_CHECK(error);
 
-    const int nx_V = nx - 1;
-    const int ny_V = ny + 2;
+    // ... V
+    const int nx_V = _V.nx = nx - 1;
+    const int ny_V = _V.ny = ny + 2;
     const int size_V = nx_V * ny_V;
-    V = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * size_V, 0, &error);
+    _V.data->resize(size_V);
+    for (int i = 0; i < _V.data->size(); ++i)
+        _V.data->at(i) = 0.0f;
+    V = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * size_V, _V.data->data(), &error);
     CL_CHECK(error);
 
-    const int nx_eta = nx + 1;
-    const int ny_eta = ny + 1;
+    // ... eta
+    const int nx_eta = _eta.nx = nx + 1;
+    const int ny_eta = _eta.ny = ny + 1;
     const int size_eta = nx_eta * ny_eta;
+    _eta.data->resize(size_eta);
     eta = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * size_eta, initCond->eta().data->data(), &error);
     CL_CHECK(error);
-
-    // create host buffers for U, V, and eta
-    _U.data->resize(sizeof(float) * size_U);
-    _U.nx = nx_U;
-    _U.ny = ny_U;
-
-    _V.data->resize(sizeof(float) * size_V);
-    _V.nx = nx_V;
-    _V.ny = ny_V;
-
-    _eta.data->resize(sizeof(float) * size_eta);
-    _eta.nx = nx_eta;
-    _eta.ny = ny_eta;
 }
 
 // Returns the ceiling of the result of dividing two integers.
