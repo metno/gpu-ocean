@@ -2,7 +2,6 @@
 #define NETCDFWRITER_H
 
 #include <netcdfcpp.h>
-//#include <netcdf.h> // ### needed?
 #include <memory>
 
 class NetCDFWriter {
