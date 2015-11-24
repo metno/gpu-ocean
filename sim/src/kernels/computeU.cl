@@ -1,5 +1,5 @@
-#include "computeU_types.h"
-#include "config.h"
+#include "../computeU_types.h"
+#include "../config.h"
 
 /*
 Computes U at the eastern cell edge (and at the western cell edge if this cell is next to a western ghost cell).

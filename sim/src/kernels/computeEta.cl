@@ -1,5 +1,5 @@
-#include "computeEta_types.h"
-#include "config.h"
+#include "../computeEta_types.h"
+#include "../config.h"
 
 /*
 Computes Eta at the center of the (non-ghost) cell. Eta is the sea surface deviation away from the equilibrium depth (H).

@@ -1,5 +1,5 @@
-#include "reconstructH_types.h"
-#include "config.h"
+#include "../reconstructH_types.h"
+#include "../config.h"
 
 /*
 Reconstructs the equilibrium depth, H, at the western and southern cell edge.

@@ -1,5 +1,5 @@
-#include "computeV_types.h"
-#include "config.h"
+#include "../computeV_types.h"
+#include "../config.h"
 
 __kernel void computeV (
     __global const float *eta,
