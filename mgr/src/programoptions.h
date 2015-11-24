@@ -12,6 +12,8 @@ public:
     ProgramOptions();
     bool parse(int, char *[]);
     std::string message() const;
+    float wGlobal() const;
+    int etaNo() const;
     int waterElevationNo() const;
     int bathymetryNo() const;
     int nx() const;

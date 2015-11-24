@@ -12,8 +12,10 @@ using namespace std;
 struct ProgramOptions::ProgramOptionsImpl
 {
     std::string msg;
-    int waterElevationNo; // which water elevation to generate for IC
-    int bathymetryNo; // which bathymetry to generate for IC
+    float wGlobal; // global water elevation level value used to generate H in IC
+    int etaNo; // which sea surface deviation field (eta) to generate for IC
+    int waterElevationNo; // which water elevation field (w) to generate for IC
+    int bathymetryNo; // which bathymetry field (B) to generate for IC
     int nx; // number of grid horizontal grid cells
     int ny; // number of vertical grid cells
     float width; // horizontal extension of grid (in meters)
@@ -26,7 +28,9 @@ struct ProgramOptions::ProgramOptionsImpl
 };
 
 ProgramOptions::ProgramOptionsImpl::ProgramOptionsImpl()
-    : waterElevationNo(-1)
+    : wGlobal(-1.0f)
+	, etaNo(-1)
+	, waterElevationNo(-1)
 	, bathymetryNo(-1)
     , nx(-1)
     , ny(-1)
@@ -66,6 +70,8 @@ bool ProgramOptions::parse(int argc, char *argv[])
         // declare options that will be allowed both on command line and in config file
         po::options_description cfgfile_opts("Options allowed both on command line and in config file (the former overrides the latter)");
         cfgfile_opts.add_options()
+				("wGlobal", po::value<float>(&pimpl->wGlobal)->default_value(-1.0f), "global initial water elevation level value")
+				("etaNo", po::value<int>(&pimpl->etaNo)->default_value(-1), "initial sea surface deviation")
 				("waterElevationNo", po::value<int>(&pimpl->waterElevationNo)->default_value(-1), "initial water elevation")
 		        ("bathymetryNo", po::value<int>(&pimpl->bathymetryNo)->default_value(-1), "initial bathymetry")
                 ("nx", po::value<int>(&pimpl->nx)->default_value(10), "number of horizontal grid cells")
@@ -125,6 +131,10 @@ bool ProgramOptions::parse(int argc, char *argv[])
             pimpl->cpu = true;
 
         // final validation
+        if (pimpl->wGlobal < -1.0f)
+            throw runtime_error((boost::format("error: wGlobal (%1%) < -1.0f") % pimpl->wGlobal).str());
+        if (pimpl->etaNo < -1)
+            throw runtime_error((boost::format("error: etaNo (%1%) < -1") % pimpl->etaNo).str());
         if (pimpl->waterElevationNo < -1)
             throw runtime_error((boost::format("error: waterElevationNo (%1%) < -1") % pimpl->waterElevationNo).str());
         if (pimpl->bathymetryNo < -1)
@@ -155,6 +165,16 @@ bool ProgramOptions::parse(int argc, char *argv[])
 string ProgramOptions::message() const
 {
     return pimpl->msg;
+}
+
+float ProgramOptions::wGlobal() const
+{
+	return pimpl->wGlobal;
+}
+
+int ProgramOptions::etaNo() const
+{
+	return pimpl->etaNo;
 }
 
 int ProgramOptions::waterElevationNo() const

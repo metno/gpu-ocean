@@ -337,19 +337,23 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
 
 void InitConditions::init(const OptionsPtr &options)
 {
-	if(options->waterElevationNo() >= 0 && options->bathymetryNo() >= 0) {
-		///XXX: Maybe we should move the data generation outside of this class?
+	float wGlobal = 1.0f;
 
-		///XXX: We don't really need this field to initialize a simulation run for time being, but maybe later...
+	/// TODO: Maybe we should move the data generation outside of this class?
+	if((options->waterElevationNo() >= 0 || options->etaNo() >= 0) && options->bathymetryNo() >= 0) {
+		/// TODO: We don't really need this field to initialize a simulation run for time being, but maybe later...
 		//pimpl->waterElevationField = generateWaterElevation(options->waterElevationNo(), options->nx(), options->ny(), options->width(), options->height());
+		if(options->etaNo() < 0)
+			cerr << "warning: etaNo must be used! (waterElevationNo is not implemented yet)\n";
 
 		pimpl->bathymetryField = generateBathymetry(options->bathymetryNo(), options->nx(), options->ny(), options->width(), options->height());
-		///XXX: We might want to be able to get w from options
-        pimpl->H = generateH(options->nx(), options->ny(), options->width(), options->height(), pimpl->bathymetryField, 1.0f);
+		if(options->wGlobal() < 0)
+			cout << "warning: global water elevation level value (wGlobal) not given! (using default: " << wGlobal << ")\n";
+        pimpl->H = generateH(options->nx(), options->ny(), options->width(), options->height(), pimpl->bathymetryField, wGlobal);
 
-        pimpl->eta = generateEta(options->waterElevationNo(), options->nx(), options->ny(), options->width(), options->height());
+        pimpl->eta = generateEta(options->etaNo(), options->nx(), options->ny(), options->width(), options->height());
     } else {
-        cerr << "warning: at least one of waterElevationNo and bathymetryNo is less than zero => bathymetryField, H, and eta not initialized!\n";
+        cerr << "warning: at least one of waterElevationNo/etaNo and bathymetryNo is less than zero => bathymetryField, H, and eta not initialized!\n";
     }
 }
 
