@@ -27,7 +27,7 @@ private:
 
     // NOTE: The the grid dimensions set in ProgramOptions should be accessible only to InitConditions (hence the friend declaration below)
     // since the latter sets the final values (possibly read from an input file, if such one exists). Other parts of the program
-    // (like functions in the the Simulator class) then access the final grid dimensions through the the InitConditions API.
+    // (like functions in the the Simulator class) then access the final grid dimensions through public functions in InitConditions.
     int nx() const;
     int ny() const;
     float width() const;
