@@ -1,5 +1,6 @@
 #include "initconditions.h"
-
+#include "netcdfreader.h"
+#include <boost/format.hpp>
 #include <sstream>
 #include <stdexcept>
 #include <cmath>
@@ -13,10 +14,16 @@ const unsigned int IDEALISED_CIRCULAR_DAM = 4;
 
 struct InitConditions::InitConditionsImpl
 {
+    int nx;
+    int ny;
+    float width;
+    float height;
     FieldInfo waterElevationField;
     FieldInfo bathymetryField;
     FieldInfo H;
     FieldInfo eta;
+    FieldInfo U;
+    FieldInfo V;
     InitConditionsImpl();
 };
 
@@ -59,8 +66,8 @@ inline FieldInfo generateBathymetry(int no, int nx, int ny, float width, float h
             for (int i = 0; i <= nx; ++i) {
                 float x = i * 6.0f/nx - 3.0f;
 				float value = 3.0f*(1-x)*(1-x) * exp(-(x*x) - (y-1)*(y-1))
-								- 10.0f * (x/5.0f - x*x*x - y*y*y*y*y) * exp(-(x*x) - (y*y))
-								- 1.0f/3.0f * exp(-(x+1)*(x+1) - (y*y));
+                                - 10.0f * (x/5.0f - x*x*x - y*y*y*y*y) * exp(-(x*x) - (y*y))
+                                - 1.0f/3.0f * exp(-(x+1)*(x+1) - (y*y));
 
                 f->at(j * (nx + 1) + i) = 0.1f*value;
 			}
@@ -337,24 +344,105 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
 
 void InitConditions::init(const OptionsPtr &options)
 {
-	float wGlobal = 1.0f;
+    // read grid dimensions and fields from input file if available
+    if (!options->inputFile().empty()) {
+        if (options->nx() != -1)
+            throw runtime_error("error: nx specified outside of input file");
+        if (options->ny() != -1)
+            throw runtime_error("error: ny specified outside of input file");
+        if (options->width() != -1)
+            throw runtime_error("error: width specified outside of input file");
+        if (options->height() != -1)
+            throw runtime_error("error: height specified outside of input file");
 
-	/// TODO: Maybe we should move the data generation outside of this class?
-	if((options->waterElevationNo() >= 0 || options->etaNo() >= 0) && options->bathymetryNo() >= 0) {
-		/// TODO: We don't really need this field to initialize a simulation run for time being, but maybe later...
-		//pimpl->waterElevationField = generateWaterElevation(options->waterElevationNo(), options->nx(), options->ny(), options->width(), options->height());
-		if(options->etaNo() < 0)
-			cerr << "warning: etaNo must be used! (waterElevationNo is not implemented yet)\n";
+        NetCDFReaderPtr fileReader(new NetCDFReader(options->inputFile()));
+        pimpl->nx = fileReader->nx();
+        pimpl->ny = fileReader->ny();
+        pimpl->width = fileReader->width();
+        pimpl->height = fileReader->height();
 
-		pimpl->bathymetryField = generateBathymetry(options->bathymetryNo(), options->nx(), options->ny(), options->width(), options->height());
-		if(options->wGlobal() < 0)
-			cout << "warning: global water elevation level value (wGlobal) not given! (using default: " << wGlobal << ")\n";
-        pimpl->H = generateH(options->nx(), options->ny(), options->width(), options->height(), pimpl->bathymetryField, wGlobal);
+        // copy available fields from the file reader
+        if (!fileReader->H().empty())
+            pimpl->H = fileReader->H();
+        if (!fileReader->eta().empty())
+            pimpl->eta = fileReader->eta();
+        if (!fileReader->U().empty())
+            pimpl->U = fileReader->eta();
+        if (!fileReader->V().empty())
+            pimpl->V = fileReader->eta();
 
-        pimpl->eta = generateEta(options->etaNo(), options->nx(), options->ny(), options->width(), options->height());
     } else {
-        cerr << "warning: at least one of waterElevationNo/etaNo and bathymetryNo is less than zero => bathymetryField, H, and eta not initialized!\n";
+        // no input file available, so read grid dimensions from program options
+        pimpl->nx = options->nx();
+        pimpl->ny = options->ny();
+        pimpl->width = options->width();
+        pimpl->height = options->height();
     }
+
+    // validate grid dimensions
+    if (pimpl->nx < 2)
+        throw runtime_error((boost::format("error: nx (%1%) < 2") % pimpl->nx).str());
+    if (pimpl->ny < 2)
+        throw runtime_error((boost::format("error: ny (%1%) < 2") % pimpl->ny).str());
+    if (pimpl->width <= 0)
+        throw runtime_error((boost::format("error: width (%1%) <= 0") % pimpl->width).str());
+    if (pimpl->height <= 0)
+        throw runtime_error((boost::format("error: height (%1%) <= 0") % pimpl->height).str());
+
+    // synthesize H if necessary
+    if (pimpl->H.empty()) {
+        if (options->bathymetryNo() < 0)
+            throw runtime_error(
+                    (boost::format("error: H needs to be synthesized, but bathymetryNo (%1%) < 0") % options->bathymetryNo()).str());
+        pimpl->bathymetryField = generateBathymetry(options->bathymetryNo(), pimpl->nx, pimpl->ny, pimpl->width, pimpl->height);
+        ///XXX: We might want to be able to get w from options
+        const float wGlobal = 1.0f;
+        pimpl->H = generateH(pimpl->nx, pimpl->ny, pimpl->width, pimpl->height, pimpl->bathymetryField, wGlobal);
+    }
+
+    // synthesize eta if necessary
+    if (pimpl->eta.empty()) {
+        if (options->waterElevationNo() < 0)
+            throw runtime_error(
+                    (boost::format("error: eta needs to be synthesized, but waterElevationNo (%1%) < 0") % options->waterElevationNo()).str());
+        pimpl->eta = generateEta(options->waterElevationNo(), pimpl->nx, pimpl->ny, pimpl->width, pimpl->height);
+    }
+
+    ///XXX: We don't really need this field to initialize a simulation run for time being, but maybe later...
+    if (options->waterElevationNo() >= 0)
+        pimpl->waterElevationField = generateWaterElevation(options->waterElevationNo(), pimpl->nx, pimpl->ny, pimpl->width, pimpl->height);
+}
+
+int InitConditions::nx() const
+{
+    return pimpl->nx;
+}
+
+int InitConditions::ny() const
+{
+    return pimpl->ny;
+}
+
+float InitConditions::width() const
+{
+    return pimpl->width;
+}
+
+float InitConditions::height() const
+{
+    return pimpl->height;
+}
+
+float InitConditions::dx() const
+{
+    assert(pimpl->nx > 1);
+    return pimpl->width / (pimpl->nx - 1);
+}
+
+float InitConditions::dy() const
+{
+    assert(pimpl->ny > 1);
+    return pimpl->height / (pimpl->ny - 1);
 }
 
 FieldInfo InitConditions::waterElevationField() const
@@ -375,4 +463,14 @@ FieldInfo InitConditions::H() const
 FieldInfo InitConditions::eta() const
 {
     return pimpl->eta;
+}
+
+FieldInfo InitConditions::U() const
+{
+    return pimpl->U;
+}
+
+FieldInfo InitConditions::V() const
+{
+    return pimpl->V;
 }

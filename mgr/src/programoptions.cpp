@@ -23,7 +23,8 @@ struct ProgramOptions::ProgramOptionsImpl
     double duration; // duration of simulation (in simulated seconds)
     double wallDuration; // duration of simulation (in wall time seconds)
     bool cpu; // whether to run kernels on the CPU instead of the GPU
-    string outputFile; // name of file for storing output in NetCDF format
+    string inputFile; // name of file for reading output in NetCDF format
+    string outputFile; // name of file for writing output in NetCDF format
     ProgramOptionsImpl();
 };
 
@@ -74,13 +75,14 @@ bool ProgramOptions::parse(int argc, char *argv[])
 				("etaNo", po::value<int>(&pimpl->etaNo)->default_value(-1), "initial sea surface deviation")
 				("waterElevationNo", po::value<int>(&pimpl->waterElevationNo)->default_value(-1), "initial water elevation")
 		        ("bathymetryNo", po::value<int>(&pimpl->bathymetryNo)->default_value(-1), "initial bathymetry")
-                ("nx", po::value<int>(&pimpl->nx)->default_value(10), "number of horizontal grid cells")
-                ("ny", po::value<int>(&pimpl->ny)->default_value(10), "number of vertical grid cells")
-                ("width", po::value<float>(&pimpl->width)->default_value(1000), "horizontal extension of grid (in meters)")
-                ("height", po::value<float>(&pimpl->height)->default_value(1000), "vertical extension of grid (in meters)")
+                ("nx", po::value<int>(&pimpl->nx)->default_value(-1), "number of horizontal grid cells")
+                ("ny", po::value<int>(&pimpl->ny)->default_value(-1), "number of vertical grid cells")
+                ("width", po::value<float>(&pimpl->width)->default_value(-1), "horizontal extension of grid (in meters)")
+                ("height", po::value<float>(&pimpl->height)->default_value(-1), "vertical extension of grid (in meters)")
                 ("duration", po::value<double>(&pimpl->duration)->default_value(-1), "max duration of simulation (in seconds) (< 0 = infinite duration)")
                 ("wallDuration", po::value<double>(&pimpl->wallDuration)->default_value(-1), "max wall time duration (in seconds) (< 0 = infinite duration)")
-                ("outputFile", po::value<string>(&pimpl->outputFile)->default_value(""), "name of file for storing output in NetCDF format (empty = no output)")
+                ("inputFile", po::value<string>(&pimpl->inputFile)->default_value(""), "name of file for reading input in NetCDF format (empty = no input)")
+                ("outputFile", po::value<string>(&pimpl->outputFile)->default_value(""), "name of file for writing output in NetCDF format (empty = no output)")
                 ;
 
         po::options_description all_options;
@@ -139,14 +141,6 @@ bool ProgramOptions::parse(int argc, char *argv[])
             throw runtime_error((boost::format("error: waterElevationNo (%1%) < -1") % pimpl->waterElevationNo).str());
         if (pimpl->bathymetryNo < -1)
             throw runtime_error((boost::format("error: bathymetryNo (%1%) < -1") % pimpl->bathymetryNo).str());
-        if (pimpl->nx <= 0)
-            throw runtime_error((boost::format("error: nx (%1%) <= 0") % pimpl->nx).str());
-        if (pimpl->ny <= 0)
-            throw runtime_error((boost::format("error: ny (%1%) <= 0") % pimpl->ny).str());
-        if (pimpl->width <= 0)
-            throw runtime_error((boost::format("error: width (%1%) <= 0") % pimpl->width).str());
-        if (pimpl->height <= 0)
-            throw runtime_error((boost::format("error: height (%1%) <= 0") % pimpl->height).str());
         if (pimpl->duration < 0 && pimpl->wallDuration < 0)
             throw runtime_error(
                     (boost::format("error: duration (%1%) and wallduration (%2%) cannot both be negative")
@@ -232,6 +226,11 @@ double ProgramOptions::wallDuration() const
 float ProgramOptions::cpu() const
 {
     return pimpl->cpu;
+}
+
+string ProgramOptions::inputFile() const
+{
+    return pimpl->inputFile;
 }
 
 string ProgramOptions::outputFile() const

@@ -39,6 +39,11 @@ float &FieldInfo::operator()(int i, int j) const
     return data->at(i + j * nx);
 }
 
+bool FieldInfo::empty() const
+{
+    return data->empty();
+}
+
 void FieldInfo::dump(const string &title) const
 {
     if (!title.empty())

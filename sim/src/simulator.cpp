@@ -53,10 +53,10 @@ Simulator::SimulatorImpl::SimulatorImpl()
 
 void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr &initCond)
 {
-    nx = options->nx();
-    ny = options->ny();
-    dx = options->dx();
-    dy = options->dy();
+    nx = initCond->nx();
+    ny = initCond->ny();
+    dx = initCond->dx();
+    dy = initCond->dy();
     dt = std::min(dx, dy) * 0.001; // ### for now
     R = 1; // ### no influence for now
     F = 1; // ### no influence for now

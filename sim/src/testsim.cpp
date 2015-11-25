@@ -33,7 +33,7 @@ TestSim::TestSimImpl::TestSimImpl(int size, double maxTime)
 
 TestSim::TestSim(const OptionsPtr &options, const InitCondPtr &initCond)
     : SimBase(options, initCond)
-    , pimpl(new TestSimImpl(options->nx(), options->duration())) // use nx for matrix size
+    , pimpl(new TestSimImpl(initCond->nx(), options->duration())) // use nx for matrix size
 {
 }
 
