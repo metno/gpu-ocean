@@ -395,20 +395,23 @@ void InitConditions::init(const OptionsPtr &options)
             throw runtime_error(
                     (boost::format("error: H needs to be synthesized, but bathymetryNo (%1%) < 0") % options->bathymetryNo()).str());
         pimpl->bathymetryField = generateBathymetry(options->bathymetryNo(), pimpl->nx, pimpl->ny, pimpl->width, pimpl->height);
-        ///XXX: We might want to be able to get w from options
-        const float wGlobal = 1.0f;
+        float wGlobal = 1.0f;
+        if(options->wGlobal() < 0)
+        	cout << "warning: no initial global water elevation level given, using " << wGlobal << endl;
+        else
+        	wGlobal = options->wGlobal();
         pimpl->H = generateH(pimpl->nx, pimpl->ny, pimpl->width, pimpl->height, pimpl->bathymetryField, wGlobal);
     }
 
     // synthesize eta if necessary
     if (pimpl->eta.empty()) {
-        if (options->waterElevationNo() < 0)
+        if (options->etaNo() < 0)
             throw runtime_error(
-                    (boost::format("error: eta needs to be synthesized, but waterElevationNo (%1%) < 0") % options->waterElevationNo()).str());
-        pimpl->eta = generateEta(options->waterElevationNo(), pimpl->nx, pimpl->ny, pimpl->width, pimpl->height);
+                    (boost::format("error: eta needs to be synthesized, but etaNo (%1%) < 0") % options->etaNo()).str());
+        pimpl->eta = generateEta(options->etaNo(), pimpl->nx, pimpl->ny, pimpl->width, pimpl->height);
     }
 
-    ///XXX: We don't really need this field to initialize a simulation run for time being, but maybe later...
+    /// TODO: We don't really need this field to initialize a simulation run for time being, but maybe later...
     if (options->waterElevationNo() >= 0)
         pimpl->waterElevationField = generateWaterElevation(options->waterElevationNo(), pimpl->nx, pimpl->ny, pimpl->width, pimpl->height);
 }
