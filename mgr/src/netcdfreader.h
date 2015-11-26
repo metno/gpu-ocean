@@ -4,6 +4,8 @@
 #include "field.h"
 #include <netcdfcpp.h>
 #include <memory>
+#include <map>
+#include <string>
 
 class NetCDFReader {
 public:
@@ -25,6 +27,7 @@ public:
 private:
     struct NetCDFReaderImpl;
     NetCDFReaderImpl *pimpl;
+    FieldInfo read2DFloatField(const std::map<std::string, NcVar *> &, const std::string &, int, int);
 };
 
 typedef std::shared_ptr<NetCDFReader> NetCDFReaderPtr;
