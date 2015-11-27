@@ -153,7 +153,10 @@ FieldInfo NetCDFReader::V() const
 }
 
 /**
- * Copies a field from file to memory. Throws runtime_error if an error occurs.
+ * This function copies a 2D float field from file to memory. If the field variable (NcVar) has three dimensions, it is assumed that the third
+ * dimension is time, and the 2D field of the last timestep is copied. Otherwise, the field variable must have two dimensions, and the
+ * field is copied directly.
+ * The function throws runtime_error if an error occurs.
  * @param vars: Mapping from field name to NcVar object.
  * @param name: Field name.
  * @param nx_exp: Expected size of X-dimension.
@@ -165,29 +168,61 @@ FieldInfo NetCDFReader::read2DFloatField(const map<string, NcVar *> &vars, const
     if (vars.count(name) == 0)
         return FieldInfo();
 
-    const NcVar *var = vars.at(name);
+    NcVar *var = vars.at(name);
 
     if (var->type() != ncFloat)
         throw runtime_error(
                 (boost::format("error in field %s: type (%d) not float (%d)") % name % var->type() % ncFloat).str());
 
-    if (var->num_dims() != 2)
+    if (var->num_dims() == 2) {
+        // assume field is not part of a time series
+
+        const NcDim *dimy = var->get_dim(0);
+        if (dimy->size() != ny_exp)
+            throw runtime_error(
+                    (boost::format("error in field %s (ndims=2): ny (%d) != %d") % name % dimy->size() % ny_exp).str());
+
+        const NcDim *dimx = var->get_dim(1);
+        if (dimx->size() != nx_exp)
+            throw runtime_error(
+                    (boost::format("error in field %s (ndims=2): nx (%d) != %d") % name % dimx->size() % nx_exp).str());
+
+        vector<float> *data = new vector<float>(nx_exp * ny_exp);
+        if (!var->get(data->data(), ny_exp, nx_exp))
+            throw runtime_error((boost::format("error in field %s (ndims=2): failed to copy values") % name).str());
+
+        return FieldInfo(data, nx_exp, ny_exp, dx(), dy());
+
+    } else if (var->num_dims() == 3) {
+        // assume field is part of a time series
+
+        const NcDim *dimt = var->get_dim(0);
+        if (dimt->name() != string("T"))
+            throw runtime_error(
+                    (boost::format("error in field %s (ndims=3): name of time dimension (%s) != T") % name % dimt->name()).str());
+        const long timestep = dimt->size() - 1; // last timestep
+
+        const NcDim *dimy = var->get_dim(1);
+        if (dimy->size() != ny_exp)
+            throw runtime_error(
+                    (boost::format("error in field %s (ndims=3): ny (%d) != %d") % name % dimy->size() % ny_exp).str());
+
+        const NcDim *dimx = var->get_dim(2);
+        if (dimx->size() != nx_exp)
+            throw runtime_error(
+                    (boost::format("error in field %s (ndims=3): nx (%d) != %d") % name % dimx->size() % nx_exp).str());
+
+        vector<float> *data = new vector<float>(nx_exp * ny_exp);
+        var->set_cur(timestep);
+        if (!var->get(data->data(), 1, ny_exp, nx_exp))
+            throw runtime_error((boost::format("error in field %s (ndims=3): failed to copy values") % name).str());
+
+        return FieldInfo(data, nx_exp, ny_exp, dx(), dy());
+
+    } else {
         throw runtime_error(
-                (boost::format("error in field %s: # of dimensions (%d) != 2") % name % var->num_dims()).str());
+                (boost::format("error in field %s: # of dimensions (%d) neither 2 nor 3") % name % var->num_dims()).str());
+    }
 
-    const NcDim *dimx = var->get_dim(1);
-    if (dimx->size() != nx_exp)
-        throw runtime_error(
-                (boost::format("error in field %s: nx (%d) != %d") % name % dimx->size() % nx_exp).str());
-
-    const NcDim *dimy = var->get_dim(0);
-    if (dimy->size() != ny_exp)
-        throw runtime_error(
-                (boost::format("error in field %s: ny (%d) != %d") % name % dimy->size() % ny_exp).str());
-
-    vector<float> *data = new vector<float>(nx_exp * ny_exp);
-    if (!var->get(data->data(), ny_exp, nx_exp))
-        throw runtime_error((boost::format("error in field %s: failed to copy values") % name).str());
-
-    return FieldInfo(data, nx_exp, ny_exp, dx(), dy());
+    return FieldInfo();
 }
