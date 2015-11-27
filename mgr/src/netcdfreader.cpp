@@ -9,16 +9,11 @@ using namespace std;
 struct NetCDFReader::NetCDFReaderImpl
 {
     std::shared_ptr<NcFile> file;
-
     int nx;
     int ny;
     float width;
     float height;
-    FieldInfo H;
-    FieldInfo eta;
-    FieldInfo U;
-    FieldInfo V;
-
+    map<string, NcVar *> vars;
     NetCDFReaderImpl();
 };
 
@@ -78,17 +73,10 @@ NetCDFReader::NetCDFReader(const std::string &fname)
 
 
     // read variables
-    map<string, NcVar *> vars;
     for (int i = 0; i < pimpl->file->num_vars(); ++i) {
         NcVar *var = pimpl->file->get_var(i);
-        vars[string(var->name())] = var;
+        pimpl->vars[string(var->name())] = var;
     }
-
-    // read optional fields
-    pimpl->H = read2DFloatField(vars, "H", pimpl->nx + 1, pimpl->ny + 1);
-    pimpl->eta = read2DFloatField(vars, "eta", pimpl->nx + 1, pimpl->ny + 1);
-    pimpl->U = read2DFloatField(vars, "U", pimpl->nx + 2, pimpl->ny - 1);
-    pimpl->V = read2DFloatField(vars, "V", pimpl->nx - 1, pimpl->ny + 2);
 }
 
 NetCDFReader::~NetCDFReader()
@@ -132,24 +120,28 @@ float NetCDFReader::dy() const
     return pimpl->height / (pimpl->ny - 1);
 }
 
+// Reads H.
 FieldInfo NetCDFReader::H() const
 {
-    return pimpl->H;
+    return read2DFloatField("H", pimpl->nx + 1, pimpl->ny + 1);
 }
 
-FieldInfo NetCDFReader::eta() const
+// Reads eta for a given timestep (0 = first, -1 = last). The timestep is ignored if the field variable (NcVar) has only 2 dimensions.
+FieldInfo NetCDFReader::eta(long timestep) const
 {
-    return pimpl->eta;
+    return read2DFloatField("eta", pimpl->nx + 1, pimpl->ny + 1, timestep);
 }
 
-FieldInfo NetCDFReader::U() const
+// Reads U for a given timestep (0 = first, -1 = last). The timestep is ignored if the field variable (NcVar) has only 2 dimensions.
+FieldInfo NetCDFReader::U(long timestep) const
 {
-    return pimpl->U;
+    return read2DFloatField("U", pimpl->nx + 2, pimpl->ny - 1, timestep);
 }
 
-FieldInfo NetCDFReader::V() const
+// Reads V for a given timestep (0 = first, -1 = last). The timestep is ignored if the field variable (NcVar) has only 2 dimensions.
+FieldInfo NetCDFReader::V(long timestep) const
 {
-    return pimpl->V;
+    return read2DFloatField("V", pimpl->nx - 1, pimpl->ny + 2, timestep);
 }
 
 /**
@@ -157,18 +149,18 @@ FieldInfo NetCDFReader::V() const
  * dimension is time, and the 2D field of the last timestep is copied. Otherwise, the field variable must have two dimensions, and the
  * field is copied directly.
  * The function throws runtime_error if an error occurs.
- * @param vars: Mapping from field name to NcVar object.
  * @param name: Field name.
  * @param nx_exp: Expected size of X-dimension.
  * @param ny_exp: Expected size of Y-dimension.
+ * @param timestep: Timestep (if applicable, i.e. if the field variable is 3D). The first and last timestep is indicated by 0 and -1 respectively.
  * @returns The FieldInfo object. NOTE: An empty object is returned if the field doesn't exist (which is not considered an error).
  */
-FieldInfo NetCDFReader::read2DFloatField(const map<string, NcVar *> &vars, const string &name, int nx_exp, int ny_exp)
+FieldInfo NetCDFReader::read2DFloatField(const string &name, int nx_exp, int ny_exp, long timestep) const
 {
-    if (vars.count(name) == 0)
+    if (pimpl->vars.count(name) == 0)
         return FieldInfo();
 
-    NcVar *var = vars.at(name);
+    NcVar *var = pimpl->vars.at(name);
 
     if (var->type() != ncFloat)
         throw runtime_error(
@@ -200,7 +192,11 @@ FieldInfo NetCDFReader::read2DFloatField(const map<string, NcVar *> &vars, const
         if (dimt->name() != string("T"))
             throw runtime_error(
                     (boost::format("error in field %s (ndims=3): name of time dimension (%s) != T") % name % dimt->name()).str());
-        const long timestep = dimt->size() - 1; // last timestep
+        const long actualTimestep = (timestep < 0) ? (dimt->size() - 1) : timestep;
+        if (actualTimestep < 0 || actualTimestep >= dimt->size())
+            throw runtime_error(
+                    (boost::format("error in field %s (ndims=3): timestep (%d) outside available range ([0, %d])")
+                     % name % actualTimestep % (dimt->size() - 1)).str());
 
         const NcDim *dimy = var->get_dim(1);
         if (dimy->size() != ny_exp)
@@ -213,7 +209,7 @@ FieldInfo NetCDFReader::read2DFloatField(const map<string, NcVar *> &vars, const
                     (boost::format("error in field %s (ndims=3): nx (%d) != %d") % name % dimx->size() % nx_exp).str());
 
         vector<float> *data = new vector<float>(nx_exp * ny_exp);
-        var->set_cur(timestep);
+        var->set_cur(actualTimestep);
         if (!var->get(data->data(), 1, ny_exp, nx_exp))
             throw runtime_error((boost::format("error in field %s (ndims=3): failed to copy values") % name).str());
 
