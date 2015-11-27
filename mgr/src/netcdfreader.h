@@ -20,14 +20,21 @@ public:
     float dy() const;
 
     FieldInfo H() const;
+
+    long etaTimesteps() const;
     FieldInfo eta(long = -1) const;
+
+    long UTimesteps() const;
     FieldInfo U(long = -1) const;
+
+    long VTimesteps() const;
     FieldInfo V(long = -1) const;
 
 private:
     struct NetCDFReaderImpl;
     NetCDFReaderImpl *pimpl;
     FieldInfo read2DFloatField(const std::string &, int, int, long = -1) const;
+    long timesteps(const std::string &) const;
 };
 
 typedef std::shared_ptr<NetCDFReader> NetCDFReaderPtr;

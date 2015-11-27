@@ -126,19 +126,37 @@ FieldInfo NetCDFReader::H() const
     return read2DFloatField("H", pimpl->nx + 1, pimpl->ny + 1);
 }
 
-// Reads eta for a given timestep (0 = first, -1 = last). The timestep is ignored if the field variable (NcVar) has only 2 dimensions.
+// Reads number of timestemps for eta.
+long NetCDFReader::etaTimesteps() const
+{
+    return timesteps("eta");
+}
+
+// Returns eta for a given timestep (0 = first, -1 = last). The timestep is ignored if the field variable (NcVar) has only 2 dimensions.
 FieldInfo NetCDFReader::eta(long timestep) const
 {
     return read2DFloatField("eta", pimpl->nx + 1, pimpl->ny + 1, timestep);
 }
 
-// Reads U for a given timestep (0 = first, -1 = last). The timestep is ignored if the field variable (NcVar) has only 2 dimensions.
+// Reads number of timestemps for U.
+long NetCDFReader::UTimesteps() const
+{
+    return timesteps("U");
+}
+
+// Returns U for a given timestep (0 = first, -1 = last). The timestep is ignored if the field variable (NcVar) has only 2 dimensions.
 FieldInfo NetCDFReader::U(long timestep) const
 {
     return read2DFloatField("U", pimpl->nx + 2, pimpl->ny - 1, timestep);
 }
 
-// Reads V for a given timestep (0 = first, -1 = last). The timestep is ignored if the field variable (NcVar) has only 2 dimensions.
+// Reads number of timestemps for V.
+long NetCDFReader::VTimesteps() const
+{
+    return timesteps("V");
+}
+
+// Returns V for a given timestep (0 = first, -1 = last). The timestep is ignored if the field variable (NcVar) has only 2 dimensions.
 FieldInfo NetCDFReader::V(long timestep) const
 {
     return read2DFloatField("V", pimpl->nx - 1, pimpl->ny + 2, timestep);
@@ -221,4 +239,35 @@ FieldInfo NetCDFReader::read2DFloatField(const string &name, int nx_exp, int ny_
     }
 
     return FieldInfo();
+}
+
+/**
+ * Returns the number of timesteps of a 2D field.
+ * The function throws runtime_error if an error occurs.
+ * @param name: Field name.
+ * @returns The number of timesteps (>= 0) of the 2D field if the field exists and the field variable (NcVar) has three dimensions. Otherwise -1.
+ */
+long NetCDFReader::timesteps(const string &name) const
+{
+    if (pimpl->vars.count(name) == 0)
+        return -1;
+
+    NcVar *var = pimpl->vars.at(name);
+
+    if (var->num_dims() == 2)
+        return -1;
+
+    if (var->num_dims() == 3) {
+        // assume field is part of a time series
+        const NcDim *dimt = var->get_dim(0);
+        if (dimt->name() != string("T"))
+            throw runtime_error(
+                    (boost::format("error in field %s (ndims=3): name of time dimension (%s) != T") % name % dimt->name()).str());
+        return dimt->size();
+    } else {
+        throw runtime_error(
+                (boost::format("error in field %s: # of dimensions (%d) neither 2 nor 3") % name % var->num_dims()).str());
+    }
+
+    return -1;
 }
