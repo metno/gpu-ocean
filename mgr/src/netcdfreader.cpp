@@ -175,12 +175,12 @@ FieldInfo NetCDFReader::read2DFloatField(const map<string, NcVar *> &vars, const
         throw runtime_error(
                 (boost::format("error in field %s: # of dimensions (%d) != 2") % name % var->num_dims()).str());
 
-    const NcDim *dimx = var->get_dim(0);
+    const NcDim *dimx = var->get_dim(1);
     if (dimx->size() != nx_exp)
         throw runtime_error(
                 (boost::format("error in field %s: nx (%d) != %d") % name % dimx->size() % nx_exp).str());
 
-    const NcDim *dimy = var->get_dim(1);
+    const NcDim *dimy = var->get_dim(0);
     if (dimy->size() != ny_exp)
         throw runtime_error(
                 (boost::format("error in field %s: ny (%d) != %d") % name % dimy->size() % ny_exp).str());
