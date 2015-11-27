@@ -186,7 +186,7 @@ FieldInfo NetCDFReader::read2DFloatField(const map<string, NcVar *> &vars, const
                 (boost::format("error in field %s: ny (%d) != %d") % name % dimy->size() % ny_exp).str());
 
     vector<float> *data = new vector<float>(nx_exp * ny_exp);
-    if (!var->get(data->data(), nx_exp, ny_exp))
+    if (!var->get(data->data(), ny_exp, nx_exp))
         throw runtime_error((boost::format("error in field %s: failed to copy values") % name).str());
 
     return FieldInfo(data, nx_exp, ny_exp, dx(), dy());
