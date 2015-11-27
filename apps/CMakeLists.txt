@@ -38,6 +38,8 @@ LINK_DIRECTORIES(
 
 # - Create test executables
 file(GLOB TEST_SRCS "test/*.cpp")
+file(GLOB test_utils_srcs "test/utils/*.cpp")
+add_library(test_utils STATIC ${test_utils_srcs})
 foreach(testSrc ${TEST_SRCS})
 	get_filename_component(testName ${testSrc} NAME_WE)
 
@@ -46,7 +48,8 @@ foreach(testSrc ${TEST_SRCS})
     target_link_libraries(${testName} ${Boost_LIBRARIES}
 		${mgr_LIBRARIES}
         ${sim_LIBRARIES}
-		${OpenCL_LIBRARY})
+		${OpenCL_LIBRARY}
+		test_utils)
 		
 	IF(apps_USE_NETCDF)
 	    TARGET_LINK_LIBRARIES(${testName} ${NetCDF_LIBRARIES})
