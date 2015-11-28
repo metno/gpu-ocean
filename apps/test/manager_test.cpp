@@ -13,7 +13,7 @@ struct ManagerFixture {
 	{
 		BOOST_TEST_MESSAGE( "setup fixture" );
 
-        std::pair<int, char **> args = s2args("--duration 0 --nx 2 --ny 2 --width 1 --height 1 --bathymetryNo 0 --etaNo 0");
+        std::pair<int, char **> args = createArgs("--duration 0 --nx 2 --ny 2 --width 1 --height 1 --bathymetryNo 0 --etaNo 0");
         Manager::init(args.first, args.second);
 
 		manager = &Manager::instance();

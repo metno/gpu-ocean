@@ -84,7 +84,11 @@ void NetCDFWriter::initFile(std::string fname)
     pimpl->file.reset(new NcFile(fname.c_str(), NcFile::New));
     if (!pimpl->file->is_valid()) {
         std::stringstream ss;
-        ss << "Failed to open '" << fname << "' for writing NetCDF. Possible reasons: 1: The file already exists. 2: The disk is full." << std::endl;
+        ss << "Failed to open '" << fname << "' for writing NetCDF. Possible reasons: "
+           << "1: The file already exists. "
+           << "2: The file path is invalid. "
+           << "3: The disk is full."
+           << std::endl;
         throw std::runtime_error(ss.str());
     }
     memset(&pimpl->layout, 0, sizeof(pimpl->layout));

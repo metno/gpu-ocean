@@ -1,14 +1,12 @@
 #include "testutils.h"
-#include <vector>
 #include <boost/algorithm/string.hpp>
 
 using namespace std;
 
-// Returns an (argc, argv) pair from the words in a string. The word "argv0" is automatically prepended.
-pair<int, char **> s2args(const string &s)
+// Returns an (argc, argv) pair from a vector of words. The argument "argv0" is automatically prepended to the output.
+pair<int, char **> createArgs(const vector<string> &words_)
 {
-    vector<string> words;
-    boost::split(words, s, boost::is_any_of("\t "));
+    vector<string> words(words_);
     words.insert(words.begin(), "argv0");
     const int argc = words.size();
     char **argv = (char **)malloc(argc * sizeof(char *));
@@ -18,4 +16,12 @@ pair<int, char **> s2args(const string &s)
     }
 
     return make_pair(argc, argv);
+}
+
+// Returns an (argc, argv) pair from the words in a string. The argument "argv0" is automatically prepended to the output.
+pair<int, char **> createArgs(const string &s)
+{
+    vector<string> words;
+    boost::split(words, s, boost::is_any_of("\t "));
+    return createArgs(words);
 }
