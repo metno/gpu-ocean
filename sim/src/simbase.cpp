@@ -42,19 +42,12 @@ void SimBase::assertInitialized() const
         throw runtime_error("SimBase: not initialized");
 }
 
-void SimBase::assertNotInitialized() const
-{
-    if (pimpl->isInit)
-        throw runtime_error("SimBase: already initialized");
-}
-
 /**
  * Initializes the simulator. This includes resetting the current and final step values.
  * @return Initialization status (true iff initialization was successful)
  */
 bool SimBase::init()
 {
-    assertNotInitialized();
     return pimpl->isInit = _init();
 }
 

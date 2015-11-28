@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <memory>
 
 // define macros to assert that an expression evaluates to CL_SUCCESS
 // version 1:
@@ -52,10 +53,10 @@ private:
     static cl_uint pfmIndex; // index of current platform
     static std::vector<cl::Device> devices;
     static cl_uint devIndex; // index of current device
-    static cl::Context *context;
-    static cl::Program *program;
-    static std::map<std::string, cl::Kernel *> kernels; // tag-to-kernel mapping
-    static cl::CommandQueue *queue;
+    static std::shared_ptr<cl::Context> context;
+    static std::shared_ptr<cl::Program> program;
+    static std::map<std::string, std::shared_ptr<cl::Kernel> > kernels; // tag-to-kernel mapping
+    static std::shared_ptr<cl::CommandQueue> queue;
 };
 
 #endif // OCLUTILS_H
