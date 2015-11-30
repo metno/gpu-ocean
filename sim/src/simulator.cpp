@@ -74,6 +74,8 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
     CL_CHECK(error);
 
     // ... U
+    _U.dx = dx;
+    _U.dy = dy;
     const int nx_U = _U.nx = nx + 2;
     const int ny_U = _U.ny = ny - 1;
     const int size_U = nx_U * ny_U;
@@ -84,6 +86,8 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
     CL_CHECK(error);
 
     // ... V
+    _V.dx = dx;
+    _V.dy = dy;
     const int nx_V = _V.nx = nx - 1;
     const int ny_V = _V.ny = ny + 2;
     const int size_V = nx_V * ny_V;
