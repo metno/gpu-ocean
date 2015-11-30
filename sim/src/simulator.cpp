@@ -98,6 +98,8 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
     CL_CHECK(error);
 
     // ... eta
+    _eta.dx = dx;
+    _eta.dy = dy;
     const int nx_eta = _eta.nx = nx + 1;
     const int ny_eta = _eta.ny = ny + 1;
     const int size_eta = nx_eta * ny_eta;
