@@ -126,7 +126,7 @@ BOOST_AUTO_TEST_CASE(TimeSeriesWrittenAndReadBack)
     CHECK_FIELDS_EQUAL(mgr.initConditions()->H(), fileReader->H());
 
     // check time series sizes
-    const int tssize = nsteps + 1; // note that we must include the initial step at timestep 0
+    const int tssize = nsteps + 1; // note that we must include the initial state (timestep 0, before the first simulation step)
     BOOST_CHECK_EQUAL(tssize, fileReader->etaTimesteps());
     BOOST_CHECK_EQUAL(tssize, fileReader->UTimesteps());
     BOOST_CHECK_EQUAL(tssize, fileReader->VTimesteps());
