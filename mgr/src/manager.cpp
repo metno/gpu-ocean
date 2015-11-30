@@ -33,9 +33,6 @@ Manager::ManagerImpl::ManagerImpl(const OptionsPtr &options, const InitCondPtr &
 // Initializes the manager.
 void Manager::init(int argc, char *argv[])
 {
-    if (isInit)
-        throw runtime_error("manager already initialized");
-
     opts.reset(new ProgramOptions);
     if (!opts->parse(argc, argv)) {
         cerr << opts->message() << endl;
