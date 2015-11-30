@@ -10,7 +10,6 @@
 #include "simulator.h"
 #include "netcdfwriter.h"
 #include "netcdfreader.h"
-#include <cstdio>
 
 using namespace std;
 
@@ -20,9 +19,17 @@ static string outputFile("/tmp/out.nc");
 
 // Define a fixture to be set up and torn down once for the entire set of tests.
 struct GlobalFixture {
-    GlobalFixture()
+    GlobalFixture() { BOOST_TEST_MESSAGE("GlobalFixture() ..."); }
+    ~GlobalFixture() { BOOST_TEST_MESSAGE("~GlobalFixture() ..."); }
+};
+BOOST_GLOBAL_FIXTURE(GlobalFixture);
+
+// Define a fixture to be set up and torn down for every test case invocation (assuming all test cases belong to the master test suite).
+struct MasterTestSuiteFixture {
+    MasterTestSuiteFixture()
     {
-        BOOST_TEST_MESSAGE("GlobalFixture() ...");
+        BOOST_TEST_MESSAGE("MasterTestSuiteFixture() ...");
+        remove(outputFile.c_str());
 
         // initialize manager
         vector<string> words;
@@ -46,21 +53,6 @@ struct GlobalFixture {
         Manager::init(args.first, args.second);
     }
 
-    ~GlobalFixture()
-    {
-        BOOST_TEST_MESSAGE("~GlobalFixture() ...");
-    }
-};
-BOOST_GLOBAL_FIXTURE(GlobalFixture);
-
-// Define a fixture to be set up and torn down for every test case invocation (assuming all test cases belong to the master test suite).
-struct MasterTestSuiteFixture {
-    MasterTestSuiteFixture()
-    {
-        BOOST_TEST_MESSAGE("MasterTestSuiteFixture() ...");
-        remove(outputFile.c_str());
-    }
-
     ~MasterTestSuiteFixture()
     {
         BOOST_TEST_MESSAGE("~MasterTestSuiteFixture() ...");
@@ -80,10 +72,16 @@ BOOST_AUTO_TEST_CASE(ManagerInitialized)
 BOOST_AUTO_TEST_CASE(InitStateWrittenAndReadBack)
 {
     Manager &mgr = Manager::instance();
-    mgr.initSim(); // note: this call writes initial state to file
+    mgr.initSim(); // note: this call also writes the initial state to the output file (timestep 0)
 
     NetCDFReaderPtr fileReader(new NetCDFReader(outputFile));
 
+    // check time series sizes
+    BOOST_CHECK_EQUAL(fileReader->etaTimesteps(), 1);
+    BOOST_CHECK_EQUAL(fileReader->UTimesteps(), 1);
+    BOOST_CHECK_EQUAL(fileReader->VTimesteps(), 1);
+
+    // check other contents
     const InitCondPtr initCond = mgr.initConditions();
     BOOST_CHECK_EQUAL(initCond->nx(), fileReader->nx());
     BOOST_CHECK_EQUAL(initCond->ny(), fileReader->ny());
@@ -92,33 +90,61 @@ BOOST_AUTO_TEST_CASE(InitStateWrittenAndReadBack)
     BOOST_CHECK_EQUAL(initCond->dx(), fileReader->dx());
     BOOST_CHECK_EQUAL(initCond->dy(), fileReader->dy());
     CHECK_FIELDS_EQUAL(initCond->H(), fileReader->H());
-    CHECK_FIELDS_EQUAL(initCond->eta(), fileReader->eta());
+    CHECK_FIELDS_EQUAL(initCond->eta(), mgr.eta()); // note this!
+    CHECK_FIELDS_EQUAL(mgr.eta(), fileReader->eta());
     CHECK_FIELDS_EQUAL(mgr.U(), fileReader->U());
     CHECK_FIELDS_EQUAL(mgr.V(), fileReader->V());
 }
 
-BOOST_AUTO_TEST_CASE(StateAtNTimestepsWrittenAndReadBack)
+BOOST_AUTO_TEST_CASE(TimeSeriesWrittenAndReadBack)
 {
     Manager &mgr = Manager::instance();
-    mgr.initSim();
+    mgr.initSim(); // note: this call also writes the initial state to the output file (timestep 0)
+
+    vector<FieldInfo> eta;
+    vector<FieldInfo> U;
+    vector<FieldInfo> V;
+
+    // copy initial state of each time series (timestep 0)
+    CHECK_FIELDS_EQUAL(mgr.initConditions()->eta(), mgr.eta()); // note this!
+    eta.push_back(mgr.eta());
+    U.push_back(mgr.U());
+    V.push_back(mgr.V());
+
+    // simulate a few steps
+    const int nsteps = 10;
+    for (int i = 0; i < nsteps; ++i) {
+        mgr.execNextStep();
+        eta.push_back(mgr.eta());
+        U.push_back(mgr.U());
+        V.push_back(mgr.V());
+    }
 
     NetCDFReaderPtr fileReader(new NetCDFReader(outputFile));
 
-    // simulate a few steps
-    const int n = 5;
-    for (int i = 0; i < n; ++i)
-        mgr.execNextStep();
-
+    // check that H hasn't changed from its original value
     CHECK_FIELDS_EQUAL(mgr.initConditions()->H(), fileReader->H());
 
-    BOOST_CHECK_EQUAL(n, fileReader->etaTimesteps());
+    // check time series sizes
+    const int tssize = nsteps + 1; // note that we must include the initial step at timestep 0
+    BOOST_CHECK_EQUAL(tssize, fileReader->etaTimesteps());
+    BOOST_CHECK_EQUAL(tssize, fileReader->UTimesteps());
+    BOOST_CHECK_EQUAL(tssize, fileReader->VTimesteps());
+
+    // check that fields at explicit timesteps are equal
+    for (int i = 0; i < nsteps; ++i) {
+        CHECK_FIELDS_EQUAL(eta.at(i), fileReader->eta(i));
+        CHECK_FIELDS_EQUAL(U.at(i), fileReader->U(i));
+        CHECK_FIELDS_EQUAL(V.at(i), fileReader->V(i));
+    }
+
+    // check that the last timestep may be implicitly specified
     CHECK_FIELDS_EQUAL(mgr.eta(), fileReader->eta());
-
-    BOOST_CHECK_EQUAL(n, fileReader->UTimesteps());
     CHECK_FIELDS_EQUAL(mgr.U(), fileReader->U());
-
-    BOOST_CHECK_EQUAL(n, fileReader->VTimesteps());
     CHECK_FIELDS_EQUAL(mgr.V(), fileReader->V());
+    CHECK_FIELDS_EQUAL(mgr.eta(), fileReader->eta(-1));
+    CHECK_FIELDS_EQUAL(mgr.U(), fileReader->U(-1));
+    CHECK_FIELDS_EQUAL(mgr.V(), fileReader->V(-1));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

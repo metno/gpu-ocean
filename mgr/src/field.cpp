@@ -22,13 +22,22 @@ FieldInfo::FieldInfo(const FieldPtr &fp, int nx, int ny, float dx, float dy)
 {
 }
 
-FieldInfo::FieldInfo(std::vector<float> *field, int nx, int ny, float dx, float dy)
+FieldInfo::FieldInfo(vector<float> *field, int nx, int ny, float dx, float dy)
     : nx(nx)
     , ny(ny)
     , dx(dx)
     , dy(dy)
 {
     data.reset(field);
+}
+
+FieldInfo::FieldInfo(const FieldInfo &other)
+    : nx(other.nx)
+    , ny(other.ny)
+    , dx(other.dx)
+    , dy(other.dy)
+{
+    data.reset(new vector<float>(*other.data.get()));
 }
 
 /**

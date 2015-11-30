@@ -197,11 +197,16 @@ void NetCDFWriter::init(int nx, int ny, float dt, float dx, float dy, float f, f
 
     // write data
     pimpl->layout.vars.H->put(H, ny + 1, nx + 1);
+    pimpl->timestepCounter = 0;
+    pimpl->layout.vars.eta->set_cur(pimpl->timestepCounter, 0, 0);
     pimpl->layout.vars.eta->put(eta, 1, ny + 1, nx + 1);
+    pimpl->layout.vars.U->set_cur(pimpl->timestepCounter, 0, 0);
     pimpl->layout.vars.U->put(U, 1, ny - 1, nx + 2);
+    pimpl->layout.vars.V->set_cur(pimpl->timestepCounter, 0, 0);
     pimpl->layout.vars.V->put(V, 1, ny + 2, nx - 1);
 
     pimpl->file->sync();
+    ++pimpl->timestepCounter;
 }
 
 void NetCDFWriter::writeTimestep(float *eta, float *U, float *V, float t)

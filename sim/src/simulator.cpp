@@ -104,6 +104,7 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
     const int ny_eta = _eta.ny = ny + 1;
     const int size_eta = nx_eta * ny_eta;
     _eta.data->resize(size_eta);
+    *_eta.data = *initCond->eta().data;
     eta = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * size_eta, initCond->eta().data->data(), &error);
     CL_CHECK(error);
 }

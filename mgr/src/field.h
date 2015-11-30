@@ -16,6 +16,7 @@ struct FieldInfo {
     FieldInfo();
     FieldInfo(const FieldPtr &, int, int, float, float);
     FieldInfo(std::vector<float> *, int, int, float, float);
+    FieldInfo(const FieldInfo &);
     float &operator()(int, int) const;
     bool empty() const;
     void dump(const std::string & = std::string()) const;
