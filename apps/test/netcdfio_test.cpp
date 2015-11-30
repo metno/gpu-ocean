@@ -6,6 +6,7 @@
 #include "utils/testutils.h"
 #include "manager.h"
 #include "programoptions.h"
+#include "initconditions.h"
 #include "simulator.h"
 #include "netcdfwriter.h"
 #include "netcdfreader.h"
@@ -83,11 +84,17 @@ BOOST_AUTO_TEST_CASE(InitStateWrittenAndReadBack)
 
     NetCDFReaderPtr fileReader(new NetCDFReader(outputFile));
 
-    BOOST_CHECK_EQUAL(mgr.initConditions()->nx(), fileReader->nx());
-    // check that other values are equal ... TBD
-    // ... ny, width, height, dx, dy, fields (H, eta, U, V)
-    // BOOST_CHECK(mgr.H().compare(fileReader->H()));
-    // ...
+    const InitCondPtr initCond = mgr.initConditions();
+    BOOST_CHECK_EQUAL(initCond->nx(), fileReader->nx());
+    BOOST_CHECK_EQUAL(initCond->ny(), fileReader->ny());
+    BOOST_CHECK_EQUAL(initCond->width(), fileReader->width());
+    BOOST_CHECK_EQUAL(initCond->height(), fileReader->height());
+    BOOST_CHECK_EQUAL(initCond->dx(), fileReader->dx());
+    BOOST_CHECK_EQUAL(initCond->dy(), fileReader->dy());
+    CHECK_FIELDS_EQUAL(initCond->H(), fileReader->H());
+    CHECK_FIELDS_EQUAL(initCond->eta(), fileReader->eta());
+    CHECK_FIELDS_EQUAL(mgr.U(), fileReader->U());
+    CHECK_FIELDS_EQUAL(mgr.V(), fileReader->V());
 }
 
 BOOST_AUTO_TEST_CASE(StateAtTimestep5WrittenAndReadBack)
