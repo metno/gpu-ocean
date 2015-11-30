@@ -97,20 +97,28 @@ BOOST_AUTO_TEST_CASE(InitStateWrittenAndReadBack)
     CHECK_FIELDS_EQUAL(mgr.V(), fileReader->V());
 }
 
-BOOST_AUTO_TEST_CASE(StateAtTimestep5WrittenAndReadBack)
+BOOST_AUTO_TEST_CASE(StateAtNTimestepsWrittenAndReadBack)
 {
     Manager &mgr = Manager::instance();
     mgr.initSim();
 
-//    // write and read back state at timestep 5 ... TBD
-//    for (int i = 0; i < 5; ++i)
-//        mgr.execNextStep()
+    NetCDFReaderPtr fileReader(new NetCDFReader(outputFile));
 
-    // check that values are equal at this point ... TBD
-    // ... nx, ny, width, height, dx, dy, fields (H, eta, U, V)
-    // BOOST_CHECK(mgr.H().compare(fileReader->H()));
-    // ...
+    // simulate a few steps
+    const int n = 5;
+    for (int i = 0; i < n; ++i)
+        mgr.execNextStep();
 
+    CHECK_FIELDS_EQUAL(mgr.initConditions()->H(), fileReader->H());
+
+    BOOST_CHECK_EQUAL(n, fileReader->etaTimesteps());
+    CHECK_FIELDS_EQUAL(mgr.eta(), fileReader->eta());
+
+    BOOST_CHECK_EQUAL(n, fileReader->UTimesteps());
+    CHECK_FIELDS_EQUAL(mgr.U(), fileReader->U());
+
+    BOOST_CHECK_EQUAL(n, fileReader->VTimesteps());
+    CHECK_FIELDS_EQUAL(mgr.V(), fileReader->V());
 }
 
 BOOST_AUTO_TEST_SUITE_END()
