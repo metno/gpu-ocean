@@ -5,6 +5,7 @@
 #include "simulator.h"
 #include "testsim.h"
 #include "netcdfwriter.h"
+#include <boost/format.hpp>
 #include <stdexcept>
 #include <vector>
 #include <iostream>
@@ -30,14 +31,11 @@ Manager::ManagerImpl::ManagerImpl(const OptionsPtr &options, const InitCondPtr &
 {
 }
 
-// Initializes the manager.
 void Manager::init(int argc, char *argv[])
 {
     opts.reset(new ProgramOptions);
-    if (!opts->parse(argc, argv)) {
-        cerr << opts->message() << endl;
-        return;
-    }
+    if (!opts->parse(argc, argv))
+        throw runtime_error((boost::format("failed to initialize manager: %s") % opts->message()).str());
 
     initCond.reset(new InitConditions);
     initCond->init(opts);
@@ -45,13 +43,11 @@ void Manager::init(int argc, char *argv[])
     isInit = true;
 }
 
-// Returns true iff the manager is initialized.
 bool Manager::initialized()
 {
     return isInit;
 }
 
-// Returns the singleton instance (thread-safe in C++11).
 Manager &Manager::instance()
 {
     if (!isInit)
@@ -61,25 +57,21 @@ Manager &Manager::instance()
     return mgr;
 }
 
-// Returns the program options object.
 OptionsPtr Manager::options() const
 {
     return opts;
 }
 
-// Returns the initial conditions object.
 InitCondPtr Manager::initConditions() const
 {
     return initCond;
 }
 
-// Returns the simulator object.
 SimBasePtr Manager::sim() const
 {
     return pimpl->sim;
 }
 
-// Initializes a new simulation run (aborting one that is already in progress, if necessary).
 void Manager::initSim()
 {
     // initialize simulation
@@ -99,7 +91,6 @@ void Manager::initSim()
     }
 }
 
-// Executes the next simulation step and advances the simulation time.
 bool Manager::execNextStep()
 {
     // execute next step
@@ -116,22 +107,19 @@ bool Manager::execNextStep()
     return status;
 }
 
-// Returns U at the current simulation step.
+FieldInfo Manager::eta() const
+{
+    return pimpl->sim->eta();
+}
+
 FieldInfo Manager::U() const
 {
     return pimpl->sim->U();
 }
 
-// Returns V at the current simulation step.
 FieldInfo Manager::V() const
 {
     return pimpl->sim->V();
-}
-
-// Returns eta at the current simulation step.
-FieldInfo Manager::eta() const
-{
-    return pimpl->sim->eta();
 }
 
 Manager::Manager()

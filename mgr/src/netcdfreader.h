@@ -7,6 +7,9 @@
 #include <map>
 #include <string>
 
+/**
+ * This class is used for reading simulation results and/or initial conditions from a file in NetCDF format.
+ */
 class NetCDFReader {
 public:
 

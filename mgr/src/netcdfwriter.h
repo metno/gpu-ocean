@@ -4,6 +4,9 @@
 #include <netcdfcpp.h>
 #include <memory>
 
+/**
+ * This class is used for writing simulation results and/or initial conditions to a file in NetCDF format.
+ */
 class NetCDFWriter {
 public:
     /**
