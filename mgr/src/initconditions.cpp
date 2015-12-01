@@ -367,9 +367,9 @@ void InitConditions::init(const OptionsPtr &options)
         if (!fileReader->eta().empty())
             pimpl->eta = fileReader->eta();
         if (!fileReader->U().empty())
-            pimpl->U = fileReader->eta();
+            pimpl->U = fileReader->U();
         if (!fileReader->V().empty())
-            pimpl->V = fileReader->eta();
+            pimpl->V = fileReader->V();
 
     } else {
         // no input file available, so read grid dimensions from program options
