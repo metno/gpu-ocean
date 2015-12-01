@@ -73,13 +73,13 @@ NetCDFWriter::NetCDFWriter()
     initFile(ss.str());
 }
 
-NetCDFWriter::NetCDFWriter(std::string fname)
+NetCDFWriter::NetCDFWriter(const std::string &fname)
     :  pimpl(new NetCDFWriterImpl())
 {
     initFile(fname);
 }
 
-void NetCDFWriter::initFile(std::string fname)
+void NetCDFWriter::initFile(const std::string &fname)
 {
     pimpl->file.reset(new NcFile(fname.c_str(), NcFile::New));
     if (!pimpl->file->is_valid()) {

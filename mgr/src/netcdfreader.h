@@ -9,7 +9,17 @@
 
 class NetCDFReader {
 public:
-    NetCDFReader(const std::string &);
+
+    /**
+     * Constructs the object and creates an internal NcFile object for a read-only file.
+     * @param fname: File name.
+     * @throws std::runtime_error if the file cannot be opened as a valid, read-only NetCDF file.
+     */
+    NetCDFReader(const std::string &fname);
+
+    /**
+     * Destructs the object and closes the internal NcFile object.
+     */
     ~NetCDFReader();
 
     /**
@@ -23,22 +33,22 @@ public:
     int ny() const;
 
     /**
-     * Returns the width of the grid (not including ghost cells).
+     * Returns the width of the grid in meters (not including ghost cells).
      */
     float width() const;
 
     /**
-     * Returns the height of the grid (not including ghost cells).
+     * Returns the height of the grid in meters (not including ghost cells).
      */
     float height() const;
 
     /**
-     * Returns the width of a grid cell.
+     * Returns the width of a grid cell in meters.
      */
     float dx() const;
 
     /**
-     * Returns the height of a grid cell.
+     * Returns the height of a grid cell in meters.
      */
     float dy() const;
 
