@@ -10,7 +10,7 @@ class ProgramOptions
 {
 public:
     ProgramOptions();
-    bool parse(int, char *[]);
+    bool init(int, char *[]);
     std::string message() const;
     float wGlobal() const;
     int etaNo() const;
@@ -37,6 +37,12 @@ private:
 
     friend class InitConditions;
     friend std::ostream &operator<<(std::ostream &, const ProgramOptions &);
+
+    /**
+     * Asserts that the object is initialized with a successful call to init().
+     * @throws std::runtime_error if init() has not been successfully called.
+     */
+    void assertInitialized() const;
 };
 
 // Formats output of a ProgramOptions object.

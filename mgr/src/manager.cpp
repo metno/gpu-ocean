@@ -34,7 +34,7 @@ Manager::ManagerImpl::ManagerImpl(const OptionsPtr &options, const InitCondPtr &
 void Manager::init(int argc, char *argv[])
 {
     opts.reset(new ProgramOptions);
-    if (!opts->parse(argc, argv))
+    if (!opts->init(argc, argv))
         throw runtime_error((boost::format("failed to initialize manager: %s") % opts->message()).str());
 
     initCond.reset(new InitConditions);

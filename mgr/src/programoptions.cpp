@@ -11,6 +11,7 @@ using namespace std;
 
 struct ProgramOptions::ProgramOptionsImpl
 {
+    bool isInit;
     std::string msg;
     float wGlobal; // global water elevation level value used to generate H in IC
     int etaNo; // which sea surface deviation field (eta) to generate for IC
@@ -29,7 +30,8 @@ struct ProgramOptions::ProgramOptionsImpl
 };
 
 ProgramOptions::ProgramOptionsImpl::ProgramOptionsImpl()
-    : wGlobal(-1.0f)
+    : isInit(false)
+    , wGlobal(-1.0f)
 	, etaNo(-1)
 	, waterElevationNo(-1)
 	, bathymetryNo(-1)
@@ -48,9 +50,9 @@ ProgramOptions::ProgramOptions()
 {
 }
 
-// Parses program options specified on command line and/or config file.
+// Initializes the object by parsing program options specified on command line and/or config file.
 // Returns true if parsing was successful, otherwise updates the latest parsing message and returns false.
-bool ProgramOptions::parse(int argc, char *argv[])
+bool ProgramOptions::init(int argc, char *argv[])
 {
     try {
         string config_file;
@@ -152,89 +154,113 @@ bool ProgramOptions::parse(int argc, char *argv[])
         return false;
     }
 
+    pimpl->isInit = true;
+
     return true;
+}
+
+void ProgramOptions::assertInitialized() const
+{
+    if (!pimpl->isInit)
+        throw runtime_error("ProgramOptions: not initialized");
 }
 
 // Returns the message resulting when the latest call to parse() returned false.
 string ProgramOptions::message() const
 {
+    assertInitialized();
     return pimpl->msg;
 }
 
 float ProgramOptions::wGlobal() const
 {
-	return pimpl->wGlobal;
+    assertInitialized();
+    return pimpl->wGlobal;
 }
 
 int ProgramOptions::etaNo() const
 {
-	return pimpl->etaNo;
+    assertInitialized();
+    return pimpl->etaNo;
 }
 
 int ProgramOptions::waterElevationNo() const
 {
-	return pimpl->waterElevationNo;
+    assertInitialized();
+    return pimpl->waterElevationNo;
 }
 
 int ProgramOptions::bathymetryNo() const
 {
-	return pimpl->bathymetryNo;
+    assertInitialized();
+    return pimpl->bathymetryNo;
 }
 
 int ProgramOptions::nx() const
 {
+    assertInitialized();
     return pimpl->nx;
 }
 
 int ProgramOptions::ny() const
 {
+    assertInitialized();
     return pimpl->ny;
 }
 
 float ProgramOptions::width() const
 {
+    assertInitialized();
     return pimpl->width;
 }
 
 float ProgramOptions::height() const
 {
+    assertInitialized();
     return pimpl->height;
 }
 
 float ProgramOptions::dx() const
 {
+    assertInitialized();
     assert(pimpl->nx > 1);
     return pimpl->width / (pimpl->nx - 1);
 }
 
 float ProgramOptions::dy() const
 {
+    assertInitialized();
     assert(pimpl->ny > 1);
     return pimpl->height / (pimpl->ny - 1);
 }
 
 double ProgramOptions::duration() const
 {
+    assertInitialized();
     return pimpl->duration;
 }
 
 double ProgramOptions::wallDuration() const
 {
+    assertInitialized();
     return pimpl->wallDuration;
 }
 
 float ProgramOptions::cpu() const
 {
+    assertInitialized();
     return pimpl->cpu;
 }
 
 string ProgramOptions::inputFile() const
 {
+    assertInitialized();
     return pimpl->inputFile;
 }
 
 string ProgramOptions::outputFile() const
 {
+    assertInitialized();
     return pimpl->outputFile;
 }
 
