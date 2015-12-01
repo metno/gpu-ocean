@@ -6,16 +6,39 @@
 #include <string>
 #include <utility>
 
-std::pair<int, char **> createArgs(const std::vector<std::string> &);
-std::pair<int, char **> createArgs(const std::string &);
+/**
+ * Converts a list of words to standard arguments.
+ * @param words: A vector of words.
+ * @return An standard (argc, argv) pair.
+ * @note The argv vector is allocated on the heap using malloc and the caller is responsible for freeing this memory.
+ * @note The argument "argv0" is automatically prepended to the output.
+ */
+std::pair<int, char **> createArgs(const std::vector<std::string> &words);
 
-// Checks if the vector of two fields are equal (per-item comparision of the std::vector objects).
+/**
+ * Converts a string of words to standard arguments.
+ * @param words: A string of words separated by whitespace.
+ * @return An standard (argc, argv) pair.
+ * @note The argv vector is allocated on the heap using malloc and the caller is responsible for freeing this memory.
+ * @note The argument "argv0" is automatically prepended to the output.
+ */
+std::pair<int, char **> createArgs(const std::string &s);
+
+/**
+ * Checks (using BOOST_CHECK*) if the vector of two fields are equal (per-item comparision of the std::vector objects).
+ * @param f1: First field (FieldInfo object)
+ * @param f2: Second field (FieldInfo object)
+ */
 #define CHECK_VECTORS_EQUAL(f1, f2) \
     do { \
         BOOST_CHECK(*(f1.data.get()) == *(f2.data.get())); \
     } while (false)
 
-// Checks if two fields are equal.
+/**
+ * Checks (using BOOST_CHECK*) if two fields are equal.
+ * @param f1: First field (FieldInfo object)
+ * @param f2: Second field (FieldInfo object)
+ */
 #define CHECK_FIELDS_EQUAL(f1, f2) \
     do { \
         BOOST_CHECK_EQUAL(f1.nx, f2.nx); \

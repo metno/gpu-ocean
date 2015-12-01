@@ -120,59 +120,41 @@ float NetCDFReader::dy() const
     return pimpl->height / (pimpl->ny - 1);
 }
 
-// Reads H.
 FieldInfo NetCDFReader::H() const
 {
     return read2DFloatField("H", pimpl->nx + 1, pimpl->ny + 1);
 }
 
-// Reads number of timestemps for eta.
 long NetCDFReader::etaTimesteps() const
 {
     return timesteps("eta");
 }
 
-// Returns eta for a given timestep (0 = first, -1 = last). The timestep is ignored if the field variable (NcVar) has only 2 dimensions.
 FieldInfo NetCDFReader::eta(long timestep) const
 {
     return read2DFloatField("eta", pimpl->nx + 1, pimpl->ny + 1, timestep);
 }
 
-// Reads number of timestemps for U.
 long NetCDFReader::UTimesteps() const
 {
     return timesteps("U");
 }
 
-// Returns U for a given timestep (0 = first, -1 = last). The timestep is ignored if the field variable (NcVar) has only 2 dimensions.
 FieldInfo NetCDFReader::U(long timestep) const
 {
     return read2DFloatField("U", pimpl->nx + 2, pimpl->ny - 1, timestep);
 }
 
-// Reads number of timestemps for V.
 long NetCDFReader::VTimesteps() const
 {
     return timesteps("V");
 }
 
-// Returns V for a given timestep (0 = first, -1 = last). The timestep is ignored if the field variable (NcVar) has only 2 dimensions.
 FieldInfo NetCDFReader::V(long timestep) const
 {
     return read2DFloatField("V", pimpl->nx - 1, pimpl->ny + 2, timestep);
 }
 
-/**
- * This function copies a 2D float field from file to memory. If the field variable (NcVar) has three dimensions, it is assumed that the third
- * dimension is time, and the 2D field of the last timestep is copied. Otherwise, the field variable must have two dimensions, and the
- * field is copied directly.
- * The function throws runtime_error if an error occurs.
- * @param name: Field name.
- * @param nx_exp: Expected size of X-dimension.
- * @param ny_exp: Expected size of Y-dimension.
- * @param timestep: Timestep (if applicable, i.e. if the field variable is 3D). The first and last timestep is indicated by 0 and -1 respectively.
- * @returns The FieldInfo object. NOTE: An empty object is returned if the field doesn't exist (which is not considered an error).
- */
 FieldInfo NetCDFReader::read2DFloatField(const string &name, int nx_exp, int ny_exp, long timestep) const
 {
     if (pimpl->vars.count(name) == 0)
@@ -241,12 +223,6 @@ FieldInfo NetCDFReader::read2DFloatField(const string &name, int nx_exp, int ny_
     return FieldInfo();
 }
 
-/**
- * Returns the number of timesteps of a 2D field.
- * The function throws runtime_error if an error occurs.
- * @param name: Field name.
- * @returns The number of timesteps (>= 0) of the 2D field if the field exists and the field variable (NcVar) has three dimensions. Otherwise -1.
- */
 long NetCDFReader::timesteps(const string &name) const
 {
     if (pimpl->vars.count(name) == 0)

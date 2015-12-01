@@ -12,28 +12,98 @@ public:
     NetCDFReader(const std::string &);
     ~NetCDFReader();
 
+    /**
+     * Returns the number of grid points in the x dimension (not including ghost cells).
+     */
     int nx() const;
+
+    /**
+     * Returns the number of grid points in the y dimension (not including ghost cells).
+     */
     int ny() const;
+
+    /**
+     * Returns the width of the grid (not including ghost cells).
+     */
     float width() const;
+
+    /**
+     * Returns the height of the grid (not including ghost cells).
+     */
     float height() const;
+
+    /**
+     * Returns the width of a grid cell.
+     */
     float dx() const;
+
+    /**
+     * Returns the height of a grid cell.
+     */
     float dy() const;
 
+    /**
+     * Returns H (equilibrium depth).
+     */
     FieldInfo H() const;
 
+    /**
+     * Returns the number of timesteps in the eta time series.
+     */
     long etaTimesteps() const;
-    FieldInfo eta(long = -1) const;
 
+    /**
+     * Returns eta (sea surface deviation away from the equilibrium depth) at a given timestep.
+     * @param timestep: Valid range: [0, etaTimesteps() - 1]. The last timestep may be implicitly specified by passing -1.
+     */
+    FieldInfo eta(long timestep = -1) const;
+
+    /**
+     * Returns the number of timesteps in the U time series.
+     */
     long UTimesteps() const;
-    FieldInfo U(long = -1) const;
 
+    /**
+     * Returns U (depth averaged velocity in the x direction) at a given timestep.
+     * @param timestep: Valid range: [0, UTimesteps() - 1]. The last timestep may be implicitly specified by passing -1.
+     */
+    FieldInfo U(long timestep = -1) const;
+
+    /**
+     * Returns the number of timesteps in the V time series.
+     */
     long VTimesteps() const;
-    FieldInfo V(long = -1) const;
+
+    /**
+     * Returns V (depth averaged velocity in the y direction) at a given timestep.
+     * @param timestep: Valid range: [0, VTimesteps() - 1]. The last timestep may be implicitly specified by passing -1.
+     */
+    FieldInfo V(long timestep = -1) const;
 
 private:
     struct NetCDFReaderImpl;
     NetCDFReaderImpl *pimpl;
-    FieldInfo read2DFloatField(const std::string &, int, int, long = -1) const;
+
+    /**
+     * This function copies a 2D float field from file to memory. If the field variable (NcVar) has three dimensions, it is assumed that the third
+     * dimension is time, and the 2D field of the last timestep is copied. Otherwise, the field variable must have two dimensions, and the
+     * field is copied directly.
+     * @param name: Field name.
+     * @param nx_exp: Expected size of X-dimension.
+     * @param ny_exp: Expected size of Y-dimension.
+     * @param timestep: Timestep (if applicable, i.e. if the field variable is 3D). The first and last timestep is indicated by 0 and -1 respectively.
+     * @returns The FieldInfo object.
+     * @note An empty object is returned if the field doesn't exist (which is not considered an error).
+     * @throws std::runtime_error if an error occurs.
+     */
+    FieldInfo read2DFloatField(const std::string &name, int nx_exp, int ny_exp, long timestep = -1) const;
+
+    /**
+     * Returns the number of timesteps of a 2D field.
+     * @param name: Field name.
+     * @returns The number of timesteps (>= 0) of the 2D field if the field exists and the field variable (NcVar) has three dimensions. Otherwise -1.
+     * @throws std::runtime_error if an error occurs.
+     */
     long timesteps(const std::string &) const;
 };
 

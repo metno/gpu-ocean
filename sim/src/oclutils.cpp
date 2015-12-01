@@ -11,7 +11,7 @@ using namespace std;
 
 /**
  * Finds all available OpenCL platforms on the current node.
- * @param patforms Output: Vector of platforms found
+ * @param platforms Output: Vector of platforms found
  * @return Number of platforms found
  */
 cl_uint OpenCLUtils::getPlatforms(std::vector<cl::Platform> *platforms)
