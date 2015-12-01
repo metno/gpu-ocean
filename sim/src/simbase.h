@@ -45,8 +45,12 @@ protected:
 private:
     struct SimBaseImpl;
     SimBaseImpl *pimpl;
+
+    /**
+     * Asserts that the simulator is initialized with a successful call to init().
+     * @throws std::runtime_error if init() has not been successfully called.
+     */
     void assertInitialized() const;
-    void assertNotInitialized() const;
 };
 
 typedef std::shared_ptr<SimBase> SimBasePtr;

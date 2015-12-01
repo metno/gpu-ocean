@@ -58,6 +58,12 @@ private:
      */
     void initFile(const std::string &fname);
 
+    /**
+     * Asserts that the writer is initialized with a call to init().
+     * @throws std::runtime_error if init() has not been called.
+     */
+    void assertInitialized() const;
+
     struct NetCDFWriterImpl;
     NetCDFWriterImpl *pimpl;
 };

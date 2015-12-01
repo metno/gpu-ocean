@@ -7,13 +7,11 @@
 #include <stdexcept>
 #include <cassert>
 
-using std::setw;
-using std::setprecision;
-using std::setfill;
+using namespace std;
 
 struct NetCDFWriter::NetCDFWriterImpl
 {
-    std::shared_ptr<NcFile> file;
+    shared_ptr<NcFile> file;
 
     struct {
         struct {
@@ -46,21 +44,25 @@ struct NetCDFWriter::NetCDFWriterImpl
     } layout;
 
     long timestepCounter; // internal timestep counter
-    unsigned int nx;
-    unsigned int ny;
+    int nx;
+    int ny;
+    bool isInit;
 
     NetCDFWriterImpl();
 };
 
 NetCDFWriter::NetCDFWriterImpl::NetCDFWriterImpl()
     : timestepCounter(0)
+    , nx(-1)
+    , ny(-1)
+    , isInit(false)
 {
 }
 
 NetCDFWriter::NetCDFWriter()
     : pimpl(new NetCDFWriterImpl())
 {
-    std::stringstream ss;
+    stringstream ss;
     time_t secs = time(0);
     tm *t = localtime(&secs);
     ss << "results_"
@@ -73,23 +75,23 @@ NetCDFWriter::NetCDFWriter()
     initFile(ss.str());
 }
 
-NetCDFWriter::NetCDFWriter(const std::string &fname)
+NetCDFWriter::NetCDFWriter(const string &fname)
     :  pimpl(new NetCDFWriterImpl())
 {
     initFile(fname);
 }
 
-void NetCDFWriter::initFile(const std::string &fname)
+void NetCDFWriter::initFile(const string &fname)
 {
     pimpl->file.reset(new NcFile(fname.c_str(), NcFile::New));
     if (!pimpl->file->is_valid()) {
-        std::stringstream ss;
+        stringstream ss;
         ss << "Failed to open '" << fname << "' for writing NetCDF. Possible reasons: "
            << "1: The file already exists. "
            << "2: The file path is invalid. "
            << "3: The disk is full."
-           << std::endl;
-        throw std::runtime_error(ss.str());
+           << endl;
+        throw runtime_error(ss.str());
     }
     memset(&pimpl->layout, 0, sizeof(pimpl->layout));
 }
@@ -108,7 +110,7 @@ static void setSpatialVars(NcVar *var, int size, float delta, bool halfOffset = 
     assert(size > 0);
     assert(delta > 0);
     const float offset = halfOffset ? 0.5 : 0;
-    std::vector<float> tmp;
+    vector<float> tmp;
     tmp.resize(size);
     for (int i = 0; i < tmp.size(); ++i)
         tmp[i] = (i + offset) * delta;
@@ -207,10 +209,20 @@ void NetCDFWriter::init(int nx, int ny, float dt, float dx, float dy, float f, f
 
     pimpl->file->sync();
     ++pimpl->timestepCounter;
+
+    pimpl->isInit = true;
+}
+
+void NetCDFWriter::assertInitialized() const
+{
+    if (!pimpl->isInit)
+        throw runtime_error("NetCDFWriter: not initialized");
 }
 
 void NetCDFWriter::writeTimestep(float *eta, float *U, float *V, float t)
 {
+    assertInitialized();
+
     pimpl->layout.vars.t->set_cur(pimpl->timestepCounter);
     pimpl->layout.vars.t->put(&t, 1);
 
