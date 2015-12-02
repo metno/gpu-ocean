@@ -36,8 +36,8 @@ __kernel void computeV (
     const int gy = get_global_id(1); // range: [0, ny - 2 + padding]
     if (gx > nx - 2 || gy > ny - 2)
         return; // quit if we're in the padding area
+    const int gnx = nx + 2;
     const int gny = ny - 1;
-    const int gid = gx + gy * nx; // range: [0, (nx - 2) + (ny - 2) * (nx - 1)]
 
     // local indices ++
     const int lx = get_local_id(0);
@@ -52,26 +52,26 @@ __kernel void computeV (
     // local and global indices for Hr_v
     const int lhid_south = lx +       ly * lnx;
     const int lhid_north = lx + (ly + 1) * lnx;
-    const int ghid_south = gx +       gy * nx;
-    const int ghid_north = gx + (gy + 1) * nx;
+    const int ghid_south = gx +       gy * (gnx - 1);
+    const int ghid_north = gx + (gy + 1) * (gnx - 1);
 
     // local and global indices for eta
     const int leid_south = lx     + ly * lnx;
     const int leid       = lx     + (ly + 1) * lnx;
     const int leid_north = lx     + (ly + 2) * lnx;
-    const int geid_south = gx     + (gy + 1) * nx;
-    const int geid       = gx     + (gy + 2) * nx;
-    const int geid_north = gx     + (gy + 3) * nx;
+    const int geid_south = gx     + (gy + 1) * (gnx - 1);
+    const int geid       = gx     + (gy + 2) * (gnx - 1);
+    const int geid_north = gx     + (gy + 3) * (gnx - 1);
 
     // local and global indices for U
     const int luid_west      = lx +     (ly + 1) * (lnx + 1);
     const int luid_east      = lx + 1 + (ly + 1) * (lnx + 1);
     const int luid_northwest = lx +     (ly + 2) * (lnx + 1);
     const int luid_northeast = lx + 1 + (ly + 2) * (lnx + 1);
-    const int guid_west      = gx +           gy * nx;
-    const int guid_east      = gx + 1 +       gy * nx;
-    const int guid_northwest = gx + 1 + (gy + 2) * nx;
-    const int guid_northeast = gx + 2 + (gy + 2) * nx;
+    const int guid_west      = gx +           gy * gnx;
+    const int guid_east      = gx + 1 +       gy * gnx;
+    const int guid_northwest = gx + 1 + (gy + 2) * gnx;
+    const int guid_northeast = gx + 2 + (gy + 2) * gnx;
     
     // allocate local work-group memory for Hr_v, eta, and U
     local float Hr_v_local[WGNX * (WGNY + 1)];
@@ -94,12 +94,12 @@ __kernel void computeV (
     if (gx == 0) { // if we're next to the western ghost cell
         if (gy == 0) // if we're next to the southern ghost cell
             U_local[luid_west] = U[guid_west];
-        if (gy < gny - 1) // if we're not next to the northern ghost cell
+        if (gy < gny) // if we're not next to the northern ghost cell
             U_local[luid_northwest] = U[guid_northwest];
     } else {
         if (gy == 0) // if we're next to the southern ghost cell
             U_local[luid_east] = U[guid_east];
-        if (gy < gny - 1) // if we're not next to the northern ghost cell
+        if (gy < gny) // if we're not next to the northern ghost cell
             U_local[luid_northeast] = U[guid_northeast];
     }
 	
@@ -116,12 +116,13 @@ __kernel void computeV (
 
     // compute V on the northern cell edge
     float Ur_north;
-    if (gy == gny - 1) { // linear interpolation if we're next to the northern ghost cell
+    if (gy == gny) { // linear interpolation if we're next to the northern ghost cell
         Ur_north = 0.5f * (U_local[luid_west] + U_local[luid_east]);
     } else { // otherwise bilinear interpolation
         Ur_north = 0.25f * (U_local[luid_west] + U_local[luid_east] + U_local[luid_northwest] + U_local[luid_northeast]);
     }
     const float B_north = 1.0f + R * dt / Hr_v_local[lhid_north];
     const float P_north = g * Hr_v_local[lhid_north] * (eta_local[leid_north] - eta_local[leid]) / dy;
-    V[gvid_north] = 1.0f / B_north * (V[gvid_north] + dt * (F * Ur_north - P_north));
+    //V[gvid_north] = 1.0f / B_north * (V[gvid_north] + dt * (F * Ur_north - P_north));
+    V[gvid_north] = 0.0f;
 }

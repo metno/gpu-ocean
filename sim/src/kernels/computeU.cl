@@ -37,7 +37,6 @@ __kernel void computeU (
     if (gx > nx - 2 || gy > ny - 2)
         return; // quit if we're in the padding area
     const int gnx = nx - 1;
-    const int gid = gx + gy * gnx; // range: [0, (nx - 2) + (ny - 2) * (nx - 1)]
 
     // local indices ++
     const int lx = get_local_id(0);
