@@ -218,7 +218,7 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
 		}
 		break;
 
-    case 10:
+    case 6:
         cout << "Wet";
             for (int i = 0; i < f->size(); ++i)
                 f->at(i) = 0.3f;
@@ -396,7 +396,7 @@ void InitConditions::init(const OptionsPtr &options)
                     (boost::format("error: H needs to be synthesized, but bathymetryNo (%1%) < 0") % options->bathymetryNo()).str());
         pimpl->bathymetryField = generateBathymetry(options->bathymetryNo(), pimpl->nx, pimpl->ny, pimpl->width, pimpl->height);
         float wGlobal = 1.0f;
-        if(options->wGlobal() < 0)
+        if (options->wGlobal() < 0)
         	cout << "warning: no initial global water elevation level given, using " << wGlobal << endl;
         else
         	wGlobal = options->wGlobal();

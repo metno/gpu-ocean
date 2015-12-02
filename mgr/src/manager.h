@@ -17,9 +17,8 @@ public:
 
     /**
      * Initializes the manager.
-     * @param argc: Number of arguments.
-     * @param argv: Argument vector.
-     * @note Passing "--help" as one of the arguments prints a documentation of the available arguments on stderr.
+     * @param argc: Number of arguments passed to ProgramOptions::parse().
+     * @param argv: Argument vector passed to ProgramOptions::parse().
      */
     static void init(int argc, char *argv[]);
 

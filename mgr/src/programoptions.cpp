@@ -73,15 +73,15 @@ bool ProgramOptions::init(int argc, char *argv[])
         // declare options that will be allowed both on command line and in config file
         po::options_description cfgfile_opts("Options allowed both on command line and in config file (the former overrides the latter)");
         cfgfile_opts.add_options()
-				("wGlobal", po::value<float>(&pimpl->wGlobal)->default_value(-1.0f), "global initial water elevation level value")
-				("etaNo", po::value<int>(&pimpl->etaNo)->default_value(-1), "initial sea surface deviation")
-				("waterElevationNo", po::value<int>(&pimpl->waterElevationNo)->default_value(-1), "initial water elevation")
-		        ("bathymetryNo", po::value<int>(&pimpl->bathymetryNo)->default_value(-1), "initial bathymetry")
+                ("wGlobal", po::value<float>(&pimpl->wGlobal)->default_value(-1.0f), "global initial water elevation level (in meters)")
+                ("etaNo", po::value<int>(&pimpl->etaNo)->default_value(-1), "type of initial, synthesized sea surface deviation (0..4)")
+                ("waterElevationNo", po::value<int>(&pimpl->waterElevationNo)->default_value(-1), "type of initial, synthesized water elevation (0..6)")
+                ("bathymetryNo", po::value<int>(&pimpl->bathymetryNo)->default_value(-1), "type of initial, synthesized bathymetry (0..4)")
                 ("nx", po::value<int>(&pimpl->nx)->default_value(-1), "number of horizontal grid cells")
                 ("ny", po::value<int>(&pimpl->ny)->default_value(-1), "number of vertical grid cells")
                 ("width", po::value<float>(&pimpl->width)->default_value(-1), "horizontal extension of grid (in meters)")
                 ("height", po::value<float>(&pimpl->height)->default_value(-1), "vertical extension of grid (in meters)")
-                ("duration", po::value<double>(&pimpl->duration)->default_value(-1), "max duration of simulation (in seconds) (< 0 = infinite duration)")
+                ("duration", po::value<double>(&pimpl->duration)->default_value(-1), "max simulated time duration (in seconds) (< 0 = infinite duration)")
                 ("wallDuration", po::value<double>(&pimpl->wallDuration)->default_value(-1), "max wall time duration (in seconds) (< 0 = infinite duration)")
                 ("inputFile", po::value<string>(&pimpl->inputFile)->default_value(""), "name of file for reading input in NetCDF format (empty = no input)")
                 ("outputFile", po::value<string>(&pimpl->outputFile)->default_value(""), "name of file for writing output in NetCDF format (empty = no output)")
@@ -165,7 +165,6 @@ void ProgramOptions::assertInitialized() const
         throw runtime_error("ProgramOptions: not initialized");
 }
 
-// Returns the message resulting when the latest call to parse() returned false.
 string ProgramOptions::message() const
 {
     assertInitialized();
@@ -264,7 +263,6 @@ string ProgramOptions::outputFile() const
     return pimpl->outputFile;
 }
 
-// Formats output of a ProgramOptions object.
 ostream &operator<<(ostream &os, const ProgramOptions &po)
 {
     os << "nx: " << po.nx() << ", ny: " << po.ny() << ", width: " << po.width() << ", height: "
