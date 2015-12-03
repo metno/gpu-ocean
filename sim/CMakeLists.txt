@@ -24,11 +24,31 @@ ELSE()
 	MESSAGE(ERROR "Could not deduce target architecture: sizeof(void*) is neither 4 or 8...")
 ENDIF()
 
-SET(sim_SIMULATOR_VERSION "1")
+OPTION(sim_PROFILING "Enable profiling" FALSE)
 
-IF(sim_SIMULATOR_VERSION STREQUAL "")
-    MESSAGE(FATAL_ERROR "sim_SIMULATOR_VERSION not defined")
-ENDIF()
+SET(sim_WGNX 16 CACHE STRING "Width of work group")
+SET(sim_WGNY 16 CACHE STRING "Height of work group")
+
+#Get the working branch and revision hash (short) from git
+execute_process(
+  COMMAND git rev-parse --abbrev-ref HEAD
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE GIT_BRANCH
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+execute_process(
+  COMMAND git rev-parse --short --verify HEAD
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE GIT_COMMIT_HASH
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+SET(sim_SIMULATOR_MAJOR_VERSION "0" CACHE STRING "Specify the major version" FORCE)
+SET(sim_SIMULATOR_MINOR_VERSION "1" CACHE STRING "Specify the minor version" FORCE)
+
+#Create config.h from config.h.in
+#file(REMOVE "${KPSIMULATOR_SOURCE_DIR}/configure.h")
+configure_file("src/config.h.in" "src/config.h" ESCAPE_QUOTES)
 
 ADD_LIBRARY(sim STATIC src/oclutils.cpp src/simbase.cpp src/simulator.cpp src/testsim.cpp)
 # MLS: Do need this next line?
