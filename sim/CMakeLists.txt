@@ -13,7 +13,7 @@ INCLUDE_DIRECTORIES(
 	${Boost_INCLUDE_DIR}
 	${OpenCL_INCLUDE_DIRS}
 	${CMAKE_CURRENT_BINARY_DIR}
-	${CMAKE_BINARY_DIR}/generated)
+	${CMAKE_BINARY_DIR})
 
 LINK_DIRECTORIES(${Boost_LIBRARY_DIRS})
 
@@ -48,10 +48,41 @@ SET(sim_SIMULATOR_MAJOR_VERSION "0" CACHE STRING "Specify the major version" FOR
 SET(sim_SIMULATOR_MINOR_VERSION "1" CACHE STRING "Specify the minor version" FORCE)
 
 #Create config.h from config.h.in
-configure_file("src/config.h.in" ${CMAKE_BINARY_DIR}/generated/config.h ESCAPE_QUOTES)
+configure_file("src/config.h.in" ${CMAKE_CURRENT_BINARY_DIR}/config.h ESCAPE_QUOTES)
+
+# copy OpenCL kernel source code to build directory (will be compiled on run)
+if (NOT CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_CURRENT_BINARY_DIR)
+    # install all OpenCL-kernels
+    file(GLOB sim_KERNELS "${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/*.cl")
+    foreach(item IN LISTS sim_KERNELS)
+    	get_filename_component(itemName ${item} NAME)
+        message(STATUS ${itemName})
+        add_custom_command(
+            OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/kernels/${itemName}"
+            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/${itemName}" "${CMAKE_CURRENT_BINARY_DIR}/kernels/${itemName}"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/${itemName}"
+        )
+        
+    	add_custom_target("install_kernel_${itemName}" ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/kernels/${itemName}")
+    endforeach()
+    
+    # install all OpenCL-kernels' type definitions
+    file(GLOB sim_KERNELS "${CMAKE_CURRENT_SOURCE_DIR}/src/*_types.h")
+    foreach(item IN LISTS sim_KERNELS)
+    	get_filename_component(itemName ${item} NAME)
+        message(STATUS ${itemName})
+        add_custom_command(
+            OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${itemName}"
+            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/src/${itemName}" "${CMAKE_CURRENT_BINARY_DIR}/${itemName}"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/${itemName}"
+        )
+        
+    	add_custom_target("install_kernel_${itemName}" ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${itemName}")
+    endforeach()
+endif()
 
 ADD_LIBRARY(sim STATIC src/oclutils.cpp src/simbase.cpp src/simulator.cpp src/testsim.cpp)
-# MLS: Do need this next line?
+# MLS: Do we need this next line?
 TARGET_LINK_LIBRARIES(sim ${OPENCL_LIBRARIES})
 SET_TARGET_PROPERTIES(sim PROPERTIES DEBUG_POSTFIX "d")
 INSTALL(TARGETS sim DESTINATION sim/lib)
