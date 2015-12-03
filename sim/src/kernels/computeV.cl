@@ -1,6 +1,13 @@
 #include "../computeV_types.h"
 #include "../config.h"
 
+#ifndef __OPENCL_VERSION__
+#define __kernel
+#define __global
+#define local
+#define CLK_LOCAL_MEM_FENCE
+#endif
+
 /*
 Computes V at the northern cell edge (and at the southern cell edge if this cell is next to a southern ghost cell).
 Input:
@@ -111,7 +118,8 @@ __kernel void computeV (
         const float Ur_south = 0.5f * (U_local[luid_west] + U_local[luid_east]); // linear interpolation
         const float B_south = 1.0f + R * dt / Hr_v_local[lhid_south];
         const float P_south = g * Hr_v_local[lhid_south] * (eta_local[leid] - eta_local[leid_south]) / dy;
-        V[gvid_south] = 1.0f / B_south * (V[gvid_south] + dt * (F * Ur_south - P_south));
+        //V[gvid_south] = 1.0f / B_south * (V[gvid_south] + dt * (F * Ur_south - P_south));
+        V[gvid_south] = 0.0f;
     }
 
     // compute V on the northern cell edge

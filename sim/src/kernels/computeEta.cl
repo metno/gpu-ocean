@@ -1,6 +1,13 @@
 #include "../computeEta_types.h"
 #include "../config.h"
 
+#ifndef __OPENCL_VERSION__
+#define __kernel
+#define __global
+#define local
+#define CLK_LOCAL_MEM_FENCE
+#endif
+
 /*
 Computes Eta at the center of the (non-ghost) cell. Eta is the sea surface deviation away from the equilibrium depth (H).
 Input:

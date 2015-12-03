@@ -1,6 +1,13 @@
 #include "../computeU_types.h"
 #include "../config.h"
 
+#ifndef __OPENCL_VERSION__
+#define __kernel
+#define __global
+#define local
+#define CLK_LOCAL_MEM_FENCE
+#endif
+
 /*
 Computes U at the eastern cell edge (and at the western cell edge if this cell is next to a western ghost cell).
 Input:
@@ -111,6 +118,7 @@ __kernel void computeU (
         const float B_west = 1.0f + R * dt / Hr_u_local[lhid_west];
         const float P_west = g * Hr_u_local[lhid_west] * (eta_local[leid] - eta_local[leid_west]) / dx;
         U[guid_west] = 1.0f / B_west * (U[guid_west] + dt * (F * Vr_west - P_west));
+        //U[guid_west] = 0.0f;
     }
 
     // compute U on the eastern cell edge
@@ -123,4 +131,5 @@ __kernel void computeU (
     const float B_east = 1.0f + R * dt / Hr_u_local[lhid_east];
     const float P_east = g * Hr_u_local[lhid_east] * (eta_local[leid_east] - eta_local[leid]) / dx;
     U[guid_east] = 1.0f / B_east * (U[guid_east] + dt * (F * Vr_east - P_east));
+    //U[guid_east] = 0.0f;
 }
