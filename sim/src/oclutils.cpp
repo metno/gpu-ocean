@@ -7,6 +7,7 @@
 
 using namespace std;
 
+#undef NDEBUG
 #define NDEBUG
 
 /**
