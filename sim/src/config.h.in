@@ -2,13 +2,13 @@
 #define CONFIG_H
 
 #define SIMULATOR_MAJOR_VERSION "@sim_SIMULATOR_MAJOR_VERSION@"
-#define SIMULATOR_MAJOR_VERSION "@sim_SIMULATOR_MINOR_VERSION@"
+#define SIMULATOR_MINOR_VERSION "@sim_SIMULATOR_MINOR_VERSION@"
 #define GIT_BRANCH "@GIT_BRANCH@"
 #define GIT_COMMIT_HASH "@GIT_COMMIT_HASH@"
 
 #define PROFILE "@sim_PROFILE@"
 
-#define WGNX "@sim_WGNX@"
-#define WGNY "@sim_WGNY@"
+#define WGNX @sim_WGNX@
+#define WGNY @sim_WGNY@
 
 #endif // CONFIG_H

@@ -12,7 +12,8 @@ INCLUDE_DIRECTORIES(
 	${mgr_INCLUDE_DIR}
 	${Boost_INCLUDE_DIR}
 	${OpenCL_INCLUDE_DIRS}
-	${CMAKE_CURRENT_BINARY_DIR})
+	${CMAKE_CURRENT_BINARY_DIR}
+	${CMAKE_BINARY_DIR}/generated)
 
 LINK_DIRECTORIES(${Boost_LIBRARY_DIRS})
 
@@ -47,8 +48,7 @@ SET(sim_SIMULATOR_MAJOR_VERSION "0" CACHE STRING "Specify the major version" FOR
 SET(sim_SIMULATOR_MINOR_VERSION "1" CACHE STRING "Specify the minor version" FORCE)
 
 #Create config.h from config.h.in
-#file(REMOVE "${KPSIMULATOR_SOURCE_DIR}/configure.h")
-configure_file("src/config.h.in" "src/config.h" ESCAPE_QUOTES)
+configure_file("src/config.h.in" ${CMAKE_BINARY_DIR}/generated/config.h ESCAPE_QUOTES)
 
 ADD_LIBRARY(sim STATIC src/oclutils.cpp src/simbase.cpp src/simulator.cpp src/testsim.cpp)
 # MLS: Do need this next line?
