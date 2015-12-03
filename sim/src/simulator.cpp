@@ -1,6 +1,5 @@
 #include "simulator.h"
 #include "oclutils.h"
-#include "config.h"
 #include "reconstructH_types.h"
 #include "computeU_types.h"
 #include "computeV_types.h"
@@ -42,9 +41,9 @@ struct Simulator::SimulatorImpl
     SimulatorImpl();
     void init(const OptionsPtr &, const InitCondPtr &);
     void reconstructH(const OptionsPtr &, const InitCondPtr &);
-    void computeU(const OptionsPtr &, const InitCondPtr &);
-    void computeV(const OptionsPtr &, const InitCondPtr &);
-    void computeEta(const OptionsPtr &, const InitCondPtr &);
+    void computeU(const OptionsPtr &, const InitCondPtr &, ProfileInfo *);
+    void computeV(const OptionsPtr &, const InitCondPtr &, ProfileInfo *);
+    void computeEta(const OptionsPtr &, const InitCondPtr &, ProfileInfo *);
 };
 
 Simulator::SimulatorImpl::SimulatorImpl()
@@ -131,7 +130,6 @@ static cl::NDRange global2DWorkSize(int nx, int ny, int lnx, int lny)
     return cl::NDRange(lnx * idivceil(nx, lnx), lny * idivceil(ny, lny));
 }
 
-
 /**
  * Reconstructs H, i.e. computes Hr_u and Hr_v from initCond->H().
  */
@@ -185,7 +183,7 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
 /**
  * Computes U.
  */
-void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCondPtr &initCond)
+void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCondPtr &initCond, ProfileInfo *profInfo)
 {
     cl::Kernel *kernel = OpenCLUtils::getKernel("computeU");
 
@@ -211,6 +209,8 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
     CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
                  *kernel, cl::NullRange, global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
     CL_CHECK(event.wait());
+    if (profInfo)
+        profInfo->time_computeU = OpenCLUtils::elapsedMilliseconds(event);
 
     // copy result from device to host
     CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(U, CL_TRUE, 0, sizeof(float) * _U.nx * _U.ny, _U.data->data(), 0, 0));
@@ -219,7 +219,7 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
 /**
  * Computes V.
  */
-void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCondPtr &initCond)
+void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCondPtr &initCond, ProfileInfo *profInfo)
 {
     cl::Kernel *kernel = OpenCLUtils::getKernel("computeV");
 
@@ -244,6 +244,8 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
     CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
                  *kernel, cl::NullRange, global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
     CL_CHECK(event.wait());
+    if (profInfo)
+        profInfo->time_computeV = OpenCLUtils::elapsedMilliseconds(event);
 
     // copy result from device to host
     CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(V, CL_TRUE, 0, sizeof(float) * _V.nx * _V.ny, _V.data->data(), 0, 0));
@@ -252,7 +254,7 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
 /**
  * Computes eta.
  */
-void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitCondPtr &initCond)
+void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitCondPtr &initCond, ProfileInfo *profInfo)
 {
     cl::Kernel *kernel = OpenCLUtils::getKernel("computeEta");
 
@@ -274,6 +276,8 @@ void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitC
     CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
                  *kernel, cl::NullRange, global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
     CL_CHECK(event.wait());
+    if (profInfo)
+        profInfo->time_computeEta = OpenCLUtils::elapsedMilliseconds(event);
 
     // copy result from device to host
     CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(eta, CL_TRUE, 0, sizeof(float) * _eta.nx * _eta.ny, _eta.data->data(), 0, 0));
@@ -324,16 +328,16 @@ float Simulator::_deltaTime() const
     return pimpl->dt;
 }
 
-void Simulator::_execNextStep()
+void Simulator::_execNextStep(ProfileInfo *profInfo)
 {
     // compute U
-    pimpl->computeU(options(), initCond());
+    pimpl->computeU(options(), initCond(), profInfo);
 
     // compute V
-    pimpl->computeV(options(), initCond());
+    pimpl->computeV(options(), initCond(), profInfo);
 
     // compute eta
-    pimpl->computeEta(options(), initCond());
+    pimpl->computeEta(options(), initCond(), profInfo);
 
     pimpl->currTime += pimpl->dt; // advance simulation time
 }

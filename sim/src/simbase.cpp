@@ -1,5 +1,4 @@
 #include "simbase.h"
-
 #include "programoptions.h"
 #include "initconditions.h"
 #include <iostream>
@@ -44,7 +43,7 @@ void SimBase::assertInitialized() const
 
 /**
  * Initializes the simulator. This includes resetting the current and final step values.
- * @return Initialization status (true iff initialization was successful)
+ * @returns Initialization status (true iff initialization was successful)
  */
 bool SimBase::init()
 {
@@ -83,9 +82,10 @@ float SimBase::deltaTime() const
  * or the current simulation time is still less than the maximum simulation time.
  * Otherwise, the function returns false without executing the next simulation step.
  * Note: The simulation is time-bounded iff the program option 'duration' is non-negative.
- * @return true iff a time-bounded simulation was exhausted
+ * @param profInfo: If non-null, structure in which profiling is written (if applicable).
+ * @returns true iff a time-bounded simulation was not exhausted
  */
-bool SimBase::execNextStep()
+bool SimBase::execNextStep(ProfileInfo *profInfo)
 {
     assertInitialized();
 
@@ -93,7 +93,7 @@ bool SimBase::execNextStep()
     if ((pimpl->options->duration() >= 0) && (_currTime() >= _maxTime()))
         return false;
 
-    _execNextStep();
+    _execNextStep(profInfo);
     return true;
 }
 

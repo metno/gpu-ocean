@@ -91,10 +91,10 @@ void Manager::initSim()
     }
 }
 
-bool Manager::execNextStep()
+bool Manager::execNextStep(ProfileInfo *profInfo)
 {
     // execute next step
-    const bool status = pimpl->sim->execNextStep();
+    const bool status = pimpl->sim->execNextStep(profInfo);
 
     // append to output file (if requested)
     if (pimpl->fileWriter.get())

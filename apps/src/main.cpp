@@ -7,6 +7,7 @@
 #include <ctime>
 #include <cassert>
 
+#undef NDEBUG
 #define NDEBUG
 
 using namespace std;
@@ -23,11 +24,47 @@ static float computeMass(const FieldInfo &H, const FieldInfo &eta)
     return mass;
 }
 
-static void processResults(const FieldInfo &H, const FieldInfo &eta, int step, double currTime, double maxTime, const OptionsPtr &options)
+static void processResults(int step, const ProfileInfo *profInfo = 0)
 {
-    const float mass = step < 0 ? -1 : computeMass(H, eta);
-    cout << "processResults(): H.nx: " << H.nx << ", H.ny: " << H.ny << ", mass: " << mass << ", step: " << step << ", currTime: " << currTime
-         << ", maxTime: " << maxTime << "; options: " << *options << ((currTime >= maxTime) ? "; (final results!)" : "") << endl;
+#ifndef PROFILE
+    return;
+#endif
+
+    Manager &mgr = Manager::instance();
+    const float mass = step < 0 ? -1 : computeMass(mgr.initConditions()->H(), mgr.eta());
+    cout << "step: " << step << ", mass: " << mass << ", currTime: " << mgr.sim()->currTime()
+         << ", maxTime: " << mgr.sim()->maxTime();
+
+    if (profInfo)
+        cout << ", U: " << profInfo->time_computeU
+             << ", V: " << profInfo->time_computeV
+             << ", eta: " << profInfo->time_computeEta;
+
+    cout << ((mgr.sim()->currTime() >= mgr.sim()->maxTime()) ? " (final results!)" : "") << endl;
+}
+
+static void runUntilMaxSimulatedTime(ProfileInfo *profInfo)
+{
+    processResults(-1);
+    Manager &mgr = Manager::instance();
+    int step = 0;
+    while (mgr.execNextStep(profInfo)) {
+        processResults(step, profInfo);
+        step++;
+    }
+}
+
+static void runUntilMaxWallTime(ProfileInfo *profInfo)
+{
+    processResults(-1);
+    Manager &mgr = Manager::instance();
+    int step = 0;
+    const time_t startTime = time(0);
+    while (((mgr.options()->wallDuration() < 0) || (difftime(time(0), startTime) < mgr.options()->wallDuration()))
+           && mgr.execNextStep(profInfo)) {
+        processResults(step, profInfo);
+        step++;
+    }
 }
 
 int main(int argc, char *argv[])
@@ -50,19 +87,17 @@ int main(int argc, char *argv[])
 
 
     // *** Phase 3: Run simulation and process results at each step
-    int step = 0;
-#if 0 // Option 1: Run until max simulated time
-    processResults(mgr.initCond()->H(), mgr.results(), -1, mgr.sim()->currTime(), mgr.sim()->maxTime(), mgr.options());
-    while (mgr.execNextStep()) {
-#else // Option 2: Run until max wall time
-    const time_t startTime = time(0);
-    processResults(mgr.initConditions()->H(), mgr.eta(), -1, mgr.sim()->currTime(), mgr.sim()->maxTime(), mgr.options());
-    while (((mgr.options()->wallDuration() < 0) || (difftime(time(0), startTime) < mgr.options()->wallDuration()))
-           && mgr.execNextStep()) {
+
+    shared_ptr<ProfileInfo> profInfo;
+#ifdef PROFILE
+    profInfo.reset(new ProfileInfo);
 #endif
-        processResults(mgr.initConditions()->H(), mgr.eta(), step, mgr.sim()->currTime(), mgr.sim()->maxTime(), mgr.options());
-        step++;
-    }
+
+#if 0 // Option 1
+    runUntilMaxSimulatedTime(profInfo.get());
+#else // Option 2
+    runUntilMaxWallTime(profInfo.get());
+#endif
 
 #ifndef NDEBUG
     cout << "done\n";

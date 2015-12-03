@@ -6,6 +6,7 @@
 #include <iostream>
 #include <ctime>
 
+#undef NDEBUG
 #define NDEBUG
 
 using namespace std;

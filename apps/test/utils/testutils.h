@@ -9,7 +9,7 @@
 /**
  * Converts a list of words to standard arguments.
  * @param words: A vector of words.
- * @return An standard (argc, argv) pair.
+ * @returns A standard (argc, argv) pair.
  * @note The argv vector is allocated on the heap using malloc and the caller is responsible for freeing this memory.
  * @note The argument "argv0" is automatically prepended to the output.
  */
@@ -18,7 +18,7 @@ std::pair<int, char **> createArgs(const std::vector<std::string> &words);
 /**
  * Converts a string of words to standard arguments.
  * @param words: A string of words separated by whitespace.
- * @return An standard (argc, argv) pair.
+ * @returns A standard (argc, argv) pair.
  * @note The argv vector is allocated on the heap using malloc and the caller is responsible for freeing this memory.
  * @note The argument "argv0" is automatically prepended to the output.
  */

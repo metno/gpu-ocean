@@ -3,10 +3,11 @@
 
 #include "programoptions.h"
 #include "initconditions.h"
+#include "simulator.h"
+#include "profile.h"
 #include <iostream>
 #include <stdexcept>
 #include <vector>
-#include "simulator.h"
 
 /**
  * This class manages the high-level aspects of a simulation.
@@ -53,9 +54,11 @@ public:
     void initSim();
 
     /**
-     * Executes the next simulation step and advances the simulation time.
+     * Executes the next simulation step, advances the simulation time, and writes the current state to file if requested.
+     * @param profInfo: If non-null, structure in which profiling is written (if applicable).
+     * @returns See SimBase::execNextStep().
      */
-    bool execNextStep();
+    bool execNextStep(ProfileInfo *profInfo = 0);
 
     /**
      * Returns eta (sea surface deviation away from the equilibrium depth) at the current simulation step.

@@ -1,6 +1,7 @@
 #ifndef OCLUTILS_H
 #define OCLUTILS_H
 
+#include "config.h"
 #include <CL/cl.hpp>
 #include <cstdio>
 #include <vector>

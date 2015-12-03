@@ -12,7 +12,7 @@ using namespace std;
 /**
  * Finds all available OpenCL platforms on the current node.
  * @param platforms Output: Vector of platforms found
- * @return Number of platforms found
+ * @returns Number of platforms found
  */
 cl_uint OpenCLUtils::getPlatforms(std::vector<cl::Platform> *platforms)
 {
@@ -28,7 +28,7 @@ cl_uint OpenCLUtils::getPlatforms(std::vector<cl::Platform> *platforms)
 /**
  * Finds number of available devices for a given OpenCL platform.
  * @param platform Input: The platform object to search
- * @return Number of detected devices for given platform
+ * @returns Number of detected devices for given platform
  */
 cl_uint OpenCLUtils::countDevices(const cl::Platform &platform)
 {
@@ -45,7 +45,7 @@ cl_uint OpenCLUtils::countDevices(const cl::Platform &platform)
 /**
  * Gets platform name from object.
  * @param platform Input: Platform object
- * @return Platform name
+ * @returns Platform name
  */
 string OpenCLUtils::getPlatformName(const cl::Platform &platform)
 {
@@ -57,7 +57,7 @@ string OpenCLUtils::getPlatformName(const cl::Platform &platform)
 /**
  * Gets device name from object.
  * @param device Input: Device object
- * @return Device name
+ * @returns Device name
  */
 string OpenCLUtils::getDeviceName(const cl::Device &device)
 {
@@ -99,18 +99,22 @@ cl_ulong OpenCLUtils::getDeviceLocalMemSize()
 /**
  * Returns the execution time from an event.
  * @param event Input: The event object
- * @return Elapsed execution time in milliseconds
+ * @returns Elapsed execution time in milliseconds
  */
 float OpenCLUtils::elapsedMilliseconds(const cl::Event &event)
 {
+#ifdef PROFILE
     return (event.getProfilingInfo<CL_PROFILING_COMMAND_END>()
             - event.getProfilingInfo<CL_PROFILING_COMMAND_START>()) * .000001; // note: _START and _END values are both in nanoseconds
+#else
+    return -1;
+#endif
 }
 
 /**
  * Loads kernel files.
  * @param names Input: Kernel file names
- * @return The string contents and size of the kernel
+ * @returns The string contents and size of the kernel
  */
 static cl::Program::Sources loadKernels(const vector<string> &names)
 {
@@ -217,7 +221,13 @@ void OpenCLUtils::init(const vector<pair<string, string> > &sources, cl_device_t
     // --- END create kernels -------------------------------
 
     // create command queue
-    queue.reset(new cl::CommandQueue(*context, devices[devIndex], CL_QUEUE_PROFILING_ENABLE, &error));
+    cl_command_queue_properties properties =
+#ifdef PROFILE
+            CL_QUEUE_PROFILING_ENABLE;
+#else
+            0;
+#endif
+    queue.reset(new cl::CommandQueue(*context, devices[devIndex], properties, &error));
     CL_CHECK(error);
 
     isInit = true;

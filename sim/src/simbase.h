@@ -1,6 +1,8 @@
 #ifndef SIMBASE_H
 #define SIMBASE_H
 
+#include "config.h"
+#include "profile.h"
 #include "programoptions.h"
 #include "initconditions.h"
 #include "field.h"
@@ -17,7 +19,7 @@ public:
     double currTime() const;
     double maxTime() const;
     float deltaTime() const;
-    bool execNextStep();
+    bool execNextStep(ProfileInfo * = 0);
     FieldInfo U() const;
     FieldInfo V() const;
     FieldInfo eta() const;
@@ -34,7 +36,7 @@ protected:
     virtual double _currTime() const = 0;
     virtual double _maxTime() const = 0;
     virtual float _deltaTime() const = 0;
-    virtual void _execNextStep() = 0;
+    virtual void _execNextStep(ProfileInfo *) = 0;
     virtual FieldInfo _U() const = 0;
     virtual FieldInfo _V() const = 0;
     virtual FieldInfo _eta() const = 0;

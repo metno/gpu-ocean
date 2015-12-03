@@ -2,6 +2,7 @@
 #define SIMULATOR_H
 
 #include "simbase.h"
+#include "config.h"
 
 /**
  * @brief This class implements the real simulator.
@@ -17,7 +18,7 @@ private:
     virtual double _currTime() const;
     virtual double _maxTime() const;
     virtual float _deltaTime() const;
-    virtual void _execNextStep();
+    virtual void _execNextStep(ProfileInfo *);
     virtual FieldInfo _U() const;
     virtual FieldInfo _V() const;
     virtual FieldInfo _eta() const;
