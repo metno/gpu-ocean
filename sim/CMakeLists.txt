@@ -51,7 +51,7 @@ SET(sim_SIMULATOR_MAJOR_VERSION "0" CACHE STRING "Specify the major version" FOR
 SET(sim_SIMULATOR_MINOR_VERSION "1" CACHE STRING "Specify the minor version" FORCE)
 
 #Create config.h from config.h.in
-configure_file("src/config.h.in" ${CMAKE_CURRENT_BINARY_DIR}/config.h ESCAPE_QUOTES)
+configure_file("src/config.h.in" ${CMAKE_CURRENT_SOURCE_DIR}/src/config.h ESCAPE_QUOTES)
 
 # copy OpenCL kernel source code to build directory (will be compiled on run)
 if (NOT CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_CURRENT_BINARY_DIR)
@@ -82,6 +82,15 @@ if (NOT CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_CURRENT_BINARY_DIR)
         
     	add_custom_target("install_kernel_${itemName}" ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${itemName}")
     endforeach()
+    
+    # install config.h for out-of-source builds
+    message(STATUS "config.h")
+    add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/config.h"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/src/config.h" "${CMAKE_CURRENT_BINARY_DIR}/config.h"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/config.h"
+    )
+    add_custom_target("install_config_h" ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/config.h")
 endif()
 
 ADD_LIBRARY(sim STATIC src/oclutils.cpp src/simbase.cpp src/simulator.cpp src/testsim.cpp)
