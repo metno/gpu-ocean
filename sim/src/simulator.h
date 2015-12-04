@@ -2,7 +2,6 @@
 #define SIMULATOR_H
 
 #include "simbase.h"
-#include "config.h"
 
 /**
  * @brief This class implements the real simulator.
@@ -10,7 +9,14 @@
 class Simulator : public SimBase
 {
 public:
+
+    /**
+     * Constructor.
+     * @param options: Program options.
+     * @param initCond: Initial conditions.
+     */
     Simulator(const OptionsPtr &, const InitCondPtr &);
+
     virtual ~Simulator();
 
 private:

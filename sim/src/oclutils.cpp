@@ -10,11 +10,6 @@ using namespace std;
 #undef NDEBUG
 #define NDEBUG
 
-/**
- * Finds all available OpenCL platforms on the current node.
- * @param platforms Output: Vector of platforms found
- * @returns Number of platforms found
- */
 cl_uint OpenCLUtils::getPlatforms(std::vector<cl::Platform> *platforms)
 {
     CL_CHECK(cl::Platform::get(platforms));
@@ -26,11 +21,20 @@ cl_uint OpenCLUtils::getPlatforms(std::vector<cl::Platform> *platforms)
     return platforms->size();
 }
 
-/**
- * Finds number of available devices for a given OpenCL platform.
- * @param platform Input: The platform object to search
- * @returns Number of detected devices for given platform
- */
+string OpenCLUtils::getPlatformName(const cl::Platform &platform)
+{
+    string name;
+    platform.getInfo(CL_PLATFORM_NAME, &name);
+    return name;
+}
+
+string OpenCLUtils::getDeviceName(const cl::Device &device)
+{
+    string name;
+    device.getInfo(CL_DEVICE_NAME, &name);
+    return name;
+}
+
 cl_uint OpenCLUtils::countDevices(const cl::Platform &platform)
 {
     vector<cl::Device> devices;
@@ -43,33 +47,6 @@ cl_uint OpenCLUtils::countDevices(const cl::Platform &platform)
     return devices.size();
 }
 
-/**
- * Gets platform name from object.
- * @param platform Input: Platform object
- * @returns Platform name
- */
-string OpenCLUtils::getPlatformName(const cl::Platform &platform)
-{
-    string name;
-    platform.getInfo(CL_PLATFORM_NAME, &name);
-    return name;
-}
-
-/**
- * Gets device name from object.
- * @param device Input: Device object
- * @returns Device name
- */
-string OpenCLUtils::getDeviceName(const cl::Device &device)
-{
-    string name;
-    device.getInfo(CL_DEVICE_NAME, &name);
-    return name;
-}
-
-/**
- * Lists available devices for each platform.
- */
 void OpenCLUtils::listDevices()
 {
     vector<cl::Platform> platforms;
@@ -86,9 +63,6 @@ void OpenCLUtils::listDevices()
     }
 }
 
-/**
- * Returns the maximum local memory size of the current device in bytes.
- */
 cl_ulong OpenCLUtils::getDeviceLocalMemSize()
 {
     cl_ulong size;
@@ -97,11 +71,6 @@ cl_ulong OpenCLUtils::getDeviceLocalMemSize()
     return size;
 }
 
-/**
- * Returns the execution time from an event.
- * @param event Input: The event object
- * @returns Elapsed execution time in milliseconds
- */
 float OpenCLUtils::elapsedMilliseconds(const cl::Event &event)
 {
 #ifdef PROFILE
@@ -110,6 +79,11 @@ float OpenCLUtils::elapsedMilliseconds(const cl::Event &event)
 #else
     return -1;
 #endif
+}
+
+static void errorCallback(const char *errInfo, const void *privateInfo, size_t cb, void *userData)
+{
+    cout << "errorCallback:" << errInfo << endl;
 }
 
 /**
@@ -151,12 +125,6 @@ static void printProgramBuildLog(const cl::Program *program, const vector<cl::De
     }
 }
 
-static void errorCallback(const char *errInfo, const void *privateInfo, size_t cb, void *userData)
-{
-    cout << "errorCallback:" << errInfo << endl;
-}
-
-// Initializes OpenCL structures.
 void OpenCLUtils::init(const vector<pair<string, string> > &sources, cl_device_type deviceType, const string &buildOptions)
 {
     cl_int error;
@@ -249,7 +217,6 @@ cl::Context *OpenCLUtils::getContext()
     return context.get();
 }
 
-// Returns the kernel object for a given tag.
 cl::Kernel *OpenCLUtils::getKernel(const string &tag)
 {
     if (!isInit)
