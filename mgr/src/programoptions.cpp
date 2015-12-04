@@ -13,10 +13,10 @@ struct ProgramOptions::ProgramOptionsImpl
 {
     bool isInit;
     std::string msg;
-    float wGlobal; // global water elevation level value used to generate H in IC
-    int etaNo; // which sea surface deviation field (eta) to generate for IC
-    int waterElevationNo; // which water elevation field (w) to generate for IC
-    int bathymetryNo; // which bathymetry field (B) to generate for IC
+    float wGlobal; // global water elevation level used to generate H in IC
+    int etaNo; // type of sea surface deviation field (eta) to generate for IC
+    int waterElevationNo; // type of water elevation field (w) to generate for IC
+    int bathymetryNo; // type of bathymetry field (B) to generate for IC
     int nx; // number of grid horizontal grid cells
     int ny; // number of vertical grid cells
     float width; // horizontal extension of grid (in meters)
@@ -74,9 +74,9 @@ bool ProgramOptions::init(int argc, char *argv[])
         po::options_description cfgfile_opts("Options allowed both on command line and in config file (the former overrides the latter)");
         cfgfile_opts.add_options()
                 ("wGlobal", po::value<float>(&pimpl->wGlobal)->default_value(-1.0f), "global initial water elevation level (in meters)")
-                ("etaNo", po::value<int>(&pimpl->etaNo)->default_value(-1), "type of initial, synthesized sea surface deviation (0..4)")
-                ("waterElevationNo", po::value<int>(&pimpl->waterElevationNo)->default_value(-1), "type of initial, synthesized water elevation (0..6)")
-                ("bathymetryNo", po::value<int>(&pimpl->bathymetryNo)->default_value(-1), "type of initial, synthesized bathymetry (0..4)")
+                ("etaNo", po::value<int>(&pimpl->etaNo)->default_value(-1), "type of initial, generated sea surface deviation field (0..4)")
+                ("waterElevationNo", po::value<int>(&pimpl->waterElevationNo)->default_value(-1), "type of initial, generated water elevation field (0..6)")
+                ("bathymetryNo", po::value<int>(&pimpl->bathymetryNo)->default_value(-1), "type of initial, generated bathymetry field (0..4)")
                 ("nx", po::value<int>(&pimpl->nx)->default_value(-1), "number of horizontal grid cells")
                 ("ny", po::value<int>(&pimpl->ny)->default_value(-1), "number of vertical grid cells")
                 ("width", po::value<float>(&pimpl->width)->default_value(-1), "horizontal extension of grid (in meters)")

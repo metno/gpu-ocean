@@ -389,11 +389,11 @@ void InitConditions::init(const OptionsPtr &options)
     if (pimpl->height <= 0)
         throw runtime_error((boost::format("error: height (%1%) <= 0") % pimpl->height).str());
 
-    // synthesize H if necessary
+    // generated H if necessary
     if (pimpl->H.empty()) {
         if (options->bathymetryNo() < 0)
             throw runtime_error(
-                    (boost::format("error: H needs to be synthesized, but bathymetryNo (%1%) < 0") % options->bathymetryNo()).str());
+                    (boost::format("error: H needs to be generated, but bathymetryNo (%1%) < 0") % options->bathymetryNo()).str());
         pimpl->bathymetryField = generateBathymetry(options->bathymetryNo(), pimpl->nx, pimpl->ny, pimpl->width, pimpl->height);
         float wGlobal = 1.0f;
         if (options->wGlobal() < 0)
@@ -403,11 +403,11 @@ void InitConditions::init(const OptionsPtr &options)
         pimpl->H = generateH(pimpl->nx, pimpl->ny, pimpl->width, pimpl->height, pimpl->bathymetryField, wGlobal);
     }
 
-    // synthesize eta if necessary
+    // generate eta if necessary
     if (pimpl->eta.empty()) {
         if (options->etaNo() < 0)
             throw runtime_error(
-                    (boost::format("error: eta needs to be synthesized, but etaNo (%1%) < 0") % options->etaNo()).str());
+                    (boost::format("error: eta needs to be generated, but etaNo (%1%) < 0") % options->etaNo()).str());
         pimpl->eta = generateEta(options->etaNo(), pimpl->nx, pimpl->ny, pimpl->width, pimpl->height);
     }
 

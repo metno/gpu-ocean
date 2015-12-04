@@ -12,7 +12,7 @@ public:
     ProgramOptions();
 
     /**
-     * Initializes the object by parsing program options specified on command line and/or config file.
+     * Initializes the object by parsing program options specified on the command line and/or in a config file.
      * @param argc: Number of arguments.
      * @param argv: Argument vector.
      * @returns True iff parsing was successful. Before false is returned, the latest parsing message is updated.
@@ -31,17 +31,17 @@ public:
     float wGlobal() const;
 
     /**
-     * Returns the type of initial, synthesized sea surface deviation (0..4), or < 0 if not set.
+     * Returns the type of initial, generated sea surface deviation (0..4), or < 0 if not set.
      */
     int etaNo() const;
 
     /**
-     * Returns the type of initial, synthesized water elevation (0..6), or < 0 if not set.
+     * Returns the type of initial, generated water elevation (0..6), or < 0 if not set.
      */
     int waterElevationNo() const;
 
     /**
-     * Returns the type of initial, synthesized athymetry (0..4), or < 0 if not set.
+     * Returns the type of initial, generated athymetry (0..4), or < 0 if not set.
      */
     int bathymetryNo() const;
 
