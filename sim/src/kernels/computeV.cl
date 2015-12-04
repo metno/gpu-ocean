@@ -41,8 +41,6 @@ __kernel void computeV (
     // assert(get_global_size(1) >= ny - 1)
     const int gx = get_global_id(0); // range: [0, nx - 2 + padding]
     const int gy = get_global_id(1); // range: [0, ny - 2 + padding]
-    if (gx > nx - 2 || gy > ny - 2)
-        return; // quit if we're in the padding area
     const int gnx = nx + 2;
     const int gny = ny - 1;
 
@@ -113,13 +111,16 @@ __kernel void computeV (
     // ensure all work-items have copied their values to local memory before proceeding
     barrier(CLK_LOCAL_MEM_FENCE); // assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item
     
+    if (gx > nx - 2 || gy > ny - 2)
+        return; // quit if we're in the padding area
+
     if (gy == 0) { // if we're next to the southern ghost cell
         // compute V on the southern cell edge
         const float Ur_south = 0.5f * (U_local[luid_west] + U_local[luid_east]); // linear interpolation
         const float B_south = 1.0f + R * dt / Hr_v_local[lhid_south];
         const float P_south = g * Hr_v_local[lhid_south] * (eta_local[leid] - eta_local[leid_south]) / dy;
-        //V[gvid_south] = 1.0f / B_south * (V[gvid_south] + dt * (F * Ur_south - P_south));
-        V[gvid_south] = 0.0f;
+        V[gvid_south] = 1.0f / B_south * (V[gvid_south] + dt * (F * Ur_south - P_south));
+        //V[gvid_south] = 0.0f;
     }
 
     // compute V on the northern cell edge
@@ -131,6 +132,6 @@ __kernel void computeV (
     }
     const float B_north = 1.0f + R * dt / Hr_v_local[lhid_north];
     const float P_north = g * Hr_v_local[lhid_north] * (eta_local[leid_north] - eta_local[leid]) / dy;
-    //V[gvid_north] = 1.0f / B_north * (V[gvid_north] + dt * (F * Ur_north - P_north));
-    V[gvid_north] = 0.0f;
+    V[gvid_north] = 1.0f / B_north * (V[gvid_north] + dt * (F * Ur_north - P_north));
+    //V[gvid_north] = 0.0f;
 }

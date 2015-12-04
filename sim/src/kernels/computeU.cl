@@ -41,8 +41,6 @@ __kernel void computeU (
     // assert(get_global_size(1) >= ny - 1)
     const int gx = get_global_id(0); // range: [0, nx - 2 + padding]
     const int gy = get_global_id(1); // range: [0, ny - 2 + padding]
-    if (gx > nx - 2 || gy > ny - 2)
-        return; // quit if we're in the padding area
     const int gnx = nx - 1;
 
     // local indices ++
@@ -111,6 +109,9 @@ __kernel void computeU (
 
     // ensure all work-items have copied their values to local memory before proceeding
     barrier(CLK_LOCAL_MEM_FENCE); // assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item
+
+    if (gx > nx - 2 || gy > ny - 2)
+        return; // quit if we're in the padding area
 
     if (gx == 0) { // if we're next to the western ghost cell
         // compute U on the western cell edge
