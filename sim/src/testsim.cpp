@@ -176,19 +176,19 @@ void TestSim::_execNextStep(ProfileInfo *)
     pimpl->currTime += pimpl->deltaTime;
 }
 
-FieldInfo TestSim::_U() const
+Field2D TestSim::_U() const
 {
-    return FieldInfo(); // ### for now
+    return Field2D(); // ### for now
 }
 
-FieldInfo TestSim::_V() const
+Field2D TestSim::_V() const
 {
-    return FieldInfo(); // ### for now
+    return Field2D(); // ### for now
 }
 
-FieldInfo TestSim::_eta() const
+Field2D TestSim::_eta() const
 {
-    return FieldInfo(); // ### for now
+    return Field2D(); // ### for now
 }
 
 void TestSim::_printStatus() const

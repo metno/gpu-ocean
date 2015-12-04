@@ -120,7 +120,7 @@ float NetCDFReader::dy() const
     return pimpl->height / (pimpl->ny - 1);
 }
 
-FieldInfo NetCDFReader::H() const
+Field2D NetCDFReader::H() const
 {
     return read2DFloatField("H", pimpl->nx + 1, pimpl->ny + 1);
 }
@@ -130,7 +130,7 @@ long NetCDFReader::etaTimesteps() const
     return timesteps("eta");
 }
 
-FieldInfo NetCDFReader::eta(long timestep) const
+Field2D NetCDFReader::eta(long timestep) const
 {
     return read2DFloatField("eta", pimpl->nx + 1, pimpl->ny + 1, timestep);
 }
@@ -140,7 +140,7 @@ long NetCDFReader::UTimesteps() const
     return timesteps("U");
 }
 
-FieldInfo NetCDFReader::U(long timestep) const
+Field2D NetCDFReader::U(long timestep) const
 {
     return read2DFloatField("U", pimpl->nx + 2, pimpl->ny - 1, timestep);
 }
@@ -150,15 +150,15 @@ long NetCDFReader::VTimesteps() const
     return timesteps("V");
 }
 
-FieldInfo NetCDFReader::V(long timestep) const
+Field2D NetCDFReader::V(long timestep) const
 {
     return read2DFloatField("V", pimpl->nx - 1, pimpl->ny + 2, timestep);
 }
 
-FieldInfo NetCDFReader::read2DFloatField(const string &name, int nx_exp, int ny_exp, long timestep) const
+Field2D NetCDFReader::read2DFloatField(const string &name, int nx_exp, int ny_exp, long timestep) const
 {
     if (pimpl->vars.count(name) == 0)
-        return FieldInfo();
+        return Field2D();
 
     NcVar *var = pimpl->vars.at(name);
 
@@ -183,7 +183,7 @@ FieldInfo NetCDFReader::read2DFloatField(const string &name, int nx_exp, int ny_
         if (!var->get(data->data(), ny_exp, nx_exp))
             throw runtime_error((boost::format("error in field %s (ndims=2): failed to copy values") % name).str());
 
-        return FieldInfo(data, nx_exp, ny_exp, dx(), dy());
+        return Field2D(data, nx_exp, ny_exp, dx(), dy());
 
     } else if (var->num_dims() == 3) {
         // assume field is part of a time series
@@ -213,14 +213,14 @@ FieldInfo NetCDFReader::read2DFloatField(const string &name, int nx_exp, int ny_
         if (!var->get(data->data(), 1, ny_exp, nx_exp))
             throw runtime_error((boost::format("error in field %s (ndims=3): failed to copy values") % name).str());
 
-        return FieldInfo(data, nx_exp, ny_exp, dx(), dy());
+        return Field2D(data, nx_exp, ny_exp, dx(), dy());
 
     } else {
         throw runtime_error(
                 (boost::format("error in field %s: # of dimensions (%d) neither 2 nor 3") % name % var->num_dims()).str());
     }
 
-    return FieldInfo();
+    return Field2D();
 }
 
 long NetCDFReader::timesteps(const string &name) const

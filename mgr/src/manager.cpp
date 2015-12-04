@@ -86,8 +86,8 @@ void Manager::initSim()
                     : new NetCDFWriter(ofname)); // use explicit file name
         pimpl->fileWriter->init(
                     initConditions()->nx(), initConditions()->ny(), pimpl->sim->deltaTime(), initConditions()->dx(), initConditions()->dy(),
-                    pimpl->sim->F(), pimpl->sim->R(), initConditions()->H().data->data(), initConditions()->eta().data->data(),
-                    pimpl->sim->U().data->data(), pimpl->sim->V().data->data());
+                    pimpl->sim->F(), pimpl->sim->R(), initConditions()->H().data()->data(), initConditions()->eta().data()->data(),
+                    pimpl->sim->U().data()->data(), pimpl->sim->V().data()->data());
     }
 }
 
@@ -99,25 +99,25 @@ bool Manager::execNextStep(ProfileInfo *profInfo)
     // append to output file (if requested)
     if (pimpl->fileWriter.get())
         pimpl->fileWriter->writeTimestep(
-                    pimpl->sim->eta().data->data(),
-                    pimpl->sim->U().data->data(),
-                    pimpl->sim->V().data->data(),
+                    pimpl->sim->eta().data()->data(),
+                    pimpl->sim->U().data()->data(),
+                    pimpl->sim->V().data()->data(),
                     pimpl->sim->currTime());
 
     return status;
 }
 
-FieldInfo Manager::eta() const
+Field2D Manager::eta() const
 {
     return pimpl->sim->eta();
 }
 
-FieldInfo Manager::U() const
+Field2D Manager::U() const
 {
     return pimpl->sim->U();
 }
 
-FieldInfo Manager::V() const
+Field2D Manager::V() const
 {
     return pimpl->sim->V();
 }

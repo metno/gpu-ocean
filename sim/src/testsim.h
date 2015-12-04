@@ -19,9 +19,9 @@ private:
     virtual double _currTime() const;
     virtual double _maxTime() const;
     virtual void _execNextStep(ProfileInfo *);
-    virtual FieldInfo _U() const;
-    virtual FieldInfo _V() const;
-    virtual FieldInfo _eta() const;
+    virtual Field2D _U() const;
+    virtual Field2D _V() const;
+    virtual Field2D _eta() const;
     virtual void _printStatus() const;
 
     struct TestSimImpl;

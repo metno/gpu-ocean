@@ -58,7 +58,7 @@ public:
     /**
      * Returns H (equilibrium depth).
      */
-    FieldInfo H() const;
+    Field2D H() const;
 
     /**
      * Returns the number of timesteps in the eta time series.
@@ -69,7 +69,7 @@ public:
      * Returns eta (sea surface deviation away from the equilibrium depth) at a given timestep.
      * @param timestep: Valid range: [0, etaTimesteps() - 1]. The last timestep may be implicitly specified by passing -1.
      */
-    FieldInfo eta(long timestep = -1) const;
+    Field2D eta(long timestep = -1) const;
 
     /**
      * Returns the number of timesteps in the U time series.
@@ -80,7 +80,7 @@ public:
      * Returns U (depth averaged velocity in the x direction) at a given timestep.
      * @param timestep: Valid range: [0, UTimesteps() - 1]. The last timestep may be implicitly specified by passing -1.
      */
-    FieldInfo U(long timestep = -1) const;
+    Field2D U(long timestep = -1) const;
 
     /**
      * Returns the number of timesteps in the V time series.
@@ -91,7 +91,7 @@ public:
      * Returns V (depth averaged velocity in the y direction) at a given timestep.
      * @param timestep: Valid range: [0, VTimesteps() - 1]. The last timestep may be implicitly specified by passing -1.
      */
-    FieldInfo V(long timestep = -1) const;
+    Field2D V(long timestep = -1) const;
 
 private:
     struct NetCDFReaderImpl;
@@ -105,11 +105,11 @@ private:
      * @param nx_exp: Expected size of X-dimension.
      * @param ny_exp: Expected size of Y-dimension.
      * @param timestep: Timestep (if applicable, i.e. if the field variable is 3D). The first and last timestep is indicated by 0 and -1 respectively.
-     * @returns The FieldInfo object.
+     * @returns The Field2D object.
      * @note An empty object is returned if the field doesn't exist (which is not considered an error).
      * @throws std::runtime_error if an error occurs.
      */
-    FieldInfo read2DFloatField(const std::string &name, int nx_exp, int ny_exp, long timestep = -1) const;
+    Field2D read2DFloatField(const std::string &name, int nx_exp, int ny_exp, long timestep = -1) const;
 
     /**
      * Returns the number of timesteps of a 2D field.

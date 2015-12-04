@@ -26,25 +26,25 @@ std::pair<int, char **> createArgs(const std::string &s);
 
 /**
  * Checks (using BOOST_CHECK*) if the vector of two fields are equal (per-item comparision of the std::vector objects).
- * @param f1: First field (FieldInfo object)
- * @param f2: Second field (FieldInfo object)
+ * @param f1: First field (Field2D object)
+ * @param f2: Second field (Field2D object)
  */
 #define CHECK_VECTORS_EQUAL(f1, f2) \
     do { \
-        BOOST_CHECK(*(f1.data.get()) == *(f2.data.get())); \
+        BOOST_CHECK(*(f1.data().get()) == *(f2.data().get())); \
     } while (false)
 
 /**
  * Checks (using BOOST_CHECK*) if two fields are equal.
- * @param f1: First field (FieldInfo object)
- * @param f2: Second field (FieldInfo object)
+ * @param f1: First field (Field2D object)
+ * @param f2: Second field (Field2D object)
  */
 #define CHECK_FIELDS_EQUAL(f1, f2) \
     do { \
-        BOOST_CHECK_EQUAL(f1.nx, f2.nx); \
-        BOOST_CHECK_EQUAL(f1.ny, f2.ny); \
-        BOOST_CHECK_EQUAL(f1.dx, f2.dx); \
-        BOOST_CHECK_EQUAL(f1.dy, f2.dy); \
+        BOOST_CHECK_EQUAL(f1.nx(), f2.nx()); \
+        BOOST_CHECK_EQUAL(f1.ny(), f2.ny()); \
+        BOOST_CHECK_EQUAL(f1.dx(), f2.dx()); \
+        BOOST_CHECK_EQUAL(f1.dy(), f2.dy()); \
         CHECK_VECTORS_EQUAL(f1, f2); \
     } while (false)
 

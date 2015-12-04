@@ -100,7 +100,7 @@ bool SimBase::execNextStep(ProfileInfo *profInfo)
 /**
  * Returns U at the current simulation time.
  */
-FieldInfo SimBase::U() const
+Field2D SimBase::U() const
 {
     assertInitialized();
     return _U();
@@ -109,7 +109,7 @@ FieldInfo SimBase::U() const
 /**
  * Returns V at the current simulation time.
  */
-FieldInfo SimBase::V() const
+Field2D SimBase::V() const
 {
     assertInitialized();
     return _V();
@@ -118,7 +118,7 @@ FieldInfo SimBase::V() const
 /**
  * Returns eta at the current simulation time.
  */
-FieldInfo SimBase::eta() const
+Field2D SimBase::eta() const
 {
     assertInitialized();
     return _eta();

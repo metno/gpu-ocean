@@ -101,9 +101,9 @@ BOOST_AUTO_TEST_CASE(TimeSeriesWrittenAndReadBack)
     Manager &mgr = Manager::instance();
     mgr.initSim(); // note: this call also writes the initial state to the output file (timestep 0)
 
-    vector<FieldInfo> eta;
-    vector<FieldInfo> U;
-    vector<FieldInfo> V;
+    vector<Field2D> eta;
+    vector<Field2D> U;
+    vector<Field2D> V;
 
     // copy initial state of each time series (timestep 0)
     CHECK_FIELDS_EQUAL(mgr.initConditions()->eta(), mgr.eta()); // note this!

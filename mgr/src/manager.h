@@ -63,17 +63,17 @@ public:
     /**
      * Returns eta (sea surface deviation away from the equilibrium depth) at the current simulation step.
      */
-    FieldInfo eta() const;
+    Field2D eta() const;
 
     /**
      * Returns U (depth averaged velocity in the x direction) at the current simulation step.
      */
-    FieldInfo U() const;
+    Field2D U() const;
 
     /**
      * Returns V (depth averaged velocity in the y direction) at the current simulation step.
      */
-    FieldInfo V() const;
+    Field2D V() const;
 
 private:
     static bool isInit;

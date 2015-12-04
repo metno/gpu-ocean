@@ -12,14 +12,14 @@
 
 using namespace std;
 
-static float computeMass(const FieldInfo &H, const FieldInfo &eta)
+static float computeMass(const Field2D &H, const Field2D &eta)
 {
     assert(H.nx == eta.nx);
     assert(H.ny == eta.ny);
     assert(H.nx > 2);
     float mass = 0;
-    for (int j = 1; j < H.ny - 1; ++j)
-        for (int i = 1; i < H.nx - 1; ++i)
+    for (int j = 1; j < H.ny() - 1; ++j)
+        for (int i = 1; i < H.nx() - 1; ++i)
             mass += (H(i, j) + eta(i, j));
     return mass;
 }

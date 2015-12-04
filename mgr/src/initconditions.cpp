@@ -18,12 +18,12 @@ struct InitConditions::InitConditionsImpl
     int ny;
     float width;
     float height;
-    FieldInfo waterElevationField;
-    FieldInfo bathymetryField;
-    FieldInfo H;
-    FieldInfo eta;
-    FieldInfo U;
-    FieldInfo V;
+    Field2D waterElevationField;
+    Field2D bathymetryField;
+    Field2D H;
+    Field2D eta;
+    Field2D U;
+    Field2D V;
     InitConditionsImpl();
 };
 
@@ -36,7 +36,7 @@ InitConditions::InitConditions()
 {
 }
 
-inline FieldInfo generateBathymetry(int no, int nx, int ny, float width, float height)
+inline Field2D generateBathymetry(int no, int nx, int ny, float width, float height)
 {
     const float dx = width / (nx - 1);
     const float dy = height / (ny - 1);
@@ -124,10 +124,10 @@ inline FieldInfo generateBathymetry(int no, int nx, int ny, float width, float h
 
     cout << "' (" << nx + 1 << "x" << ny + 1 << " values)" << endl;
 
-    return FieldInfo(f, nx + 1, ny + 1, dx, dy);
+    return Field2D(f, nx + 1, ny + 1, dx, dy);
 }
 
-inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, float height)
+inline Field2D generateWaterElevation(int no, int nx, int ny, float width, float height)
 {
     const float dx = width / (nx - 1);
     const float dy = height / (ny - 1);
@@ -231,10 +231,10 @@ inline FieldInfo generateWaterElevation(int no, int nx, int ny, float width, flo
 
     cout << "' (" << nx + 1 << "x" << ny + 1 << " values)" << endl;
 
-    return FieldInfo(f, nx + 1, ny + 1, dx, dy);
+    return Field2D(f, nx + 1, ny + 1, dx, dy);
 }
 
-inline FieldInfo generateH(int nx, int ny, float width, float height, FieldInfo B, float w=1.0f)
+inline Field2D generateH(int nx, int ny, float width, float height, Field2D B, float w=1.0f)
 {
 	if (nx <= 0 || ny <= 0) {
 		cout << "Invalid nx or ny: [" << nx << ", " << ny << "]." << endl;
@@ -247,7 +247,7 @@ inline FieldInfo generateH(int nx, int ny, float width, float height, FieldInfo 
 
 #pragma omp parallel for
     for (int i = 0; i < f->size(); ++i) {
-        f->at(i) = w - B.data->at(i);
+        f->at(i) = w - B.data()->at(i);
         if (f->at(i) < 0.0f) {
 			cout << "Negative values in H are not allowed. (Increase global water elevation (w) or change bathymetry (B) input.)" << endl;
 			exit(-1);
@@ -256,10 +256,10 @@ inline FieldInfo generateH(int nx, int ny, float width, float height, FieldInfo 
 
     cout << "' (" << nx + 1 << "x" << ny + 1 << " values)" << endl;
 
-    return FieldInfo(f, nx + 1, ny + 1, width / (nx - 1), height / (ny - 1));
+    return Field2D(f, nx + 1, ny + 1, width / (nx - 1), height / (ny - 1));
 }
 
-inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
+inline Field2D generateEta(int no, int nx, int ny, float width, float height)
 {
     const float dx = width / (nx - 1);
     const float dy = height / (ny - 1);
@@ -339,7 +339,7 @@ inline FieldInfo generateEta(int no, int nx, int ny, float width, float height)
 
     cout << "' (" << nx + 1 << "x" << ny + 1 << " values)" << endl;
 
-    return FieldInfo(f, nx + 1, ny + 1, dx, dy);
+    return Field2D(f, nx + 1, ny + 1, dx, dy);
 }
 
 void InitConditions::init(const OptionsPtr &options)
@@ -448,32 +448,32 @@ float InitConditions::dy() const
     return pimpl->height / (pimpl->ny - 1);
 }
 
-FieldInfo InitConditions::waterElevationField() const
+Field2D InitConditions::waterElevationField() const
 {
     return pimpl->waterElevationField;
 }
 
-FieldInfo InitConditions::bathymetryField() const
+Field2D InitConditions::bathymetryField() const
 {
     return pimpl->bathymetryField;
 }
 
-FieldInfo InitConditions::H() const
+Field2D InitConditions::H() const
 {
     return pimpl->H;
 }
 
-FieldInfo InitConditions::eta() const
+Field2D InitConditions::eta() const
 {
     return pimpl->eta;
 }
 
-FieldInfo InitConditions::U() const
+Field2D InitConditions::U() const
 {
     return pimpl->U;
 }
 
-FieldInfo InitConditions::V() const
+Field2D InitConditions::V() const
 {
     return pimpl->V;
 }

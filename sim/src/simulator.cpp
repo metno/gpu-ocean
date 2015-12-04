@@ -34,9 +34,9 @@ struct Simulator::SimulatorImpl
     cl::Buffer V;
     cl::Buffer eta;
     // host buffers:
-    FieldInfo _U;
-    FieldInfo _V;
-    FieldInfo _eta;
+    Field2D _U;
+    Field2D _V;
+    Field2D _eta;
 
     SimulatorImpl();
     void init(const OptionsPtr &, const InitCondPtr &);
@@ -73,38 +73,27 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
     CL_CHECK(error);
 
     // ... U
-    _U.dx = dx;
-    _U.dy = dy;
-    const int nx_U = _U.nx = nx + 2;
-    const int ny_U = _U.ny = ny - 1;
-    const int size_U = nx_U * ny_U;
-    _U.data->resize(size_U);
-    for (int i = 0; i < _U.data->size(); ++i)
-        _U.data->at(i) = 0.0f;
-    U = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * size_U, _U.data->data(), &error);
+    const int nx_U = nx + 2;
+    const int ny_U = ny - 1;
+    _U = Field2D(new vector<float>(nx_U * ny_U), nx_U, ny_U, dx, dy);
+    _U.fill(0.0);
+    U = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * _U.data()->size(), _U.data()->data(), &error);
     CL_CHECK(error);
 
     // ... V
-    _V.dx = dx;
-    _V.dy = dy;
-    const int nx_V = _V.nx = nx - 1;
-    const int ny_V = _V.ny = ny + 2;
-    const int size_V = nx_V * ny_V;
-    _V.data->resize(size_V);
-    for (int i = 0; i < _V.data->size(); ++i)
-        _V.data->at(i) = 0.0f;
-    V = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * size_V, _V.data->data(), &error);
+    const int nx_V = nx - 1;
+    const int ny_V = ny + 2;
+    _V = Field2D(new vector<float>(nx_V * ny_V), nx_V, ny_V, dx, dy);
+    _V.fill(0.0);
+    V = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * _V.data()->size(), _V.data()->data(), &error);
     CL_CHECK(error);
 
     // ... eta
-    _eta.dx = dx;
-    _eta.dy = dy;
-    const int nx_eta = _eta.nx = nx + 1;
-    const int ny_eta = _eta.ny = ny + 1;
-    const int size_eta = nx_eta * ny_eta;
-    _eta.data->resize(size_eta);
-    *_eta.data = *initCond->eta().data;
-    eta = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * size_eta, initCond->eta().data->data(), &error);
+    const int nx_eta = nx + 1;
+    const int ny_eta = ny + 1;
+    _eta = Field2D(new vector<float>(nx_eta * ny_eta), nx_eta, ny_eta, dx, dy);
+    _eta.fill(initCond->eta());
+    eta = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * _eta.data()->size(), _eta.data()->data(), &error);
     CL_CHECK(error);
 }
 
@@ -135,7 +124,7 @@ static cl::NDRange global2DWorkSize(int nx, int ny, int lnx, int lny)
  */
 void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const InitCondPtr &initCond)
 {
-    const FieldInfo Hfi = initCond->H();
+    const Field2D Hfi = initCond->H();
 
     // check preconditions on H
     assert(Hfi.data->size() == Hfi.nx * Hfi.ny);
@@ -149,7 +138,7 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
     // create buffer for H (released from device after reconstruction is complete)
     cl::Buffer H = cl::Buffer(
                 *OpenCLUtils::getContext(), CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                sizeof(float) * Hfi.nx * Hfi.ny, Hfi.data->data(), &error);
+                sizeof(float) * Hfi.nx() * Hfi.ny(), Hfi.data()->data(), &error);
     CL_CHECK(error);
 
     // ensure that we have enough local memory for the work-group
@@ -213,7 +202,7 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
         profInfo->time_computeU = OpenCLUtils::elapsedMilliseconds(event);
 
     // copy result from device to host
-    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(U, CL_TRUE, 0, sizeof(float) * _U.nx * _U.ny, _U.data->data(), 0, 0));
+    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(U, CL_TRUE, 0, sizeof(float) * _U.data()->size(), _U.data()->data(), 0, 0));
 }
 
 /**
@@ -248,7 +237,7 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
         profInfo->time_computeV = OpenCLUtils::elapsedMilliseconds(event);
 
     // copy result from device to host
-    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(V, CL_TRUE, 0, sizeof(float) * _V.nx * _V.ny, _V.data->data(), 0, 0));
+    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(V, CL_TRUE, 0, sizeof(float) * _V.data()->size(), _V.data()->data(), 0, 0));
 }
 
 /**
@@ -280,7 +269,7 @@ void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitC
         profInfo->time_computeEta = OpenCLUtils::elapsedMilliseconds(event);
 
     // copy result from device to host
-    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(eta, CL_TRUE, 0, sizeof(float) * _eta.nx * _eta.ny, _eta.data->data(), 0, 0));
+    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(eta, CL_TRUE, 0, sizeof(float) * _eta.data()->size(), _eta.data()->data(), 0, 0));
 }
 
 Simulator::Simulator(const OptionsPtr &options, const InitCondPtr &initCond)
@@ -342,17 +331,17 @@ void Simulator::_execNextStep(ProfileInfo *profInfo)
     pimpl->currTime += pimpl->dt; // advance simulation time
 }
 
-FieldInfo Simulator::_U() const
+Field2D Simulator::_U() const
 {
     return pimpl->_U;
 }
 
-FieldInfo Simulator::_V() const
+Field2D Simulator::_V() const
 {
     return pimpl->_V;
 }
 
-FieldInfo Simulator::_eta() const
+Field2D Simulator::_eta() const
 {
     return pimpl->_eta;
 }

@@ -20,9 +20,9 @@ public:
     double maxTime() const;
     float deltaTime() const;
     bool execNextStep(ProfileInfo * = 0);
-    FieldInfo U() const;
-    FieldInfo V() const;
-    FieldInfo eta() const;
+    Field2D U() const;
+    Field2D V() const;
+    Field2D eta() const;
     float F() const;
     float R() const;
     void printStatus() const;
@@ -37,9 +37,9 @@ protected:
     virtual double _maxTime() const = 0;
     virtual float _deltaTime() const = 0;
     virtual void _execNextStep(ProfileInfo *) = 0;
-    virtual FieldInfo _U() const = 0;
-    virtual FieldInfo _V() const = 0;
-    virtual FieldInfo _eta() const = 0;
+    virtual Field2D _U() const = 0;
+    virtual Field2D _V() const = 0;
+    virtual Field2D _eta() const = 0;
     virtual float _F() const = 0;
     virtual float _R() const = 0;
     virtual void _printStatus() const = 0;

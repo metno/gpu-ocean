@@ -57,32 +57,32 @@ public:
     /**
      * Returns the water elevation field.
      */
-    FieldInfo waterElevationField() const;
+    Field2D waterElevationField() const;
 
     /**
      * Returns the bathymetry field.
      */
-    FieldInfo bathymetryField() const;
+    Field2D bathymetryField() const;
 
     /**
      * Returns the equilibrium depth.
      */
-    FieldInfo H() const;
+    Field2D H() const;
 
     /**
      * Returns the sea surface deviation away from the equilibrium depth.
      */
-    FieldInfo eta() const;
+    Field2D eta() const;
 
     /**
      * Returns the depth averaged velocity in the x direction.
      */
-    FieldInfo U() const;
+    Field2D U() const;
 
     /**
      * Returns the depth averaged velocity in the y direction.
      */
-    FieldInfo V() const;
+    Field2D V() const;
 
 private:
     struct InitConditionsImpl;

@@ -1,64 +1,112 @@
 #include "field.h"
 #include <iostream>
 #include <iomanip>
+#include <cassert>
 
 using namespace std;
 
-FieldInfo::FieldInfo()
-    : nx(0)
-    , ny(0)
-    , dx(0)
-    , dy(0)
+Field2D::Field2D()
+    : nx_(0)
+    , ny_(0)
+    , dx_(0)
+    , dy_(0)
 {
-    data.reset(new std::vector<float>());
+    data_.reset(new std::vector<float>());
+    validate();
 }
 
-FieldInfo::FieldInfo(const FieldPtr &fp, int nx, int ny, float dx, float dy)
-    : data(data)
-    , nx(nx)
-    , ny(ny)
-    , dx(dx)
-    , dy(dy)
+Field2D::Field2D(const FieldPtr &data, int nx, int ny, float dx, float dy)
+    : data_(data)
+    , nx_(nx)
+    , ny_(ny)
+    , dx_(dx)
+    , dy_(dy)
 {
+    validate();
 }
 
-FieldInfo::FieldInfo(vector<float> *field, int nx, int ny, float dx, float dy)
-    : nx(nx)
-    , ny(ny)
-    , dx(dx)
-    , dy(dy)
+Field2D::Field2D(vector<float> *field, int nx, int ny, float dx, float dy)
+    : nx_(nx)
+    , ny_(ny)
+    , dx_(dx)
+    , dy_(dy)
 {
-    data.reset(field);
+    data_.reset(field);
+    validate();
 }
 
-FieldInfo::FieldInfo(const FieldInfo &other)
-    : nx(other.nx)
-    , ny(other.ny)
-    , dx(other.dx)
-    , dy(other.dy)
+Field2D::Field2D(const Field2D &other)
+    : nx_(other.nx_)
+    , ny_(other.ny_)
+    , dx_(other.dx_)
+    , dy_(other.dy_)
 {
-    data.reset(new vector<float>(*other.data.get()));
+    data_.reset(new vector<float>(*other.data_.get()));
+    validate();
 }
 
-/**
- * Returns a reference to the element at (i, j), where 0 <= i < nx and 0 <= j < ny.
- */
-float &FieldInfo::operator()(int i, int j) const
+void Field2D::validate() const
 {
-    return data->at(i + j * nx);
+    assert(nx_ >= 0);
+    assert(ny_ >= 0);
+    assert(data_->size() == nx_ * _ny);
+    assert((nx_ <= 0) || (dx_ > 0));
+    assert((ny_ <= 0) || (dy_ > 0));
 }
 
-bool FieldInfo::empty() const
+FieldPtr Field2D::data() const
 {
-    return data->empty();
+    return data_;
 }
 
-void FieldInfo::dump(const string &title) const
+int Field2D::nx() const
+{
+    return nx_;
+}
+
+int Field2D::ny() const
+{
+    return ny_;
+}
+
+float Field2D::dx() const
+{
+    return dx_;
+}
+
+float Field2D::dy() const
+{
+    return dy_;
+}
+
+float &Field2D::operator()(int i, int j) const
+{
+    return data_->at(i + j * nx_);
+}
+
+void Field2D::fill(float value)
+{
+    for (int i = 0; i < data_->size(); ++i)
+        data_->at(i) = value;
+}
+
+void Field2D::fill(const Field2D &src)
+{
+    assert(data_->size() == src.data_->size());
+    *data_.get() = *src.data_.get();
+}
+
+bool Field2D::empty() const
+{
+    return data_->empty();
+}
+
+void Field2D::dump(const string &title) const
 {
     if (!title.empty())
         cerr << title << endl;
-    cerr << "nx: " << nx << ", ny: " << ny << ", vector.size(): " << data->size() << endl << "values:" << endl;
-    for (int x = 0; x < nx; ++x)
-        for (int y = 0; y < ny; ++y)
+    cerr << "nx: " << nx_ << ", ny: " << ny_ << ", vector.size(): " << data_->size() << endl << "values:" << endl;
+    for (int x = 0; x < nx_; ++x)
+        for (int y = 0; y < ny_; ++y)
             cerr << setw(2) << "x: " << x << ", y: " << setw(2) << y << ", val: " << (*this)(x, y) << endl;
 }
