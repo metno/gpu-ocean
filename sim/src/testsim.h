@@ -11,7 +11,14 @@
 class TestSim : public SimBase
 {
 public:
-    TestSim(const OptionsPtr &, const InitCondPtr &);
+
+    /**
+     * Constructor.
+     * @param options: Program options.
+     * @param initCond: Initial conditions.
+     */
+    TestSim(const OptionsPtr &options, const InitCondPtr &initCond);
+
     virtual ~TestSim();
 
 private:
