@@ -36,101 +36,60 @@ __kernel void computeU (
     const float F = args.F;
     const float g = args.g;
 
-    // global indices ++
-    // assert(get_global_size(0) >= nx - 1)
-    // assert(get_global_size(1) >= ny - 1)
-    const int gx = get_global_id(0); // range: [0, nx - 2 + padding]
-    const int gy = get_global_id(1); // range: [0, ny - 2 + padding]
-    const int gnx = nx - 1;
+    // work item within group
+    const unsigned int lx = get_local_id(0);
+    const unsigned int ly = get_local_id(1);
 
-    // local indices ++
-    const int lx = get_local_id(0);
-    const int ly = get_local_id(1);
-    const int lnx = get_local_size(0); // assert(lnx == WGNX)
-    const int lny = get_local_size(1); // assert(lny == WGNY)
+   	// work item within domain
+    const unsigned int gx = get_global_id(0);
+    const unsigned int gy = get_global_id(1);
 
-    // global indices for U
-    const int guid_west = gx + 1 + gy * (nx + 2);
-    const int guid_east = gx + 2 + gy * (nx + 2);
-
-    // local and global indices for Hr_u
-    const int lhid_west = lx +     ly * (lnx + 1);
-    const int lhid_east = lx + 1 + ly * (lnx + 1);
-    const int ghid_west = gx +     gy * (gnx + 1);
-    const int ghid_east = gx + 1 + gy * (gnx + 1);
-
-    // local and global indices for eta
-    const int leid_west = lx     + ly * (lnx + 2);
-    const int leid      = lx + 1 + ly * (lnx + 2);
-    const int leid_east = lx + 2 + ly * (lnx + 2);
-    const int geid_west = gx     + (gy + 1) * (gnx + 2);
-    const int geid      = gx + 1 + (gy + 1) * (gnx + 2);
-    const int geid_east = gx + 2 + (gy + 1) * (gnx + 2);
-
-    // local and global indices for V
-    const int lvid_south     = lx + 1 +       ly * (lnx + 2);
-    const int lvid_north     = lx + 1 + (ly + 1) * (lnx + 2);
-    const int lvid_southeast = lx + 2 +       ly * (lnx + 2);
-    const int lvid_northeast = lx + 2 + (ly + 1) * (lnx + 2);
-    const int gvid_south     = gx +     (gy + 1) * gnx;
-    const int gvid_north     = gx +     (gy + 2) * gnx;
-    const int gvid_southeast = gx + 1 + (gy + 1) * gnx;
-    const int gvid_northeast = gx + 1 + (gy + 2) * gnx;
+    // local and global id (linearized index)
+    const unsigned int lid = lx + get_local_size(0) * ly;
+    const unsigned int gid = gx + (nx+2) * gy;
 
     // allocate local work-group memory for Hr_u, eta, and V
-    local float Hr_u_local[(WGNX + 1) * WGNY];
-    local float eta_local[(WGNX + 2) * WGNY];
-    local float V_local[(WGNX + 2) * (WGNY + 1)];
+    local float Hr_u_local[WGNX * WGNY];
+    local float eta_local[(WGNX + 1) * WGNY];
+    local float V_local[(WGNX + 1) * (WGNY + 1)];
 
     // copy Hr_u from global to local memory
-    Hr_u_local[lhid_east] = Hr_u[ghid_east];
-    if (lx == 0) // if we're at the west side of the work-group
-        Hr_u_local[lhid_west] = Hr_u[ghid_west];
+    Hr_u_local[lid] = Hr_u[gid];
 
     // copy eta from global to local memory
-    eta_local[leid] = eta[geid];
-    if (lx == 0) // if we're at the west side of the work-group
-        eta_local[leid_west] = eta[geid_west];
-    if (lx == lnx - 1) // if we're at the east side of the work-group
-        eta_local[leid_east] = eta[geid_east];
+    eta_local[lid] = eta[gid];
+    if(lx == WGNX-1) {
+    	eta_local[lid+1] = eta[gid+1];
+    }
 
     // copy V from global to local memory
-    if (gy == 0) { // if we're next to the southern ghost cell
-        if (gx == 0) // if we're next to the western ghost cell
-            V_local[lvid_south] = V[gvid_south];
-        if (gx < gnx - 1) // if we're not next to the eastern ghost cell
-            V_local[lvid_southeast] = V[gvid_southeast];
-    } else {
-        if (gx == 0) // if we're next to the western ghost cell
-            V_local[lvid_north] = V[gvid_north];
-        if (gx < gnx - 1) // if we're not next to the eastern ghost cell
-            V_local[lvid_northeast] = V[gvid_northeast];
+    V_local[lid] = V[gid];
+    if(lx == WGNX-1) {
+    	V_local[lid+1] = V[gid+1];
+    }
+    if(ly == WGNY-1) {
+        V_local[lid + (WGNX + 1)] = V[gid + (nx + 1)];
     }
 
     // ensure all work-items have copied their values to local memory before proceeding
     barrier(CLK_LOCAL_MEM_FENCE); // assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item
 
-    if (gx > nx - 2 || gy > ny - 2)
-        return; // quit if we're in the padding area
-
-    if (gx == 0) { // if we're next to the western ghost cell
-        // compute U on the western cell edge
-        const float Vr_west = 0.5f * (V_local[lvid_south] + V_local[lvid_north]); // linear interpolation
-        const float B_west = 1.0f + R * dt / Hr_u_local[lhid_west];
-        const float P_west = g * Hr_u_local[lhid_west] * (eta_local[leid] - eta_local[leid_west]) / dx;
-        U[guid_west] = 1.0f / B_west * (U[guid_west] + dt * (F * Vr_west - P_west));
-        //U[guid_west] = 0.0f;
+    // reconstructing V at U-positions
+    float Vr;
+    if (gy == 0 || gy == ny-2) {
+        Vr = 0.5f * (V_local[lid] + V_local[lid + 1]);
+    } else {
+    	Vr = 0.25f * (V_local[lid] + V_local[lid + (WGNX + 1)] + V_local[lid + 1] + V_local[lid + 1 + (WGNX + 1)]);
     }
 
-    // compute U on the eastern cell edge
-    float Vr_east;
-    if (gx == gnx - 1) { // linear interpolation if we're next to the eastern ghost cell
-        Vr_east = 0.5f * (V_local[lvid_south] + V_local[lvid_north]);
-    } else { // otherwise bilinear interpolation
-        Vr_east = 0.25f * (V_local[lvid_south] + V_local[lvid_north] + V_local[lvid_southeast] + V_local[lvid_northeast]);
+    const float B = 1.0f + R * dt / Hr_u_local[lid];
+    const float P = g * Hr_u_local[lid] * (eta_local[lid] - eta_local[lid + 1]) / dx;
+
+    if (gx < nx+2 && gy < ny-1) {
+    	//U[gid] = gid;
+    	U[gid] = 1.0f / B * (U[gid] + dt * (F * Vr - P));
+    	/*if (gy == 0 || gy == ny-2) {
+    		U[gid] = 13.0f;
+    	}*/
     }
-    const float B_east = 1.0f + R * dt / Hr_u_local[lhid_east];
-    const float P_east = g * Hr_u_local[lhid_east] * (eta_local[leid_east] - eta_local[leid]) / dx;
-    U[guid_east] = 1.0f / B_east * (U[guid_east] + dt * (F * Vr_east - P_east));
-    //U[guid_east] = 0.0f;
 }

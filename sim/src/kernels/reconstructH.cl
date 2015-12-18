@@ -33,8 +33,6 @@ __kernel void ReconstructH (
     // assert(get_global_size(1) >= ny + 1)
     const int gx = get_global_id(0); // range: [0, nx + padding]
     const int gy = get_global_id(1); // range: [0, ny + padding]
-    if (gx > nx || gy > ny)
-        return; // quit if we're in the padding area
     const int gid = gx + gy * (nx + 1); // range: [0, nx + ny * (nx + 1)]
 
     // local indices ++
@@ -64,6 +62,9 @@ __kernel void ReconstructH (
 
     // ensure all work-items have copied their values to local memory before proceeding
     barrier(CLK_LOCAL_MEM_FENCE); // assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item
+
+    if (gx > nx || gy > ny)
+        return; // quit if we're in the padding area
 
     // reconstruct using basic linear interpolation ...
     // ... at the western cell edge
