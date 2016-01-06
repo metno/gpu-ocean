@@ -37,37 +37,62 @@ __kernel void computeEta (
 	const unsigned int gy = get_global_id(1);
 
 	// local and global id (linearized index)
-	const unsigned int lid = lx + get_local_size(0) * ly;
-	const unsigned int gid = gx + (nx+1) * gy;
+	/// XXX: Check sizes in gmem. We may want to change them to allow easier indexing
+	const unsigned int gid = gx+1 + (nx+1) * gy; // eta (+1 to get western interface)
+	const unsigned int u_gid = gx + (nx+2) * gy;
+	const unsigned int v_gid = gx + (nx-1) * gy;
 
     // allocate local work-group memory for U and V
+	local float eta_local[WGNX * WGNY];
     local float U_local[(WGNX + 1) * (WGNY + 1)];
     local float V_local[(WGNX + 1) * (WGNY + 1)];
 
-    // copy U from global to local memory
-    U_local[lid] = U[gid];
-	if(lx == WGNX-1) {
-		U_local[lid+1] = U[gid+1];
+    // copy eta from global to local memory
+	eta_local[lx + ly * WGNX] = eta[gid];
+	/*if(lx == WGNX-1) {
+	  	eta_local[lx + ly * (WGNX + 1) + 1] = eta[gid + 1];
+	  	eta_local[lx + ly * (WGNX + 1) + 2] = eta[gid + 2];
 	}
 	if(ly == WGNY-1) {
-		U_local[lid + (WGNX + 1)] = U[gid + (nx + 1)];
-	}
+		eta_local[lx + ly * (WGNX + 1) + (WGNX + 1)] = eta[gid + (nx+1)];
+		eta_local[lx + ly * (WGNX + 1) + (WGNX + 1) + (WGNX + 1)] = eta[gid + (nx+1) + (nx+1)];
+	}*/
 
-    // copy V from global to local memory
-	V_local[lid] = V[gid];
+    // copy U and V from global to local memory
+    U_local[lx + ly * (WGNX + 1)] = U[u_gid];
+    V_local[lx + ly * (WGNX + 1)] = V[v_gid];
 	if(lx == WGNX-1) {
-		V_local[lid+1] = V[gid+1];
+		U_local[lx + ly * (WGNX + 1) + 1] = U[u_gid+1];
+		V_local[lx + ly * (WGNX + 1) + 1] = V[v_gid+1];
 	}
 	if(ly == WGNY-1) {
-		V_local[lid + (WGNX + 1)] = V[gid + (nx + 1)];
+		U_local[lx + ly * (WGNX + 1) + (WGNX + 1)] = U[u_gid + (nx + 2)];
+		V_local[lx + ly * (WGNX + 1) + (WGNX + 1)] = V[v_gid + (nx - 1)];
+	}
+	if(lx == WGNX-1 && ly == WGNY-1) { // upper-right corner
+		U_local[lx + ly * (WGNX + 1) + (WGNX + 1) + 1] = U[u_gid + (nx + 2) + 1];
+		V_local[lx + ly * (WGNX + 1) + (WGNX + 1) + 1] = V[v_gid + (nx - 1) + 1];
 	}
 
-    // ensure all work-items have copied their values to local memory before proceeding
-    barrier(CLK_LOCAL_MEM_FENCE); // assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item
+	// ensure all work-items have copied their values to local memory before proceeding
+	// assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item
+    barrier(CLK_LOCAL_MEM_FENCE);
 
-    if (gx < nx+1 && gy < ny+1) {
+    /*int n, e, s, w;
+
+    if (lx < WGNX && ly < WGNY && lx > 0 && ly > 0) {
+    	n = eta_local[lx + ly * (WGNX + 1) + (WGNX + 1)]; // (lx+1) and (ly+1) due to apron
+    	e = eta_local[lx + ly * (WGNX + 1) + 1];
+    	s = eta_local[lx + ly * (WGNX + 1) - (WGNX + 1)];
+    	w = eta_local[lx + ly * (WGNX + 1) - 1];
+    }*/
+
+    if (gx < nx+1 && gy < ny-1) {//ny+1) { <--- WHY??!?!1
     	//eta[gid] = gid;
-    	eta[gid] = eta[gid] - args.dt / args.dx * (U_local[lid + 1] - U_local[lid])
-                        	  - args.dt / args.dy * (V_local[lid] - V_local[lid + (WGNX + 1)]);
+    	//eta[gid] = 0.0f;
+    	//if(n || e || s || w)
+    		//eta[gid] = 1.0f;
+    	eta[gid] = eta[gid] - args.dt / args.dx * (U_local[lx + ly * (WGNX + 1) + 1] - U_local[lx + ly * (WGNX + 1)])
+                        	  - args.dt / args.dy * (V_local[lx + ly * (WGNX + 1) + (WGNX + 1)] - V_local[lx + ly * (WGNX + 1)]);
     }
 }

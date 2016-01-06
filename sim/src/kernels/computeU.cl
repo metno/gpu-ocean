@@ -46,7 +46,11 @@ __kernel void computeU (
 
     // local and global id (linearized index)
     const unsigned int lid = lx + get_local_size(0) * ly;
-    const unsigned int gid = gx + (nx+2) * gy;
+    /// XXX: Check sizes in gmem. We may want to change them to allow easier indexing
+    const unsigned int gid = gx + (nx+2) * gy; //U
+    const unsigned int eta_gid = gx + (nx+1) * gy;
+    const unsigned int v_gid = gx + (nx-1) * gy;
+    const unsigned int hr_u_gid = gx + nx * gy;
 
     // allocate local work-group memory for Hr_u, eta, and V
     local float Hr_u_local[WGNX * WGNY];
@@ -54,40 +58,47 @@ __kernel void computeU (
     local float V_local[(WGNX + 1) * (WGNY + 1)];
 
     // copy Hr_u from global to local memory
-    Hr_u_local[lid] = Hr_u[gid];
+    Hr_u_local[lid] = Hr_u[hr_u_gid];
 
     // copy eta from global to local memory
-    eta_local[lid] = eta[gid];
+    eta_local[lx + ly * (WGNX + 1)] = eta[eta_gid];
     if(lx == WGNX-1) {
-    	eta_local[lid+1] = eta[gid+1];
+    	eta_local[lx + ly * (WGNX + 1) + 1] = eta[eta_gid + 1];
     }
 
     // copy V from global to local memory
-    V_local[lid] = V[gid];
+    V_local[lx + ly * (WGNX + 1)] = V[v_gid];
     if(lx == WGNX-1) {
-    	V_local[lid+1] = V[gid+1];
+    	V_local[lx + ly * (WGNX + 1) + 1] = V[v_gid + 1];
     }
     if(ly == WGNY-1) {
-        V_local[lid + (WGNX + 1)] = V[gid + (nx + 1)];
+        V_local[lx + ly * (WGNX + 1) + (WGNX + 1)] = V[v_gid + (nx - 1)];
+    }
+    if(lx == WGNX-1 && ly == WGNY-1) { // upper-right corner
+    	V_local[lx + ly * (WGNX + 1) + (WGNX + 1) + 1] = V[v_gid + (nx - 1) + 1];
     }
 
     // ensure all work-items have copied their values to local memory before proceeding
-    barrier(CLK_LOCAL_MEM_FENCE); // assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item
+    // assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item
+    barrier(CLK_LOCAL_MEM_FENCE);
 
     // reconstructing V at U-positions
     float Vr;
     if (gy == 0 || gy == ny-2) {
-        Vr = 0.5f * (V_local[lid] + V_local[lid + 1]);
+        Vr = 0.5f * (V_local[lx + ly * (WGNX + 1)] + V_local[lx + ly * (WGNX + 1) + 1]);
     } else {
-    	Vr = 0.25f * (V_local[lid] + V_local[lid + (WGNX + 1)] + V_local[lid + 1] + V_local[lid + 1 + (WGNX + 1)]);
+    	Vr = 0.25f * (V_local[lx + ly * (WGNX + 1)] + V_local[lx + ly * (WGNX + 1) + (WGNX + 1)] +
+    			V_local[lx + ly * (WGNX + 1) + 1] + V_local[lx + ly * (WGNX + 1) + (WGNX + 1) + 1]);
     }
 
-    const float B = 1.0f + R * dt / Hr_u_local[lid];
-    const float P = g * Hr_u_local[lid] * (eta_local[lid] - eta_local[lid + 1]) / dx;
+    const float B = Hr_u_local[lid] / (Hr_u_local[lid] + R * dt);
+    const float P = g * Hr_u_local[lid] *
+    		(eta_local[lx + ly * (WGNX + 1)] - eta_local[lx + ly * (WGNX + 1) + 1]) / dx;
 
     if (gx < nx+2 && gy < ny-1) {
     	//U[gid] = gid;
-    	U[gid] = 1.0f / B * (U[gid] + dt * (F * Vr - P));
+    	//U[gid] = 0.0f;
+    	U[gid] = B * (U[gid] + dt * (F * Vr + P));
     	/*if (gy == 0 || gy == ny-2) {
     		U[gid] = 13.0f;
     	}*/
