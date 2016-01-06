@@ -47,7 +47,7 @@ __kernel void computeU (
     // local and global id (linearized index)
     const unsigned int lid = lx + get_local_size(0) * ly;
     /// XXX: Check sizes in gmem. We may want to change them to allow easier indexing
-    const unsigned int gid = gx + (nx+2) * gy; //U
+    const unsigned int gid = gx+1 + (nx+2) * gy; //U (+1 because we want the eastern interface)
     const unsigned int eta_gid = gx + (nx+1) * gy;
     const unsigned int v_gid = gx + (nx-1) * gy;
     const unsigned int hr_u_gid = gx + nx * gy;

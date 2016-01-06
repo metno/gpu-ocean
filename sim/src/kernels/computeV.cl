@@ -47,7 +47,7 @@ __kernel void computeV (
     // local and global id (linearized index)
     const unsigned int lid = lx + get_local_size(0) * ly;
     /// XXX: Check sizes in gmem. We may want to change them to allow easier indexing
-    const unsigned int gid = gx + (nx-1) * gy; //V
+    const unsigned int gid = gx + (nx-1) * (gy+1); //V (+1 because we want the northern interface)
 	const unsigned int eta_gid = gx + (nx+1) * gy;
 	const unsigned int u_gid = gx + (nx+2) * gy;
 	const unsigned int hr_v_gid = gx + (nx+1) * gy;
@@ -98,7 +98,7 @@ __kernel void computeV (
     if (gx < nx-1 && gy < ny-2) {//ny+2) { <--- WHY??!?!1
     	//V[gid] = gid;
     	//V[gid] = 0.0f;
-    	//V[gid] = B * (V[gid] + dt * (F * Ur + P));
+    	V[gid] = B * (V[gid] + dt * (F * Ur + P));
     	/*if (gx == 0 || gx == nx-2) {
     		V[gid] = 12.0f;
     	}*/

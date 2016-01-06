@@ -38,14 +38,14 @@ __kernel void computeEta (
 
 	// local and global id (linearized index)
 	/// XXX: Check sizes in gmem. We may want to change them to allow easier indexing
-	const unsigned int gid = gx+1 + (nx+1) * gy; // eta (+1 to get western interface)
+	const unsigned int gid = gx + (nx+1) * gy; // eta
 	const unsigned int u_gid = gx + (nx+2) * gy;
 	const unsigned int v_gid = gx + (nx-1) * gy;
 
     // allocate local work-group memory for U and V
 	local float eta_local[WGNX * WGNY];
-    local float U_local[(WGNX + 1) * (WGNY + 1)];
-    local float V_local[(WGNX + 1) * (WGNY + 1)];
+    local float U_local[(WGNX + 1) * WGNY];
+    local float V_local[WGNX * (WGNY + 1)];
 
     // copy eta from global to local memory
 	eta_local[lx + ly * WGNX] = eta[gid];
@@ -60,18 +60,12 @@ __kernel void computeEta (
 
     // copy U and V from global to local memory
     U_local[lx + ly * (WGNX + 1)] = U[u_gid];
-    V_local[lx + ly * (WGNX + 1)] = V[v_gid];
+    V_local[lx + ly * WGNX] = V[v_gid];
 	if(lx == WGNX-1) {
 		U_local[lx + ly * (WGNX + 1) + 1] = U[u_gid+1];
-		V_local[lx + ly * (WGNX + 1) + 1] = V[v_gid+1];
 	}
 	if(ly == WGNY-1) {
-		U_local[lx + ly * (WGNX + 1) + (WGNX + 1)] = U[u_gid + (nx + 2)];
-		V_local[lx + ly * (WGNX + 1) + (WGNX + 1)] = V[v_gid + (nx - 1)];
-	}
-	if(lx == WGNX-1 && ly == WGNY-1) { // upper-right corner
-		U_local[lx + ly * (WGNX + 1) + (WGNX + 1) + 1] = U[u_gid + (nx + 2) + 1];
-		V_local[lx + ly * (WGNX + 1) + (WGNX + 1) + 1] = V[v_gid + (nx - 1) + 1];
+		V_local[lx + ly * WGNX + WGNX] = V[v_gid + (nx - 1)];
 	}
 
 	// ensure all work-items have copied their values to local memory before proceeding
@@ -93,6 +87,6 @@ __kernel void computeEta (
     	//if(n || e || s || w)
     		//eta[gid] = 1.0f;
     	eta[gid] = eta[gid] - args.dt / args.dx * (U_local[lx + ly * (WGNX + 1) + 1] - U_local[lx + ly * (WGNX + 1)])
-                        	  - args.dt / args.dy * (V_local[lx + ly * (WGNX + 1) + (WGNX + 1)] - V_local[lx + ly * (WGNX + 1)]);
+                        	  - args.dt / args.dy * (V_local[lx + ly * WGNX + WGNX] - V_local[lx + ly * WGNX]);
     }
 }
