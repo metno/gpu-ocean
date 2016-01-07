@@ -50,7 +50,7 @@ __kernel void computeU (
     const unsigned int gid = gx+1 + (nx+2) * gy; //U (+1 because we want the eastern interface)
     const unsigned int eta_gid = gx + (nx+1) * gy;
     const unsigned int v_gid = gx + (nx-1) * gy;
-    const unsigned int hr_u_gid = gx + nx * gy;
+    const unsigned int hr_u_gid = gx+1 + nx * gy; //(+1 because we want the eastern interface)
 
     // allocate local work-group memory for Hr_u, eta, and V
     local float Hr_u_local[WGNX * WGNY];
@@ -84,8 +84,10 @@ __kernel void computeU (
 
     // reconstructing V at U-positions
     float Vr;
-    if (gy == 0 || gy == ny-2) {
-        Vr = 0.5f * (V_local[lx + ly * (WGNX + 1)] + V_local[lx + ly * (WGNX + 1) + 1]);
+    if (gy == 0) {
+        Vr = 0.5f * (V_local[lx + (ly+1) * (WGNX + 1)] + V_local[lx + (ly+1) * (WGNX + 1) + 1]); //(+1 we never use the outer V-values)
+    } else if (gy == ny-2) {
+    	Vr = 0.5f * (V_local[lx + (ly-1) * (WGNX + 1)] + V_local[lx + (ly-1) * (WGNX + 1) + 1]); //(-1 we never use the outer V-values)
     } else {
     	Vr = 0.25f * (V_local[lx + ly * (WGNX + 1)] + V_local[lx + ly * (WGNX + 1) + (WGNX + 1)] +
     			V_local[lx + ly * (WGNX + 1) + 1] + V_local[lx + ly * (WGNX + 1) + (WGNX + 1) + 1]);

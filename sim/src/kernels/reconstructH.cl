@@ -28,49 +28,39 @@ __kernel void ReconstructH (
     const int nx = args.nx;
     const int ny = args.ny;
 
-    // global indices ++
-    // assert(get_global_size(0) >= nx + 1)
-    // assert(get_global_size(1) >= ny + 1)
-    const int gx = get_global_id(0); // range: [0, nx + padding]
-    const int gy = get_global_id(1); // range: [0, ny + padding]
-    const int gid = gx + gy * (nx + 1); // range: [0, nx + ny * (nx + 1)]
+    // work item within group
+	const unsigned int lx = get_local_id(0);
+	const unsigned int ly = get_local_id(1);
 
-    // local indices ++
-    const int lx = get_local_id(0);
-    const int ly = get_local_id(1);
-    const int lnx = get_local_size(0); // assert(lnx == WGNX)
-    const int lny = get_local_size(1); // assert(lny == WGNY)
+	// work item within domain
+	const unsigned int gx = get_global_id(0);
+	const unsigned int gy = get_global_id(1);
 
-    // local indices ++ in H_local (extended to accommodate neighbors to the west and south)
-    const int lex = lx + 1;
-    const int ley = ly + 1;
-    const int lenx = lnx + 1;
-    const int leny = lny + 1;
-    const int leid = lex + ley * lenx;
-    const int leid_east = lex - 1 + ley * lenx;
-    const int leid_south = lex + (ley - 1) * lenx;
+	// local and global id (linearized index)
+	/// XXX: Check sizes in gmem. We may want to change them to allow easier indexing
+	const int gid = gx + gy * (nx + 1); // H
+	const unsigned int hr_u_gid = gx+1 + nx * gy; //(+1 because we want the eastern interface)
+	const unsigned int hr_v_gid = gx + (nx + 1) * (gy+1); //(+1 because we want the northern interface)
 
-    // allocate local work-group memory for H
-    local float H_local[(WGNX + 1) * (WGNY + 1)];
+	// allocate local work-group memory for U and V
+	local float H_local[(WGNX + 1) * (WGNY + 1)];
 
-    // copy H from global to local memory
-    H_local[leid] = H[gid]; // copy to this cell
-    if ((lx == 0) && (gx > 0)) // only if we're at the west side of the work-group, but not if we're at the west side of the global domain
-        H_local[ley * lenx] = H[(gx - 1) + gy * (nx + 1)]; // copy to neighbor cell to the west
-    if ((ly == 0) && (gy > 0)) // only if we're at the south side of the work-group, but not if we're at the south side of the global domain
-        H_local[lex] = H[gx + (gy - 1) * (nx + 1)]; // copy to neighbor cell to the south
+	// copy H from global to local memory
+	H_local[lx + ly * (WGNX + 1)] = H[gid];
+	if(lx == WGNX-1) {
+		H_local[lx + ly * (WGNX + 1) + 1] = H[gid+1];
+	}
+	if(ly == WGNY-1) {
+		H_local[lx + ly * (WGNX + 1) + (WGNX + 1)] = H[gid + (nx + 1)];
+	}
 
     // ensure all work-items have copied their values to local memory before proceeding
     barrier(CLK_LOCAL_MEM_FENCE); // assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item
 
-    if (gx > nx || gy > ny)
-        return; // quit if we're in the padding area
-
-    // reconstruct using basic linear interpolation ...
-    // ... at the western cell edge
-    if (gx > 0) // only if we're not a western ghost cell
-        Hr_u[gx - 1 + gy * nx] = 0.5 * (H_local[leid_east] + H_local[leid]);
-    // ... at the southern cell edge
-    if (gy > 0) // only if we're not a southern ghost cell
-        Hr_v[gx + (gy - 1) * (nx + 1)] = 0.5 * (H_local[leid_south] + H_local[leid]);
+    if (gx < nx || gy < ny+1) {
+		Hr_u[hr_u_gid] = 0.5 * (H_local[lx + ly * (WGNX+1) + 1] + H_local[lx + ly * (WGNX+1)]);
+    }
+	if (gx < nx+1 || gy < ny) {
+        Hr_v[hr_v_gid] = 0.5 * (H_local[lx + ly * (WGNX+1) + (WGNX+1)] + H_local[lx + ly * (WGNX+1)]);
+    }
 }
