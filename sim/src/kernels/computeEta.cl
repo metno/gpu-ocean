@@ -49,14 +49,6 @@ __kernel void computeEta (
 
     // copy eta from global to local memory
 	eta_local[lx + ly * WGNX] = eta[gid];
-	/*if(lx == WGNX-1) {
-	  	eta_local[lx + ly * (WGNX + 1) + 1] = eta[gid + 1];
-	  	eta_local[lx + ly * (WGNX + 1) + 2] = eta[gid + 2];
-	}
-	if(ly == WGNY-1) {
-		eta_local[lx + ly * (WGNX + 1) + (WGNX + 1)] = eta[gid + (nx+1)];
-		eta_local[lx + ly * (WGNX + 1) + (WGNX + 1) + (WGNX + 1)] = eta[gid + (nx+1) + (nx+1)];
-	}*/
 
     // copy U and V from global to local memory
     U_local[lx + ly * (WGNX + 1)] = U[u_gid];
@@ -72,6 +64,7 @@ __kernel void computeEta (
 	// assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item
     barrier(CLK_LOCAL_MEM_FENCE);
 
+    //DEBUG
     /*int n, e, s, w;
 
     if (lx < WGNX && ly < WGNY && lx > 0 && ly > 0) {

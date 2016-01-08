@@ -100,7 +100,7 @@ __kernel void computeV (
     if (gx < nx-1 && gy < ny-2) {//ny+2) { <--- WHY??!?!1
     	//V[gid] = gid;
     	//V[gid] = 0.0f;
-    	V[gid] = B * (V[gid] + dt * (F * Ur + P));
+    	V[gid] = B * (V[gid] + dt * (-F * Ur + P));
     	/*if (gx == 0 || gx == nx-2) {
     		V[gid] = 12.0f;
     	}*/
