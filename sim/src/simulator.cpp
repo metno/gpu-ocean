@@ -52,16 +52,16 @@ Simulator::SimulatorImpl::SimulatorImpl()
 
 void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr &initCond)
 {
-    nx = initCond->nx();
-    ny = initCond->ny();
-    dx = initCond->dx();
-    dy = initCond->dy();
-    dt = std::min(dx, dy) * 0.001; // ### for now
-    R = 1; // ### no influence for now
-    F = 1; // ### no influence for now
-    g = 9.8;
-    currTime = 0;
-    maxTime = options->duration();
+	nx = initCond->nx();
+	ny = initCond->ny();
+	dx = initCond->dx();
+	dy = initCond->dy();
+	dt = std::min(dx, dy) * 0.001; // ### for now
+	R = 0.0024;
+	F = 0.f; // ### no influence for now
+	g = 9.8;
+	currTime = 0;
+	maxTime = options->duration();
 
     cl_int error = CL_SUCCESS;
 
