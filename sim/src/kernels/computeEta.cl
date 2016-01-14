@@ -64,21 +64,8 @@ __kernel void computeEta (
 	// assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    //DEBUG
-    /*int n, e, s, w;
 
-    if (lx < WGNX && ly < WGNY && lx > 0 && ly > 0) {
-    	n = eta_local[lx + ly * (WGNX + 1) + (WGNX + 1)]; // (lx+1) and (ly+1) due to apron
-    	e = eta_local[lx + ly * (WGNX + 1) + 1];
-    	s = eta_local[lx + ly * (WGNX + 1) - (WGNX + 1)];
-    	w = eta_local[lx + ly * (WGNX + 1) - 1];
-    }*/
-
-    if (gx < nx+1 && gy < ny-1) {//ny+1) { <--- WHY??!?!1
-    	//eta[gid] = gid;
-    	//eta[gid] = 0.0f;
-    	//if(n || e || s || w)
-    		//eta[gid] = 1.0f;
+    if (gx < nx+1 && gy < ny+1) {
     	eta[gid] = eta[gid] - args.dt / args.dx * (U_local[lx + ly * (WGNX + 1) + 1] - U_local[lx + ly * (WGNX + 1)])
                         	  - args.dt / args.dy * (V_local[lx + ly * WGNX + WGNX] - V_local[lx + ly * WGNX]);
     }

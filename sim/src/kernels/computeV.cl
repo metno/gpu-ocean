@@ -97,12 +97,7 @@ __kernel void computeV (
     const float P = g * Hr_v_local[lid] *
     		(eta_local[lx + ly * WGNX] - eta_local[lx + ly * WGNX + WGNX]) / dy;
 
-    if (gx < nx-1 && gy < ny-2) {//ny+2) { <--- WHY??!?!1
-    	//V[gid] = gid;
-    	//V[gid] = 0.0f;
+    if (gx < nx-1 && gy < ny+2) {
     	V[gid] = B * (V[gid] + dt * (-F * Ur + P));
-    	/*if (gx == 0 || gx == nx-2) {
-    		V[gid] = 12.0f;
-    	}*/
     }
 }

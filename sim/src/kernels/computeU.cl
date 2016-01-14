@@ -98,11 +98,6 @@ __kernel void computeU (
     		(eta_local[lx + ly * (WGNX + 1)] - eta_local[lx + ly * (WGNX + 1) + 1]) / dx;
 
     if (gx < nx+2 && gy < ny-1) {
-    	//U[gid] = gid;
-    	//U[gid] = 0.0f;
     	U[gid] = B * (U[gid] + dt * (F * Vr + P));
-    	/*if (gy == 0 || gy == ny-2) {
-    		U[gid] = 13.0f;
-    	}*/
     }
 }
