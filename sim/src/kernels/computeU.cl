@@ -83,7 +83,7 @@ __kernel void computeU (
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // reconstructing V at U-positions
-    float Vr;
+    float Vr = 0.0f;
     if (gy == 0) {
         Vr = 0.5f * (V_local[lx + (ly+1) * (WGNX + 1)] + V_local[lx + (ly+1) * (WGNX + 1) + 1]); //(+1 we never use the outer V-values)
     } else if (gy == ny-2) {

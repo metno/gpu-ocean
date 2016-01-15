@@ -76,7 +76,7 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
     const int nx_U = nx + 2;
     const int ny_U = ny - 1;
     _U = Field2D(new vector<float>(nx_U * ny_U), nx_U, ny_U, dx, dy);
-    _U.fill(0.0);
+    _U.fill(0.0f);
     U = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * _U.data()->size(), _U.data()->data(), &error);
     CL_CHECK(error);
 
@@ -84,7 +84,7 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
     const int nx_V = nx - 1;
     const int ny_V = ny + 2;
     _V = Field2D(new vector<float>(nx_V * ny_V), nx_V, ny_V, dx, dy);
-    _V.fill(0.0);
+    _V.fill(0.0f);
     V = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * _V.data()->size(), _V.data()->data(), &error);
     CL_CHECK(error);
 
@@ -116,7 +116,7 @@ static cl::NDRange global2DWorkSize(int nx, int ny, int lnx, int lny)
     assert(ny > 0);
     assert(lnx > 0);
     assert(lny > 0);
-    return cl::NDRange(lnx * idivceil(nx, lnx), lny * idivceil(ny, lny));
+    return cl::NDRange(lnx * idivceil(nx+1, lnx), lny * idivceil(ny+1, lny)); ///XXX: remove +1 when BC are implemented
 }
 
 /**

@@ -43,12 +43,8 @@ __kernel void computeEta (
 	const unsigned int v_gid = gx + (nx-1) * gy;
 
     // allocate local work-group memory for U and V
-	local float eta_local[WGNX * WGNY];
     local float U_local[(WGNX + 1) * WGNY];
     local float V_local[WGNX * (WGNY + 1)];
-
-    // copy eta from global to local memory
-	eta_local[lx + ly * WGNX] = eta[gid];
 
     // copy U and V from global to local memory
     U_local[lx + ly * (WGNX + 1)] = U[u_gid];
@@ -63,7 +59,6 @@ __kernel void computeEta (
 	// ensure all work-items have copied their values to local memory before proceeding
 	// assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item
     barrier(CLK_LOCAL_MEM_FENCE);
-
 
     if (gx < nx+1 && gy < ny+1) {
     	eta[gid] = eta[gid] - args.dt / args.dx * (U_local[lx + ly * (WGNX + 1) + 1] - U_local[lx + ly * (WGNX + 1)])

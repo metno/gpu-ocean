@@ -49,7 +49,7 @@ void Field2D::validate() const
 {
     assert(nx_ >= 0);
     assert(ny_ >= 0);
-    assert(data_->size() == nx_ * _ny);
+    assert(data_->size() == nx_ * ny_);
     assert((nx_ <= 0) || (dx_ > 0));
     assert((ny_ <= 0) || (dy_ > 0));
 }
