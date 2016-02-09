@@ -41,7 +41,7 @@ public:
     int waterElevationNo() const;
 
     /**
-     * Returns the type of initial, generated athymetry (0..4), or < 0 if not set.
+     * Returns the type of initial, generated bathymetry (0..4), or < 0 if not set.
      */
     int bathymetryNo() const;
 
