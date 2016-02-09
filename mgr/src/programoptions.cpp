@@ -167,7 +167,6 @@ void ProgramOptions::assertInitialized() const
 
 string ProgramOptions::message() const
 {
-    assertInitialized();
     return pimpl->msg;
 }
 
