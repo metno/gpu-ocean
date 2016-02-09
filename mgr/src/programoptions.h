@@ -58,7 +58,7 @@ public:
     /**
      * Returns true or false to indicate if the computation runs on the CPU or GPU respectively.
      */
-    float cpu() const;
+    bool cpu() const;
 
     /**
      * Returns the name of the file used for reading input in NetCDF format, or an empty string for no input.

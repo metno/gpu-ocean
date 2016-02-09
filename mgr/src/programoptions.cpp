@@ -244,7 +244,7 @@ double ProgramOptions::wallDuration() const
     return pimpl->wallDuration;
 }
 
-float ProgramOptions::cpu() const
+bool ProgramOptions::cpu() const
 {
     assertInitialized();
     return pimpl->cpu;
