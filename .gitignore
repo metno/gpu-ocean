@@ -3,4 +3,4 @@
 /.project
 /.settings/
 .ipynb_checkpoints/
-.pyc
+*.pyc
