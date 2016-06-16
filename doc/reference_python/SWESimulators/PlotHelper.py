@@ -22,6 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 from matplotlib import pyplot as plt
+import matplotlib.gridspec as gridspec
 import numpy as np
 import time
 
@@ -30,50 +31,57 @@ Class that makes plotting faster by caching the plots instead of recreating them
 """
 class PlotHelper:
 
-    def __init__(self, fig, x_coords, y_coords, radius, eta1, u1, v1, interpolation_type='spline36'):
+    def __init__(self, fig, x_coords, y_coords, radius, eta1, u1, v1, eta2=None, u2=None, v2=None, interpolation_type='spline36'):
         self.ny, self.nx = eta1.shape
         self.fig = fig;
         
         domain_extent = [ x_coords[0, 0], x_coords[0, -1], y_coords[0, 0], y_coords[-1, 0] ]
         
-        ax = self.fig.add_subplot(2,3,1)
+        if (eta2 is not None):
+            assert(u2 is not None)
+            assert(v2 is not None)
+            self.gs = gridspec.GridSpec(3, 3)
+        else:
+            self.gs = gridspec.GridSpec(2, 3)
+        
+        ax = self.fig.add_subplot(self.gs[0, 0])
         self.sp_eta = plt.imshow(eta1, interpolation=interpolation_type, origin='bottom', vmin=-0.5, vmax=0.5, extent=domain_extent)
         plt.axis('tight')
         ax.set_aspect('equal')
         plt.title('Eta')
         plt.colorbar()
         
-        ax = self.fig.add_subplot(2,3,2)
+        ax = self.fig.add_subplot(self.gs[0, 1])
         self.sp_u = plt.imshow(u1, interpolation=interpolation_type, origin='bottom', vmin=-1.5, vmax=1.5, extent=domain_extent)
         plt.axis('tight')
         ax.set_aspect('equal')
         plt.title('U')
         plt.colorbar()
         
-        ax = self.fig.add_subplot(2,3,3)
+        ax = self.fig.add_subplot(self.gs[0, 2])
         self.sp_v = plt.imshow(v1, interpolation=interpolation_type, origin='bottom', vmin=-1.5, vmax=1.5, extent=domain_extent)
         plt.axis('tight')
         ax.set_aspect('equal')
         plt.title('V')
         plt.colorbar()
             
-        self.fig.add_subplot(2,3,4)
-        self.sp_radial, = plt.plot(radius.ravel(), eta1.ravel(), '.')
+        ax = self.fig.add_subplot(self.gs[1, 0])
+        self.sp_radial1, = plt.plot(radius.ravel(), eta1.ravel(), '.')
         plt.axis([0, 500, -1.5, 1])
         plt.title('Eta Radial plot')
 
-        self.fig.add_subplot(2,3,5)
-        self.sp_x_axis, = plt.plot(x_coords[self.ny/2,:], eta1[self.ny/2,:], 'k+--', label='x-axis')
-        self.sp_y_axis, = plt.plot(y_coords[:,self.nx/2], eta1[:,self.nx/2], 'kx:', label='y-axis')
+        ax = self.fig.add_subplot(self.gs[1, 1])
+        self.sp_x_axis1, = plt.plot(x_coords[self.ny/2,:], eta1[self.ny/2,:], 'k+--', label='x-axis')
+        self.sp_y_axis1, = plt.plot(y_coords[:,self.nx/2], eta1[:,self.nx/2], 'kx:', label='y-axis')
         plt.axis([-500, 500, -1.5, 1])
         plt.title('Eta along axis')
         plt.legend()
 
-        self.fig.add_subplot(2,3,6)
-        self.sp_x_diag, = plt.plot(1.41*np.diagonal(x_coords, offset=-abs(self.nx-self.ny)/2), \
+        ax = self.fig.add_subplot(self.gs[1, 2])
+        self.sp_x_diag1, = plt.plot(1.41*np.diagonal(x_coords, offset=-abs(self.nx-self.ny)/2), \
                                    np.diagonal(eta1, offset=-abs(self.nx-self.ny)/2), \
                                    'k+--', label='x = -y')
-        self.sp_y_diag, = plt.plot(1.41*np.diagonal(y_coords.T, offset=abs(self.nx-self.ny)/2), \
+        self.sp_y_diag1, = plt.plot(1.41*np.diagonal(y_coords.T, offset=abs(self.nx-self.ny)/2), \
                                    np.diagonal(eta1.T, offset=abs(self.nx-self.ny)/2), \
                                    'kx:', label='x = y')
         plt.axis([-500, 500, -1.5, 1])
@@ -81,29 +89,66 @@ class PlotHelper:
         plt.legend()
         
         
+        if (eta2 is not None):
+            ax = self.fig.add_subplot(self.gs[2, 0])
+            self.sp_radial2, = plt.plot(radius.ravel(), eta2.ravel(), '.')
+            plt.axis([0, 500, -1.5, 1])
+            plt.title('Eta2 Radial plot')
+
+            ax = self.fig.add_subplot(self.gs[2, 1])
+            self.sp_x_axis2, = plt.plot(x_coords[self.ny/2,:], eta2[self.ny/2,:], 'k+--', label='x-axis')
+            self.sp_y_axis2, = plt.plot(y_coords[:,self.nx/2], eta2[:,self.nx/2], 'kx:', label='y-axis')
+            plt.axis([-500, 500, -1.5, 1])
+            plt.title('Eta2 along axis')
+            plt.legend()
+
+            ax = self.fig.add_subplot(self.gs[2, 2])
+            self.sp_x_diag2, = plt.plot(1.41*np.diagonal(x_coords, offset=-abs(self.nx-self.ny)/2), \
+                                       np.diagonal(eta2, offset=-abs(self.nx-self.ny)/2), \
+                                       'k+--', label='x = -y')
+            self.sp_y_diag2, = plt.plot(1.41*np.diagonal(y_coords.T, offset=abs(self.nx-self.ny)/2), \
+                                       np.diagonal(eta2.T, offset=abs(self.nx-self.ny)/2), \
+                                       'kx:', label='x = y')
+            plt.axis([-500, 500, -1.5, 1])
+            plt.title('Eta2 along diagonal')
+            plt.legend()
         
         
         
-    def plot(self, eta1, u1, v1):
-        self.fig.add_subplot(2,3,1)
+        
+        
+    def plot(self, eta1, u1, v1, eta2=None, u2=None, v2=None):
+        self.fig.add_subplot(self.gs[0, 0])
         self.sp_eta.set_data(eta1)
 
-        self.fig.add_subplot(2,3,2)
+        self.fig.add_subplot(self.gs[0, 1])
         self.sp_u.set_data(u1)
 
-        self.fig.add_subplot(2,3,3)
+        self.fig.add_subplot(self.gs[0, 2])
         self.sp_v.set_data(v1)
             
-        self.fig.add_subplot(2,3,4)
-        self.sp_radial.set_ydata(eta1.ravel());
+        self.fig.add_subplot(self.gs[1, 0])
+        self.sp_radial1.set_ydata(eta1.ravel());
 
-        self.fig.add_subplot(2,3,5)
-        self.sp_x_axis.set_ydata(eta1[(self.ny+2)/2,:])
-        self.sp_y_axis.set_ydata(eta1[:,(self.nx+2)/2])
+        self.fig.add_subplot(self.gs[1, 1])
+        self.sp_x_axis1.set_ydata(eta1[(self.ny+2)/2,:])
+        self.sp_y_axis1.set_ydata(eta1[:,(self.nx+2)/2])
 
-        self.fig.add_subplot    (2,3,6)
-        self.sp_x_diag.set_ydata(np.diagonal(eta1, offset=-abs(self.nx-self.ny)/2))
-        self.sp_y_diag.set_ydata(np.diagonal(eta1.T, offset=abs(self.nx-self.ny)/2))
+        self.fig.add_subplot(self.gs[1, 2])
+        self.sp_x_diag1.set_ydata(np.diagonal(eta1, offset=-abs(self.nx-self.ny)/2))
+        self.sp_y_diag1.set_ydata(np.diagonal(eta1.T, offset=abs(self.nx-self.ny)/2))
+        
+        if (eta2 is not None):
+            self.fig.add_subplot(self.gs[2, 0])
+            self.sp_radial2.set_ydata(eta2.ravel());
+
+            self.fig.add_subplot(self.gs[2, 1])
+            self.sp_x_axis2.set_ydata(eta2[(self.ny+2)/2,:])
+            self.sp_y_axis2.set_ydata(eta2[:,(self.nx+2)/2])
+
+            self.fig.add_subplot(self.gs[2, 2])
+            self.sp_x_diag2.set_ydata(np.diagonal(eta2, offset=-abs(self.nx-self.ny)/2))
+            self.sp_y_diag2.set_ydata(np.diagonal(eta2.T, offset=abs(self.nx-self.ny)/2))
         
         plt.draw()
         time.sleep(0.1)
