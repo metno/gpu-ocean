@@ -130,13 +130,29 @@ class KP07:
     dy: Grid cell spacing along y-axis (20 000 m)
     dt: Size of each timestep (90 s)
     g: Gravitational accelleration (9.81 m/s^2)
+    f: Coriolis parameter (1.2e-4 s^1)
+    r: Bottom friction coefficient (2.4e-3 m/s)
+    wind_type: Type of wind stress, 0=Uniform along shore, 1=bell shaped along shore, 2=moving cyclone
+    wind_tau0: Amplitude of wind stress (Pa)
+    wind_rho: Density of sea water (1025.0 kg / m^3)
+    wind_alpha: Offshore e-folding length (1/(10*dx) = 5e-6 m^-1)
+    wind_xm: Maximum wind stress for bell shaped wind stress
+    wind_Rc: Distance to max wind stress from center of cyclone (10dx = 200 000 m)
+    wind_x0: Initial x position of moving cyclone (dx*(nx/2) - u0*3600.0*48.0)
+    wind_y0: Initial y position of moving cyclone (dy*(ny/2) - v0*3600.0*48.0)
+    wind_u0: Translation speed along x for moving cyclone (30.0/sqrt(5.0))
+    wind_v0: Translation speed along y for moving cyclone (-0.5*u0)
     """
     def __init__(self, \
                  h0, u0, v0, \
                  nx, ny, \
                  dx, dy, dt, \
-                 g, \
-                 theta=1.3, use_rk2=True):
+                 g, f, r, \
+                 theta=1.3, use_rk2=True,
+                 wind_type=99, # "no wind" \
+                 wind_tau0=0, wind_rho=0, wind_alpha=0, wind_xm=0, wind_Rc=0, \
+                 wind_x0=0, wind_y0=0, \
+                 wind_u0=0, wind_v0=0):
         #Make sure we get compiler output from OpenCL
         os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
 
@@ -165,8 +181,20 @@ class KP07:
         self.dy = np.float32(dy)
         self.dt = np.float32(dt)
         self.g = np.float32(g)
+        self.f = np.float32(f)
+        self.r = np.float32(r)
         self.theta = np.float32(theta)
         self.use_rk2 = use_rk2
+        self.wind_type = np.int32(wind_type)
+        self.wind_tau0 = np.float32(wind_tau0)
+        self.wind_rho = np.float32(wind_rho)
+        self.wind_alpha = np.float32(wind_alpha)
+        self.wind_xm = np.float32(wind_xm)
+        self.wind_Rc = np.float32(wind_Rc)
+        self.wind_x0 = np.float32(wind_x0)
+        self.wind_y0 = np.float32(wind_y0)
+        self.wind_u0 = np.float32(wind_u0)
+        self.wind_v0 = np.float32(wind_v0)
         
         #Initialize time
         self.t = np.float32(0.0)
@@ -199,38 +227,59 @@ class KP07:
                         self.dx, self.dy, local_dt, \
                         self.g, \
                         self.theta, \
+                        self.f, \
+                        self.r, \
                         np.int32(0), \
                         self.cl_data.h0, self.cl_data.h0_pitch, \
                         self.cl_data.u0, self.cl_data.u0_pitch, \
                         self.cl_data.v0, self.cl_data.v0_pitch, \
                         self.cl_data.h1, self.cl_data.h1_pitch, \
                         self.cl_data.u1, self.cl_data.u1_pitch, \
-                        self.cl_data.v1, self.cl_data.v1_pitch)
+                        self.cl_data.v1, self.cl_data.v1_pitch, \
+                        self.wind_type, \
+                        self.wind_tau0, self.wind_rho, self.wind_alpha, self.wind_xm, self.wind_Rc, \
+                        self.wind_x0, self.wind_y0, \
+                        self.wind_u0, self.wind_v0, \
+                        self.t)
                 self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
                         self.dx, self.dy, local_dt, \
                         self.g, \
                         self.theta, \
+                        self.f, \
+                        self.r, \
                         np.int32(1), \
                         self.cl_data.h1, self.cl_data.h1_pitch, \
                         self.cl_data.u1, self.cl_data.u1_pitch, \
                         self.cl_data.v1, self.cl_data.v1_pitch, \
                         self.cl_data.h0, self.cl_data.h0_pitch, \
                         self.cl_data.u0, self.cl_data.u0_pitch, \
-                        self.cl_data.v0, self.cl_data.v0_pitch)
+                        self.cl_data.v0, self.cl_data.v0_pitch, \
+                        self.wind_type, \
+                        self.wind_tau0, self.wind_rho, self.wind_alpha, self.wind_xm, self.wind_Rc, \
+                        self.wind_x0, self.wind_y0, \
+                        self.wind_u0, self.wind_v0, \
+                        self.t)
             else:
                 self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
                         self.dx, self.dy, local_dt, \
                         self.g, \
                         self.theta, \
+                        self.f, \
+                        self.r, \
                         np.int32(0), \
                         self.cl_data.h0, self.cl_data.h0_pitch, \
                         self.cl_data.u0, self.cl_data.u0_pitch, \
                         self.cl_data.v0, self.cl_data.v0_pitch, \
                         self.cl_data.h1, self.cl_data.h1_pitch, \
                         self.cl_data.u1, self.cl_data.u1_pitch, \
-                        self.cl_data.v1, self.cl_data.v1_pitch)
+                        self.cl_data.v1, self.cl_data.v1_pitch, \
+                        self.wind_type, \
+                        self.wind_tau0, self.wind_rho, self.wind_alpha, self.wind_xm, self.wind_Rc, \
+                        self.wind_x0, self.wind_y0, \
+                        self.wind_u0, self.wind_v0, \
+                        self.t)
                 self.cl_data.swap()
                 
             self.t += local_dt

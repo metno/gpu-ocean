@@ -38,6 +38,13 @@ float3 F_func(const float3 Q, const float g) {
     return F;
 }
 
+
+
+
+
+
+
+
 float3 G_func(const float3 Q, const float g) {
     float3 G;
 
@@ -47,6 +54,11 @@ float3 G_func(const float3 Q, const float g) {
 
     return G;
 }
+
+
+
+
+
 
 
 
@@ -68,6 +80,11 @@ float3 F_fluxfunc(const float3 Qm, float3 Qp, const float g) {
 
 
 
+
+
+
+
+
 float3 G_fluxfunc(const float3 Qm, float3 Qp, const float g) {
     const float3 Gp = G_func(Qp, g);
     const float vp = Qp.z / Qp.x;   // hv / h
@@ -85,6 +102,12 @@ float3 G_fluxfunc(const float3 Qm, float3 Qp, const float g) {
 
 
 
+
+
+
+
+
+
 /**
  * @return min(a, b, c), {a, b, c} > 0
  *         max(a, b, c), {a, b, c} < 0
@@ -97,6 +120,12 @@ float minmod(float a, float b, float c) {
 		*(copysign(1.0f, b) + copysign(1.0f, c))
 		*min( min(fabs(a), fabs(b)), fabs(c) );
 }
+
+
+
+
+
+
 
 /**
   * Reconstructs a slope using the minmod limiter based on three 
@@ -116,6 +145,89 @@ float reconstructSlope(float left, float center, float right, float theta) {
 
 
 
+float windStressX(int wind_stress_type_,
+                float dx_, float dy_, float dt_,
+                float tau0_, float rho_, float alpha_, float xm_, float Rc_,
+                float x0_, float y0_,
+                float u0_, float v0_,
+                float t_) {
+    
+    float X = 0.0f;
+    
+    switch (wind_stress_type_) {
+    case 0: //UNIFORM_ALONGSHORE
+        {
+            const float y = (get_global_id(1)+0.5f)*dy_;
+            X = tau0_/rho_ * exp(-alpha_*y);
+        }
+        break;
+    case 1: //BELL_SHAPED_ALONGSHORE
+        if (t_ <= 48.0f*3600.0f) {
+            const float a = alpha_*((get_global_id(0)+0.5f)*dx_-xm_);
+            const float aa = a*a;
+            const float y = (get_global_id(1)+0.5f)*dy_;
+            X = tau0_/rho_ * exp(-aa) * exp(-alpha_*y);
+        }
+        break;
+    case 2: //MOVING_CYCLONE
+        {
+            const float x = (get_global_id(0))*dx_;
+            const float y = (get_global_id(1)+0.5f)*dy_;
+            const float a = (x-x0_-u0_*(t_+dt_));
+            const float aa = a*a;
+            const float b = (y-y0_-v0_*(t_+dt_));
+            const float bb = b*b;
+            const float r = sqrt(aa+bb);
+            const float c = 1.0f - r/Rc_;
+            const float xi = c*c;
+            
+            X = -(tau0_/rho_) * (b/Rc_) * exp(-0.5f*xi);
+        }
+        break;
+    }
+
+    return X;
+}
+
+
+
+
+
+
+float windStressY(int wind_stress_type_,
+                float dx_, float dy_, float dt_,
+                float tau0_, float rho_, float alpha_, float xm_, float Rc_,
+                float x0_, float y0_,
+                float u0_, float v0_,
+                float t_) {
+    float Y = 0.0f;
+    
+    switch (wind_stress_type_) {
+    case 2: //MOVING_CYCLONE:
+        {
+            const float x = (get_global_id(0)+0.5f)*dx_; 
+            const float y = (get_global_id(1))*dy_;
+            const float a = (x-x0_-u0_*(t_+dt_));
+            const float aa = a*a;
+            const float b = (y-y0_-v0_*(t_+dt_));
+            const float bb = b*b;
+            const float r = sqrt(aa+bb);
+            const float c = 1.0f - r/Rc_;
+            const float xi = c*c;
+            
+            Y = (tau0_/rho_) * (a/Rc_) * exp(-0.5f*xi);
+        }
+        break;
+    }
+
+    return Y;
+}
+
+
+
+
+
+
 
 
 
@@ -127,6 +239,9 @@ __kernel void swe_2D(
         
         float theta_,
         
+        float f_, //< Coriolis coefficient
+        float r_, //< Bottom friction coefficient
+        
         int step_,
         
         //Input h^n
@@ -137,7 +252,14 @@ __kernel void swe_2D(
         //Output h^{n+1}
         __global float* h1_ptr_, int h1_pitch_,
         __global float* hu1_ptr_, int hu1_pitch_,
-        __global float* hv1_ptr_, int hv1_pitch_) {
+        __global float* hv1_ptr_, int hv1_pitch_,
+        
+        //Wind stress parameters
+        int wind_stress_type_, 
+        float tau0_, float rho_, float alpha_, float xm_, float Rc_,
+        float x0_, float y0_,
+        float u0_, float v0_,
+        float t_) {
         
     //Index of thread within block
     const int tx = get_local_id(0);
@@ -317,23 +439,42 @@ __kernel void swe_2D(
         const int i = tx + 2; //Skip local ghost cells, i.e., +2
         const int j = ty + 2;
         
+        const float X = windStressX(
+            wind_stress_type_, 
+            dx_, dy_, dt_,
+            tau0_, rho_, alpha_, xm_, Rc_,
+            x0_, y0_,
+            u0_, v0_,
+            t_);
+        const float Y = windStressY(
+            wind_stress_type_, 
+            dx_, dy_, dt_,
+            tau0_, rho_, alpha_, xm_, Rc_,
+            x0_, y0_,
+            u0_, v0_,
+            t_);
+        
         const float h1  = Q[0][j][i] + (F[0][ty][tx] - F[0][ty  ][tx+1]) * dt_ / dx_ 
                                      + (G[0][ty][tx] - G[0][ty+1][tx  ]) * dt_ / dy_;
         const float hu1 = Q[1][j][i] + (F[1][ty][tx] - F[1][ty  ][tx+1]) * dt_ / dx_ 
-                                     + (G[1][ty][tx] - G[1][ty+1][tx  ]) * dt_ / dy_;
+                                     + (G[1][ty][tx] - G[1][ty+1][tx  ]) * dt_ / dy_
+                                     + dt_*X - dt_*f_*Q[2][j][i];
         const float hv1 = Q[2][j][i] + (F[2][ty][tx] - F[2][ty  ][tx+1]) * dt_ / dx_ 
-                                     + (G[2][ty][tx] - G[2][ty+1][tx  ]) * dt_ / dy_;
+                                     + (G[2][ty][tx] - G[2][ty+1][tx  ]) * dt_ / dy_
+                                     + dt_*Y + dt_*f_*Q[1][j][i];
 
         __global float* const h_row  = (__global float*) ((__global char*) h1_ptr_ + h1_pitch_*tj);
         __global float* const hu_row = (__global float*) ((__global char*) hu1_ptr_ + hu1_pitch_*tj);
         __global float* const hv_row = (__global float*) ((__global char*) hv1_ptr_ + hv1_pitch_*tj);
         
+        const float C = 2.0f*r_*dt_/Q[0][j][i];
+                    
         if  (step_ == 0) {
             //First step of RK2 ODE integrator
             
             h_row[ti] = h1;
-            hu_row[ti] = hu1;
-            hv_row[ti] = hv1;
+            hu_row[ti] = hu1 / (1.0f + C);
+            hv_row[ti] = hv1 / (1.0f + C);
         }
         else if (step_ == 1) {
             //Second step of RK2 ODE integrator
@@ -350,8 +491,8 @@ __kernel void swe_2D(
             
             //Write to main memory
             h_row[ti] = h_b;
-            hu_row[ti] = hu_b;
-            hv_row[ti] = hv_b;
+            hu_row[ti] = hu_b / (1.0f + 0.5f*C);
+            hv_row[ti] = hv_b / (1.0f + 0.5f*C);
         }
     }
     
