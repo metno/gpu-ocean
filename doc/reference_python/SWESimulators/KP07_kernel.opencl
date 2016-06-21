@@ -45,21 +45,6 @@ float3 F_func(const float3 Q, const float g) {
 
 
 
-float3 G_func(const float3 Q, const float g) {
-    float3 G;
-
-    G.x = Q.z;                              //hv
-    G.y = Q.y*Q.z / Q.x;                    //hu*hv/h;
-    G.z = Q.z*Q.z / Q.x + 0.5f*g*Q.x*Q.x;   //hv*hv/h + 0.5f*g*h*h;
-
-    return G;
-}
-
-
-
-
-
-
 
 
 float3 F_fluxfunc(const float3 Qm, float3 Qp, const float g) {
@@ -77,28 +62,6 @@ float3 F_fluxfunc(const float3 Qm, float3 Qp, const float g) {
     return ((ap*Fm - am*Fp) + ap*am*(Qp-Qm))/(ap-am);
 }
 
-
-
-
-
-
-
-
-
-float3 G_fluxfunc(const float3 Qm, float3 Qp, const float g) {
-    const float3 Gp = G_func(Qp, g);
-    const float vp = Qp.z / Qp.x;   // hv / h
-    const float cp = sqrt(g*Qp.x); // sqrt(g*h)
-
-    const float3 Gm = G_func(Qm, g);
-    const float vm = Qm.z / Qm.x;   // hv / h
-    const float cm = sqrt(g*Qm.x); // sqrt(g*h)
-    
-    const float am = min(min(vm-cm, vp-cp), 0.0f); // largest negative wave speed
-    const float ap = max(max(vm+cm, vp+cp), 0.0f); // largest positive wave speed
-    
-    return ((ap*Gm - am*Gp) + ap*am*(Qp-Qm))/(ap-am);
-}
 
 
 
@@ -414,18 +377,20 @@ __kernel void swe_2D(
         for (int i=tx; i<block_width; i+=get_local_size(0)) {            
             const int k = i + 2; //Skip ghost cells
             // Q at interface from the right and left
+            // Note that we swap hu and hv
             const float3 Qp = (float3)(Q[0][l+1][k] - 0.5f*Qy[0][j+1][i],
-                                       Q[1][l+1][k] - 0.5f*Qy[1][j+1][i],
-                                       Q[2][l+1][k] - 0.5f*Qy[2][j+1][i]);
+                                       Q[2][l+1][k] - 0.5f*Qy[2][j+1][i],
+                                       Q[1][l+1][k] - 0.5f*Qy[1][j+1][i]);
             const float3 Qm = (float3)(Q[0][l  ][k] + 0.5f*Qy[0][j  ][i],
-                                       Q[1][l  ][k] + 0.5f*Qy[1][j  ][i],
-                                       Q[2][l  ][k] + 0.5f*Qy[2][j  ][i]);
+                                       Q[2][l  ][k] + 0.5f*Qy[2][j  ][i],
+                                       Q[1][l  ][k] + 0.5f*Qy[1][j  ][i]);
                                        
             // Computed flux
-            const float3 flux = G_fluxfunc(Qm, Qp, g_);
+            // Note that we swap back
+            const float3 flux = F_fluxfunc(Qm, Qp, g_);
             G[0][j][i] = flux.x;
-            G[1][j][i] = flux.y;
-            G[2][j][i] = flux.z;
+            G[1][j][i] = flux.z;
+            G[2][j][i] = flux.y;
         }
     }
     __syncthreads();
