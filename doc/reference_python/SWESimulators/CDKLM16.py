@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
 
 """
-This python module implements the Kurganov-Petrova numerical scheme 
-for the shallow water equations, described in 
-A. Kurganov & Guergana Petrova
-A Second-Order Well-Balanced Positivity Preserving Central-Upwind
-Scheme for the Saint-Venant System Communications in Mathematical
-Sciences, 5 (2007), 133-160. 
+This python module implements 
+Alina Chertock, Michael Dudzinski, A. Kurganov & Maria Lukacova-Medvidova (2016)
+Well-Balanced Schemes for the Shallow Water Equations with Coriolis Forces
 
 Copyright (C) 2016  SINTEF ICT
 
@@ -39,7 +36,7 @@ import pyopencl as cl #OpenCL in Python
 """
 Class that holds data for the SW equations in OpenCL
 """
-class KP07DataCL:
+class CDKLM16DataCL:
     """
     Uploads initial data to the CL device
     """
@@ -57,12 +54,12 @@ class KP07DataCL:
             v0 = v0.astype(np.float32, order='C')
         
         self.ny, self.nx = h0.shape
-        self.nx -= 4
-        self.ny -= 4
+        self.nx -= 6
+        self.ny -= 6
 
-        assert(h0.shape == (self.ny+4, self.nx+4))
-        assert(u0.shape == (self.ny+4, self.nx+4))
-        assert(v0.shape == (self.ny+4, self.nx+4))
+        assert(h0.shape == (self.ny+6, self.nx+6))
+        assert(u0.shape == (self.ny+6, self.nx+6))
+        assert(v0.shape == (self.ny+6, self.nx+6))
 
         #Upload data to the device
         mf = cl.mem_flags
@@ -70,17 +67,17 @@ class KP07DataCL:
         self.u0 = cl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=u0)
         self.v0 = cl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=v0)
         
-        self.h0_pitch = np.int32((self.nx+4)*4)
-        self.u0_pitch = np.int32((self.nx+4)*4)
-        self.v0_pitch = np.int32((self.nx+4)*4)
+        self.h0_pitch = np.int32((self.nx+6)*4)
+        self.u0_pitch = np.int32((self.nx+6)*4)
+        self.v0_pitch = np.int32((self.nx+6)*4)
         
-        self.h1 = cl.Buffer(cl_ctx, mf.READ_WRITE, h0.nbytes)
-        self.u1 = cl.Buffer(cl_ctx, mf.READ_WRITE, h0.nbytes)
-        self.v1 = cl.Buffer(cl_ctx, mf.READ_WRITE, h0.nbytes)
+        self.h1 = cl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=h0)
+        self.u1 = cl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=u0)
+        self.v1 = cl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=v0)
         
-        self.h1_pitch = np.int32((self.nx+4)*4)
-        self.u1_pitch = np.int32((self.nx+4)*4)
-        self.v1_pitch = np.int32((self.nx+4)*4)
+        self.h1_pitch = np.int32((self.nx+6)*4)
+        self.u1_pitch = np.int32((self.nx+6)*4)
+        self.v1_pitch = np.int32((self.nx+6)*4)
         
     """
     Swaps the variables after a timestep has been completed
@@ -95,9 +92,9 @@ class KP07DataCL:
     """
     def download(self, cl_queue):
         #Allocate data on the host for result
-        h1 = np.empty((self.ny+4, self.nx+4), dtype=np.float32, order='C')
-        u1 = np.empty((self.ny+4, self.nx+4), dtype=np.float32, order='C')
-        v1 = np.empty((self.ny+4, self.nx+4), dtype=np.float32, order='C')
+        h1 = np.empty((self.ny+6, self.nx+6), dtype=np.float32, order='C')
+        u1 = np.empty((self.ny+6, self.nx+6), dtype=np.float32, order='C')
+        v1 = np.empty((self.ny+6, self.nx+6), dtype=np.float32, order='C')
         
         #Copy data from device to host
         cl.enqueue_copy(cl_queue, h1, self.h0)
@@ -117,7 +114,7 @@ class KP07DataCL:
 """
 Class that solves the SW equations using the Forward-Backward linear scheme
 """
-class KP07:
+class CDKLM16:
 
     """
     Initialization routine
@@ -167,10 +164,12 @@ class KP07:
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
 
         #Get kernels
-        self.kp07_kernel = self.get_kernel("KP07_kernel.opencl")
+        self.kernel = self.get_kernel("CDKLM16_kernel.opencl")
         
         #Create data by uploading to device
-        self.cl_data = KP07DataCL(self.cl_ctx, h0, u0, v0)
+        self.cl_data = CDKLM16DataCL(self.cl_ctx, h0, u0, v0)
+        assert(self.cl_data.nx == nx)
+        assert(self.cl_data.ny == ny)
         
         #Save input parameters
         #Notice that we need to specify them in the correct dataformat for the
@@ -222,7 +221,7 @@ class KP07:
                 break
         
             if (self.use_rk2):
-                self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
+                self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
                         self.dx, self.dy, local_dt, \
                         self.g, \
@@ -241,7 +240,7 @@ class KP07:
                         self.wind_x0, self.wind_y0, \
                         self.wind_u0, self.wind_v0, \
                         self.t)
-                self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
+                self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
                         self.dx, self.dy, local_dt, \
                         self.g, \
@@ -261,7 +260,7 @@ class KP07:
                         self.wind_u0, self.wind_v0, \
                         self.t)
             else:
-                self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
+                self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
                         self.dx, self.dy, local_dt, \
                         self.g, \

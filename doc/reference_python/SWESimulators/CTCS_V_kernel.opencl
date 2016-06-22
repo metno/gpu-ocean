@@ -245,7 +245,7 @@ __kernel void computeVKernel(
         x0_, y0_,
         u0_, v0_,
         t_);
-    
+
     //Compute the V at the next timestep
     float V2 = (V0 + 2.0f*dt_*(-f_*U_bar + (N + P_y)/dy_ + Y + A_*E) ) / C;
 

@@ -27,13 +27,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define block_width 8
 
 
-
 float3 F_func(const float3 Q, const float g) {
     float3 F;
 
-    F.x = Q.y;                              //hu
-    F.y = Q.y*Q.y / Q.x + 0.5f*g*Q.x*Q.x;   //hu*hu/h + 0.5f*g*h*h;
-    F.z = Q.y*Q.z / Q.x;                    //hu*hv/h;
+    F.x = Q.x*Q.y;                        //h*u
+    F.y = Q.x*Q.y*Q.y + 0.5f*g*Q.x*Q.x;   //h*u*u + 0.5f*g*h*h;
+    F.z = Q.x*Q.y*Q.z;                    //h*u*v;
 
     return F;
 }
@@ -45,24 +44,27 @@ float3 F_func(const float3 Q, const float g) {
 
 
 
-
-
 float3 F_fluxfunc(const float3 Qm, float3 Qp, const float g) {
     const float3 Fp = F_func(Qp, g);
-    const float up = Qp.y / Qp.x;   // hu / h
+    const float up = Qp.y;         // u
     const float cp = sqrt(g*Qp.x); // sqrt(g*h)
 
     const float3 Fm = F_func(Qm, g);
-    const float um = Qm.y / Qm.x;   // hu / h
+    const float um = Qm.y;         // u
     const float cm = sqrt(g*Qm.x); // sqrt(g*h)
     
     const float am = min(min(um-cm, up-cp), 0.0f); // largest negative wave speed
     const float ap = max(max(um+cm, up+cp), 0.0f); // largest positive wave speed
     
-    return ((ap*Fm - am*Fp) + ap*am*(Qp-Qm))/(ap-am);
+    float3 F;
+    
+    F.x = ((ap*Fm.x - am*Fp.x) + ap*am*(Qp.x-Qm.x))/(ap-am);
+    F.y = ((ap*Fm.y - am*Fp.y) + ap*am*(Qp.y-Qm.y))/(ap-am);
+    //  F.z = ((ap*Fm.z - am*Fp.z) + ap*am*(Qp.z-Qm.z))/(ap-am);
+    F.z = (Qm.y + Qp.y > 0) ? Fm.z : Fp.z; //Upwinding
+    
+    return F;
 }
-
-
 
 
 
@@ -233,13 +235,18 @@ __kernel void swe_2D(
     const int by = get_local_size(1) * get_group_id(1);
 
     //Index of cell within domain
-    const int ti = get_global_id(0) + 2; //Skip global ghost cells, i.e., +2
-    const int tj = get_global_id(1) + 2;
+    const int ti = get_global_id(0) + 3; //Skip global ghost cells, i.e., +3
+    const int tj = get_global_id(1) + 3;
     
-    //Shared memory variables
-    __local float Q[3][block_height+4][block_width+4];
-    __local float Qx[3][block_height][block_width+2];
-    __local float Qy[3][block_height+2][block_width];
+    // Our physical variables
+    __local float R[3][block_height+6][block_width+6];
+    
+    // Our reconstruction variables
+    __local float Q[4][block_height+4][block_width+4];
+    __local float Qx[4][block_height][block_width+2];
+    __local float Qy[4][block_height+2][block_width];
+    
+    // Our fluxes
     __local float F[3][block_height][block_width+1];
     __local float G[3][block_height+1][block_width];
     
@@ -248,20 +255,20 @@ __kernel void swe_2D(
     
     
     //Read into shared memory
-    for (int j=ty; j<block_height+4; j+=get_local_size(1)) {
-        const int l = clamp(by + j, 0, ny_+3); // Out of bounds
+    for (int j=ty; j<block_height+6; j+=get_local_size(1)) {
+        const int l = clamp(by + j, 0, ny_+5); // Out of bounds
         
         //Compute the pointer to current row in the arrays
         __global float* const h_row = (__global float*) ((__global char*) h0_ptr_ + h0_pitch_*l);
         __global float* const hu_row = (__global float*) ((__global char*) hu0_ptr_ + hu0_pitch_*l);
         __global float* const hv_row = (__global float*) ((__global char*) hv0_ptr_ + hv0_pitch_*l);
         
-        for (int i=tx; i<block_width+4; i+=get_local_size(0)) {
-            const int k = clamp(bx + i, 0, nx_+3); // Out of bounds
+        for (int i=tx; i<block_width+6; i+=get_local_size(0)) {
+            const int k = clamp(bx + i, 0, nx_+5); // Out of bounds
             
-            Q[0][j][i] = h_row[k];
-            Q[1][j][i] = hu_row[k];
-            Q[2][j][i] = hv_row[k];
+            R[0][j][i] = h_row[k];
+            R[1][j][i] = hu_row[k];
+            R[2][j][i] = hv_row[k];
         }
     }
     __syncthreads();
@@ -276,47 +283,96 @@ __kernel void swe_2D(
     
     //Fix boundary conditions
     {
-        const int i = tx + 2; //Skip local ghost cells, i.e., +2
-        const int j = ty + 2;
+        const int i = tx + 3; //Skip local ghost cells, i.e., +3
+        const int j = ty + 3;
         
-        if (ti == 2) {
-            Q[0][j][i-1] =  Q[0][j][i];
-            Q[1][j][i-1] = -Q[1][j][i];
-            Q[2][j][i-1] =  Q[2][j][i];
+        if (ti == 3) {
+            R[0][j][i-1] =  R[0][j][i];
+            R[1][j][i-1] = -R[1][j][i];
+            R[2][j][i-1] =  R[2][j][i];
             
-            Q[0][j][i-2] =  Q[0][j][i+1];
-            Q[1][j][i-2] = -Q[1][j][i+1];
-            Q[2][j][i-2] =  Q[2][j][i+1];
+            R[0][j][i-2] =  R[0][j][i+1];
+            R[1][j][i-2] = -R[1][j][i+1];
+            R[2][j][i-2] =  R[2][j][i+1];
+            
+            R[0][j][i-3] =  R[0][j][i+2];
+            R[1][j][i-3] = -R[1][j][i+2];
+            R[2][j][i-3] =  R[2][j][i+2];
         }
-        if (ti == nx_+1) {
-            Q[0][j][i+1] =  Q[0][j][i];
-            Q[1][j][i+1] = -Q[1][j][i];
-            Q[2][j][i+1] =  Q[2][j][i];
+        if (ti == nx_+2) {
+            R[0][j][i+1] =  R[0][j][i];
+            R[1][j][i+1] = -R[1][j][i];
+            R[2][j][i+1] =  R[2][j][i];
             
-            Q[0][j][i+2] =  Q[0][j][i-1];
-            Q[1][j][i+2] = -Q[1][j][i-1];
-            Q[2][j][i+2] =  Q[2][j][i-1];
+            R[0][j][i+2] =  R[0][j][i-1];
+            R[1][j][i+2] = -R[1][j][i-1];
+            R[2][j][i+2] =  R[2][j][i-1];
+            
+            R[0][j][i+3] =  R[0][j][i-2];
+            R[1][j][i+3] = -R[1][j][i-2];
+            R[2][j][i+3] =  R[2][j][i-2];
         }
-        if (tj == 2) {
-            Q[0][j-1][i] =  Q[0][j][i];
-            Q[1][j-1][i] =  Q[1][j][i];
-            Q[2][j-1][i] = -Q[2][j][i];
+        if (tj == 3) {
+            R[0][j-1][i] =  R[0][j][i];
+            R[1][j-1][i] =  R[1][j][i];
+            R[2][j-1][i] = -R[2][j][i];
             
-            Q[0][j-2][i] =  Q[0][j+1][i];
-            Q[1][j-2][i] =  Q[1][j+1][i];
-            Q[2][j-2][i] = -Q[2][j+1][i];
+            R[0][j-2][i] =  R[0][j+1][i];
+            R[1][j-2][i] =  R[1][j+1][i];
+            R[2][j-2][i] = -R[2][j+1][i];
+            
+            R[0][j-3][i] =  R[0][j+2][i];
+            R[1][j-3][i] =  R[1][j+2][i];
+            R[2][j-3][i] = -R[2][j+2][i];
         }
-        if (tj == ny_+1) {
-            Q[0][j+1][i] =  Q[0][j][i];
-            Q[1][j+1][i] =  Q[1][j][i];
-            Q[2][j+1][i] = -Q[2][j][i];
+        if (tj == ny_+2) {
+            R[0][j+1][i] =  R[0][j][i];
+            R[1][j+1][i] =  R[1][j][i];
+            R[2][j+1][i] = -R[2][j][i];
             
-            Q[0][j+2][i] =  Q[0][j-1][i];
-            Q[1][j+2][i] =  Q[1][j-1][i];
-            Q[2][j+2][i] = -Q[2][j-1][i];
+            R[0][j+2][i] =  R[0][j-1][i];
+            R[1][j+2][i] =  R[1][j-1][i];
+            R[2][j+2][i] = -R[2][j-1][i];
+            
+            R[0][j+3][i] =  R[0][j-2][i];
+            R[1][j+3][i] =  R[1][j-2][i];
+            R[2][j+3][i] = -R[2][j-2][i];
         }
     }
     __syncthreads();
+    
+    
+    
+    
+    
+    
+    //Create our "steady state" reconstruction variables (u, v, K, L)
+    for (int j=ty; j<block_height+4; j+=get_local_size(1)) {
+        const int l = j + 1; //Skip one "ghost cell row" of Q, going from 6x6 to 4x4 "halo"
+        for (int i=tx; i<block_width+4; i+=get_local_size(0)) {
+            const int k = i + 1;
+            
+            const float h = R[0][l][k];
+            const float u = R[1][l][k] / h;
+            const float v = R[2][l][k] / h;
+            
+            const float B = 0.0f;
+            const float U = 0.25f * f_/g_ * (1.0*R[1][l+1][k]/R[0][l+1][k] + 2.0f*u + 1.0f*R[1][l-1][k]/R[0][l-1][k]);
+            const float V = 0.25f * f_/g_ * (1.0*R[2][l][k+1]/R[0][l][k+1] + 2.0f*v + 1.0f*R[2][l][k-1]/R[0][l][k-1]);
+            //const float U = f_/g_ * u;
+            //const float V = f_/g_ * v;
+            const float K = h + B - V;
+            const float L = h + B + U;
+            
+            Q[0][j][i] = u;
+            Q[1][j][i] = v;
+            Q[2][j][i] = K;
+            Q[3][j][i] = L;         
+        }
+    }
+    __syncthreads();
+    
+    
     
     
     
@@ -326,7 +382,7 @@ __kernel void swe_2D(
         const int l = j + 2; //Skip ghost cells
         for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
             const int k = i + 1;
-            for (int p=0; p<3; ++p) {
+            for (int p=0; p<4; ++p) {
                 Qx[p][j][i] = reconstructSlope(Q[p][l][k-1], Q[p][l][k], Q[p][l][k+1], theta_);
             }
         }
@@ -337,7 +393,7 @@ __kernel void swe_2D(
         const int l = j + 1;
         for (int i=tx; i<block_width; i+=get_local_size(0)) {            
             const int k = i + 2; //Skip ghost cells
-            for (int p=0; p<3; ++p) {
+            for (int p=0; p<4; ++p) {
                 Qy[p][j][i] = reconstructSlope(Q[p][l-1][k], Q[p][l][k], Q[p][l+1][k], theta_);
             }
         }
@@ -352,16 +408,33 @@ __kernel void swe_2D(
     
     //Compute fluxes along the x axis
     for (int j=ty; j<block_height; j+=get_local_size(1)) {
-        const int l = j + 2; //Skip ghost cells
+        const int l = j + 2; //Skip ghost cells (be consistent with reconstruction offsets)
         for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
             const int k = i + 1;
-            // Q at interface from the right and left
-            const float3 Qp = (float3)(Q[0][l][k+1] - 0.5f*Qx[0][j][i+1],
+
+            // R=(u, v, K, L) reconstructed at a cell interface from the right (p) and left (m)
+            const float4 Rp = (float4)(Q[0][l][k+1] - 0.5f*Qx[0][j][i+1],
                                        Q[1][l][k+1] - 0.5f*Qx[1][j][i+1],
-                                       Q[2][l][k+1] - 0.5f*Qx[2][j][i+1]);
-            const float3 Qm = (float3)(Q[0][l][k  ] + 0.5f*Qx[0][j][i  ],
+                                       Q[2][l][k+1] - 0.5f*Qx[2][j][i+1],
+                                       Q[3][l][k+1] - 0.5f*Qx[3][j][i+1]);
+            const float4 Rm = (float4)(Q[0][l][k  ] + 0.5f*Qx[0][j][i  ],
                                        Q[1][l][k  ] + 0.5f*Qx[1][j][i  ],
-                                       Q[2][l][k  ] + 0.5f*Qx[2][j][i  ]);
+                                       Q[2][l][k  ] + 0.5f*Qx[2][j][i  ],
+                                       Q[3][l][k  ] + 0.5f*Qx[3][j][i  ]);
+
+            // Variables to reconstruct h from u, v, K, L
+            const float vp = Q[1][l][k+1];
+            const float vm = Q[1][l][k  ];
+            const float V = 0.5f * f_/g_ * (vp + vm);
+            const float B = 0.0f;
+            
+            // Reconstruct h = K/g + V - B
+            const float hp = Rp.z + V - B;
+            const float hm = Rm.z + V - B;
+            
+            // Our flux variables Q=(h, u, v)
+            const float3 Qp = (float3)(hp, Rp.x, Rp.y);
+            const float3 Qm = (float3)(hm, Rm.x, Rm.y);
                                        
             // Computed flux
             const float3 flux = F_fluxfunc(Qm, Qp, g_);
@@ -374,19 +447,35 @@ __kernel void swe_2D(
     //Compute fluxes along the y axis
     for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
         const int l = j + 1;
-        for (int i=tx; i<block_width; i+=get_local_size(0)) {            
+        for (int i=tx; i<block_width; i+=get_local_size(0)) {
             const int k = i + 2; //Skip ghost cells
             // Q at interface from the right and left
-            // Note that we swap hu and hv
-            const float3 Qp = (float3)(Q[0][l+1][k] - 0.5f*Qy[0][j+1][i],
+            const float4 Rp = (float4)(Q[0][l+1][k] - 0.5f*Qy[0][j+1][i],
+                                       Q[1][l+1][k] - 0.5f*Qy[1][j+1][i],
                                        Q[2][l+1][k] - 0.5f*Qy[2][j+1][i],
-                                       Q[1][l+1][k] - 0.5f*Qy[1][j+1][i]);
-            const float3 Qm = (float3)(Q[0][l  ][k] + 0.5f*Qy[0][j  ][i],
+                                       Q[3][l+1][k] - 0.5f*Qy[3][j+1][i]);
+            const float4 Rm = (float4)(Q[0][l  ][k] + 0.5f*Qy[0][j  ][i],
+                                       Q[1][l  ][k] + 0.5f*Qy[1][j  ][i],
                                        Q[2][l  ][k] + 0.5f*Qy[2][j  ][i],
-                                       Q[1][l  ][k] + 0.5f*Qy[1][j  ][i]);
-                                       
+                                       Q[3][l  ][k] + 0.5f*Qy[3][j  ][i]);
+              
+            // Variables to reconstruct h from u, v, K, L
+            const float up = Q[0][l+1][k];
+            const float um = Q[0][l  ][k];
+            const float U = 0.5f * f_/g_ * (up + um);
+            const float B = 0.0f;
+            
+            // Reconstruct h = L/g - U - B
+            const float hp = Rp.w - U - B;
+            const float hm = Rm.w - U - B;
+            
+            // Our flux variables Q=(h, v, u)
+            // Note that we swap u and v
+            const float3 Qp = (float3)(hp, Rp.y, Rp.x);
+            const float3 Qm = (float3)(hm, Rm.y, Rm.x);
+            
             // Computed flux
-            // Note that we swap back
+            // Note that we swap back u and v
             const float3 flux = F_fluxfunc(Qm, Qp, g_);
             G[0][j][i] = flux.x;
             G[1][j][i] = flux.z;
@@ -400,9 +489,9 @@ __kernel void swe_2D(
     
     
     //Sum fluxes and advance in time for all internal cells
-    if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
-        const int i = tx + 2; //Skip local ghost cells, i.e., +2
-        const int j = ty + 2;
+    if (ti > 2 && ti < nx_+3 && tj > 2 && tj < ny_+3) {
+        const int i = tx + 3; //Skip local ghost cells, i.e., +2
+        const int j = ty + 3;
         
         const float X = windStressX(
             wind_stress_type_, 
@@ -419,20 +508,20 @@ __kernel void swe_2D(
             u0_, v0_,
             t_);
         
-        const float h1  = Q[0][j][i] + (F[0][ty][tx] - F[0][ty  ][tx+1]) * dt_ / dx_ 
+        const float h1  = R[0][j][i] + (F[0][ty][tx] - F[0][ty  ][tx+1]) * dt_ / dx_ 
                                      + (G[0][ty][tx] - G[0][ty+1][tx  ]) * dt_ / dy_;
-        const float hu1 = Q[1][j][i] + (F[1][ty][tx] - F[1][ty  ][tx+1]) * dt_ / dx_ 
+        const float hu1 = R[1][j][i] + (F[1][ty][tx] - F[1][ty  ][tx+1]) * dt_ / dx_ 
                                      + (G[1][ty][tx] - G[1][ty+1][tx  ]) * dt_ / dy_
-                                     + dt_*X - dt_*f_*Q[2][j][i];
-        const float hv1 = Q[2][j][i] + (F[2][ty][tx] - F[2][ty  ][tx+1]) * dt_ / dx_ 
+                                     + dt_*X - dt_*f_*R[2][j][i];
+        const float hv1 = R[2][j][i] + (F[2][ty][tx] - F[2][ty  ][tx+1]) * dt_ / dx_ 
                                      + (G[2][ty][tx] - G[2][ty+1][tx  ]) * dt_ / dy_
-                                     + dt_*Y + dt_*f_*Q[1][j][i];
+                                     + dt_*Y + dt_*f_*R[1][j][i];
 
         __global float* const h_row  = (__global float*) ((__global char*) h1_ptr_ + h1_pitch_*tj);
         __global float* const hu_row = (__global float*) ((__global char*) hu1_ptr_ + hu1_pitch_*tj);
         __global float* const hv_row = (__global float*) ((__global char*) hv1_ptr_ + hv1_pitch_*tj);
         
-        const float C = 2.0f*r_*dt_/Q[0][j][i];
+        const float C = 2.0f*r_*dt_/R[0][j][i];
                     
         if  (step_ == 0) {
             //First step of RK2 ODE integrator

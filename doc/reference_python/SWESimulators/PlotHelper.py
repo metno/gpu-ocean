@@ -151,6 +151,6 @@ class PlotHelper:
             self.sp_y_diag2.set_ydata(np.diagonal(eta2.T, offset=abs(self.nx-self.ny)/2))
         
         plt.draw()
-        time.sleep(0.1)
+        time.sleep(0.001)
         
         
