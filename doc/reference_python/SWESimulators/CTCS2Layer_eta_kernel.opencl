@@ -24,6 +24,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define block_height 8
 #define block_width 8
 
+typedef __local float u_shmem[block_height][block_width+1];
+typedef __local float v_shmem[block_height+1][block_width];
 
 
 /**
@@ -33,16 +35,16 @@ __kernel void computeEtaKernel(
         //Discretization parameters
         int nx_, int ny_,
         float dx_, float dy_, float dt_,
-    
-        //Physical parameters
-        float g_, //< Gravitational constant
-        float f_, //< Coriolis coefficient
-        float r_, //< Bottom friction coefficient
-    
-        //Data
-        __global float* eta_0_ptr_, int eta_0_pitch_, //eta^n-1 (also used as output, that is eta^n+1)
-        __global float* U_1_ptr_, int U_1_pitch_, // U^n
-        __global float* V_1_ptr_, int V_1_pitch_ // V^n
+        
+        //Data for layer 1
+        __global float* eta1_0_ptr_, int eta1_0_pitch_, //eta_1^n-1 (also used as output, that is eta_1^n+1)
+        __global float* U1_1_ptr_, int U1_1_pitch_, // U^n
+        __global float* V1_1_ptr_, int V1_1_pitch_, // V^n
+        
+        //Data for layer 2
+        __global float* eta2_0_ptr_, int eta2_0_pitch_, //eta_2^n-1 (also used as output, that is eta_2^n+1)
+        __global float* U2_1_ptr_, int U2_1_pitch_, // U^n
+        __global float* V2_1_ptr_, int V2_1_pitch_ // V^n
         ) {
     
     //Index of thread within block
@@ -57,29 +59,39 @@ __kernel void computeEtaKernel(
     const int ti = bx + tx;
     const int tj = by + ty;
     
-    __local float U1_shared[block_height][block_width+1];
-    __local float V1_shared[block_height+1][block_width];
+    //Layer 1
+    u_shmem U1_1_shared;
+    v_shmem V1_1_shared;
     
-    //Compute pointer to current row in the U array
-    __global float* eta0_row = (__global float*) ((__global char*) eta0_ptr_ + eta0_pitch_*tj);
+    //Layer 2
+    u_shmem U2_1_shared;
+    v_shmem V2_1_shared;
+    
+    //Compute pointer to current row in the eta arrays
+    __global float* eta1_0_row = (__global float*) ((__global char*) eta1_0_ptr_ + eta1_0_pitch_*tj);
+    __global float* eta2_0_row = (__global float*) ((__global char*) eta2_0_ptr_ + eta2_0_pitch_*tj);
 
     //Read current eta
-    float eta0 = 0.0f;
+    float eta1_0 = 0.0f;
+    float eta2_0 = 0.0f;
     if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
-        eta0 = eta0_row[ti];
+        eta1_0 = eta1_0_row[ti];
+        eta2_0 = eta2_0_row[ti];
     }
     
     //Read U into shared memory
     for (int j=ty; j<block_height; j+=get_local_size(1)) {
         const int l = clamp(by + j, 1, ny_); // fake ghost cells
         
-        //Compute the pointer to current row in the V array
-        __global float* const U1_row = (__global float*) ((__global char*) U1_ptr_ + U1_pitch_*l);
+        //Compute the pointer to current row in the U array
+        __global float* const U1_1_row = (__global float*) ((__global char*) U1_1_ptr_ + U1_1_pitch_*l);
+        __global float* const U2_1_row = (__global float*) ((__global char*) U2_1_ptr_ + U2_1_pitch_*l);
         
         for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
             const int k = clamp(bx + i - 1, 0, nx_); // prevent out of bounds
             
-            U1_shared[j][i] = U1_row[k];
+            U1_1_shared[j][i] = U1_1_row[k];
+            U2_1_shared[j][i] = U2_1_row[k];
         }
     }
     
@@ -88,12 +100,14 @@ __kernel void computeEtaKernel(
         const int l = clamp(by + j - 1, 0, ny_); // prevent out of bounds
         
         //Compute the pointer to current row in the V array
-        __global float* const V1_row = (__global float*) ((__global char*) V1_ptr_ + V1_pitch_*l);
+        __global float* const V1_1_row = (__global float*) ((__global char*) V1_1_ptr_ + V1_1_pitch_*l);
+        __global float* const V2_1_row = (__global float*) ((__global char*) V2_1_ptr_ + V2_1_pitch_*l);
         
         for (int i=tx; i<block_width; i+=get_local_size(0)) {
             const int k = clamp(bx + i, 1, nx_); // fake ghost cells
             
-            V1_shared[j][i] = V1_row[k];
+            V1_1_shared[j][i] = V1_1_row[k];
+            V2_1_shared[j][i] = V2_1_row[k];
         }
     }
 
@@ -101,11 +115,14 @@ __kernel void computeEtaKernel(
     __syncthreads();
 
     //Compute the H at the next timestep
-    float eta2 = eta0 - 2.0f*dt_/dx_ * (U1_shared[ty][tx+1] - U1_shared[ty][tx])
-                      - 2.0f*dt_/dy_ * (V1_shared[ty+1][tx] - V1_shared[ty][tx]);
+    float eta1_2 = eta1_0 - 2.0f*dt_/dx_ * (U1_1_shared[ty][tx+1] - U1_1_shared[ty][tx])
+                          - 2.0f*dt_/dy_ * (V1_1_shared[ty+1][tx] - V1_1_shared[ty][tx]);
+    float eta2_2 = eta2_0 - 2.0f*dt_/dx_ * (U2_1_shared[ty][tx+1] - U2_1_shared[ty][tx])
+                          - 2.0f*dt_/dy_ * (V2_1_shared[ty+1][tx] - V2_1_shared[ty][tx]);
     
     //Write to main memory
     if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
-        eta0_row[ti] = eta2;
+        eta1_0_row[ti] = eta1_2;
+        eta2_0_row[ti] = eta2_2;
     }
 }
