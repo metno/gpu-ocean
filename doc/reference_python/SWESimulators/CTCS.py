@@ -162,7 +162,7 @@ class CTCS:
     f: Coriolis parameter (1.2e-4 s^1)
     r: Bottom friction coefficient (2.4e-3 m/s)
     A: Eddy viscosity coefficient (O(dx))
-    wind_type: TYpe of wind stress, 0=Uniform along shore, 1=bell shaped along shore, 2=moving cyclone
+    wind_type: Type of wind stress, 0=Uniform along shore, 1=bell shaped along shore, 2=moving cyclone
     wind_tau0: Amplitude of wind stress (Pa)
     wind_rho: Density of sea water (1025.0 kg / m^3)
     wind_alpha: Offshore e-folding length (1/(10*dx) = 5e-6 m^-1)
