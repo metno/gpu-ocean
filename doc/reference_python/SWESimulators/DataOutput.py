@@ -25,7 +25,7 @@ from netCDF4 import Dataset
 
 
 """
-Writes out data to a netcdf file from the centered in time, centered in space
+Writes out data to a NetCDF file from the Centered in Time, Centered in Space
 numerical scheme.
 """
 class CTCSNetCDFWriter:
