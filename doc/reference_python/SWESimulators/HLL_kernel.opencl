@@ -19,8 +19,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 
-#define block_height 8
-#define block_width 8
+#include "common.opencl"
+
+
 
 typedef __local float cell_shmem[block_height+2][block_width+2];
 typedef __local float u_edge_shmem[block_height+2][block_width+1];
@@ -28,15 +29,6 @@ typedef __local float v_edge_shmem[block_height+1][block_width+2];
 
 
 
-float3 F(const float3 Q, const float g) {
-    float3 F;
-
-    F.x = Q.y;                              //hu
-    F.y = Q.y*Q.y / Q.x + 0.5f*g*Q.x*Q.x;   //hu*hu/h + 0.5f*g*h*h;
-    F.z = Q.y*Q.z / Q.x;                    //hu*hv/h;
-
-    return F;
-}
 
 float3 HLL_flux(const float3 Q_l, const float3 Q_r, const float g_) {    
     const float h_l = Q_l.x;
@@ -65,19 +57,27 @@ float3 HLL_flux(const float3 Q_l, const float3 Q_r, const float g_) {
     
     //Upwind selection
     if (S_l >= 0) {
-        return F(Q_l, g_);
+        return F_func(Q_l, g_);
     }
     else if (S_r <= 0.0f) {
-        return F(Q_r, g_);
+        return F_func(Q_r, g_);
     }
     //Or estimate flux in the star region
     else {
-        const float3 F_l = F(Q_l, g_);
-        const float3 F_r = F(Q_r, g_);
+        const float3 F_l = F_func(Q_l, g_);
+        const float3 F_r = F_func(Q_r, g_);
         const float3 flux = (S_r*F_l - S_l*F_r + S_r*S_l*(Q_r - Q_l)) / (S_r-S_l);
         return flux;
     }
 }
+
+
+
+
+
+
+
+
 
 __kernel void swe_2D(
         int nx_, int ny_,

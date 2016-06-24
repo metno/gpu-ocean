@@ -19,31 +19,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-
-#define block_height 8
-#define block_width 8
+#include "common.opencl"
 
 
 
-float3 F(const float3 Q, const float g) {
-    float3 F;
 
-    F.x = Q.y;                              //hu
-    F.y = Q.y*Q.y / Q.x + 0.5f*g*Q.x*Q.x;   //hu*hu/h + 0.5f*g*h*h;
-    F.z = Q.y*Q.z / Q.x;                    //hu*hv/h;
 
-    return F;
-}
 
-float3 G(const float3 Q, const float g) {
-    float3 G;
-
-    G.x = Q.z;                              //hv
-    G.y = Q.y*Q.z / Q.x;                    //hu*hv/h;
-    G.z = Q.z*Q.z / Q.x + 0.5f*g*Q.x*Q.x;   //hv*hv/h + 0.5f*g*h*h;
-
+float3 G_func(const float3 Q, const float g) {
+    //"Transpose" u and v, compute f flux, and transpose back
+    const float3 Q1 = (float3)(Q.x, Q.z, Q.y);
+    const float3 G1 = F_func(Q1, g);
+    const float3 G = (float3)(G1.x, G1.z, G1.y);
     return G;
 }
+
+
+
 
 __kernel void swe_2D(
         int nx_, int ny_,
@@ -134,10 +126,10 @@ __kernel void swe_2D(
         const float3 Q_north = (float3)(h[j+1][i], hu[j+1][i], hv[j+1][i]);
         const float3 Q_south = (float3)(h[j-1][i], hu[j-1][i], hv[j-1][i]);
 
-        const float3 F_east = F(Q_east, g_);
-        const float3 F_west = F(Q_west, g_);
-        const float3 G_north = G(Q_north, g_);
-        const float3 G_south = G(Q_south, g_);
+        const float3 F_east = F_func(Q_east, g_);
+        const float3 F_west = F_func(Q_west, g_);
+        const float3 G_north = G_func(Q_north, g_);
+        const float3 G_south = G_func(Q_south, g_);
 
         float3 Q1 = 0.25f*(Q_east + Q_west + Q_north + Q_south)
             - dt_/(2.0f*dx_)*(F_east - F_west)
