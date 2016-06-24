@@ -57,16 +57,7 @@ class CTCS:
     f: Coriolis parameter (1.2e-4 s^1)
     r: Bottom friction coefficient (2.4e-3 m/s)
     A: Eddy viscosity coefficient (O(dx))
-    wind_type: Type of wind stress, 0=Uniform along shore, 1=bell shaped along shore, 2=moving cyclone
-    wind_tau0: Amplitude of wind stress (Pa)
-    wind_rho: Density of sea water (1025.0 kg / m^3)
-    wind_alpha: Offshore e-folding length (1/(10*dx) = 5e-6 m^-1)
-    wind_xm: Maximum wind stress for bell shaped wind stress
-    wind_Rc: Distance to max wind stress from center of cyclone (10dx = 200 000 m)
-    wind_x0: Initial x position of moving cyclone (dx*(nx/2) - u0*3600.0*48.0)
-    wind_y0: Initial y position of moving cyclone (dy*(ny/2) - v0*3600.0*48.0)
-    wind_u0: Translation speed along x for moving cyclone (30.0/sqrt(5.0))
-    wind_v0: Translation speed along y for moving cyclone (-0.5*u0)
+    wind_stress: Wind stress parameters
     """
     def __init__(self, \
                  cl_ctx, \
@@ -74,10 +65,7 @@ class CTCS:
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, A, \
-                 wind_type=99, # "no wind" \
-                 wind_tau0=0, wind_rho=0, wind_alpha=0, wind_xm=0, wind_Rc=0, \
-                 wind_x0=0, wind_y0=0, \
-                 wind_u0=0, wind_v0=0, \
+                 wind_stress=Common.WindStressParams(), \
                  block_width=16, block_height=16):
         self.cl_ctx = cl_ctx
 
@@ -108,16 +96,7 @@ class CTCS:
         self.f = np.float32(f)
         self.r = np.float32(r)
         self.A = np.float32(A)
-        self.wind_type = np.int32(wind_type)
-        self.wind_tau0 = np.float32(wind_tau0)
-        self.wind_rho = np.float32(wind_rho)
-        self.wind_alpha = np.float32(wind_alpha)
-        self.wind_xm = np.float32(wind_xm)
-        self.wind_Rc = np.float32(wind_Rc)
-        self.wind_x0 = np.float32(wind_x0)
-        self.wind_y0 = np.float32(wind_y0)
-        self.wind_u0 = np.float32(wind_u0)
-        self.wind_v0 = np.float32(wind_v0)
+        self.wind_stress = wind_stress
         
         #Initialize time
         self.t = np.float32(0.0)
@@ -169,10 +148,10 @@ class CTCS:
                     self.cl_data.hu0.data, self.cl_data.hu0.pitch,    # U^{n-1} => U^{n+1} \
                     self.cl_data.hu1.data, self.cl_data.hu1.pitch,    # U^{n} \
                     self.cl_data.hv1.data, self.cl_data.hv1.pitch,    # V^{n} \
-                    self.wind_type, \
-                    self.wind_tau0, self.wind_rho, self.wind_alpha, self.wind_xm, self.wind_Rc, \
-                    self.wind_x0, self.wind_y0, \
-                    self.wind_u0, self.wind_v0, \
+                    self.wind_stress.type, \
+                    self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
+                    self.wind_stress.x0, self.wind_stress.y0, \
+                    self.wind_stress.u0, self.wind_stress.v0, \
                     self.t)
             
             self.v_kernel.computeVKernel(self.cl_queue, self.global_size, self.local_size, \
@@ -184,10 +163,10 @@ class CTCS:
                     self.cl_data.hu1.data, self.cl_data.hu1.pitch,   # U^{n} \
                     self.cl_data.hv0.data, self.cl_data.hv0.pitch,   # V^{n-1} => V^{n+1} \
                     self.cl_data.hv1.data, self.cl_data.hv1.pitch,   # V^{n} \
-                    self.wind_type, \
-                    self.wind_tau0, self.wind_rho, self.wind_alpha, self.wind_xm, self.wind_Rc, \
-                    self.wind_x0, self.wind_y0, \
-                    self.wind_u0, self.wind_v0, \
+                    self.wind_stress.type, \
+                    self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
+                    self.wind_stress.x0, self.wind_stress.y0, \
+                    self.wind_stress.u0, self.wind_stress.v0, \
                     self.t)
             
             #After the kernels, swap the data pointers

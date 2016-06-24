@@ -23,11 +23,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-#define block_height 8
-#define block_width 8
+#include "common.opencl"
 
 
-float3 F_func(const float3 Q, const float g) {
+
+float3 CDKLM16_F_func(const float3 Q, const float g) {
     float3 F;
 
     F.x = Q.x*Q.y;                        //h*u
@@ -43,13 +43,16 @@ float3 F_func(const float3 Q, const float g) {
 
 
 
-
-float3 F_fluxfunc(const float3 Qm, float3 Qp, const float g) {
-    const float3 Fp = F_func(Qp, g);
+/**
+  * Note that the input vectors are (h, u, v), thus not the regular
+  * (h, hu, hv)
+  */
+float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
+    const float3 Fp = CDKLM16_F_func(Qp, g);
     const float up = Qp.y;         // u
     const float cp = sqrt(g*Qp.x); // sqrt(g*h)
 
-    const float3 Fm = F_func(Qm, g);
+    const float3 Fm = CDKLM16_F_func(Qm, g);
     const float um = Qm.y;         // u
     const float cm = sqrt(g*Qm.x); // sqrt(g*h)
     
@@ -60,8 +63,7 @@ float3 F_fluxfunc(const float3 Qm, float3 Qp, const float g) {
     
     F.x = ((ap*Fm.x - am*Fp.x) + ap*am*(Qp.x-Qm.x))/(ap-am);
     F.y = ((ap*Fm.y - am*Fp.y) + ap*am*(Qp.y-Qm.y))/(ap-am);
-    //  F.z = ((ap*Fm.z - am*Fp.z) + ap*am*(Qp.z-Qm.z))/(ap-am);
-    F.z = (Qm.y + Qp.y > 0) ? Fm.z : Fp.z; //Upwinding
+    F.z = (Qm.y + Qp.y > 0) ? Fm.z : Fp.z; //Upwinding to be consistent
     
     return F;
 }
@@ -72,121 +74,6 @@ float3 F_fluxfunc(const float3 Qm, float3 Qp, const float g) {
 
 
 
-
-/**
- * @return min(a, b, c), {a, b, c} > 0
- *         max(a, b, c), {a, b, c} < 0
- *         0           , otherwise
- */
-float minmod(float a, float b, float c) {
-	return 0.25f
-		*copysign(1.0f, a)
-		*(copysign(1.0f, a) + copysign(1.0f, b))
-		*(copysign(1.0f, b) + copysign(1.0f, c))
-		*min( min(fabs(a), fabs(b)), fabs(c) );
-}
-
-
-
-
-
-
-
-/**
-  * Reconstructs a slope using the minmod limiter based on three 
-  * consecutive values
-  */
-float reconstructSlope(float left, float center, float right, float theta) {
-    const float backward = center - left;
-    const float central = (right - left) * 0.5f;
-    const float forward = right - center;
-    return minmod(theta*backward, central, theta*forward);
-}
-
-
-
-
-
-
-
-
-float windStressX(int wind_stress_type_,
-                float dx_, float dy_, float dt_,
-                float tau0_, float rho_, float alpha_, float xm_, float Rc_,
-                float x0_, float y0_,
-                float u0_, float v0_,
-                float t_) {
-    
-    float X = 0.0f;
-    
-    switch (wind_stress_type_) {
-    case 0: //UNIFORM_ALONGSHORE
-        {
-            const float y = (get_global_id(1)+0.5f)*dy_;
-            X = tau0_/rho_ * exp(-alpha_*y);
-        }
-        break;
-    case 1: //BELL_SHAPED_ALONGSHORE
-        if (t_ <= 48.0f*3600.0f) {
-            const float a = alpha_*((get_global_id(0)+0.5f)*dx_-xm_);
-            const float aa = a*a;
-            const float y = (get_global_id(1)+0.5f)*dy_;
-            X = tau0_/rho_ * exp(-aa) * exp(-alpha_*y);
-        }
-        break;
-    case 2: //MOVING_CYCLONE
-        {
-            const float x = (get_global_id(0))*dx_;
-            const float y = (get_global_id(1)+0.5f)*dy_;
-            const float a = (x-x0_-u0_*(t_+dt_));
-            const float aa = a*a;
-            const float b = (y-y0_-v0_*(t_+dt_));
-            const float bb = b*b;
-            const float r = sqrt(aa+bb);
-            const float c = 1.0f - r/Rc_;
-            const float xi = c*c;
-            
-            X = -(tau0_/rho_) * (b/Rc_) * exp(-0.5f*xi);
-        }
-        break;
-    }
-
-    return X;
-}
-
-
-
-
-
-
-float windStressY(int wind_stress_type_,
-                float dx_, float dy_, float dt_,
-                float tau0_, float rho_, float alpha_, float xm_, float Rc_,
-                float x0_, float y0_,
-                float u0_, float v0_,
-                float t_) {
-    float Y = 0.0f;
-    
-    switch (wind_stress_type_) {
-    case 2: //MOVING_CYCLONE:
-        {
-            const float x = (get_global_id(0)+0.5f)*dx_; 
-            const float y = (get_global_id(1))*dy_;
-            const float a = (x-x0_-u0_*(t_+dt_));
-            const float aa = a*a;
-            const float b = (y-y0_-v0_*(t_+dt_));
-            const float bb = b*b;
-            const float r = sqrt(aa+bb);
-            const float c = 1.0f - r/Rc_;
-            const float xi = c*c;
-            
-            Y = (tau0_/rho_) * (a/Rc_) * exp(-0.5f*xi);
-        }
-        break;
-    }
-
-    return Y;
-}
 
 
 
@@ -437,7 +324,7 @@ __kernel void swe_2D(
             const float3 Qm = (float3)(hm, Rm.x, Rm.y);
                                        
             // Computed flux
-            const float3 flux = F_fluxfunc(Qm, Qp, g_);
+            const float3 flux = CDKLM16_flux(Qm, Qp, g_);
             F[0][j][i] = flux.x;
             F[1][j][i] = flux.y;
             F[2][j][i] = flux.z;
@@ -476,7 +363,7 @@ __kernel void swe_2D(
             
             // Computed flux
             // Note that we swap back u and v
-            const float3 flux = F_fluxfunc(Qm, Qp, g_);
+            const float3 flux = CDKLM16_flux(Qm, Qp, g_);
             G[0][j][i] = flux.x;
             G[1][j][i] = flux.z;
             G[2][j][i] = flux.y;
