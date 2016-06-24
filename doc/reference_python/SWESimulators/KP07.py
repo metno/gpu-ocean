@@ -69,10 +69,7 @@ class KP07:
                  dx, dy, dt, \
                  g, f, r, \
                  theta=1.3, use_rk2=True,
-                 wind_type=99, # "no wind" \
-                 wind_tau0=0, wind_rho=0, wind_alpha=0, wind_xm=0, wind_Rc=0, \
-                 wind_x0=0, wind_y0=0, \
-                 wind_u0=0, wind_v0=0, \
+                 wind_stress=Common.WindStressParams(), \
                  block_width=16, block_height=16):
         self.cl_ctx = cl_ctx
                  
@@ -100,16 +97,7 @@ class KP07:
         self.r = np.float32(r)
         self.theta = np.float32(theta)
         self.use_rk2 = use_rk2
-        self.wind_type = np.int32(wind_type)
-        self.wind_tau0 = np.float32(wind_tau0)
-        self.wind_rho = np.float32(wind_rho)
-        self.wind_alpha = np.float32(wind_alpha)
-        self.wind_xm = np.float32(wind_xm)
-        self.wind_Rc = np.float32(wind_Rc)
-        self.wind_x0 = np.float32(wind_x0)
-        self.wind_y0 = np.float32(wind_y0)
-        self.wind_u0 = np.float32(wind_u0)
-        self.wind_v0 = np.float32(wind_v0)
+        self.wind_stress = wind_stress
         
         #Initialize time
         self.t = np.float32(0.0)
@@ -151,10 +139,10 @@ class KP07:
                         self.cl_data.h1.data,  self.cl_data.h1.pitch,  \
                         self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
                         self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
-                        self.wind_type, \
-                        self.wind_tau0, self.wind_rho, self.wind_alpha, self.wind_xm, self.wind_Rc, \
-                        self.wind_x0, self.wind_y0, \
-                        self.wind_u0, self.wind_v0, \
+                        self.wind_stress.type, \
+                        self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
+                        self.wind_stress.x0, self.wind_stress.y0, \
+                        self.wind_stress.u0, self.wind_stress.v0, \
                         self.t)
                 self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
@@ -170,10 +158,10 @@ class KP07:
                         self.cl_data.h0.data,  self.cl_data.h0.pitch,  \
                         self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
                         self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
-                        self.wind_type, \
-                        self.wind_tau0, self.wind_rho, self.wind_alpha, self.wind_xm, self.wind_Rc, \
-                        self.wind_x0, self.wind_y0, \
-                        self.wind_u0, self.wind_v0, \
+                        self.wind_stress.type, \
+                        self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
+                        self.wind_stress.x0, self.wind_stress.y0, \
+                        self.wind_stress.u0, self.wind_stress.v0, \
                         self.t)
             else:
                 self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
@@ -190,10 +178,10 @@ class KP07:
                         self.cl_data.h1.data,  self.cl_data.h1.pitch,  \
                         self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
                         self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
-                        self.wind_type, \
-                        self.wind_tau0, self.wind_rho, self.wind_alpha, self.wind_xm, self.wind_Rc, \
-                        self.wind_x0, self.wind_y0, \
-                        self.wind_u0, self.wind_v0, \
+                        self.wind_stress.type, \
+                        self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
+                        self.wind_stress.x0, self.wind_stress.y0, \
+                        self.wind_stress.u0, self.wind_stress.v0, \
                         self.t)
                 self.cl_data.swap()
                 
