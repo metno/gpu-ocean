@@ -3,7 +3,7 @@ This OpenCL kernel implements part of the Centered in Time, Centered
 in Space (leapfrog) numerical scheme for the shallow water equations, 
 described in 
 L. P. Røed, "Documentation of simple ocean models for use in ensemble
-predictions", Met no report 2012/3 and 2012/5 .
+predictions", Met no report 2012/3 and 2012/5.
 
 Copyright (C) 2016  SINTEF ICT
 
@@ -23,38 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 
-#define block_height 8
-#define block_width 8
-
-float windStressY(int wind_stress_type_,
-                float dx_, float dy_, float dt_,
-                float tau0_, float rho_, float alpha_, float xm_, float Rc_,
-                float x0_, float y0_,
-                float u0_, float v0_,
-                float t_) {
-    float Y = 0.0f;
-    
-    switch (wind_stress_type_) {
-    case 2: //MOVING_CYCLONE:
-        {
-            const float x = (get_global_id(0)+0.5f)*dx_; 
-            const float y = (get_global_id(1))*dy_;
-            const float a = (x-x0_-u0_*(t_+dt_));
-            const float aa = a*a;
-            const float b = (y-y0_-v0_*(t_+dt_));
-            const float bb = b*b;
-            const float r = sqrt(aa+bb);
-            const float c = 1.0f - r/Rc_;
-            const float xi = c*c;
-            
-            Y = (tau0_/rho_) * (a/Rc_) * exp(-0.5f*xi);
-        }
-        break;
-    }
-
-    return Y;
-}
-
+#include "common.opencl"
 
 
 

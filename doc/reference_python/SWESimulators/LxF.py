@@ -21,87 +21,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 #Import packages we need
-import os
-import time
 import numpy as np
 import pyopencl as cl #OpenCL in Python
+import Common
 
 
 
-
-
-
-
-"""
-Class that holds data for the SW equations in OpenCL
-"""
-class LxFDataCL:
-    """
-    Uploads initial data to the CL device
-    """
-    def __init__(self, cl_ctx, h0, u0, v0):
-        if (not np.issubdtype(h0.dtype, np.float32) or np.isfortran(h0)):
-            print "Converting H0"
-            h0 = h0.astype(np.float32, order='C')
-            
-        if (not np.issubdtype(u0.dtype, np.float32) or np.isfortran(u0)):
-            print "Converting U0"
-            u0 = u0.astype(np.float32, order='C')
-            
-        if (not np.issubdtype(v0.dtype, np.float32) or np.isfortran(v0)):
-            print "Converting V0"
-            v0 = v0.astype(np.float32, order='C')
-        
-        self.ny, self.nx = h0.shape
-        self.nx -= 2
-        self.ny -= 2
-
-        assert(h0.shape == (self.ny+2, self.nx+2))
-        assert(u0.shape == (self.ny+2, self.nx+2))
-        assert(v0.shape == (self.ny+2, self.nx+2))
-
-        #Upload data to the device
-        mf = cl.mem_flags
-        self.h0 = cl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=h0)
-        self.u0 = cl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=u0)
-        self.v0 = cl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=v0)
-        
-        self.h0_pitch = np.int32((self.nx+2)*4)
-        self.u0_pitch = np.int32((self.nx+2)*4)
-        self.v0_pitch = np.int32((self.nx+2)*4)
-        
-        self.h1 = cl.Buffer(cl_ctx, mf.READ_WRITE, h0.nbytes)
-        self.u1 = cl.Buffer(cl_ctx, mf.READ_WRITE, h0.nbytes)
-        self.v1 = cl.Buffer(cl_ctx, mf.READ_WRITE, h0.nbytes)
-        
-        self.h1_pitch = np.int32((self.nx+2)*4)
-        self.u1_pitch = np.int32((self.nx+2)*4)
-        self.v1_pitch = np.int32((self.nx+2)*4)
-        
-    """
-    Swaps the variables after a timestep has been completed
-    """
-    def swap(self):
-        self.h1, self.h0 = self.h0, self.h1
-        self.u1, self.u0 = self.u0, self.u1
-        self.v1, self.v0 = self.v0, self.v1
-        
-    """
-    Enables downloading data from CL device to Python
-    """
-    def download(self, cl_queue):
-        #Allocate data on the host for result
-        h1 = np.empty((self.ny+2, self.nx+2), dtype=np.float32, order='C')
-        u1 = np.empty((self.ny+2, self.nx+2), dtype=np.float32, order='C')
-        v1 = np.empty((self.ny+2, self.nx+2), dtype=np.float32, order='C')
-        
-        #Copy data from device to host
-        cl.enqueue_copy(cl_queue, h1, self.h0)
-        cl.enqueue_copy(cl_queue, u1, self.u0)
-        cl.enqueue_copy(cl_queue, v1, self.v0)
-        
-        #Return
-        return h1, u1, v1;
         
         
         
@@ -118,8 +43,8 @@ class LxF:
     """
     Initialization routine
     h0: Water depth incl ghost cells, (nx+1)*(ny+1) cells
-    u0: Initial momentum along x-axis incl ghost cells, (nx+1)*(ny+1) cells
-    v0: Initial momentum along y-axis incl ghost cells, (nx+1)*(ny+1) cells
+    hu0: Initial momentum along x-axis incl ghost cells, (nx+1)*(ny+1) cells
+    hv0: Initial momentum along y-axis incl ghost cells, (nx+1)*(ny+1) cells
     nx: Number of cells along x-axis
     ny: Number of cells along y-axis
     dx: Grid cell spacing along x-axis (20 000 m)
@@ -128,28 +53,24 @@ class LxF:
     g: Gravitational accelleration (9.81 m/s^2)
     """
     def __init__(self, \
-                 h0, u0, v0, \
+                 cl_ctx, \
+                 h0, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
-                 g):
-        #Make sure we get compiler output from OpenCL
-        os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
-
-        #Set which CL device to use
-        os.environ["PYOPENCL_CTX"] = "1"
-
-        #Create OpenCL context
-        self.cl_ctx = cl.create_some_context()
-        print "Using ", self.cl_ctx.devices[0].name
+                 g, \
+                 block_width=16, block_height=16):
+        self.cl_ctx = cl_ctx
 
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
 
         #Get kernels
-        self.lxf_kernel = self.get_kernel("LxF_kernel.opencl")
+        self.lxf_kernel = Common.get_kernel(self.cl_ctx, "LxF_kernel.opencl", block_width, block_height)
         
         #Create data by uploading to device
-        self.cl_data = LxFDataCL(self.cl_ctx, h0, u0, v0)
+        ghost_cells_x = 1
+        ghost_cells_y = 1
+        self.cl_data = Common.SWEDataArkawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, h0, hu0, hv0)
         
         #Save input parameters
         #Notice that we need to specify them in the correct dataformat for the
@@ -165,7 +86,7 @@ class LxF:
         self.t = np.float32(0.0)
         
         #Compute kernel launch parameters
-        self.local_size = (8, 8) 
+        self.local_size = (block_width, block_height) 
         self.global_size = ( \
                        int(np.ceil(self.nx / float(self.local_size[0])) * self.local_size[0]), \
                        int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
@@ -190,31 +111,20 @@ class LxF:
                     self.nx, self.ny, \
                     self.dx, self.dy, local_dt, \
                     self.g, \
-                    self.cl_data.h0, self.cl_data.h0_pitch, \
-                    self.cl_data.u0, self.cl_data.u0_pitch, \
-                    self.cl_data.v0, self.cl_data.v0_pitch, \
-                    self.cl_data.h1, self.cl_data.h1_pitch, \
-                    self.cl_data.u1, self.cl_data.u1_pitch, \
-                    self.cl_data.v1, self.cl_data.v1_pitch)
+                    self.cl_data.h0.data, self.cl_data.h0.pitch, \
+                    self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
+                    self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
+                    self.cl_data.h1.data, self.cl_data.h1.pitch, \
+                    self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
+                    self.cl_data.hv1.data, self.cl_data.hv1.pitch)
                 
             self.t += local_dt
             
             self.cl_data.swap()
         
         return self.t
-    
-    """
-    Static function which reads a text file and creates an OpenCL kernel from that
-    """
-    def get_kernel(self, kernel_filename):
-        #Read the proper program
-        module_path = os.path.dirname(os.path.realpath(__file__))
-        fullpath = os.path.join(module_path, kernel_filename)
-        with open(fullpath, "r") as kernel_file:
-            kernel_string = kernel_file.read()
-            kernel = cl.Program(self.cl_ctx, kernel_string).build()
-            
-        return kernel
+        
+        
     
     
     
