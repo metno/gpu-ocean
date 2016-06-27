@@ -79,6 +79,12 @@ __kernel void swe_2D(
     //Make sure all threads have read into shared mem
     __syncthreads();
     
+    
+    //Save our input variables
+    const float h0  = Q[0][ty+1][tx+1];
+    const float hu0 = Q[1][ty+1][tx+1];
+    const float hv0 = Q[2][ty+1][tx+1];
+    
     {
         const int i = tx + 1; //Skip local ghost cells, i.e., +1
         const int j = ty + 1;
@@ -123,19 +129,61 @@ __kernel void swe_2D(
                                        Q[2][l][k]);
                                        
             // Computed flux
-            const float3 flux = LxF_2D_flux(Qm, Qp, g_, dx_, dt_);
+            const float3 flux = FORCE_1D_flux(Qm, Qp, g_, dx_, dt_);
             F[0][j][i] = flux.x;
             F[1][j][i] = flux.y;
             F[2][j][i] = flux.z;
         }
     }
+    __syncthreads();
     
+    
+    //Evolve along x axis (dimensional splitting)
+    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
+        const int i = tx + 1; //Skip local ghost cells, i.e., +1
+        const int j = ty + 1;
+        
+        Q[0][j][i] = Q[0][j][i] + (F[0][ty][tx] - F[0][ty  ][tx+1]) * dt_ / dx_;
+        Q[1][j][i] = Q[1][j][i] + (F[1][ty][tx] - F[1][ty  ][tx+1]) * dt_ / dx_;
+        Q[2][j][i] = Q[2][j][i] + (F[2][ty][tx] - F[2][ty  ][tx+1]) * dt_ / dx_;
+    }
+    __syncthreads();
+    
+    
+    
+    {
+        const int i = tx + 1; //Skip local ghost cells, i.e., +1
+        const int j = ty + 1;
+        
+        //Fix boundary conditions
+        if (ti == 1) {
+            Q[0][j][i-1] = Q[0][j][i];
+            Q[1][j][i-1] = -Q[1][j][i];
+            Q[2][j][i-1] =  Q[2][j][i];
+        }
+        if (ti == nx_) {
+            Q[0][j][i+1] =  Q[0][j][i];
+            Q[1][j][i+1] = -Q[1][j][i];
+            Q[2][j][i+1] =  Q[2][j][i];
+        }
+        if (tj == 1) {
+            Q[0][j-1][i] =  Q[0][j][i];
+            Q[1][j-1][i] =  Q[1][j][i];
+            Q[2][j-1][i] = -Q[2][j][i];
+        }
+        if (tj == ny_) {
+            Q[0][j+1][i] =  Q[0][j][i];
+            Q[1][j+1][i] =  Q[1][j][i];
+            Q[2][j+1][i] = -Q[2][j][i];
+        }
+    }
+    __syncthreads();
     
     
     //Compute fluxes along the y axis
     for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
         const int l = j;
-        for (int i=tx; i<block_width; i+=get_local_size(0)) {
+        for (int i=tx; i<block_width; i+=get_local_size(0)) {            
             const int k = i + 1; //Skip ghost cells
             
             // Q at interface from the right and left
@@ -149,7 +197,7 @@ __kernel void swe_2D(
 
             // Computed flux
             // Note that we swap back
-            const float3 flux = LxF_2D_flux(Qm, Qp, g_, dy_, dt_);
+            const float3 flux = FORCE_1D_flux(Qm, Qp, g_, dy_, dt_);
             G[0][j][i] = flux.x;
             G[1][j][i] = flux.z;
             G[2][j][i] = flux.y;
@@ -161,17 +209,15 @@ __kernel void swe_2D(
     
     
     
-    //Compute for all internal cells
+    //Evolve along y-axis (dimensional splitting)
+    //and write to main memory
     if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
         const int i = tx + 1; //Skip local ghost cells, i.e., +1
         const int j = ty + 1;
         
-        const float h1  = Q[0][j][i] + (F[0][ty][tx] - F[0][ty  ][tx+1]) * dt_ / dx_ 
-                                     + (G[0][ty][tx] - G[0][ty+1][tx  ]) * dt_ / dy_;
-        const float hu1 = Q[1][j][i] + (F[1][ty][tx] - F[1][ty  ][tx+1]) * dt_ / dx_ 
-                                     + (G[1][ty][tx] - G[1][ty+1][tx  ]) * dt_ / dy_;
-        const float hv1 = Q[2][j][i] + (F[2][ty][tx] - F[2][ty  ][tx+1]) * dt_ / dx_ 
-                                     + (G[2][ty][tx] - G[2][ty+1][tx  ]) * dt_ / dy_;
+        const float h1  = Q[0][j][i] + (G[0][ty][tx] - G[0][ty+1][tx  ]) * dt_ / dy_;
+        const float hu1 = Q[1][j][i] + (G[1][ty][tx] - G[1][ty+1][tx  ]) * dt_ / dy_;
+        const float hv1 = Q[2][j][i] + (G[2][ty][tx] - G[2][ty+1][tx  ]) * dt_ / dy_;
 
         __global float* const h_row  = (__global float*) ((__global char*) h1_ptr_ + h1_pitch_*tj);
         __global float* const hu_row = (__global float*) ((__global char*) hu1_ptr_ + hu1_pitch_*tj);
