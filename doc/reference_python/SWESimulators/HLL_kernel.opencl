@@ -30,50 +30,6 @@ typedef __local float v_edge_shmem[block_height+1][block_width+2];
 
 
 
-float3 HLL_flux(const float3 Q_l, const float3 Q_r, const float g_) {    
-    const float h_l = Q_l.x;
-    const float h_r = Q_r.x;
-    
-    // Calculate velocities
-    const float u_l = Q_l.y / h_l;
-    const float u_r = Q_r.y / h_r;
-    
-    // Estimate the potential wave speeds
-    const float c_l = sqrt(g_*h_l);
-    const float c_r = sqrt(g_*h_r);
-    
-    // Compute h in the "star region", h^dagger
-    const float h_dag = 0.5f * (h_l+h_r) - 0.25f * (u_r-u_l)*(h_l+h_r)/(c_l+c_r);
-    
-    const float q_l_tmp = sqrt(0.5f * ( (h_dag+h_l)*h_dag / (h_l*h_l) ) );
-    const float q_r_tmp = sqrt(0.5f * ( (h_dag+h_r)*h_dag / (h_r*h_r) ) );
-    
-    const float q_l = (h_dag > h_l) ? q_l_tmp : 1.0f;
-    const float q_r = (h_dag > h_r) ? q_r_tmp : 1.0f;
-    
-    // Compute wave speed estimates
-    const float S_l = u_l - c_l*q_l;
-    const float S_r = u_r + c_r*q_r;
-    
-    //Upwind selection
-    if (S_l >= 0) {
-        return F_func(Q_l, g_);
-    }
-    else if (S_r <= 0.0f) {
-        return F_func(Q_r, g_);
-    }
-    //Or estimate flux in the star region
-    else {
-        const float3 F_l = F_func(Q_l, g_);
-        const float3 F_r = F_func(Q_r, g_);
-        const float3 flux = (S_r*F_l - S_l*F_r + S_r*S_l*(Q_r - Q_l)) / (S_r-S_l);
-        return flux;
-    }
-}
-
-
-
-
 
 
 

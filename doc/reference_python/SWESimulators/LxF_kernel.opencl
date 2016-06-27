@@ -26,17 +26,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 
-float3 G_func(const float3 Q, const float g) {
-    //"Transpose" u and v, compute f flux, and transpose back
-    const float3 Q1 = (float3)(Q.x, Q.z, Q.y);
-    const float3 G1 = F_func(Q1, g);
-    const float3 G = (float3)(G1.x, G1.z, G1.y);
-    return G;
-}
-
-
-
-
 __kernel void swe_2D(
         int nx_, int ny_,
         float dx_, float dy_, float dt_,
@@ -64,9 +53,9 @@ __kernel void swe_2D(
     const int ti = get_global_id(0) + 1; //Skip global ghost cells, i.e., +1
     const int tj = get_global_id(1) + 1;
     
-    __local float h[block_height+2][block_width+2];
-    __local float hu[block_height+2][block_width+2];
-    __local float hv[block_height+2][block_width+2];
+    __local float Q[3][block_height+2][block_width+2];
+    __local float F[3][block_height][block_width+1];
+    __local float G[3][block_height+1][block_width];
     
     
     //Read into shared memory
@@ -81,66 +70,111 @@ __kernel void swe_2D(
         for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
             const int k = clamp(bx + i, 0, nx_+1); // Out of bounds
             
-            h[j][i] = h_row[k];
-            hu[j][i] = hu_row[k];
-            hv[j][i] = hv_row[k];
+            Q[0][j][i] = h_row[k];
+            Q[1][j][i] = hu_row[k];
+            Q[2][j][i] = hv_row[k];
         }
     }
 
     //Make sure all threads have read into shared mem
     __syncthreads();
     
-    const int i = tx + 1; //Skip local ghost cells, i.e., +1
-    const int j = ty + 1;
-    
-    //Fix boundary conditions
-    if (ti == 1) {
-        h[j][i-1]  =   h[j][i];
-        hu[j][i-1] = -hu[j][i];
-        hv[j][i-1] =  hv[j][i];
+    {
+        const int i = tx + 1; //Skip local ghost cells, i.e., +1
+        const int j = ty + 1;
+        
+        //Fix boundary conditions
+        if (ti == 1) {
+            Q[0][j][i-1] = Q[0][j][i];
+            Q[1][j][i-1] = -Q[1][j][i];
+            Q[2][j][i-1] =  Q[2][j][i];
+        }
+        if (ti == nx_) {
+            Q[0][j][i+1] =  Q[0][j][i];
+            Q[1][j][i+1] = -Q[1][j][i];
+            Q[2][j][i+1] =  Q[2][j][i];
+        }
+        if (tj == 1) {
+            Q[0][j-1][i] =  Q[0][j][i];
+            Q[1][j-1][i] =  Q[1][j][i];
+            Q[2][j-1][i] = -Q[2][j][i];
+        }
+        if (tj == ny_) {
+            Q[0][j+1][i] =  Q[0][j][i];
+            Q[1][j+1][i] =  Q[1][j][i];
+            Q[2][j+1][i] = -Q[2][j][i];
+        }
     }
-    if (ti == nx_) {
-        h[j][i+1]  =   h[j][i];
-        hu[j][i+1] = -hu[j][i];
-        hv[j][i+1] =  hv[j][i];
-    }
-    if (tj == 1) {
-        h[j-1][i]  =   h[j][i];
-        hu[j-1][i] =  hu[j][i];
-        hv[j-1][i] = -hv[j][i];
-    }
-    if (tj == ny_) {
-        h[j+1][i]  =   h[j][i];
-        hu[j+1][i] =  hu[j][i];
-        hv[j+1][i] = -hv[j][i];
-    }
-    
     __syncthreads();
     
     
+    //Compute fluxes along the x axis
+    for (int j=ty; j<block_height; j+=get_local_size(1)) {
+        const int l = j + 1; //Skip ghost cells
+        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+            const int k = i;
+            
+            // Q at interface from the right and left
+            const float3 Qp = (float3)(Q[0][l][k+1],
+                                       Q[1][l][k+1],
+                                       Q[2][l][k+1]);
+            const float3 Qm = (float3)(Q[0][l][k],
+                                       Q[1][l][k],
+                                       Q[2][l][k]);
+                                       
+            // Computed flux
+            const float3 flux = LxF_flux(Qm, Qp, g_, dx_, dt_);
+            F[0][j][i] = flux.x;
+            F[1][j][i] = flux.y;
+            F[2][j][i] = flux.z;
+        }
+    }
+    
+    
+    
+    //Compute fluxes along the y axis
+    for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
+        const int l = j;
+        for (int i=tx; i<block_width; i+=get_local_size(0)) {            
+            const int k = i + 1; //Skip ghost cells
+            
+            // Q at interface from the right and left
+            // Note that we swap hu and hv
+            const float3 Qp = (float3)(Q[0][l+1][k],
+                                       Q[2][l+1][k],
+                                       Q[1][l+1][k]);
+            const float3 Qm = (float3)(Q[0][l][k],
+                                       Q[2][l][k],
+                                       Q[1][l][k]);
+
+            // Computed flux
+            // Note that we swap back
+            const float3 flux = LxF_flux(Qm, Qp, g_, dy_, dt_);
+            G[0][j][i] = flux.x;
+            G[1][j][i] = flux.z;
+            G[2][j][i] = flux.y;
+        }
+    }
+    __syncthreads();
+    
     //Compute for all internal cells
     if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
-    
-        const float3 Q_east  = (float3)(h[j][i+1], hu[j][i+1], hv[j][i+1]);
-        const float3 Q_west  = (float3)(h[j][i-1], hu[j][i-1], hv[j][i-1]);
-        const float3 Q_north = (float3)(h[j+1][i], hu[j+1][i], hv[j+1][i]);
-        const float3 Q_south = (float3)(h[j-1][i], hu[j-1][i], hv[j-1][i]);
-
-        const float3 F_east = F_func(Q_east, g_);
-        const float3 F_west = F_func(Q_west, g_);
-        const float3 G_north = G_func(Q_north, g_);
-        const float3 G_south = G_func(Q_south, g_);
-
-        float3 Q1 = 0.25f*(Q_east + Q_west + Q_north + Q_south)
-            - dt_/(2.0f*dx_)*(F_east - F_west)
-            - dt_/(2.0f*dy_)*(G_north - G_south);
+        const int i = tx + 1; //Skip local ghost cells, i.e., +1
+        const int j = ty + 1;
+        
+        const float h1  = Q[0][j][i] + (F[0][ty][tx] - F[0][ty  ][tx+1]) * dt_ / dx_ 
+                                     + (G[0][ty][tx] - G[0][ty+1][tx  ]) * dt_ / dy_;
+        const float hu1 = Q[1][j][i] + (F[1][ty][tx] - F[1][ty  ][tx+1]) * dt_ / dx_ 
+                                     + (G[1][ty][tx] - G[1][ty+1][tx  ]) * dt_ / dy_;
+        const float hv1 = Q[2][j][i] + (F[2][ty][tx] - F[2][ty  ][tx+1]) * dt_ / dx_ 
+                                     + (G[2][ty][tx] - G[2][ty+1][tx  ]) * dt_ / dy_;
 
         __global float* const h_row  = (__global float*) ((__global char*) h1_ptr_ + h1_pitch_*tj);
         __global float* const hu_row = (__global float*) ((__global char*) hu1_ptr_ + hu1_pitch_*tj);
         __global float* const hv_row = (__global float*) ((__global char*) hv1_ptr_ + hv1_pitch_*tj);
         
-        h_row[ti] = Q1.x;
-        hu_row[ti] = Q1.y;
-        hv_row[ti] = Q1.z;
+        h_row[ti] = h1;
+        hu_row[ti] = hu1;
+        hv_row[ti] = hv1;
     }
 }
