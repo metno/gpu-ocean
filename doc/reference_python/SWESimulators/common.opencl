@@ -270,6 +270,21 @@ float3 LxW2_1D_flux(const float3 Q_l, const float3 Q_r, const float g_, const fl
     
     return F_func(Q_lw2, g_);
 }
+
+
+
+
+/**
+  * Godunovs centered scheme (Toro 2001, p 165)
+  */
+float3 GODC_1D_flux(const float3 Q_l, const float3 Q_r, const float g_, const float dx_, const float dt_) {
+    const float3 F_l = F_func(Q_l, g_);
+    const float3 F_r = F_func(Q_r, g_);
+    
+    const float3 Q_godc = 0.5f*(Q_l + Q_r) + (F_l - F_r)*dt_/dx_;
+    
+    return F_func(Q_godc, g_);
+}
     
 
     
