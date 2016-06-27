@@ -234,11 +234,53 @@ float3 HLL_flux(const float3 Q_l, const float3 Q_r, const float g_) {
 
 
 
-float3 LxF_flux(const float3 Q_l, const float3 Q_r, const float g_, const float dx_, const float dt_) {
+/**
+  * Lax-Friedrichs flux (Toro 2001, p 163)
+  */
+float3 LxF_1D_flux(const float3 Q_l, const float3 Q_r, const float g_, const float dx_, const float dt_) {
     const float3 F_l = F_func(Q_l, g_);
     const float3 F_r = F_func(Q_r, g_);
     
+    //Note numerical diffusion for 1D here (0.5)
+    return 0.5f*(F_l + F_r) + (Q_l - Q_r) * dx_ / (2.0f*dt_);
+}
+
+
+
+
+float3 LxF_2D_flux(const float3 Q_l, const float3 Q_r, const float g_, const float dx_, const float dt_) {
+    const float3 F_l = F_func(Q_l, g_);
+    const float3 F_r = F_func(Q_r, g_);
+    
+    //Note numerical diffusion for 2D here (0.25)
     return 0.5f*(F_l + F_r) + (Q_l - Q_r) * dx_ / (4.0f*dt_);
+}
+
+
+
+
+/**
+  * Richtmeyer / Two-step Lax-Wendroff flux (Toro 2001, p 164)
+  */
+float3 LxW2_1D_flux(const float3 Q_l, const float3 Q_r, const float g_, const float dx_, const float dt_) {
+    const float3 F_l = F_func(Q_l, g_);
+    const float3 F_r = F_func(Q_r, g_);
+    
+    const float3 Q_lw2 = 0.5f*(Q_l + Q_r) + (F_l - F_r)*dt_/(2.0f*dx_);
+    
+    return F_func(Q_lw2, g_);
+}
+    
+
+    
+    
+/**
+  * First Ordered Centered (Toro 2001, p.163)
+  */
+float3 FORCE_1D_flux(const float3 Q_l, const float3 Q_r, const float g_, const float dx_, const float dt_) {
+    const float3 F_lf = LxF_1D_flux(Q_l, Q_r, g_, dx_, dt_);
+    const float3 F_lw2 = LxW2_1D_flux(Q_l, Q_r, g_, dx_, dt_);
+    return 0.5f*(F_lf + F_lw2);
 }
 
 
