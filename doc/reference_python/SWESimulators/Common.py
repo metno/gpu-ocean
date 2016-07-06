@@ -6,9 +6,13 @@ import numpy as np
 Static function which reads a text file and creates an OpenCL kernel from that
 """
 def get_kernel(cl_ctx, kernel_filename, block_width, block_height):
+    import datetime
+    
     #Create define string
     define_string = "#define block_width " + str(block_width) + "\n"
     define_string += "#define block_height " + str(block_height) + "\n"
+    define_string += "#define my_variable_to_force_recompilation " + datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S") + "\n"
+    define_string += "#undef my_variable_to_force_recompilation \n"
 
     #Read the proper program
     module_path = os.path.dirname(os.path.realpath(__file__))
