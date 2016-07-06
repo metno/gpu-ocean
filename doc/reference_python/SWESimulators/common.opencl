@@ -161,7 +161,9 @@ float3 F_func(const float3 Q, const float g) {
 
 
 
-
+/**
+  * Central upwind flux function
+  */
 float3 CentralUpwindFlux(const float3 Qm, float3 Qp, const float g) {
     const float3 Fp = F_func(Qp, g);
     const float up = Qp.y / Qp.x;   // hu / h
@@ -186,6 +188,9 @@ float3 CentralUpwindFlux(const float3 Qm, float3 Qp, const float g) {
 
 
 
+/**
+  * Harten-Lax-van Leer with contact discontinuity (Toro 2001, p 180)
+  */
 float3 HLL_flux(const float3 Q_l, const float3 Q_r, const float g_) {    
     const float h_l = Q_l.x;
     const float h_r = Q_r.x;
@@ -212,7 +217,7 @@ float3 HLL_flux(const float3 Q_l, const float3 Q_r, const float g_) {
     const float S_r = u_r + c_r*q_r;
     
     //Upwind selection
-    if (S_l >= 0) {
+    if (S_l >= 0.0f) {
         return F_func(Q_l, g_);
     }
     else if (S_r <= 0.0f) {
@@ -227,6 +232,196 @@ float3 HLL_flux(const float3 Q_l, const float3 Q_r, const float g_) {
     }
 }
 
+
+
+
+
+
+
+
+
+/**
+  * Harten-Lax-van Leer with contact discontinuity (Toro 2001, p 181)
+  */
+float3 HLLC_flux(const float3 Q_l, const float3 Q_r, const float g_) {    
+    const float h_l = Q_l.x;
+    const float h_r = Q_r.x;
+    
+    // Calculate velocities
+    const float u_l = Q_l.y / h_l;
+    const float u_r = Q_r.y / h_r;
+    
+    // Estimate the potential wave speeds
+    const float c_l = sqrt(g_*h_l);
+    const float c_r = sqrt(g_*h_r);
+    
+    // Compute h in the "star region", h^dagger
+    const float h_dag = 0.5f * (h_l+h_r) - 0.25f * (u_r-u_l)*(h_l+h_r)/(c_l+c_r);
+    
+    const float q_l_tmp = sqrt(0.5f * ( (h_dag+h_l)*h_dag / (h_l*h_l) ) );
+    const float q_r_tmp = sqrt(0.5f * ( (h_dag+h_r)*h_dag / (h_r*h_r) ) );
+    
+    const float q_l = (h_dag > h_l) ? q_l_tmp : 1.0f;
+    const float q_r = (h_dag > h_r) ? q_r_tmp : 1.0f;
+    
+    // Compute wave speed estimates
+    const float S_l = u_l - c_l*q_l;
+    const float S_r = u_r + c_r*q_r;
+    const float S_star = ( S_l*h_r*(u_r - S_r) - S_r*h_l*(u_l - S_l) ) / ( h_r*(u_r - S_r) - h_l*(u_l - S_l) );
+    
+    const float3 F_l = F_func(Q_l, g_);
+    const float3 F_r = F_func(Q_r, g_);
+    
+    //Upwind selection
+    if (S_l >= 0.0f) {
+        return F_l;
+    }
+    else if (S_r <= 0.0f) {
+        return F_r;
+    }
+    //Or estimate flux in the "left star" region
+    else if (S_l <= 0.0f && 0.0f <=S_star) {
+        const float v_l = Q_l.z / h_l;
+        const float3 Q_star_l = h_l * (S_l - u_l) / (S_l - S_star) * (float3)(1, S_star, v_l);
+        const float3 flux = F_l + S_l*(Q_star_l - Q_l);
+        return flux;
+    }
+    //Or estimate flux in the "righ star" region
+    else if (S_star <= 0.0f && 0.0f <=S_r) {
+        const float v_r = Q_r.z / h_r;
+        const float3 Q_star_r = h_r * (S_r - u_r) / (S_r - S_star) * (float3)(1, S_star, v_r);
+        const float3 flux = F_r + S_r*(Q_star_r - Q_r);
+        return flux;
+    }
+    else {
+        return -99999.9f; //Something wrong here
+    }
+}
+
+
+
+/**
+  * Superbee flux limiter for WAF.
+  * Related to superbee limiter so that WAF_superbee(r, c) = 1 - (1-|c|)*superbee(r)
+  * @param r_ the ratio of upwind change (see Toro 2001, p. 203/204)
+  * @param c_ the courant number for wave k, dt*S_k/dx
+  */
+float WAF_superbee(float r_, float c_) {
+    // r <= 0.0
+    if (r_ <= 0.0f) { 
+        return 1.0f;
+    }
+    // 0.0 <= r <= 1/2
+    else if (r_ <= 0.5f) { 
+        return 1.0f - 2.0f*(1.0f - fabs(c_))*r_;
+    }
+    // 1/2 <= r <= 1
+    else if (r_ <= 1.0f) {
+        return fabs(c_);
+    }
+    // 1 <= r <= 2
+    else  if (r_ <= 2.0f) {
+        return 1.0f - (1.0f - fabs(c_))*r_;
+    }
+    // r >= 2
+    else {
+        return 2*fabs(c_) - 1.0f;
+    }
+}
+
+
+
+
+/**
+  * Weighted average flux (Toro 2001, p 200) for interface {i+1/2}
+  * @param r_ The flux limiter parameter (see Toro 2001, p. 203)
+  * @param Q_l2 Q_{i-1}
+  * @param Q_l1 Q_{i}
+  * @param Q_r1 Q_{i+1}
+  * @param Q_r2 Q_{i+2}
+  */
+float3 WAF_1D_flux(const float3 Q_l2, const float3 Q_l1, const float3 Q_r1, const float3 Q_r2, const float g_, const float dx_, const float dt_) {     
+    const float h_l = Q_l1.x;
+    const float h_r = Q_r1.x;
+    
+    const float h_l2 = Q_l2.x;
+    const float h_r2 = Q_r2.x;
+    
+    // Calculate velocities
+    const float u_l = Q_l1.y / h_l;
+    const float u_r = Q_r1.y / h_r;
+    
+    const float v_l = Q_l1.z / h_l;
+    const float v_r = Q_r1.z / h_r;
+    
+    const float v_l2 = Q_l2.z / h_l2;
+    const float v_r2 = Q_r2.z / h_r2;
+    
+    // Estimate the potential wave speeds
+    const float c_l = sqrt(g_*h_l);
+    const float c_r = sqrt(g_*h_r);
+    
+    // Compute h in the "star region", h^dagger
+    const float h_dag = 0.5f * (h_l+h_r) - 0.25f * (u_r-u_l)*(h_l+h_r)/(c_l+c_r);
+    
+    const float q_l_tmp = sqrt(0.5f * ( (h_dag+h_l)*h_dag / (h_l*h_l) ) );
+    const float q_r_tmp = sqrt(0.5f * ( (h_dag+h_r)*h_dag / (h_r*h_r) ) );
+    
+    const float q_l = (h_dag > h_l) ? q_l_tmp : 1.0f;
+    const float q_r = (h_dag > h_r) ? q_r_tmp : 1.0f;
+    
+    // Compute wave speed estimates
+    const float S_l = u_l - c_l*q_l;
+    const float S_r = u_r + c_r*q_r;
+    const float S_star = ( S_l*h_r*(u_r - S_r) - S_r*h_l*(u_l - S_l) ) / ( h_r*(u_r - S_r) - h_l*(u_l - S_l) );
+    
+    const float3 Q_star_l = h_l * (S_l - u_l) / (S_l - S_star) * (float3)(1, S_star, v_l);
+    const float3 Q_star_r = h_r * (S_r - u_r) / (S_r - S_star) * (float3)(1, S_star, v_r);
+    
+    // Estimate the fluxes in the four regions
+    const float3 F_1 = F_func(Q_l1, g_);
+    const float3 F_4 = F_func(Q_r1, g_);
+    const float3 F_2 = F_1 + S_l*(Q_star_l - Q_l1);
+    const float3 F_3 = F_4 + S_r*(Q_star_r - Q_r1);
+    
+    // Compute the courant numbers for the waves
+    const float c_1 = S_l * dt_ / dx_;
+    const float c_2 = S_star * dt_ / dx_;
+    const float c_3 = S_r * dt_ / dx_;
+    
+    // Compute the "upwind change" vectors for the i-3/2 and i+3/2 interfaces
+    // We use h for the tangential direction, and v for the normal direction
+    const float dh = h_r - h_l;
+    const float rh_m = (h_l - h_l2) / dh;
+    const float rh_p = (h_r2 - h_r) / dh;
+    
+    const float dv = v_r - v_l;
+    const float rv_m = (v_l - v_l2) / dv;
+    const float rv_p = (v_r2 - v_r) / dv;
+    
+    // Compute the r parameters for the flux limiter
+    // Note that you use h for h and hu, and v for hv component/equation
+    const float rh_1 = (c_1 > 0.0f) ? rh_m : rh_p; 
+    const float rv_1 = (c_1 > 0.0f) ? rv_m : rv_p; 
+    
+    const float rh_2 = (c_2 > 0.0f) ? rh_m : rh_p; 
+    const float rv_2 = (c_2 > 0.0f) ? rv_m : rv_p; 
+    
+    const float rh_3 = (c_3 > 0.0f) ? rh_m : rh_p;
+    const float rv_3 = (c_3 > 0.0f) ? rv_m : rv_p;
+    
+    // Compute the limiter
+    const float3 A_1 = (float3)(WAF_superbee(rh_1, c_1), WAF_superbee(rh_1, c_1), WAF_superbee(rv_1, c_1));
+    const float3 A_2 = (float3)(WAF_superbee(rh_2, c_2), WAF_superbee(rh_2, c_2), WAF_superbee(rv_2, c_2));
+    const float3 A_3 = (float3)(WAF_superbee(rh_3, c_3), WAF_superbee(rh_3, c_3), WAF_superbee(rv_3, c_3));
+        
+    //Average the fluxes
+    const float3 flux = 0.5f*( F_1 + F_4 )
+                      - 0.5f*( sign(c_1) * A_1 * (F_2 - F_1) 
+                             + sign(c_2) * A_2 * (F_3 - F_2)
+                             + sign(c_3) * A_3 * (F_4 - F_3) );
+    return flux;
+}
 
 
 
