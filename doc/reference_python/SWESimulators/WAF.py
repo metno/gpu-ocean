@@ -93,18 +93,38 @@ class WAF:
     Function which steps n timesteps
     """
     def step(self, t_end=0.0):
-        n = int(t_end / self.dt + 1)
+        n = int(t_end / (2.0*self.dt) + 1)
         
-        for i in range(0, n):        
-            local_dt = np.float32(min(self.dt, t_end-i*self.dt))
+        for i in range(0, n):
+            #Dimensional splitting: second order accurate for every other timestep,
+            #thus run two timesteps in a go
             
+            local_dt = np.float32(min(self.dt, t_end-i*self.dt))
             if (local_dt <= 0.0):
                 break
-        
             self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
                     self.dx, self.dy, local_dt, \
                     self.g, \
+                    np.int32(0), \
+                    self.cl_data.h0.data,  self.cl_data.h0.pitch,  \
+                    self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
+                    self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
+                    self.cl_data.h1.data,  self.cl_data.h1.pitch,  \
+                    self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
+                    self.cl_data.hv1.data, self.cl_data.hv1.pitch)
+            self.cl_data.swap()
+            
+            self.t += local_dt
+            
+            local_dt = np.float32(min(self.dt, t_end-i*self.dt))
+            if (local_dt <= 0.0):
+                break
+            self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
+                    self.nx, self.ny, \
+                    self.dx, self.dy, local_dt, \
+                    self.g, \
+                    np.int32(1), \
                     self.cl_data.h0.data,  self.cl_data.h0.pitch,  \
                     self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
                     self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
