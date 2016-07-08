@@ -99,7 +99,8 @@ class WAF:
             #Dimensional splitting: second order accurate for every other timestep,
             #thus run two timesteps in a go
             
-            local_dt = np.float32(min(self.dt, t_end-i*self.dt))
+            #Substep 1
+            local_dt = np.float32(min(self.dt, t_end-2*i*self.dt))
             if (local_dt <= 0.0):
                 break
             self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
@@ -117,7 +118,8 @@ class WAF:
             
             self.t += local_dt
             
-            local_dt = np.float32(min(self.dt, t_end-i*self.dt))
+            # Substep 2
+            local_dt = np.float32(min(self.dt, t_end-(2*i+1)*self.dt))
             if (local_dt <= 0.0):
                 break
             self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \

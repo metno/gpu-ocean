@@ -22,6 +22,43 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/**
+  * Reads a block of data  with one ghost cell for the shallow water equations
+  */
+void readBlock1(__global float* h_ptr_, int h_pitch_,
+                __global float* hu_ptr_, int hu_pitch_,
+                __global float* hv_ptr_, int hv_pitch_,
+                __local float Q[3][block_height+2][block_width+2], 
+                const int nx_, const int ny_) {
+    //Index of thread within block
+    const int tx = get_local_id(0);
+    const int ty = get_local_id(1);
+    
+    //Index of block within domain
+    const int bx = get_local_size(0) * get_group_id(0);
+    const int by = get_local_size(1) * get_group_id(1);
+    
+    //Read into shared memory
+    for (int j=ty; j<block_height+2; j+=get_local_size(1)) {
+        const int l = clamp(by + j, 0, ny_+1); // Out of bounds
+        
+        //Compute the pointer to current row in the arrays
+        __global float* const h_row = (__global float*) ((__global char*) h_ptr_ + h_pitch_*l);
+        __global float* const hu_row = (__global float*) ((__global char*) hu_ptr_ + hu_pitch_*l);
+        __global float* const hv_row = (__global float*) ((__global char*) hv_ptr_ + hv_pitch_*l);
+        
+        for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
+            const int k = clamp(bx + i, 0, nx_+1); // Out of bounds
+            
+            Q[0][j][i] = h_row[k];
+            Q[1][j][i] = hu_row[k];
+            Q[2][j][i] = hv_row[k];
+        }
+    }
+}
+
+
+
 
 
 /**
@@ -59,6 +96,44 @@ void readBlock2(__global float* h_ptr_, int h_pitch_,
     }
 }
 
+
+
+
+/**
+  * Writes a block of data to global memory for the shallow water equations.
+  */
+void writeBlock1(__global float* h_ptr_, int h_pitch_,
+                 __global float* hu_ptr_, int hu_pitch_,
+                 __global float* hv_ptr_, int hv_pitch_,
+                 __local float Q[3][block_height+2][block_width+2],
+                 const int nx_, const int ny_) {
+    //Index of thread within block
+    const int tx = get_local_id(0);
+    const int ty = get_local_id(1);
+    
+    //Index of cell within domain
+    const int ti = get_global_id(0) + 1; //Skip global ghost cells, i.e., +1
+    const int tj = get_global_id(1) + 1;
+    
+    //Only write internal cells
+    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
+        const int i = tx + 1; //Skip local ghost cells, i.e., +1
+        const int j = ty + 1;
+
+        __global float* const h_row  = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
+        __global float* const hu_row = (__global float*) ((__global char*) hu_ptr_ + hu_pitch_*tj);
+        __global float* const hv_row = (__global float*) ((__global char*) hv_ptr_ + hv_pitch_*tj);
+        
+        h_row[ti]  = Q[0][j][i];
+        hu_row[ti] = Q[1][j][i];
+        hv_row[ti] = Q[2][j][i];
+    }
+}
+
+
+
+
+
 /**
   * Writes a block of data to global memory for the shallow water equations.
   */
@@ -92,6 +167,53 @@ void writeBlock2(__global float* h_ptr_, int h_pitch_,
 
 
 
+
+
+
+/**
+  * No flow boundary conditions for the shallow water equations
+  * with one ghost cell in each direction
+  */
+void noFlowBoundary1(__local float Q[3][block_height+2][block_width+2], const int nx_, const int ny_) {
+    //Global index
+    const int ti = get_global_id(0) + 1; //Skip global ghost cells, i.e., +1
+    const int tj = get_global_id(1) + 1;
+    
+    //Block-local indices
+    const int tx = get_local_id(0);
+    const int ty = get_local_id(1);
+    
+    const int i = tx + 1; //Skip local ghost cells, i.e., +1
+    const int j = ty + 1;
+    
+    //Fix boundary conditions
+    if (ti == 1) {
+        Q[0][j][i-1] =  Q[0][j][i];
+        Q[1][j][i-1] = -Q[1][j][i];
+        Q[2][j][i-1] =  Q[2][j][i];
+    }
+    if (ti == nx_) {
+        Q[0][j][i+1] =  Q[0][j][i];
+        Q[1][j][i+1] = -Q[1][j][i];
+        Q[2][j][i+1] =  Q[2][j][i];
+    }
+    if (tj == 1) {
+        Q[0][j-1][i] =  Q[0][j][i];
+        Q[1][j-1][i] =  Q[1][j][i];
+        Q[2][j-1][i] = -Q[2][j][i];
+    }
+    if (tj == ny_) {
+        Q[0][j+1][i] =  Q[0][j][i];
+        Q[1][j+1][i] =  Q[1][j][i];
+        Q[2][j+1][i] = -Q[2][j][i];
+    }
+}
+
+
+
+
+
+
 /**
   * No flow boundary conditions for the shallow water equations
   * with two ghost cells in each direction
@@ -104,6 +226,7 @@ void noFlowBoundary2(__local float Q[3][block_height+4][block_width+4], const in
     //Block-local indices
     const int tx = get_local_id(0);
     const int ty = get_local_id(1);
+    
     const int i = tx + 2; //Skip local ghost cells, i.e., +2
     const int j = ty + 2;
     
@@ -143,11 +266,37 @@ void noFlowBoundary2(__local float Q[3][block_height+4][block_width+4], const in
         Q[1][j+2][i] =  Q[1][j-1][i];
         Q[2][j+2][i] = -Q[2][j-1][i];
     }
-    __syncthreads();
 }
 
 
 
+
+
+
+/**
+  * Evolves the solution in time along the x axis (dimensional splitting)
+  */
+void evolveF1(__local float Q[3][block_height+2][block_width+2],
+              __local float F[3][block_height+1][block_width+1],
+              const int nx_, const int ny_,
+              const float dx_, const float dt_) {
+    //Index of thread within block
+    const int tx = get_local_id(0);
+    const int ty = get_local_id(1);
+    
+    //Index of cell within domain
+    const int ti = get_global_id(0) + 1; //Skip global ghost cells, i.e., +1
+    const int tj = get_global_id(1) + 1;
+    
+    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
+        const int i = tx + 1; //Skip local ghost cells, i.e., +1
+        const int j = ty + 1;
+        
+        Q[0][j][i] = Q[0][j][i] + (F[0][ty][tx] - F[0][ty][tx+1]) * dt_ / dx_;
+        Q[1][j][i] = Q[1][j][i] + (F[1][ty][tx] - F[1][ty][tx+1]) * dt_ / dx_;
+        Q[2][j][i] = Q[2][j][i] + (F[2][ty][tx] - F[2][ty][tx+1]) * dt_ / dx_;
+    }
+}
 
 
 
@@ -158,9 +307,9 @@ void noFlowBoundary2(__local float Q[3][block_height+4][block_width+4], const in
   * Evolves the solution in time along the x axis (dimensional splitting)
   */
 void evolveF2(__local float Q[3][block_height+4][block_width+4],
-             __local float F[3][block_height+1][block_width+1],
-             const int nx_, const int ny_,
-             const float dx_, const float dt_) {
+              __local float F[3][block_height+1][block_width+1],
+              const int nx_, const int ny_,
+              const float dx_, const float dt_) {
     //Index of thread within block
     const int tx = get_local_id(0);
     const int ty = get_local_id(1);
@@ -177,9 +326,37 @@ void evolveF2(__local float Q[3][block_height+4][block_width+4],
         Q[1][j][i] = Q[1][j][i] + (F[1][ty][tx] - F[1][ty][tx+1]) * dt_ / dx_;
         Q[2][j][i] = Q[2][j][i] + (F[2][ty][tx] - F[2][ty][tx+1]) * dt_ / dx_;
     }
-    __syncthreads();
 }
 
+
+
+
+
+
+/**
+  * Evolves the solution in time along the y axis (dimensional splitting)
+  */
+void evolveG1(__local float Q[3][block_height+2][block_width+2],
+              __local float G[3][block_height+1][block_width+1],
+              const int nx_, const int ny_,
+              const float dy_, const float dt_) {
+    //Index of thread within block
+    const int tx = get_local_id(0);
+    const int ty = get_local_id(1);
+    
+    //Index of cell within domain
+    const int ti = get_global_id(0) + 1; //Skip global ghost cells, i.e., +1
+    const int tj = get_global_id(1) + 1;
+    
+    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
+        const int i = tx + 1; //Skip local ghost cells, i.e., +1
+        const int j = ty + 1;
+        
+        Q[0][j][i] = Q[0][j][i] + (G[0][ty][tx] - G[0][ty+1][tx]) * dt_ / dy_;
+        Q[1][j][i] = Q[1][j][i] + (G[1][ty][tx] - G[1][ty+1][tx]) * dt_ / dy_;
+        Q[2][j][i] = Q[2][j][i] + (G[2][ty][tx] - G[2][ty+1][tx]) * dt_ / dy_;
+    }
+}
 
 
 
@@ -191,9 +368,9 @@ void evolveF2(__local float Q[3][block_height+4][block_width+4],
   * Evolves the solution in time along the y axis (dimensional splitting)
   */
 void evolveG2(__local float Q[3][block_height+4][block_width+4],
-             __local float F[3][block_height+1][block_width+1],
-             const int nx_, const int ny_,
-             const float dy_, const float dt_) {
+              __local float G[3][block_height+1][block_width+1],
+              const int nx_, const int ny_,
+              const float dy_, const float dt_) {
     //Index of thread within block
     const int tx = get_local_id(0);
     const int ty = get_local_id(1);
@@ -206,31 +383,14 @@ void evolveG2(__local float Q[3][block_height+4][block_width+4],
         const int i = tx + 2; //Skip local ghost cells, i.e., +2
         const int j = ty + 2;
         
-        Q[0][j][i] = Q[0][j][i] + (F[0][ty][tx] - F[0][ty+1][tx]) * dt_ / dy_;
-        Q[1][j][i] = Q[1][j][i] + (F[1][ty][tx] - F[1][ty+1][tx]) * dt_ / dy_;
-        Q[2][j][i] = Q[2][j][i] + (F[2][ty][tx] - F[2][ty+1][tx]) * dt_ / dy_;
+        Q[0][j][i] = Q[0][j][i] + (G[0][ty][tx] - G[0][ty+1][tx]) * dt_ / dy_;
+        Q[1][j][i] = Q[1][j][i] + (G[1][ty][tx] - G[1][ty+1][tx]) * dt_ / dy_;
+        Q[2][j][i] = Q[2][j][i] + (G[2][ty][tx] - G[2][ty+1][tx]) * dt_ / dy_;
     }
-    __syncthreads();
 }
 
 
 
-
-
-
-/**
- * Generalized minmod slope limiter
- * @return min(a, b, c), {a, b, c} > 0
- *         max(a, b, c), {a, b, c} < 0
- *         0           , otherwise
- */
-float minmod(float a, float b, float c) {
-	return 0.25f
-		*copysign(1.0f, a)
-		*(copysign(1.0f, a) + copysign(1.0f, b))
-		*(copysign(1.0f, b) + copysign(1.0f, c))
-		*min( min(fabs(a), fabs(b)), fabs(c) );
-}
 
 
 
@@ -242,11 +402,16 @@ float minmod(float a, float b, float c) {
   * Reconstructs a slope using the minmod limiter based on three 
   * consecutive values
   */
-float reconstructSlope(float left, float center, float right, float theta) {
-    const float backward = center - left;
+float minmodSlope(float left, float center, float right, float theta) {
+    const float backward = (center - left) * theta;
     const float central = (right - left) * 0.5f;
-    const float forward = right - center;
-    return minmod(theta*backward, central, theta*forward);
+    const float forward = (right - center) * theta;
+    
+	return 0.25f
+		*copysign(1.0f, backward)
+		*(copysign(1.0f, backward) + copysign(1.0f, central))
+		*(copysign(1.0f, central) + copysign(1.0f, forward))
+		*min( min(fabs(backward), fabs(central)), fabs(forward) );
 }
 
 

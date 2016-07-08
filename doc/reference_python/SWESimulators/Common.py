@@ -10,14 +10,30 @@ def get_kernel(cl_ctx, kernel_filename, block_width, block_height):
     
     #Create define string
     define_string = "#define block_width " + str(block_width) + "\n"
-    define_string += "#define block_height " + str(block_height) + "\n"
+    define_string += "#define block_height " + str(block_height) + "\n\n"
+    define_string += "#ifndef my_variable_to_force_recompilation\n"
     define_string += "#define my_variable_to_force_recompilation " + datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S") + "\n"
     define_string += "#undef my_variable_to_force_recompilation \n"
-
-    #Read the proper program
+    define_string += "#endif\n\n"
+    
+    
+    def shellquote(s):
+        assert(cl_ctx.num_devices == 1)
+        platform_name = cl_ctx.devices[0].get_info(pyopencl.device_info.PLATFORM).name
+        platform_name = platform_name.upper()
+        if ('INTEL' in platform_name):
+            #Intel CL compiler doesn't like spaces in include paths. We have to escape them
+            return '"' + s.replace(" ", "\\ ") + '"'
+        elif ('NVIDIA' in platform_name):
+            #NVIDIA doesn't like double quoted paths...
+            return "'" + s + "'"
+            
     module_path = os.path.dirname(os.path.realpath(__file__))
+    module_path_escaped = shellquote(module_path)
+    options = ['-I', module_path_escaped]
+    
+    #Read the proper program
     fullpath = os.path.join(module_path, kernel_filename)
-    options = ['-I', "'" + module_path + "'"]
     with open(fullpath, "r") as kernel_file:
         kernel_string = define_string + kernel_file.read()
         kernel = pyopencl.Program(cl_ctx, kernel_string).build(options)
