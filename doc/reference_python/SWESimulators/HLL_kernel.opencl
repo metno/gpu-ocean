@@ -23,9 +23,74 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 
-typedef __local float cell_shmem[block_height+2][block_width+2];
-typedef __local float u_edge_shmem[block_height+2][block_width+1];
-typedef __local float v_edge_shmem[block_height+1][block_width+2];
+
+
+/**
+  * Computes the flux along the x axis for all faces
+  */
+void computeFluxF(__local float Q[3][block_height+2][block_width+2],
+                  __local float F[3][block_height+1][block_width+1],
+                  const float g_) {
+    //Index of thread within block
+    const int tx = get_local_id(0);
+    const int ty = get_local_id(1);
+    
+    for (int j=ty; j<block_height; j+=get_local_size(1)) {   
+        const int l = j + 1; //Skip ghost cells     
+        for (int i=tx; i<block_width+1; i+=get_local_size(0)) { 
+            const int k = i;
+            
+            const float3 Q_l  = (float3)(Q[0][l][k  ], Q[1][l][k  ], Q[2][l][k  ]);
+            const float3 Q_r  = (float3)(Q[0][l][k+1], Q[1][l][k+1], Q[2][l][k+1]);
+            
+            const float3 flux = HLL_flux(Q_l, Q_r, g_);
+            
+            //Write to shared memory
+            F[0][j][i] = flux.x;
+            F[1][j][i] = flux.y;
+            F[2][j][i] = flux.z;
+        }
+    }
+}
+
+
+
+
+
+/**
+  * Computes the flux along the x axis for all faces
+  */
+void computeFluxG(__local float Q[3][block_height+2][block_width+2],
+                  __local float G[3][block_height+1][block_width+1],
+                  const float g_) {
+    //Index of thread within block
+    const int tx = get_local_id(0);
+    const int ty = get_local_id(1);
+    
+    for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
+        const int l = j;
+        for (int i=tx; i<block_width; i+=get_local_size(0)) {            
+            const int k = i + 1; //Skip ghost cells
+            
+            //NOte that hu and hv are swapped ("transposing" the domain)!
+            const float3 Q_l = (float3)(Q[0][l  ][k], Q[2][l  ][k], Q[1][l  ][k]);
+            const float3 Q_r = (float3)(Q[0][l+1][k], Q[2][l+1][k], Q[1][l+1][k]);
+                                       
+            // Computed flux
+            const float3 flux = HLL_flux(Q_l, Q_r, g_);
+            
+            //Write to shared memory
+            //Note that we here swap hu and hv back to the original
+            G[0][j][i] = flux.x;
+            G[1][j][i] = flux.z;
+            G[2][j][i] = flux.y;
+        }
+    }
+}
+
+
+
+
 
 
 
@@ -49,148 +114,43 @@ __kernel void swe_2D(
         __global float* h1_ptr_, int h1_pitch_,
         __global float* hu1_ptr_, int hu1_pitch_,
         __global float* hv1_ptr_, int hv1_pitch_) {
-        
-    //Index of thread within block
-    const int tx = get_local_id(0);
-    const int ty = get_local_id(1);
-    
-    //Index of block within domain
-    const int bx = get_local_size(0) * get_group_id(0);
-    const int by = get_local_size(1) * get_group_id(1);
-
-    //Index of cell within domain
-    const int ti = get_global_id(0) + 1; //Skip global ghost cells, i.e., +1
-    const int tj = get_global_id(1) + 1;
-    
-    //Conserved variables
-    cell_shmem h;
-    cell_shmem hu;
-    cell_shmem hv;
-    
-    //Intermediate flux variables
-    u_edge_shmem h_f_flux;
-    u_edge_shmem hu_f_flux;
-    u_edge_shmem hv_f_flux;
-    
-    v_edge_shmem h_g_flux;
-    v_edge_shmem hu_g_flux;
-    v_edge_shmem hv_g_flux;
+    //Shared memory variables
+    __local float Q[3][block_height+2][block_width+2];
+    __local float F[3][block_height+1][block_width+1];
     
     
     //Read into shared memory
-    for (int j=ty; j<block_height+2; j+=get_local_size(1)) {
-        const int l = clamp(by + j, 0, ny_+1); // Out of bounds
-        
-        //Compute the pointer to current row in the arrays
-        __global float* const h_row = (__global float*) ((__global char*) h0_ptr_ + h0_pitch_*l);
-        __global float* const hu_row = (__global float*) ((__global char*) hu0_ptr_ + hu0_pitch_*l);
-        __global float* const hv_row = (__global float*) ((__global char*) hv0_ptr_ + hv0_pitch_*l);
-        
-        for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
-            const int k = clamp(bx + i, 0, nx_+1); // Out of bounds
-            
-            h[j][i] = h_row[k];
-            hu[j][i] = hu_row[k];
-            hv[j][i] = hv_row[k];
-        }
-    }
-    
-    //Make sure all threads have read into shared mem
-    __syncthreads();
-    
+    readBlock1(h0_ptr_, h0_pitch_,
+               hu0_ptr_, hu0_pitch_,
+               hv0_ptr_, hv0_pitch_,
+               Q, nx_, ny_);
+    barrier(CLK_LOCAL_MEM_FENCE);
 
-    {
-        const int i = tx + 1; //Skip local ghost cells, i.e., +1
-        const int j = ty + 1;
-        
-        //Fix boundary conditions
-        if (ti == 1) {
-            h[j][i-1]  =   h[j][i];
-            hu[j][i-1] = -hu[j][i];
-            hv[j][i-1] =  hv[j][i];
-        }
-        if (ti == nx_) {
-            h[j][i+1]  =   h[j][i];
-            hu[j][i+1] = -hu[j][i];
-            hv[j][i+1] =  hv[j][i];
-        }
-        if (tj == 1) {
-            h[j-1][i]  =   h[j][i];
-            hu[j-1][i] =  hu[j][i];
-            hv[j-1][i] = -hv[j][i];
-        }
-        if (tj == ny_) {
-            h[j+1][i]  =   h[j][i];
-            hu[j+1][i] =  hu[j][i];
-            hv[j+1][i] = -hv[j][i];
-        }
-        
-    }
-    __syncthreads();
-    
-    
+    noFlowBoundary1(Q, nx_, ny_);
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     //Compute F flux
-    for (int j=ty; j<block_height+2; j+=get_local_size(1)) {        
-        for (int i=tx; i<block_width+1; i+=get_local_size(0)) { //Note: only compute for edges, thus width+1 only.
-            const float3 Q_l  = (float3)(h[j][i], hu[j][i], hv[j][i]);
-            const float3 Q_r  = (float3)(h[j][i+1], hu[j][i+1], hv[j][i+1]);
-            
-            const float3 flux = HLL_flux(Q_l, Q_r, g_);
-            
-            //Write to shared memory
-            h_f_flux[j][i] = flux.x;
-            hu_f_flux[j][i] = flux.y;
-            hv_f_flux[j][i] = flux.z;
-        }
-    }
+    computeFluxF(Q, F, g_);
+    barrier(CLK_LOCAL_MEM_FENCE);
+    evolveF1(Q, F, nx_, ny_, dx_, dt_);
+    barrier(CLK_LOCAL_MEM_FENCE);
+    
+    //Set boundary conditions
+    noFlowBoundary1(Q, nx_, ny_);
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     //Compute G flux
-    for (int j=ty; j<block_height+1; j+=get_local_size(1)) { //Note: only compute for edges, thus width+1 only.
-        for (int i=tx; i<block_width+2; i+=get_local_size(0)) { 
-            //NOte that hu and hv are swapped ("transposing" the domain)!
-            const float3 Q_l  = (float3)(h[j][i], hv[j][i], hu[j][i]);
-            const float3 Q_r  = (float3)(h[j+1][i], hv[j+1][i], hu[j+1][i]);
-            
-            const float3 flux = HLL_flux(Q_l, Q_r, g_);
-            
-            //Write to shared memory
-            //Note that we here swap hu and hv back to the original
-            h_g_flux[j][i] = flux.x;
-            hu_g_flux[j][i] = flux.z;
-            hv_g_flux[j][i] = flux.y;
-        }
-    }
-        
-    
-
-    //Make sure all threads have finished computing fluxes
-    __syncthreads();
+    computeFluxG(Q, F, g_);
+    barrier(CLK_LOCAL_MEM_FENCE);
+    evolveG1(Q, F, nx_, ny_, dy_, dt_);
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     
-    //Compute for all internal cells
-    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
-        const int i = tx + 1; //Skip local ghost cells, i.e., +1
-        const int j = ty + 1;
-        
-        const float h_r = (h_f_flux[j][i-1] - h_f_flux[j][i]) / dx_
-                        + (h_g_flux[j-1][i] - h_g_flux[j][i]) / dy_;
-        const float hu_r = (hu_f_flux[j][i-1] - hu_f_flux[j][i]) / dx_
-                         + (hu_g_flux[j-1][i] - hu_g_flux[j][i]) / dy_;
-        const float hv_r = (hv_f_flux[j][i-1] - hv_f_flux[j][i]) / dx_
-                         + (hv_g_flux[j-1][i] - hv_g_flux[j][i]) / dy_;
-        
-        const float h1 = h[j][i] + dt_*h_r;
-        const float hu1 = hu[j][i] + dt_*hu_r;
-        const float hv1 = hv[j][i] + dt_*hv_r;
-
-        __global float* const h_row  = (__global float*) ((__global char*) h1_ptr_ + h1_pitch_*tj);
-        __global float* const hu_row = (__global float*) ((__global char*) hu1_ptr_ + hu1_pitch_*tj);
-        __global float* const hv_row = (__global float*) ((__global char*) hv1_ptr_ + hv1_pitch_*tj);
-        
-        h_row[ti] = h1;
-        hu_row[ti] = hu1;
-        hv_row[ti] = hv1;
-    }
+    
+    // Write to main memory for all internal cells
+    writeBlock1(h1_ptr_, h1_pitch_,
+                hu1_ptr_, hu1_pitch_,
+                hv1_ptr_, hv1_pitch_,
+                Q, nx_, ny_);
 }

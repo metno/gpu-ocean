@@ -77,7 +77,7 @@ __kernel void swe_2D(
     }
 
     //Make sure all threads have read into shared mem
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     {
         const int i = tx + 1; //Skip local ghost cells, i.e., +1
@@ -105,7 +105,7 @@ __kernel void swe_2D(
             Q[2][j+1][i] = -Q[2][j][i];
         }
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     //Compute fluxes along the x axis
@@ -155,7 +155,7 @@ __kernel void swe_2D(
             G[2][j][i] = flux.y;
         }
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     

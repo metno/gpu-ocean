@@ -135,12 +135,12 @@ __kernel void swe_2D(
                hu0_ptr_, hu0_pitch_,
                hv0_ptr_, hv0_pitch_,
                Q, nx_, ny_);
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     //Set boundary conditions
     noFlowBoundary2(Q, nx_, ny_);
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     
@@ -148,37 +148,37 @@ __kernel void swe_2D(
     if (step_ == 0) {
         //Compute fluxes along the x axis and evolve
         computeFluxF(Q, F, g_, dx_, dt_);
-        __syncthreads();
+        barrier(CLK_LOCAL_MEM_FENCE);
         evolveF2(Q, F, nx_, ny_, dx_, dt_);
-        __syncthreads();
+        barrier(CLK_LOCAL_MEM_FENCE);
         
         //Fix boundary conditions
         noFlowBoundary2(Q, nx_, ny_);
-        __syncthreads();
+        barrier(CLK_LOCAL_MEM_FENCE);
         
         //Compute fluxes along the y axis and evolve
         computeFluxG(Q, F, g_, dy_, dt_);
-        __syncthreads();
+        barrier(CLK_LOCAL_MEM_FENCE);
         evolveG2(Q, F, nx_, ny_, dy_, dt_);
-        __syncthreads();
+        barrier(CLK_LOCAL_MEM_FENCE);
     }
     //Step 1 => evolve y first, then x
     else {
         //Compute fluxes along the y axis and evolve
         computeFluxG(Q, F, g_, dy_, dt_);
-        __syncthreads();
+        barrier(CLK_LOCAL_MEM_FENCE);
         evolveG2(Q, F, nx_, ny_, dy_, dt_);
-        __syncthreads();
+        barrier(CLK_LOCAL_MEM_FENCE);
         
         //Fix boundary conditions
         noFlowBoundary2(Q, nx_, ny_);
-        __syncthreads();
+        barrier(CLK_LOCAL_MEM_FENCE);
         
         //Compute fluxes along the x axis and evolve
         computeFluxF(Q, F, g_, dx_, dt_);
-        __syncthreads();
+        barrier(CLK_LOCAL_MEM_FENCE);
         evolveF2(Q, F, nx_, ny_, dx_, dt_);
-        __syncthreads();
+        barrier(CLK_LOCAL_MEM_FENCE);
     }
 
 

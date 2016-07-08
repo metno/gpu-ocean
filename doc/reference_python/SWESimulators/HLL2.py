@@ -55,7 +55,7 @@ class HLL2:
                  nx, ny, \
                  dx, dy, dt, \
                  g, \
-                 theta=1.3, use_rk2=True, \
+                 theta=1.3, \
                  block_width=16, block_height=16):
         self.cl_ctx = cl_ctx
 
@@ -80,7 +80,6 @@ class HLL2:
         self.dt = np.float32(dt)
         self.g = np.float32(g)
         self.theta = np.float32(theta)
-        self.use_rk2 = use_rk2
         
         #Initialize time
         self.t = np.float32(0.0)
@@ -99,54 +98,50 @@ class HLL2:
     Function which steps n timesteps
     """
     def step(self, t_end=0.0):
-        n = int(t_end / self.dt + 1)
+        n = int(t_end / (2.0*self.dt) + 1)
         
-        for i in range(0, n):        
-            local_dt = np.float32(min(self.dt, t_end-i*self.dt))
+        for i in range(0, n): 
+            #Dimensional splitting: second order accurate for every other timestep,
+            #thus run two timesteps in a go
             
+            #Substep 1
+            local_dt = np.float32(min(self.dt, t_end-2*i*self.dt))
             if (local_dt <= 0.0):
                 break
-        
-            if (self.use_rk2):
-                self.swe_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, local_dt, \
-                        self.g, \
-                        self.theta, \
-                        np.int32(0), \
-                        self.cl_data.h0.data, self.cl_data.h0.pitch, \
-                        self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
-                        self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
-                        self.cl_data.h1.data, self.cl_data.h1.pitch, \
-                        self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
-                        self.cl_data.hv1.data, self.cl_data.hv1.pitch)
-                self.swe_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, local_dt, \
-                        self.g, \
-                        self.theta, \
-                        np.int32(1), \
-                        self.cl_data.h1.data, self.cl_data.h1.pitch, \
-                        self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
-                        self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
-                        self.cl_data.h0.data, self.cl_data.h0.pitch, \
-                        self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
-                        self.cl_data.hv0.data, self.cl_data.hv0.pitch)
-            else:
-                self.swe_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, local_dt, \
-                        self.g, \
-                        self.theta, \
-                        np.int32(0), \
-                        self.cl_data.h0.data, self.cl_data.h0.pitch, \
-                        self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
-                        self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
-                        self.cl_data.h1.data, self.cl_data.h1.pitch, \
-                        self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
-                        self.cl_data.hv1.data, self.cl_data.hv1.pitch)
-                self.cl_data.swap()
-                
+            self.swe_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
+                    self.nx, self.ny, \
+                    self.dx, self.dy, local_dt, \
+                    self.g, \
+                    self.theta, \
+                    np.int32(0), \
+                    self.cl_data.h0.data, self.cl_data.h0.pitch, \
+                    self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
+                    self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
+                    self.cl_data.h1.data, self.cl_data.h1.pitch, \
+                    self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
+                    self.cl_data.hv1.data, self.cl_data.hv1.pitch)
+            self.cl_data.swap()
+            
+            self.t += local_dt
+            
+            #Substep 2
+            local_dt = np.float32(min(self.dt, t_end-(2*i+1)*self.dt))
+            if (local_dt <= 0.0):
+                break
+            self.swe_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
+                    self.nx, self.ny, \
+                    self.dx, self.dy, local_dt, \
+                    self.g, \
+                    self.theta, \
+                    np.int32(1), \
+                    self.cl_data.h0.data, self.cl_data.h0.pitch, \
+                    self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
+                    self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
+                    self.cl_data.h1.data, self.cl_data.h1.pitch, \
+                    self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
+                    self.cl_data.hv1.data, self.cl_data.hv1.pitch)
+            self.cl_data.swap()
+            
             self.t += local_dt
             
         
