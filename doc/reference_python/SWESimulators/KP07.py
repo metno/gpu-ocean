@@ -67,7 +67,7 @@ class KP07:
                  h0, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
-                 g, f, r, \
+                 g, f=0.0, r=0.0, \
                  theta=1.3, use_rk2=True,
                  wind_stress=Common.WindStressParams(), \
                  block_width=16, block_height=16):
