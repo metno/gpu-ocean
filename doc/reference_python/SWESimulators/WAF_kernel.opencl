@@ -69,7 +69,7 @@ void computeFluxF(__local float Q[3][block_height+4][block_width+4],
   * Computes the flux along the y axis for all faces
   */
 void computeFluxG(__local float Q[3][block_height+4][block_width+4],
-                  __local float F[3][block_height+1][block_width+1],
+                  __local float G[3][block_height+1][block_width+1],
                   const float g_, const float dy_, const float dt_) {
     //Index of thread within block
     const int tx = get_local_id(0);
@@ -90,9 +90,9 @@ void computeFluxG(__local float Q[3][block_height+4][block_width+4],
             // Computed flux
             // Note that we swap back
             const float3 flux = WAF_1D_flux(Ql2, Ql1, Qr1, Qr2, g_, dy_, dt_);
-            F[0][j][i] = flux.x;
-            F[1][j][i] = flux.z;
-            F[2][j][i] = flux.y;
+            G[0][j][i] = flux.x;
+            G[1][j][i] = flux.z;
+            G[2][j][i] = flux.y;
         }
     }
 }
