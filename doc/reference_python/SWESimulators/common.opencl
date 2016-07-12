@@ -690,6 +690,30 @@ float WAF_superbee(float r_, float c_) {
 
 
 
+float WAF_albada(float r_, float c_) {
+    if (r_ <= 0.0) {
+        return 1.0f;
+    }
+    else {
+        return 1.0f - (1.0f - fabs(c_)) * r_ * (1.0f + r_) / (1.0f + r_*r_);
+    }
+}
+
+
+float WAF_minbee(float r_, float c_) {
+    if (r_ <= 0.0) {
+        return 1.0f;
+    }
+    else if (r_ <= 1.0f) {
+        return 1.0f - (1.0f - fabs(c_))*r_;
+    }
+    else {
+        return fabs(c_);
+    }
+}
+
+
+
 /**
   * Weighted average flux (Toro 2001, p 200) for interface {i+1/2}
   * @param r_ The flux limiter parameter (see Toro 2001, p. 203)
@@ -739,6 +763,7 @@ float3 WAF_1D_flux(const float3 Q_l2, const float3 Q_l1, const float3 Q_r1, cons
     // Estimate the fluxes in the four regions
     const float3 F_1 = F_func(Q_l1, g_);
     const float3 F_4 = F_func(Q_r1, g_);
+    
     const float3 F_2 = F_1 + S_l*(Q_star_l - Q_l1);
     const float3 F_3 = F_4 + S_r*(Q_star_r - Q_r1);
     
@@ -769,16 +794,38 @@ float3 WAF_1D_flux(const float3 Q_l2, const float3 Q_l1, const float3 Q_r1, cons
     const float rv_3 = (c_3 > 0.0f) ? rv_m : rv_p;
     
     // Compute the limiter
-    const float3 A_1 = (float3)(WAF_superbee(rh_1, c_1), WAF_superbee(rh_1, c_1), WAF_superbee(rv_1, c_1));
-    const float3 A_2 = (float3)(WAF_superbee(rh_2, c_2), WAF_superbee(rh_2, c_2), WAF_superbee(rv_2, c_2));
-    const float3 A_3 = (float3)(WAF_superbee(rh_3, c_3), WAF_superbee(rh_3, c_3), WAF_superbee(rv_3, c_3));
+    const float3 A_1 = (float3)(WAF_minbee(rh_1, c_1), WAF_minbee(rh_1, c_1), WAF_minbee(rv_1, c_1));
+    const float3 A_2 = (float3)(WAF_minbee(rh_2, c_2), WAF_minbee(rh_2, c_2), WAF_minbee(rv_2, c_2));
+    const float3 A_3 = (float3)(WAF_minbee(rh_3, c_3), WAF_minbee(rh_3, c_3), WAF_minbee(rv_3, c_3));
+
+    //const float3 A_1 = (float3)(WAF_superbee(rh_1, c_1), WAF_superbee(rh_1, c_1), WAF_superbee(rh_1, c_1));
+    //const float3 A_2 = (float3)(WAF_superbee(rv_2, c_2), WAF_superbee(rv_2, c_2), WAF_superbee(rv_2, c_2));
+    //const float3 A_3 = (float3)(WAF_superbee(rh_3, c_3), WAF_superbee(rh_3, c_3), WAF_superbee(rh_3, c_3));
         
     //Average the fluxes
     const float3 flux = 0.5f*( F_1 + F_4 )
                       - 0.5f*( sign(c_1) * A_1 * (F_2 - F_1) 
                              + sign(c_2) * A_2 * (F_3 - F_2)
                              + sign(c_3) * A_3 * (F_4 - F_3) );
+    //const float3 flux = 0.5f*( F_1 + F_4 ) - 0.5f*( sign(c_3) * A_3 * (F_4 - F_3) );
     return flux;
+    
+    /*
+    if (S_l >= 0.0f) {
+        return F_1;
+    }
+    else if (S_r <= 0.0f) {
+        return F_4;
+    }
+    //Or estimate flux in the "left star" region
+    else if (S_l <= 0.0f && 0.0f <=S_star) {
+        return F_2;
+    }
+    //Or estimate flux in the "righ star" region
+    else if (S_star <= 0.0f && 0.0f <=S_r) {
+        return F_3;
+    }
+    */
 }
 
 
