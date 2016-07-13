@@ -794,13 +794,13 @@ float3 WAF_1D_flux(const float3 Q_l2, const float3 Q_l1, const float3 Q_r1, cons
     const float rv_3 = (c_3 > 0.0f) ? rv_m : rv_p;
     
     // Compute the limiter
-    const float3 A_1 = (float3)(WAF_minbee(rh_1, c_1), WAF_minbee(rh_1, c_1), WAF_minbee(rv_1, c_1));
-    const float3 A_2 = (float3)(WAF_minbee(rh_2, c_2), WAF_minbee(rh_2, c_2), WAF_minbee(rv_2, c_2));
-    const float3 A_3 = (float3)(WAF_minbee(rh_3, c_3), WAF_minbee(rh_3, c_3), WAF_minbee(rv_3, c_3));
+    //const float3 A_1 = (float3)(WAF_minbee(rh_1, c_1), WAF_minbee(rh_1, c_1), WAF_minbee(rv_1, c_1));
+    //const float3 A_2 = (float3)(WAF_minbee(rh_2, c_2), WAF_minbee(rh_2, c_2), WAF_minbee(rv_2, c_2));
+    //const float3 A_3 = (float3)(WAF_minbee(rh_3, c_3), WAF_minbee(rh_3, c_3), WAF_minbee(rv_3, c_3));
 
-    //const float3 A_1 = (float3)(WAF_superbee(rh_1, c_1), WAF_superbee(rh_1, c_1), WAF_superbee(rh_1, c_1));
-    //const float3 A_2 = (float3)(WAF_superbee(rv_2, c_2), WAF_superbee(rv_2, c_2), WAF_superbee(rv_2, c_2));
-    //const float3 A_3 = (float3)(WAF_superbee(rh_3, c_3), WAF_superbee(rh_3, c_3), WAF_superbee(rh_3, c_3));
+    const float3 A_1 = (float3)(WAF_minbee(rh_1, c_1), WAF_minbee(rh_1, c_1), WAF_minbee(rh_1, c_1));
+    const float3 A_2 = (float3)(WAF_minbee(rv_2, c_2), WAF_minbee(rv_2, c_2), WAF_minbee(rv_2, c_2));
+    const float3 A_3 = (float3)(WAF_minbee(rh_3, c_3), WAF_minbee(rh_3, c_3), WAF_minbee(rh_3, c_3));
         
     //Average the fluxes
     const float3 flux = 0.5f*( F_1 + F_4 )

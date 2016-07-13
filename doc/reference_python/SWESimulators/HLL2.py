@@ -55,7 +55,7 @@ class HLL2:
                  nx, ny, \
                  dx, dy, dt, \
                  g, \
-                 theta=1.3, \
+                 theta=1.8, \
                  block_width=16, block_height=16):
         self.cl_ctx = cl_ctx
 
