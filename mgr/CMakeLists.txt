@@ -9,7 +9,8 @@ INCLUDE_DIRECTORIES(
 	${mgr_SOURCE_DIR}/src
     ${sim_INCLUDE_DIR}
 	${Boost_INCLUDE_DIR}
-	${CMAKE_CURRENT_BINARY_DIR})
+	${CMAKE_CURRENT_BINARY_DIR}
+	${CMAKE_BINARY_DIR}/sim)
 
 LINK_DIRECTORIES(${Boost_LIBRARY_DIRS})
 
@@ -21,7 +22,7 @@ ELSE()
 	MESSAGE(ERROR "Could not deduce target architecture: sizeof(void*) is neither 4 or 8...")
 ENDIF()
 
-ADD_LIBRARY(mgr STATIC src/manager.cpp src/programoptions.cpp src/initconditions.cpp)
+ADD_LIBRARY(mgr STATIC src/manager.cpp src/programoptions.cpp src/initconditions.cpp src/field.cpp src/netcdfwriter.cpp src/netcdfreader.cpp)
 SET_TARGET_PROPERTIES(mgr PROPERTIES DEBUG_POSTFIX "d")
 INSTALL(TARGETS mgr DESTINATION mgr/lib)
 INSTALL(DIRECTORY include DESTINATION mgr PATTERN ".svn" EXCLUDE)

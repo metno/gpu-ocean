@@ -11,9 +11,12 @@ using namespace std;
 
 struct ProgramOptions::ProgramOptionsImpl
 {
+    bool isInit;
     std::string msg;
-    int waterElevationNo; // which water elevation to generate for IC
-    int bathymetryNo; // which bathymetry to generate for IC
+    float wGlobal; // global water elevation level used to generate H in IC
+    int etaNo; // type of sea surface deviation field (eta) to generate for IC
+    int waterElevationNo; // type of water elevation field (w) to generate for IC
+    int bathymetryNo; // type of bathymetry field (B) to generate for IC
     int nx; // number of grid horizontal grid cells
     int ny; // number of vertical grid cells
     float width; // horizontal extension of grid (in meters)
@@ -21,11 +24,16 @@ struct ProgramOptions::ProgramOptionsImpl
     double duration; // duration of simulation (in simulated seconds)
     double wallDuration; // duration of simulation (in wall time seconds)
     bool cpu; // whether to run kernels on the CPU instead of the GPU
+    string inputFile; // name of file for reading output in NetCDF format
+    string outputFile; // name of file for writing output in NetCDF format
     ProgramOptionsImpl();
 };
 
 ProgramOptions::ProgramOptionsImpl::ProgramOptionsImpl()
-    : waterElevationNo(-1)
+    : isInit(false)
+    , wGlobal(-1.0f)
+	, etaNo(-1)
+	, waterElevationNo(-1)
 	, bathymetryNo(-1)
     , nx(-1)
     , ny(-1)
@@ -42,9 +50,9 @@ ProgramOptions::ProgramOptions()
 {
 }
 
-// Parses program options specified on command line and/or config file.
+// Initializes the object by parsing program options specified on command line and/or config file.
 // Returns true if parsing was successful, otherwise updates the latest parsing message and returns false.
-bool ProgramOptions::parse(int argc, char *argv[])
+bool ProgramOptions::init(int argc, char *argv[])
 {
     try {
         string config_file;
@@ -65,14 +73,18 @@ bool ProgramOptions::parse(int argc, char *argv[])
         // declare options that will be allowed both on command line and in config file
         po::options_description cfgfile_opts("Options allowed both on command line and in config file (the former overrides the latter)");
         cfgfile_opts.add_options()
-				("waterElevationNo", po::value<int>(&pimpl->waterElevationNo)->default_value(-1), "initial water elevation")
-		        ("bathymetryNo", po::value<int>(&pimpl->bathymetryNo)->default_value(-1), "initial bathymetry")
-                ("nx", po::value<int>(&pimpl->nx)->default_value(10), "number of horizontal grid cells")
-                ("ny", po::value<int>(&pimpl->ny)->default_value(10), "number of vertical grid cells")
-                ("width", po::value<float>(&pimpl->width)->default_value(1000), "horizontal extension of grid (in meters)")
-                ("height", po::value<float>(&pimpl->height)->default_value(1000), "vertical extension of grid (in meters)")
-                ("duration", po::value<double>(&pimpl->duration)->default_value(5), "max duration of simulation (in seconds) (< 0 = infinite duration)")
-                ("wallduration", po::value<double>(&pimpl->wallDuration)->default_value(0.5), "max wall time duration (in seconds) (< 0 = infinite duration)")
+                ("wGlobal", po::value<float>(&pimpl->wGlobal)->default_value(-1.0f), "global initial water elevation level (in meters)")
+                ("etaNo", po::value<int>(&pimpl->etaNo)->default_value(-1), "type of initial, generated sea surface deviation field (0..4)")
+                ("waterElevationNo", po::value<int>(&pimpl->waterElevationNo)->default_value(-1), "type of initial, generated water elevation field (0..6)")
+                ("bathymetryNo", po::value<int>(&pimpl->bathymetryNo)->default_value(-1), "type of initial, generated bathymetry field (0..4)")
+                ("nx", po::value<int>(&pimpl->nx)->default_value(-1), "number of horizontal grid cells")
+                ("ny", po::value<int>(&pimpl->ny)->default_value(-1), "number of vertical grid cells")
+                ("width", po::value<float>(&pimpl->width)->default_value(-1), "horizontal extension of grid (in meters)")
+                ("height", po::value<float>(&pimpl->height)->default_value(-1), "vertical extension of grid (in meters)")
+                ("duration", po::value<double>(&pimpl->duration)->default_value(-1), "max simulated time duration (in seconds) (< 0 = infinite duration)")
+                ("wallDuration", po::value<double>(&pimpl->wallDuration)->default_value(-1), "max wall time duration (in seconds) (< 0 = infinite duration)")
+                ("inputFile", po::value<string>(&pimpl->inputFile)->default_value(""), "name of file for reading input in NetCDF format (empty = no input)")
+                ("outputFile", po::value<string>(&pimpl->outputFile)->default_value(""), "name of file for writing output in NetCDF format (empty = no output)")
                 ;
 
         po::options_description all_options;
@@ -123,20 +135,18 @@ bool ProgramOptions::parse(int argc, char *argv[])
             pimpl->cpu = true;
 
         // final validation
+        if (pimpl->wGlobal < -1.0f)
+            throw runtime_error((boost::format("error: wGlobal (%1%) < -1.0f") % pimpl->wGlobal).str());
+        if (pimpl->etaNo < -1)
+            throw runtime_error((boost::format("error: etaNo (%1%) < -1") % pimpl->etaNo).str());
         if (pimpl->waterElevationNo < -1)
             throw runtime_error((boost::format("error: waterElevationNo (%1%) < -1") % pimpl->waterElevationNo).str());
         if (pimpl->bathymetryNo < -1)
             throw runtime_error((boost::format("error: bathymetryNo (%1%) < -1") % pimpl->bathymetryNo).str());
-        if (pimpl->nx <= 0)
-            throw runtime_error((boost::format("error: nx (%1%) <= 0") % pimpl->nx).str());
-        if (pimpl->ny <= 0)
-            throw runtime_error((boost::format("error: ny (%1%) <= 0") % pimpl->ny).str());
-        if (pimpl->width <= 0)
-            throw runtime_error((boost::format("error: width (%1%) <= 0") % pimpl->width).str());
-        if (pimpl->height <= 0)
-            throw runtime_error((boost::format("error: height (%1%) <= 0") % pimpl->height).str());
-        if (pimpl->duration <= 0)
-            throw runtime_error((boost::format("error: duration (%1%) <= 0") % pimpl->duration).str());
+        if (pimpl->duration < 0 && pimpl->wallDuration < 0)
+            throw runtime_error(
+                    (boost::format("error: duration (%1%) and wallduration (%2%) cannot both be negative")
+                     % pimpl->duration % pimpl->wallDuration).str());
     }
     catch(exception &e)
     {
@@ -144,61 +154,114 @@ bool ProgramOptions::parse(int argc, char *argv[])
         return false;
     }
 
+    pimpl->isInit = true;
+
     return true;
 }
 
-// Returns the message resulting when the latest call to parse() returned false.
+void ProgramOptions::assertInitialized() const
+{
+    if (!pimpl->isInit)
+        throw runtime_error("ProgramOptions: not initialized");
+}
+
 string ProgramOptions::message() const
 {
     return pimpl->msg;
 }
 
+float ProgramOptions::wGlobal() const
+{
+    assertInitialized();
+    return pimpl->wGlobal;
+}
+
+int ProgramOptions::etaNo() const
+{
+    assertInitialized();
+    return pimpl->etaNo;
+}
+
 int ProgramOptions::waterElevationNo() const
 {
-	return pimpl->waterElevationNo;
+    assertInitialized();
+    return pimpl->waterElevationNo;
 }
 
 int ProgramOptions::bathymetryNo() const
 {
-	return pimpl->bathymetryNo;
+    assertInitialized();
+    return pimpl->bathymetryNo;
 }
 
 int ProgramOptions::nx() const
 {
+    assertInitialized();
     return pimpl->nx;
 }
 
 int ProgramOptions::ny() const
 {
+    assertInitialized();
     return pimpl->ny;
 }
 
 float ProgramOptions::width() const
 {
+    assertInitialized();
     return pimpl->width;
 }
 
 float ProgramOptions::height() const
 {
+    assertInitialized();
     return pimpl->height;
+}
+
+float ProgramOptions::dx() const
+{
+    assertInitialized();
+    assert(pimpl->nx > 1);
+    return pimpl->width / (pimpl->nx - 1);
+}
+
+float ProgramOptions::dy() const
+{
+    assertInitialized();
+    assert(pimpl->ny > 1);
+    return pimpl->height / (pimpl->ny - 1);
 }
 
 double ProgramOptions::duration() const
 {
+    assertInitialized();
     return pimpl->duration;
 }
 
 double ProgramOptions::wallDuration() const
 {
+    assertInitialized();
     return pimpl->wallDuration;
 }
 
-float ProgramOptions::cpu() const
+bool ProgramOptions::cpu() const
 {
+    assertInitialized();
     return pimpl->cpu;
 }
 
-// Formats output of a ProgramOptions object.
+string ProgramOptions::inputFile() const
+{
+    assertInitialized();
+    return pimpl->inputFile;
+}
+
+string ProgramOptions::outputFile() const
+{
+    assertInitialized();
+    return pimpl->outputFile;
+}
+
 ostream &operator<<(ostream &os, const ProgramOptions &po)
 {
     os << "nx: " << po.nx() << ", ny: " << po.ny() << ", width: " << po.width() << ", height: "
