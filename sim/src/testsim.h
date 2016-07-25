@@ -11,15 +11,24 @@
 class TestSim : public SimBase
 {
 public:
-    TestSim(const OptionsPtr &, const InitCondPtr &);
+
+    /**
+     * Constructor.
+     * @param options: Program options.
+     * @param initCond: Initial conditions.
+     */
+    TestSim(const OptionsPtr &options, const InitCondPtr &initCond);
+
     virtual ~TestSim();
 
 private:
     virtual bool _init();
     virtual double _currTime() const;
     virtual double _maxTime() const;
-    virtual void _execNextStep();
-    virtual std::vector<float> _results() const;
+    virtual void _execNextStep(ProfileInfo *);
+    virtual Field2D _U() const;
+    virtual Field2D _V() const;
+    virtual Field2D _eta() const;
     virtual void _printStatus() const;
 
     struct TestSimImpl;
