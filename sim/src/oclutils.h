@@ -1,8 +1,20 @@
 #ifndef OCLUTILS_H
 #define OCLUTILS_H
 
+#define CL_HPP_MINIMUM_OPENCL_VERSION 110 
+#define CL_HPP_TARGET_OPENCL_VERSION 110
+
+/*
+ * Source code should be fixed to avoid this, see cl2.hpp:
+ * Finally, the program construction interface used a clumsy vector-of-pairs
+ * design in the earlier versions. We have replaced that with a cleaner 
+ * vector-of-vectors and vector-of-strings design. However, for backward 
+ * compatibility old behaviour can be regained with the
+ */
+#define CL_HPP_ENABLE_PROGRAM_CONSTRUCTION_FROM_ARRAY_COMPATIBILITY
+
 #include "config.h"
-#include <CL/cl.hpp>
+#include <CL/cl2.hpp>
 #include <cstdio>
 #include <vector>
 #include <string>

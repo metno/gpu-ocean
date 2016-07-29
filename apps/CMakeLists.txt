@@ -74,8 +74,6 @@ ADD_LIBRARY(apps STATIC ${apps_src})
 
 # - Create applications
 FILE(GLOB apps_app src/*.cpp)
-# MLS: No netCDF-reader/writer yet...
-#LIST(REMOVE_ITEM apps_app "${apps_SOURCE_DIR}/src/NetCDFHandler.cpp")
 FOREACH(filename ${apps_app})
   GET_FILENAME_COMPONENT(target ${filename} NAME_WE)
   SET(name "app_${target}")
