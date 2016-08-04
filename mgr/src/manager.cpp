@@ -1,10 +1,14 @@
+#include "config.h"
+
 #include "manager.h"
 #include "programoptions.h"
 #include "initconditions.h"
 #include "simbase.h"
 #include "simulator.h"
 #include "testsim.h"
+#ifdef mgr_USE_NETCDF
 #include "netcdfwriter.h"
+#endif
 #include <boost/format.hpp>
 #include <stdexcept>
 #include <vector>
@@ -18,7 +22,11 @@ using namespace std;
 struct Manager::ManagerImpl
 {
     SimBasePtr sim;
+
+	#ifdef mgr_USE_NETCDF
     NetCDFWriterPtr fileWriter;
+	#endif
+
     ManagerImpl(const OptionsPtr &, const InitCondPtr &);
 };
 
@@ -78,6 +86,7 @@ void Manager::initSim()
     pimpl->sim->init();
 
     // initialize output file (if requested)
+	#ifdef mgr_USE_NETCDF
     const string ofname = options()->outputFile();
     if (!ofname.empty()) {
         pimpl->fileWriter.reset(
@@ -89,6 +98,7 @@ void Manager::initSim()
                     pimpl->sim->F(), pimpl->sim->R(), initConditions()->H().data()->data(), initConditions()->eta().data()->data(),
                     pimpl->sim->U().data()->data(), pimpl->sim->V().data()->data());
     }
+	#endif
 }
 
 bool Manager::execNextStep(ProfileInfo *profInfo)
@@ -97,12 +107,14 @@ bool Manager::execNextStep(ProfileInfo *profInfo)
     const bool status = pimpl->sim->execNextStep(profInfo);
 
     // append to output file (if requested)
+	#ifdef mgr_USE_NETCDF
     if (pimpl->fileWriter.get())
         pimpl->fileWriter->writeTimestep(
                     pimpl->sim->eta().data()->data(),
                     pimpl->sim->U().data()->data(),
                     pimpl->sim->V().data()->data(),
                     pimpl->sim->currTime());
+	#endif
 
     return status;
 }
