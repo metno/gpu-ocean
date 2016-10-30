@@ -1,7 +1,12 @@
 # -*- coding: utf-8 -*-
 
 """
-This python module implements the 2nd order HLL flux
+This python module implements the Kurganov-Petrova numerical scheme 
+for the shallow water equations, described in 
+A. Kurganov & Guergana Petrova
+A Second-Order Well-Balanced Positivity Preserving Central-Upwind
+Scheme for the Saint-Venant System Communications in Mathematical
+Sciences, 5 (2007), 133-160. 
 
 Copyright (C) 2016  SINTEF ICT
 
@@ -25,17 +30,13 @@ import pyopencl as cl #OpenCL in Python
 import Common
 
 
-        
-        
-        
-        
-        
+
 
 
 """
-Class that solves the SW equations using the Forward-Backward linear scheme
+Class that solves the SW equations using the dimentionally split KP07 scheme
 """
-class HLL2:
+class KP07_dimsplit:
 
     """
     Initialization routine
@@ -55,15 +56,15 @@ class HLL2:
                  nx, ny, \
                  dx, dy, dt, \
                  g, \
-                 theta=1.8, \
+                 theta=1.0, \
                  block_width=16, block_height=16):
         self.cl_ctx = cl_ctx
-
+                 
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
 
         #Get kernels
-        self.swe_kernel = Common.get_kernel(self.cl_ctx, "HLL2_kernel.opencl", block_width, block_height)
+        self.swe_kernel = Common.get_kernel(self.cl_ctx, "KP07_dimsplit_kernel.opencl", block_width, block_height)
         
         #Create data by uploading to device
         ghost_cells_x = 2
@@ -85,7 +86,7 @@ class HLL2:
         self.t = np.float32(0.0)
         
         #Compute kernel launch parameters
-        self.local_size = (block_width, block_height)
+        self.local_size = (block_width, block_height) 
         self.global_size = ( \
                        int(np.ceil(self.nx / float(self.local_size[0])) * self.local_size[0]), \
                        int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
@@ -104,6 +105,7 @@ class HLL2:
             #Dimensional splitting: second order accurate for every other timestep,
             #thus run two timesteps in a go
             
+            #Compute timestep
             local_dt = np.float32(min(self.dt, t_end-2*i*self.dt))
             if (local_dt <= 0.0):
                 break
@@ -142,6 +144,7 @@ class HLL2:
             
         
         return self.t
+    
     
     
     
