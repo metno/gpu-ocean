@@ -28,10 +28,72 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 
+void computeFluxF(__local float Q[3][block_height+4][block_width+4],
+                  __local float Qx[3][block_height+2][block_width+2],
+                  __local float F[3][block_height+1][block_width+1],
+                  const float g_) {
+    //Index of thread within block
+    const int tx = get_local_id(0);
+    const int ty = get_local_id(1);
+    
+    for (int j=ty; j<block_height; j+=get_local_size(1)) {
+        const int l = j + 2; //Skip ghost cells
+        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+            const int k = i + 1;
+            // Q at interface from the right and left
+            const float3 Qp = (float3)(Q[0][l][k+1] - 0.5f*Qx[0][j][i+1],
+                                       Q[1][l][k+1] - 0.5f*Qx[1][j][i+1],
+                                       Q[2][l][k+1] - 0.5f*Qx[2][j][i+1]);
+            const float3 Qm = (float3)(Q[0][l][k  ] + 0.5f*Qx[0][j][i  ],
+                                       Q[1][l][k  ] + 0.5f*Qx[1][j][i  ],
+                                       Q[2][l][k  ] + 0.5f*Qx[2][j][i  ]);
+                                       
+            // Computed flux
+            const float3 flux = CentralUpwindFlux(Qm, Qp, g_);
+            F[0][j][i] = flux.x;
+            F[1][j][i] = flux.y;
+            F[2][j][i] = flux.z;
+        }
+    }    
+}
+
+void computeFluxG(__local float Q[3][block_height+4][block_width+4],
+                  __local float Qy[3][block_height+2][block_width+2],
+                  __local float G[3][block_height+1][block_width+1],
+                  const float g_) {
+    //Index of thread within block
+    const int tx = get_local_id(0);
+    const int ty = get_local_id(1);
+    
+    for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
+        const int l = j + 1;
+        for (int i=tx; i<block_width; i+=get_local_size(0)) {            
+            const int k = i + 2; //Skip ghost cells
+            // Q at interface from the right and left
+            // Note that we swap hu and hv
+            const float3 Qp = (float3)(Q[0][l+1][k] - 0.5f*Qy[0][j+1][i],
+                                       Q[2][l+1][k] - 0.5f*Qy[2][j+1][i],
+                                       Q[1][l+1][k] - 0.5f*Qy[1][j+1][i]);
+            const float3 Qm = (float3)(Q[0][l  ][k] + 0.5f*Qy[0][j  ][i],
+                                       Q[2][l  ][k] + 0.5f*Qy[2][j  ][i],
+                                       Q[1][l  ][k] + 0.5f*Qy[1][j  ][i]);
+                                       
+            // Computed flux
+            // Note that we swap back
+            const float3 flux = CentralUpwindFlux(Qm, Qp, g_);
+            G[0][j][i] = flux.x;
+            G[1][j][i] = flux.z;
+            G[2][j][i] = flux.y;
+        }
+    }
+}
 
 
 
 
+/**
+  * This unsplit kernel computes the 2D numerical scheme with a TVD RK2 time integration scheme
+  */
 __kernel void swe_2D(
         int nx_, int ny_,
         float dx_, float dy_, float dt_,
@@ -75,165 +137,39 @@ __kernel void swe_2D(
     
     //Shared memory variables
     __local float Q[3][block_height+4][block_width+4];
-    __local float Qx[3][block_height][block_width+2];
-    __local float Qy[3][block_height+2][block_width];
-    __local float F[3][block_height][block_width+1];
-    __local float G[3][block_height+1][block_width];
     
-    
+    //The following slightly wastes memory, but enables us to reuse the 
+    //funcitons in common.opencl
+    __local float Qx[3][block_height+2][block_width+2];
+    __local float Qy[3][block_height+2][block_width+2];
+    __local float F[3][block_height+1][block_width+1];
+    __local float G[3][block_height+1][block_width+1];
     
     
     
     //Read into shared memory
-    for (int j=ty; j<block_height+4; j+=get_local_size(1)) {
-        const int l = clamp(by + j, 0, ny_+3); // Out of bounds
-        
-        //Compute the pointer to current row in the arrays
-        __global float* const h_row = (__global float*) ((__global char*) h0_ptr_ + h0_pitch_*l);
-        __global float* const hu_row = (__global float*) ((__global char*) hu0_ptr_ + hu0_pitch_*l);
-        __global float* const hv_row = (__global float*) ((__global char*) hv0_ptr_ + hv0_pitch_*l);
-        
-        for (int i=tx; i<block_width+4; i+=get_local_size(0)) {
-            const int k = clamp(bx + i, 0, nx_+3); // Out of bounds
-            
-            Q[0][j][i] = h_row[k];
-            Q[1][j][i] = hu_row[k];
-            Q[2][j][i] = hv_row[k];
-        }
-    }
+    readBlock2(h0_ptr_, h0_pitch_,
+               hu0_ptr_, hu0_pitch_,
+               hv0_ptr_, hv0_pitch_,
+               Q, nx_, ny_);
     barrier(CLK_LOCAL_MEM_FENCE);
-    
-    
-    
-    
-    
-    
-    
     
     
     //Fix boundary conditions
-    {
-        const int i = tx + 2; //Skip local ghost cells, i.e., +2
-        const int j = ty + 2;
-        
-        if (ti == 2) {
-            Q[0][j][i-1] =  Q[0][j][i];
-            Q[1][j][i-1] = -Q[1][j][i];
-            Q[2][j][i-1] =  Q[2][j][i];
-            
-            Q[0][j][i-2] =  Q[0][j][i+1];
-            Q[1][j][i-2] = -Q[1][j][i+1];
-            Q[2][j][i-2] =  Q[2][j][i+1];
-        }
-        if (ti == nx_+1) {
-            Q[0][j][i+1] =  Q[0][j][i];
-            Q[1][j][i+1] = -Q[1][j][i];
-            Q[2][j][i+1] =  Q[2][j][i];
-            
-            Q[0][j][i+2] =  Q[0][j][i-1];
-            Q[1][j][i+2] = -Q[1][j][i-1];
-            Q[2][j][i+2] =  Q[2][j][i-1];
-        }
-        if (tj == 2) {
-            Q[0][j-1][i] =  Q[0][j][i];
-            Q[1][j-1][i] =  Q[1][j][i];
-            Q[2][j-1][i] = -Q[2][j][i];
-            
-            Q[0][j-2][i] =  Q[0][j+1][i];
-            Q[1][j-2][i] =  Q[1][j+1][i];
-            Q[2][j-2][i] = -Q[2][j+1][i];
-        }
-        if (tj == ny_+1) {
-            Q[0][j+1][i] =  Q[0][j][i];
-            Q[1][j+1][i] =  Q[1][j][i];
-            Q[2][j+1][i] = -Q[2][j][i];
-            
-            Q[0][j+2][i] =  Q[0][j-1][i];
-            Q[1][j+2][i] =  Q[1][j-1][i];
-            Q[2][j+2][i] = -Q[2][j-1][i];
-        }
-    }
+    noFlowBoundary2(Q, nx_, ny_);
     barrier(CLK_LOCAL_MEM_FENCE);
     
     
-    
-    
-    //Reconstruct slopes along x axis
-    for (int j=ty; j<block_height; j+=get_local_size(1)) {
-        const int l = j + 2; //Skip ghost cells
-        for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
-            const int k = i + 1;
-            for (int p=0; p<3; ++p) {
-                Qx[p][j][i] = minmodSlope(Q[p][l][k-1], Q[p][l][k], Q[p][l][k+1], theta_);
-            }
-        }
-    }
-    
-    //Reconstruct slopes along y axis
-    for (int j=ty; j<block_height+2; j+=get_local_size(1)) {
-        const int l = j + 1;
-        for (int i=tx; i<block_width; i+=get_local_size(0)) {            
-            const int k = i + 2; //Skip ghost cells
-            for (int p=0; p<3; ++p) {
-                Qy[p][j][i] = minmodSlope(Q[p][l-1][k], Q[p][l][k], Q[p][l+1][k], theta_);
-            }
-        }
-    }
+    //Reconstruct slopes along x and axis
+    minmodSlopeX(Q, Qx, theta_);
+    minmodSlopeY(Q, Qy, theta_);
     barrier(CLK_LOCAL_MEM_FENCE);
     
     
-    
-    
-    
-    
-    
-    //Compute fluxes along the x axis
-    for (int j=ty; j<block_height; j+=get_local_size(1)) {
-        const int l = j + 2; //Skip ghost cells
-        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
-            const int k = i + 1;
-            // Q at interface from the right and left
-            const float3 Qp = (float3)(Q[0][l][k+1] - 0.5f*Qx[0][j][i+1],
-                                       Q[1][l][k+1] - 0.5f*Qx[1][j][i+1],
-                                       Q[2][l][k+1] - 0.5f*Qx[2][j][i+1]);
-            const float3 Qm = (float3)(Q[0][l][k  ] + 0.5f*Qx[0][j][i  ],
-                                       Q[1][l][k  ] + 0.5f*Qx[1][j][i  ],
-                                       Q[2][l][k  ] + 0.5f*Qx[2][j][i  ]);
-                                       
-            // Computed flux
-            const float3 flux = CentralUpwindFlux(Qm, Qp, g_);
-            F[0][j][i] = flux.x;
-            F[1][j][i] = flux.y;
-            F[2][j][i] = flux.z;
-        }
-    }
-        
-    //Compute fluxes along the y axis
-    for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
-        const int l = j + 1;
-        for (int i=tx; i<block_width; i+=get_local_size(0)) {            
-            const int k = i + 2; //Skip ghost cells
-            // Q at interface from the right and left
-            // Note that we swap hu and hv
-            const float3 Qp = (float3)(Q[0][l+1][k] - 0.5f*Qy[0][j+1][i],
-                                       Q[2][l+1][k] - 0.5f*Qy[2][j+1][i],
-                                       Q[1][l+1][k] - 0.5f*Qy[1][j+1][i]);
-            const float3 Qm = (float3)(Q[0][l  ][k] + 0.5f*Qy[0][j  ][i],
-                                       Q[2][l  ][k] + 0.5f*Qy[2][j  ][i],
-                                       Q[1][l  ][k] + 0.5f*Qy[1][j  ][i]);
-                                       
-            // Computed flux
-            // Note that we swap back
-            const float3 flux = CentralUpwindFlux(Qm, Qp, g_);
-            G[0][j][i] = flux.x;
-            G[1][j][i] = flux.z;
-            G[2][j][i] = flux.y;
-        }
-    }
+    //Compute fluxes along the x and y axis
+    computeFluxF(Q, Qx, F, g_);
+    computeFluxG(Q, Qy, G, g_);
     barrier(CLK_LOCAL_MEM_FENCE);
-    
-    
-    
     
     
     //Sum fluxes and advance in time for all internal cells
@@ -297,5 +233,4 @@ __kernel void swe_2D(
             hv_row[ti] = hv_b / (1.0f + 0.5f*C);
         }
     }
-    
 }
