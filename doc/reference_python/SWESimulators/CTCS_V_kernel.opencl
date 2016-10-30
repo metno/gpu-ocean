@@ -187,14 +187,11 @@ __kernel void computeVKernel(
     const float C = 1.0 + 2*r_*dt_/H_y + 2*A_*dt_*(dx_*dx_ + dy_*dy_)/(dx_*dx_*dy_*dy_);
 
     //Calculate the pressure/gravitational effect
-    //const float P_y = -g_*H_y*(eta_0p - eta_00);
-    //const float P_y_hat = -0.5f*g_*(eta_0p*eta_0p - eta_00*eta_00);
-    
-    const float h_0p = H_0p + eta_0p;
-    const float h_00 = H_00 + eta_00;
-    const float P_y = -0.5f*g_*(h_0p + h_00) * (h_0p - h_00 + H_0p - H_00);
-    //const float P_y = -0.5f*g_*(h_0p*h_0p - h_00*h_00 - 2.0f*(h_0p+h_00)*(H_0p-H_00));
-    //const float P_y_hat = 0.0f;
+    //const float h_0p = H_0p + eta_0p;
+    //const float h_00 = H_00 + eta_00;
+    //const float h_x = 0.5*(h_00 + hp0); //Could possibly use h for pressure terms instead of H
+    const float P_y_hat = -0.5f*g_*(eta_0p*eta_0p - eta_00*eta_00);
+    const float P_y = -g_*H_y*(eta_0p - eta_00) + P_y_hat;
     
     //Calculate nonlinear effects
     const float N_a = (V_0p + V_00)*(V_0p + V_00) / (H_0p + eta_0p);

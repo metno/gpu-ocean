@@ -56,7 +56,7 @@ class KP07_dimsplit:
                  nx, ny, \
                  dx, dy, dt, \
                  g, \
-                 theta=1.0, \
+                 theta=1.3, \
                  block_width=16, block_height=16):
         self.cl_ctx = cl_ctx
                  
@@ -106,7 +106,7 @@ class KP07_dimsplit:
             #thus run two timesteps in a go
             
             #Compute timestep
-            local_dt = np.float32(min(self.dt, t_end-2*i*self.dt))
+            local_dt = np.float32(0.5*min(2*self.dt, t_end-2*i*self.dt))
             if (local_dt <= 0.0):
                 break
                 
@@ -140,7 +140,7 @@ class KP07_dimsplit:
                     self.cl_data.hv1.data, self.cl_data.hv1.pitch)
             self.cl_data.swap()
             
-            self.t += local_dt
+            self.t += 2.0*local_dt
             
         
         return self.t
