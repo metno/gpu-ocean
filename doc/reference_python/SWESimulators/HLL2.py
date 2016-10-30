@@ -104,7 +104,7 @@ class HLL2:
             #Dimensional splitting: second order accurate for every other timestep,
             #thus run two timesteps in a go
             
-            local_dt = np.float32(min(self.dt, t_end-2*i*self.dt))
+            local_dt = np.float32(0.5*min(2*self.dt, t_end-2*i*self.dt))
             if (local_dt <= 0.0):
                 break
                 

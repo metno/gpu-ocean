@@ -736,7 +736,7 @@ float WAF_superbee(float r_, float c_) {
 
 
 float WAF_albada(float r_, float c_) {
-    if (r_ <= 0.0) {
+    if (r_ <= 0.0f) {
         return 1.0f;
     }
     else {
@@ -746,7 +746,7 @@ float WAF_albada(float r_, float c_) {
 
 
 float WAF_minbee(float r_, float c_) {
-    if (r_ <= 0.0) {
+    if (r_ <= 0.0f) {
         return 1.0f;
     }
     else if (r_ <= 1.0f) {
@@ -754,6 +754,19 @@ float WAF_minbee(float r_, float c_) {
     }
     else {
         return fabs(c_);
+    }
+}
+
+
+float WAF_minmod(float r_, float c_) {
+    if (r_ <= 0.0f) {
+        return fabs(c_);
+    }
+    else if (r_ <= 1.0f) {
+        return (1.0f - r_) * (1.0f - c_);
+    }
+    else {
+        return 1.0f;
     }
 }
 
@@ -798,8 +811,8 @@ float3 WAF_1D_flux(const float3 Q_l2, const float3 Q_l1, const float3 Q_r1, cons
     const float q_r = (h_dag > h_r) ? q_r_tmp : 1.0f;
     
     // Compute wave speed estimates
-    const float S_l = u_l - c_l*q_l;
-    const float S_r = u_r + c_r*q_r;
+    const float S_l = u_l - c_l;//*q_l;
+    const float S_r = u_r + c_r;//*q_r;
     const float S_star = ( S_l*h_r*(u_r - S_r) - S_r*h_l*(u_l - S_l) ) / ( h_r*(u_r - S_r) - h_l*(u_l - S_l) );
     
     const float3 Q_star_l = h_l * (S_l - u_l) / (S_l - S_star) * (float3)(1, S_star, v_l);
@@ -811,6 +824,8 @@ float3 WAF_1D_flux(const float3 Q_l2, const float3 Q_l1, const float3 Q_r1, cons
     
     const float3 F_2 = F_1 + S_l*(Q_star_l - Q_l1);
     const float3 F_3 = F_4 + S_r*(Q_star_r - Q_r1);
+    //const float3 F_2 = F_func(Q_star_l, g_);
+    //const float3 F_3 = F_func(Q_star_r, g_);
     
     // Compute the courant numbers for the waves
     const float c_1 = S_l * dt_ / dx_;
@@ -839,38 +854,43 @@ float3 WAF_1D_flux(const float3 Q_l2, const float3 Q_l1, const float3 Q_r1, cons
     const float rv_3 = (c_3 > 0.0f) ? rv_m : rv_p;
     
     // Compute the limiter
-    //const float3 A_1 = (float3)(WAF_minbee(rh_1, c_1), WAF_minbee(rh_1, c_1), WAF_minbee(rv_1, c_1));
-    //const float3 A_2 = (float3)(WAF_minbee(rh_2, c_2), WAF_minbee(rh_2, c_2), WAF_minbee(rv_2, c_2));
-    //const float3 A_3 = (float3)(WAF_minbee(rh_3, c_3), WAF_minbee(rh_3, c_3), WAF_minbee(rv_3, c_3));
-
-    const float3 A_1 = (float3)(WAF_minbee(rh_1, c_1), WAF_minbee(rh_1, c_1), WAF_minbee(rh_1, c_1));
-    const float3 A_2 = (float3)(WAF_minbee(rv_2, c_2), WAF_minbee(rv_2, c_2), WAF_minbee(rv_2, c_2));
-    const float3 A_3 = (float3)(WAF_minbee(rh_3, c_3), WAF_minbee(rh_3, c_3), WAF_minbee(rh_3, c_3));
+    const float A_1 = sign(c_1)*WAF_minbee(rh_1, c_1);
+    const float A_2 = sign(c_2)*WAF_minbee(rv_2, c_2);
+    const float A_3 = sign(c_3)*WAF_minbee(rh_3, c_3);
         
     //Average the fluxes
     const float3 flux = 0.5f*( F_1 + F_4 )
-                      - 0.5f*( sign(c_1) * A_1 * (F_2 - F_1) 
-                             + sign(c_2) * A_2 * (F_3 - F_2)
-                             + sign(c_3) * A_3 * (F_4 - F_3) );
+                      - 0.5f*( A_1 * (F_2 - F_1)
+                             + A_2 * (F_3 - F_2)
+                             + A_3 * (F_4 - F_3) );
+
+    /*
+    const float d_0 = -1.0f;
+    const float d_1 = -0.5f;//max(min(sign(c_1)*WAF_minbee(rh_1, c_1), 1.0f), -1.0f);
+    const float d_2 = 0.0f;//max(min(sign(c_2)*WAF_minbee(rh_2, c_2), 1.0f), -1.0f);
+    const float d_3 = 0.5f;//max(min(sign(c_3)*WAF_minbee(rh_3, c_3), 1.0f), -1.0f);
+    const float d_4 = 1.0f;
+    const float3 flux = 0.5f*(d_1 - d_0) * F_1
+                        + 0.5f*(d_2 - d_1) * F_2
+                        + 0.5f*(d_3 - d_2) * F_3
+                        + 0.5f*(d_4 - d_3) * F_4;
+    */
+    /*
+    const float3 F_hllc = (S_r*F_1 - S_l*F_4 + S_r*S_l*(Q_r1 - Q_l1)) / (S_r-S_l);
+    const float3 flux = 0.5f*(d_1 - d_0) * F_1
+                        + 0.5f*(d_3 - d_1) * F_hllc
+                        + 0.5f*(d_4 - d_3) * F_4;
+      */
+                             /*
+    const float c_0 = -1.0f;
+    const float c_4 = 1.0f;
+    const float3 flux = 0.5f*(c_1 - c_0) * F_1
+                        + 0.5f*(c_2 - c_1) * F_2
+                        + 0.5f*(c_3 - c_2) * F_3
+                        + 0.5f*(c_4 - c_3) * F_4;
+                        */
     //const float3 flux = 0.5f*( F_1 + F_4 ) - 0.5f*( sign(c_3) * A_3 * (F_4 - F_3) );
     return flux;
-    
-    /*
-    if (S_l >= 0.0f) {
-        return F_1;
-    }
-    else if (S_r <= 0.0f) {
-        return F_4;
-    }
-    //Or estimate flux in the "left star" region
-    else if (S_l <= 0.0f && 0.0f <=S_star) {
-        return F_2;
-    }
-    //Or estimate flux in the "righ star" region
-    else if (S_star <= 0.0f && 0.0f <=S_r) {
-        return F_3;
-    }
-    */
 }
 
 

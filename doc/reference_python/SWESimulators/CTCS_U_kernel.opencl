@@ -183,14 +183,11 @@ __kernel void computeUKernel(
     const float C = 1.0 + 2*r_*dt_/H_x + 2*A_*dt_*(dx_*dx_ + dy_*dy_)/(dx_*dx_*dy_*dy_);
 
     //Calculate the pressure/gravitational effect
-    //const float P_x = -g_*H_x*(eta_p0 - eta_00);
-    //const float P_x_hat = -0.5f*g_*(eta_p0*eta_p0 - eta_00*eta_00);
-    
-    const float h_p0 = H_p0 + eta_p0;
-    const float h_00 = H_00 + eta_00;
-    const float P_x = -0.5f*g_*(h_p0 + h_00) * (h_p0 - h_00 + H_p0 - H_00);
-    //const float P_x = -0.5f*g_*(h_p0*h_p0 - h_00*h_00 - 2.0f*(h_p0+h_00)*(H_p0-H_00));
-    //const float P_x_hat = 0.0f;
+    //const float h_p0 = H_p0 + eta_p0;
+    //const float h_00 = H_00 + eta_00;
+    //const float h_x = 0.5*(h_00 + hp0); //Could possibly use h for pressure terms instead of H
+    const float P_x_hat = -0.5f*g_*(eta_p0*eta_p0 - eta_00*eta_00);
+    const float P_x = -g_*H_x*(eta_p0 - eta_00) + P_x_hat;
     
     //Calculate nonlinear effects
     const float N_a = (U_p0 + U_00)*(U_p0 + U_00) / (H_p0 + eta_p0);
