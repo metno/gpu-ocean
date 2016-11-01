@@ -115,8 +115,8 @@ __kernel void computeEtaKernel(
     barrier(CLK_LOCAL_MEM_FENCE);
 
     //Compute the H at the next timestep
-    float eta1_2 = eta1_0 - 2.0f*dt_/dx_ * (U1_1_shared[ty][tx+1] - U1_1_shared[ty][tx])
-                          - 2.0f*dt_/dy_ * (V1_1_shared[ty+1][tx] - V1_1_shared[ty][tx]);
+    float eta1_2 = eta1_0 - 2.0f*dt_/dx_ * (U1_1_shared[ty][tx+1] - U1_1_shared[ty][tx] + U2_1_shared[ty][tx+1] - U2_1_shared[ty][tx])
+                          - 2.0f*dt_/dy_ * (V1_1_shared[ty+1][tx] - V1_1_shared[ty][tx] + V2_1_shared[ty+1][tx] - V2_1_shared[ty][tx]);
     float eta2_2 = eta2_0 - 2.0f*dt_/dx_ * (U2_1_shared[ty][tx+1] - U2_1_shared[ty][tx])
                           - 2.0f*dt_/dy_ * (V2_1_shared[ty+1][tx] - V2_1_shared[ty][tx]);
     
