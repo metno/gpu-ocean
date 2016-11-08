@@ -1,5 +1,9 @@
+#include "config.h"
+
 #include "initconditions.h"
+#ifdef mgr_USE_NETCDF
 #include "netcdfreader.h"
+#endif
 #include <boost/format.hpp>
 #include <sstream>
 #include <stdexcept>
@@ -49,7 +53,7 @@ inline Field2D generateBathymetry(int no, int nx, int ny, float width, float hei
 
 	cout << "Generating bathymetry: '";
 
-    vector<float> *f = new vector<float>((nx + 1) * (ny + 1));
+    vector<float> *f = new vector<float>((nx + 1) * (ny + 1), 0.0f);
 
 	switch (no)
 	{
@@ -139,7 +143,7 @@ inline Field2D generateWaterElevation(int no, int nx, int ny, float width, float
 
 	cout << "Generating water elevation: '";
 
-    vector<float> *f = new vector<float>((nx + 1) * (ny + 1));
+    vector<float> *f = new vector<float>((nx + 1) * (ny + 1), 0.0f);
 
 	switch (no)
 	{
@@ -243,7 +247,7 @@ inline Field2D generateH(int nx, int ny, float width, float height, Field2D B, f
 
 	cout << "Generating sea surface mean depth (H): '";
 
-    vector<float> *f = new vector<float>((nx + 1) * (ny + 1));
+    vector<float> *f = new vector<float>((nx + 1) * (ny + 1), 0.0f);
 
 #pragma omp parallel for
     for (int i = 0; i < f->size(); ++i) {
@@ -271,7 +275,7 @@ inline Field2D generateEta(int no, int nx, int ny, float width, float height)
 
 	cout << "Generating sea surface deviation (eta): '";
 
-    vector<float> *f = new vector<float>((nx + 1) * (ny + 1));
+    vector<float> *f = new vector<float>((nx + 1) * (ny + 1), 0.0f);
 
 	switch (no)
 	{
@@ -346,6 +350,7 @@ void InitConditions::init(const OptionsPtr &options)
 {
     // read grid dimensions and fields from input file if available
     if (!options->inputFile().empty()) {
+		#ifdef mgr_USE_NETCDF
         if (options->nx() != -1)
             throw runtime_error("error: nx specified outside of input file");
         if (options->ny() != -1)
@@ -370,6 +375,9 @@ void InitConditions::init(const OptionsPtr &options)
             pimpl->U = fileReader->U();
         if (!fileReader->V().empty())
             pimpl->V = fileReader->V();
+		#else
+        throw runtime_error("error: NetCDF support not enabled!");
+		#endif
 
     } else {
         // no input file available, so read grid dimensions from program options
