@@ -23,6 +23,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 from netCDF4 import Dataset
 
+
+"""
+Writes out data to a NetCDF file from the Centered in Time, Centered in Space
+numerical scheme.
+"""
 class CTCSNetCDFWriter:
     def __init__(self, outfilename, nx, ny, dx, dy, ignore_ghostcells=True):
         self.ncfile = Dataset(outfilename,'w') 
