@@ -9,15 +9,27 @@
 class Simulator : public SimBase
 {
 public:
+
+    /**
+     * Constructor.
+     * @param options: Program options.
+     * @param initCond: Initial conditions.
+     */
     Simulator(const OptionsPtr &, const InitCondPtr &);
+
     virtual ~Simulator();
 
 private:
     virtual bool _init();
     virtual double _currTime() const;
     virtual double _maxTime() const;
-    virtual void _execNextStep();
-    virtual std::vector<float> _results() const;
+    virtual float _deltaTime() const;
+    virtual void _execNextStep(ProfileInfo *);
+    virtual Field2D _U() const;
+    virtual Field2D _V() const;
+    virtual Field2D _eta() const;
+    virtual float _F() const;
+    virtual float _R() const;
     virtual void _printStatus() const;
 
     struct SimulatorImpl;
