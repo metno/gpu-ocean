@@ -33,7 +33,7 @@ TestSim::TestSimImpl::TestSimImpl(int size, double maxTime)
 
 TestSim::TestSim(const OptionsPtr &options, const InitCondPtr &initCond)
     : SimBase(options, initCond)
-    , pimpl(new TestSimImpl(options->nx(), options->duration())) // use nx for matrix size
+    , pimpl(new TestSimImpl(initCond->nx(), options->duration())) // use nx for matrix size
 {
 }
 
@@ -53,8 +53,8 @@ bool TestSim::_init()
 #endif
     OpenCLUtils::init(
                 sources,
-                (boost::format("-D MATRIX_SIZE=%d") % pimpl->size).str(),
-                options()->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU);
+                options()->cpu() ? CL_DEVICE_TYPE_CPU : CL_DEVICE_TYPE_GPU,
+                (boost::format("-D MATRIX_SIZE=%d") % pimpl->size).str());
 
     return true;
 }
@@ -88,7 +88,7 @@ static void createInputMatrices(size_t size, vector<float> &a, vector<float> &b)
     }
 }
 
-void TestSim::_execNextStep()
+void TestSim::_execNextStep(ProfileInfo *)
 {
     cl_int error = CL_SUCCESS;
 
@@ -139,7 +139,12 @@ void TestSim::_execNextStep()
                  *OpenCLUtils::getKernel("MatMul"), cl::NullRange, cl::NDRange(pimpl->size, pimpl->size), cl::NullRange, 0, &event));
     CL_CHECK(event.wait());
     // examine contents of ab_full ... TBD
-    const float msecs_full = OpenCLUtils::elapsedMilliseconds(event);
+    const float msecs_full =
+    #ifdef PROFILE
+            OpenCLUtils::elapsedMilliseconds(event);
+    #else
+            -1;
+    #endif
 #else
     const float msecs_full = -1;
 #endif
@@ -150,7 +155,12 @@ void TestSim::_execNextStep()
                  *OpenCLUtils::getKernel("MatMulNoop"), cl::NullRange, cl::NDRange(pimpl->size, pimpl->size), cl::NullRange, 0, &event));
     CL_CHECK(event.wait());
     // examine contents of ab_noop ... TBD
-    const float msecs_noop = OpenCLUtils::elapsedMilliseconds(event);
+    const float msecs_noop =
+    #ifdef PROFILE
+            OpenCLUtils::elapsedMilliseconds(event);
+    #else
+            -1;
+    #endif
 #else
     const float msecs_noop = -1;
 #endif
@@ -166,9 +176,19 @@ void TestSim::_execNextStep()
     pimpl->currTime += pimpl->deltaTime;
 }
 
-vector<float> TestSim::_results() const
+Field2D TestSim::_U() const
 {
-    return vector<float>(); // ### for now
+    return Field2D(); // ### for now
+}
+
+Field2D TestSim::_V() const
+{
+    return Field2D(); // ### for now
+}
+
+Field2D TestSim::_eta() const
+{
+    return Field2D(); // ### for now
 }
 
 void TestSim::_printStatus() const

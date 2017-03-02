@@ -1,5 +1,4 @@
 #include "simbase.h"
-
 #include "programoptions.h"
 #include "initconditions.h"
 #include <iostream>
@@ -22,11 +21,6 @@ SimBase::SimBaseImpl::SimBaseImpl(const OptionsPtr &options, const InitCondPtr &
 {
 }
 
-/**
- * Constructor.
- * @param options Input: Options.
- * @param initCond Input: Initial conditions.
- */
 SimBase::SimBase(const OptionsPtr &options, const InitCondPtr &initCond)
     : pimpl(new SimBaseImpl(options, initCond))
 {
@@ -42,48 +36,30 @@ void SimBase::assertInitialized() const
         throw runtime_error("SimBase: not initialized");
 }
 
-void SimBase::assertNotInitialized() const
-{
-    if (pimpl->isInit)
-        throw runtime_error("SimBase: already initialized");
-}
-
-/**
- * Initializes the simulator. This includes resetting the current and final step values.
- * @return Initialization status (true iff initialization was successful)
- */
 bool SimBase::init()
 {
-    assertNotInitialized();
     return pimpl->isInit = _init();
 }
 
-/**
- * Returns the current simulation time.
- */
 double SimBase::currTime() const
 {
     assertInitialized();
     return _currTime();
 }
 
-/**
- * Returns the maximum simulation time.
- */
 double SimBase::maxTime() const
 {
     assertInitialized();
     return _maxTime();
 }
 
-/**
- * Executes the next simulation step and returns true if the simulation is not time-bounded
- * or the current simulation time is still less than the maximum simulation time.
- * Otherwise, the function returns false without executing the next simulation step.
- * Note: The simulation is time-bounded iff the program option 'duration' is non-negative.
- * @return true iff a time-bounded simulation was exhausted
- */
-bool SimBase::execNextStep()
+float SimBase::deltaTime() const
+{
+    assertInitialized();
+    return _deltaTime();
+}
+
+bool SimBase::execNextStep(ProfileInfo *profInfo)
 {
     assertInitialized();
 
@@ -91,39 +67,51 @@ bool SimBase::execNextStep()
     if ((pimpl->options->duration() >= 0) && (_currTime() >= _maxTime()))
         return false;
 
-    _execNextStep();
+    _execNextStep(profInfo);
     return true;
 }
 
-/**
- * Returns the results at the current simulation time.
- */
-std::vector<float> SimBase::results() const
+Field2D SimBase::eta() const
 {
     assertInitialized();
-    return _results();
+    return _eta();
 }
 
-/**
- * Prints status.
- */
+Field2D SimBase::U() const
+{
+    assertInitialized();
+    return _U();
+}
+
+Field2D SimBase::V() const
+{
+    assertInitialized();
+    return _V();
+}
+
+float SimBase::F() const
+{
+    assertInitialized();
+    return _F();
+}
+
+float SimBase::R() const
+{
+    assertInitialized();
+    return _R();
+}
+
 void SimBase::printStatus() const
 {
     assertInitialized();
     _printStatus();
 }
 
-/**
- * Returns the options.
- */
 OptionsPtr SimBase::options() const
 {
     return pimpl->options;
 }
 
-/**
- * Returns the initial conditions.
- */
 InitCondPtr SimBase::initCond() const
 {
     return pimpl->initCond;

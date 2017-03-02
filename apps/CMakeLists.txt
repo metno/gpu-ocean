@@ -8,10 +8,6 @@ ENDIF(NOT EXECUTABLE_OUTPUT_PATH)
 
 FIND_PACKAGE(Boost REQUIRED COMPONENTS filesystem system thread program_options unit_test_framework)
 FIND_PACKAGE(OpenCL REQUIRED)
-FIND_PACKAGE(NetCDF QUIET)
-
-OPTION(apps_USE_NETCDF "Enable or disable NetCDF-support" ${NetCDF_FOUND})
-OPTION(apps_USE_NETCDF_COMPRESSION "Enable or disable NetCDF compression-support (Requires new version of netcdf)" FALSE)
 
 # - Find the mgr include dir
 FIND_PATH(mgr_INCLUDE_DIR NAMES manager.h DOC "Path to directory where manager.h can be found")
@@ -27,9 +23,10 @@ INCLUDE_DIRECTORIES(
 	${sim_INCLUDE_DIR}
 	${OpenCL_INCLUDE_DIRS}
 	${Boost_INCLUDE_DIR}
-	${CMAKE_CURRENT_BINARY_DIR})
+	${CMAKE_CURRENT_BINARY_DIR}
+	${CMAKE_BINARY_DIR}/sim)
 	
-IF(apps_USE_NETCDF)
+IF(mgr_USE_NETCDF)
 	INCLUDE_DIRECTORIES(${NetCDF_INCLUDE_DIR})
 ENDIF()
 
@@ -38,6 +35,11 @@ LINK_DIRECTORIES(
 
 # - Create test executables
 file(GLOB TEST_SRCS "test/*.cpp")
+file(GLOB test_utils_srcs "test/utils/*.cpp")
+add_library(test_utils STATIC ${test_utils_srcs})
+IF(NOT mgr_USE_NETCDF)
+	LIST(REMOVE_ITEM TEST_SRCS "${apps_SOURCE_DIR}/test/netcdfio_test.cpp")
+ENDIF()
 foreach(testSrc ${TEST_SRCS})
 	get_filename_component(testName ${testSrc} NAME_WE)
 
@@ -46,9 +48,10 @@ foreach(testSrc ${TEST_SRCS})
     target_link_libraries(${testName} ${Boost_LIBRARIES}
 		${mgr_LIBRARIES}
         ${sim_LIBRARIES}
-		${OpenCL_LIBRARY})
+		${OpenCL_LIBRARY}
+		test_utils)
 		
-	IF(apps_USE_NETCDF)
+	IF(mgr_USE_NETCDF)
 	    TARGET_LINK_LIBRARIES(${testName} ${NetCDF_LIBRARIES})
   	ENDIF()
 
@@ -70,8 +73,6 @@ ADD_LIBRARY(apps STATIC ${apps_src})
 
 # - Create applications
 FILE(GLOB apps_app src/*.cpp)
-# MLS: No netCDF-reader/writer yet...
-#LIST(REMOVE_ITEM apps_app "${apps_SOURCE_DIR}/src/NetCDFHandler.cpp")
 FOREACH(filename ${apps_app})
   GET_FILENAME_COMPONENT(target ${filename} NAME_WE)
   SET(name "app_${target}")
@@ -82,7 +83,7 @@ FOREACH(filename ${apps_app})
 	${sim_LIBRARIES}
 	${OpenCL_LIBRARY})
 	
-  IF(apps_USE_NETCDF)
+  IF(mgr_USE_NETCDF)
     TARGET_LINK_LIBRARIES(${name} ${NetCDF_LIBRARIES})
   ENDIF()
 

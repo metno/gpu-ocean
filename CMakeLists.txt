@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-PROJECT(gpu_eps_hav)
+PROJECT(gpu_ocean)
 INCLUDE(CTest)
 
 SET(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/Modules" CACHE STRING " ")
