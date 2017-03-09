@@ -6,34 +6,14 @@ import numpy as np
 Static function which reads a text file and creates an OpenCL kernel from that
 """
 def get_kernel(cl_ctx, kernel_filename, block_width, block_height):
-    import datetime
-    
     #Create define string
     define_string = "#define block_width " + str(block_width) + "\n"
-    define_string += "#define block_height " + str(block_height) + "\n\n"
-    define_string += "#ifndef my_variable_to_force_recompilation\n"
-    define_string += "#define my_variable_to_force_recompilation " + datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S") + "\n"
-    define_string += "#undef my_variable_to_force_recompilation \n"
-    define_string += "#endif\n\n"
-    
-    
-    def shellquote(s):
-        assert(cl_ctx.num_devices == 1)
-        platform_name = cl_ctx.devices[0].get_info(pyopencl.device_info.PLATFORM).name
-        platform_name = platform_name.upper()
-        if ('INTEL' in platform_name):
-            #Intel CL compiler doesn't like spaces in include paths. We have to escape them
-            return '"' + s.replace(" ", "\\ ") + '"'
-        elif ('NVIDIA' in platform_name):
-            #NVIDIA doesn't like double quoted paths...
-            return "'" + s + "'"
-            
-    module_path = os.path.dirname(os.path.realpath(__file__))
-    module_path_escaped = shellquote(module_path)
-    options = ['-I', module_path_escaped]
-    
+    define_string += "#define block_height " + str(block_height) + "\n"
+
     #Read the proper program
+    module_path = os.path.dirname(os.path.realpath(__file__))
     fullpath = os.path.join(module_path, kernel_filename)
+    options = ['-I', "'" + module_path + "'"]
     with open(fullpath, "r") as kernel_file:
         kernel_string = define_string + kernel_file.read()
         kernel = pyopencl.Program(cl_ctx, kernel_string).build(options)
@@ -110,9 +90,9 @@ class OpenCLArray2D:
         
         
 """
-A class representing an Akrawa A type (unstaggered, logically Cartesian) grid
+A class representing an Arakawa A type (unstaggered, logically Cartesian) grid
 """
-class SWEDataArkawaA:
+class SWEDataArakawaA:
     """
     Uploads initial data to the CL device
     """
@@ -142,62 +122,17 @@ class SWEDataArkawaA:
         hv_cpu = self.hv0.download(cl_queue)
         
         return h_cpu, hu_cpu, hv_cpu
-        
-        
-        
-        
-        
+    
         
         
         
         
         
 """
-A class representing an Akrawa A type (unstaggered, logically Cartesian) grid
-"""
-class SWEDataArkawaA:
-    """
-    Uploads initial data to the CL device
-    """
-    def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, h0, hu0, hv0):
-        self.h0  = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0)
-        self.hu0 = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, hu0)
-        self.hv0 = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, hv0)
-        
-        self.h1  = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0)
-        self.hu1 = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, hu0)
-        self.hv1 = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, hv0)
-
-    """
-    Swaps the variables after a timestep has been completed
-    """
-    def swap(self):
-        self.h1,  self.h0  = self.h0,  self.h1
-        self.hu1, self.hu0 = self.hu0, self.hu1
-        self.hv1, self.hv0 = self.hv0, self.hv1
-        
-    """
-    Enables downloading data from CL device to Python
-    """
-    def download(self, cl_queue):
-        h_cpu  = self.h0.download(cl_queue)
-        hu_cpu = self.hu0.download(cl_queue)
-        hv_cpu = self.hv0.download(cl_queue)
-        
-        return h_cpu, hu_cpu, hv_cpu
-        
-        
-
-
-        
-        
-        
-        
-"""
-A class representing an Akrawa C type (staggered, u fluxes on east/west faces, v fluxes on north/south faces) grid
+A class representing an Arakawa C type (staggered, u fluxes on east/west faces, v fluxes on north/south faces) grid
 We use h as cell centers
 """
-class SWEDataArkawaC:
+class SWEDataArakawaC:
     """
     Uploads initial data to the CL device
     """
