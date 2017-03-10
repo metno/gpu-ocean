@@ -65,12 +65,12 @@ public:
     /**
      * Returns the friction.
      */
-    float F() const;
+    float f() const;
 
     /**
      * Returns the Coriolis effect.
      */
-    float R() const;
+    float r() const;
 
     /**
      * Prints status.
@@ -105,8 +105,8 @@ protected:
     virtual Field2D _U() const = 0;
     virtual Field2D _V() const = 0;
     virtual Field2D _eta() const = 0;
-    virtual float _F() const = 0;
-    virtual float _R() const = 0;
+    virtual float _f() const = 0;
+    virtual float _r() const = 0;
     virtual void _printStatus() const = 0;
 
 private:
