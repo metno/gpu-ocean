@@ -1,5 +1,5 @@
-# gpu-eps-hav
-GPU-EPS Hav codebase.
+# gpu-ocean
+GPU Ocean codebase.
 
 apps/
 
