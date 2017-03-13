@@ -108,15 +108,18 @@ class FBL:
         self.t = np.float32(0.0)
         
         #Compute kernel launch parameters
-        self.local_size = (8, 8) # WARNING::: MUST MATCH defines of block_width/height in kernels!
-        self.global_size = ( \
+        self.local_size = (block_width, block_height) # WARNING::: MUST MATCH defines of block_width/height in kernels!
+        self.global_size =  ( \
                        int(np.ceil(self.nx / float(self.local_size[0])) * self.local_size[0]), \
                        int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
                       ) 
         print("FBL.local_size: " + str(self.local_size))
         print("FBL.global_size: " + str(self.global_size))
     
-    
+        self.boundaryConditions = FBL_periodic_boundary(self.cl_ctx, \
+                                                        self.nx,
+                                                        self.ny)
+        
     
     """
     Function which steps n timesteps
@@ -144,8 +147,8 @@ class FBL:
                     self.wind_stress.u0, self.wind_stress.v0, \
                     self.t)
 
-            # Fix H boundary
-            self.cl_data.periodicBoundaryConditionU(self.cl_queue)
+            # Fix U boundary
+            self.boundaryConditions.periodicBoundaryConditionU(self.cl_queue, self.cl_data.hu0)
             
             self.v_kernel.computeVKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
@@ -162,7 +165,7 @@ class FBL:
                     self.t)
 
             # Fix V boundary
-            self.cl_data.periodicBoundaryConditionV(self.cl_queue)
+            self.boundaryConditions.periodicBoundaryConditionV(self.cl_queue, self.cl_data.hv0)
             
             self.eta_kernel.computeEtaKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
@@ -192,5 +195,54 @@ class FBL:
 
 
 
+class FBL_periodic_boundary:
+    def __init__(self, cl_ctx, nx, ny, \
+            block_width=16, block_height=16 ):
 
+        self.cl_ctx = cl_ctx
+        
+        self.nx = np.int32(nx)
+        self.ny = np.int32(ny)
+
+        # Load kernel for periodic boundary.
+        self.periodicBoundaryKernel = Common.get_kernel(self.cl_ctx,\
+            "FBL_periodic_boundary.opencl", block_width, block_height)
+
+         #Compute kernel launch parameters
+        self.local_size = (block_width, block_height) # WARNING::: MUST MATCH defines of block_width/height in kernels!
+        self.global_size = ( \
+                int(np.ceil(self.nx+1 / float(self.local_size[0])) * self.local_size[0]), \
+                int(np.ceil(self.ny+1 / float(self.local_size[1])) * self.local_size[1]) )
+
+    
+
+    """
+    Updates hu according periodic boundary conditions
+    """
+    def periodicBoundaryConditionU(self, cl_queue, hu0):
+        ## Currently, this only works with 0 ghost cells:
+        assert(hu0.nx == hu0.nx_halo), \
+            "The current data does not have zero ghost cells"
+
+        ## Call kernel that swaps the boundaries.
+        #print("Periodic boundary conditions")
+        self.periodicBoundaryKernel.periodicBoundaryUKernel(cl_queue, self.global_size, self.local_size, \
+            self.nx, self.ny, \
+            hu0.data, hu0.pitch)
+
+    """
+    Updates hv according to periodic boundary conditions
+    """
+    def periodicBoundaryConditionV(self, cl_queue, hv0):
+        ## Currently, this only works with 0 ghost cells:
+        assert(hv0.ny == hv0.ny_halo), \
+            "The current data does not have zero ghost cells"
+        
+        ## Call kernel that swaps the boundaries.
+        #print("Periodic boundary conditions")
+        self.periodicBoundaryKernel.periodicBoundaryVKernel(cl_queue, self.global_size, self.local_size, \
+            self.nx, self.ny, \
+            hv0.data, hv0.pitch)
+
+        
 
