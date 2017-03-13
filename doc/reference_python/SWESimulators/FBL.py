@@ -31,6 +31,7 @@ import Common
         
         
         
+        
 
 
 
@@ -70,8 +71,12 @@ class FBL:
                  g, f, r, \
                  wind_stress=Common.WindStressParams(), \
                  block_width=16, block_height=16):
+        reload(Common)
         self.cl_ctx = cl_ctx
 
+        print("(ny, nx): " + str((ny, nx)))
+        print("H.shape: " + str(H.shape))
+                
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
 
@@ -79,7 +84,7 @@ class FBL:
         self.u_kernel = Common.get_kernel(self.cl_ctx, "FBL_U_kernel.opencl", block_width, block_height)
         self.v_kernel = Common.get_kernel(self.cl_ctx, "FBL_V_kernel.opencl", block_width, block_height)
         self.eta_kernel = Common.get_kernel(self.cl_ctx, "FBL_eta_kernel.opencl", block_width, block_height)
-        
+                
         #Create data by uploading to device
         ghost_cells_x = 0
         ghost_cells_y = 0
@@ -108,7 +113,8 @@ class FBL:
                        int(np.ceil(self.nx / float(self.local_size[0])) * self.local_size[0]), \
                        int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
                       ) 
-    
+        print("FBL.local_size: " + str(self.local_size))
+        print("FBL.global_size: " + str(self.global_size))
     
     
     
@@ -137,6 +143,9 @@ class FBL:
                     self.wind_stress.x0, self.wind_stress.y0, \
                     self.wind_stress.u0, self.wind_stress.v0, \
                     self.t)
+
+            # Fix H boundary
+            self.cl_data.periodicBoundaryConditionU(self.cl_queue)
             
             self.v_kernel.computeVKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
@@ -151,6 +160,9 @@ class FBL:
                     self.wind_stress.x0, self.wind_stress.y0, \
                     self.wind_stress.u0, self.wind_stress.v0, \
                     self.t)
+
+            # Fix V boundary
+            self.cl_data.periodicBoundaryConditionV(self.cl_queue)
             
             self.eta_kernel.computeEtaKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
@@ -160,7 +172,8 @@ class FBL:
                     self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
                     self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
                     self.cl_data.h0.data, self.cl_data.h0.pitch)
-                
+
+            
             self.t += local_dt
         
         return self.t
