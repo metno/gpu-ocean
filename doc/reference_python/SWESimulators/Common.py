@@ -137,15 +137,10 @@ class SWEDataArakawaC:
     """
     Uploads initial data to the CL device
     """
-    def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, h0, hu0, hv0, \
-                 block_width=16, block_height=16):
+    def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, h0, hu0, hv0):
         #FIXME: This at least works for 0 and 1 ghost cells, but not convinced it generalizes
         assert(halo_x <= 1 and halo_y <= 1)
 
-        self.cl_ctx = cl_ctx
-        self.nx = np.int32(nx)
-        self.ny = np.int32(ny)
-        
         self.h0   = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0)
         self.hu0  = OpenCLArray2D(cl_ctx, nx+1, ny, 0, halo_y, hu0)
         self.hv0  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, 0, hv0)
@@ -153,16 +148,7 @@ class SWEDataArakawaC:
         self.h1   = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0)
         self.hu1  = OpenCLArray2D(cl_ctx, nx+1, ny, 0, halo_y, hu0)
         self.hv1  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, 0, hv0)
-
-        # Load kernel for periodic boundary.
-        self.periodicBoundaryKernel = get_kernel(self.cl_ctx, "FBL_periodic_boundary.opencl", block_width, block_height)
-
-         #Compute kernel launch parameters
-        self.local_size = (8, 8) # WARNING::: MUST MATCH defines of block_width/height in kernels!
-        self.global_size = ( \
-                       int(np.ceil(self.nx+1 / float(self.local_size[0])) * self.local_size[0]), \
-                       int(np.ceil(self.ny+1 / float(self.local_size[1])) * self.local_size[1]) \
-                      )                    
+                   
         
     """
     Swaps the variables after a timestep has been completed
@@ -183,37 +169,7 @@ class SWEDataArakawaC:
         
         return h_cpu, hu_cpu, hv_cpu
         
-    """
-    Updates hu according periodic boundary conditions
-    """
-    def periodicBoundaryConditionU(self, cl_queue):
-        ## Currently, this only works with 0 ghost cells:
-        assert(self.hv0.ny == self.hv0.ny_halo and
-               self.hu0.nx == self.hu0.nx_halo), \
-        "The current data does not have zero ghost cells"
 
-        ## Call kernel that swaps the boundaries.
-        #print("Periodic boundary conditions")
-        self.periodicBoundaryKernel.periodicBoundaryUKernel(cl_queue, self.global_size, self.local_size, \
-            self.nx, self.ny, \
-            self.hu0.data, self.hu0.pitch)
-
-    """
-    Updates hv according to periodic boundary conditions
-    """
-    def periodicBoundaryConditionV(self, cl_queue):
-        ## Currently, this only works with 0 ghost cells:
-        assert(self.hv0.ny == self.hv0.ny_halo and
-               self.hu0.nx == self.hu0.nx_halo), \
-        "The current data does not have zero ghost cells"
-        
-        ## Call kernel that swaps the boundaries.
-        #print("Periodic boundary conditions")
-        self.periodicBoundaryKernel.periodicBoundaryVKernel(cl_queue, self.global_size, self.local_size, \
-            self.nx, self.ny, \
-            self.hv0.data, self.hv0.pitch)
-
-        
 
 """
 Class which represents different wind stresses
