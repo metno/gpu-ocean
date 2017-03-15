@@ -71,6 +71,12 @@ bool SimBase::execNextStep(ProfileInfo *profInfo)
     return true;
 }
 
+Field2D SimBase::H() const
+{
+    assertInitialized();
+    return _H();
+}
+
 Field2D SimBase::eta() const
 {
     assertInitialized();

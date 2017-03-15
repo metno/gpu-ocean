@@ -220,12 +220,10 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
     kernel->setArg<int>(9, _eta.nx()*sizeof(float));
     kernel->setArg<float>(10, currTime);
 
-    // execute kernel (computes U in device memory, excluding western sides of western ghost cells and eastern
-    // side of eastern ghost cells)
+    // execute kernel
     cl::Event event;
-    cl::NDRange r = global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY);
     CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
-                 *kernel, cl::NullRange, global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
+                 *kernel, cl::NullRange, global2DWorkSize(nx+1, ny+1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
     CL_CHECK(event.wait());
     if (profInfo)
         profInfo->time_computeU = OpenCLUtils::elapsedMilliseconds(event);
@@ -276,9 +274,8 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
 
     // execute kernel
     cl::Event event;
-    cl::NDRange r = global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY);
     CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
-                 *kernel, cl::NullRange, global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
+                 *kernel, cl::NullRange, global2DWorkSize(nx+1, ny+1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
     CL_CHECK(event.wait());
     if (profInfo)
         profInfo->time_computeV = OpenCLUtils::elapsedMilliseconds(event);
@@ -312,11 +309,10 @@ void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitC
     kernel->setArg<cl::Buffer>(5, eta);
     kernel->setArg<int>(6, _eta.nx()*sizeof(float));
 
-    // execute kernel (computes eta in device memory, excluding ghost cells (hence (nx - 1, ny - 1) instead of (nx + 1, ny + 1));
-    // note: eta in ghost cells are part of the boundary conditions and updated separately)
+    // execute kernel
     cl::Event event;
     CL_CHECK(OpenCLUtils::getQueue()->enqueueNDRangeKernel(
-                 *kernel, cl::NullRange, global2DWorkSize(nx - 1, ny - 1, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
+                 *kernel, cl::NullRange, global2DWorkSize(nx, ny, WGNX, WGNY), cl::NDRange(WGNX, WGNY), 0, &event));
     CL_CHECK(event.wait());
     if (profInfo)
         profInfo->time_computeEta = OpenCLUtils::elapsedMilliseconds(event);
@@ -386,6 +382,11 @@ void Simulator::_execNextStep(ProfileInfo *profInfo)
     pimpl->computeEta(options(), initCond(), profInfo);
 
     pimpl->currTime += pimpl->dt; // advance simulation time
+}
+
+Field2D Simulator::_H() const
+{
+    return pimpl->_H;
 }
 
 Field2D Simulator::_U() const
