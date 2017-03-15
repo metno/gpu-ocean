@@ -25,6 +25,7 @@ private:
     virtual double _maxTime() const;
     virtual float _deltaTime() const;
     virtual void _execNextStep(ProfileInfo *);
+    virtual Field2D _H() const;
     virtual Field2D _U() const;
     virtual Field2D _V() const;
     virtual Field2D _eta() const;

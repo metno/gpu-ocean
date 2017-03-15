@@ -130,7 +130,7 @@ __kernel void computeU(
     if (ti < args.nx+1 && tj < args.ny) {
         //Closed boundaries
         if (ti == 0 || ti == args.nx) {
-            U_next = 6.0f;//0.0f;
+            U_next = 0.0f;
         }
         U_row[ti] = U_next;
     }
