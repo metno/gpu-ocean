@@ -127,8 +127,8 @@ void NetCDFWriter::init(int nx, int ny, float dt, float dx, float dy, float f, f
     pimpl->layout.dims.y = pimpl->file->add_dim("Y", ny);
     pimpl->layout.dims.x_ghost = pimpl->file->add_dim("X_ghost", nx + 2);
     pimpl->layout.dims.y_ghost = pimpl->file->add_dim("Y_ghost", ny + 2);
-    pimpl->layout.dims.x_half = pimpl->file->add_dim("X_half", nx - 1);
-    pimpl->layout.dims.y_half = pimpl->file->add_dim("Y_half", ny - 1);
+    pimpl->layout.dims.x_half = pimpl->file->add_dim("X_half", nx);
+    pimpl->layout.dims.y_half = pimpl->file->add_dim("Y_half", ny);
     pimpl->layout.dims.x_half_ghost = pimpl->file->add_dim("X_half_ghost", nx + 1);
     pimpl->layout.dims.y_half_ghost = pimpl->file->add_dim("Y_half_ghost", ny + 1);
     pimpl->layout.dims.t = pimpl->file->add_dim("T");
@@ -168,20 +168,20 @@ void NetCDFWriter::init(int nx, int ny, float dt, float dx, float dy, float f, f
     setSpatialVars(pimpl->layout.vars.y, ny, dy);
     setSpatialVars(pimpl->layout.vars.x_ghost, nx + 2, dx);
     setSpatialVars(pimpl->layout.vars.y_ghost, ny + 2, dy);
-    setSpatialVars(pimpl->layout.vars.x_half, nx - 1, dx, true);
-    setSpatialVars(pimpl->layout.vars.y_half, ny - 1, dy, true);
+    setSpatialVars(pimpl->layout.vars.x_half, nx, dx, true);
+    setSpatialVars(pimpl->layout.vars.y_half, ny, dy, true);
     setSpatialVars(pimpl->layout.vars.x_half_ghost, nx + 1, dx, true);
     setSpatialVars(pimpl->layout.vars.y_half_ghost, ny + 1, dy, true);
 
     pimpl->file->sync();
 
     // create initial condition variables
-    pimpl->layout.vars.H = pimpl->file->add_var("H", ncFloat, pimpl->layout.dims.y_half_ghost, pimpl->layout.dims.x_half_ghost);
+    pimpl->layout.vars.H = pimpl->file->add_var("H", ncFloat, pimpl->layout.dims.y_half, pimpl->layout.dims.x_half);
     pimpl->layout.vars.H->add_att("description", "Mean water depth");
 
     // create the timestep variables
     pimpl->layout.vars.eta = pimpl->file->add_var(
-                "eta", ncFloat, pimpl->layout.dims.t, pimpl->layout.dims.y_half_ghost, pimpl->layout.dims.x_half_ghost);
+                "eta", ncFloat, pimpl->layout.dims.t, pimpl->layout.dims.y_half, pimpl->layout.dims.x_half);
     pimpl->layout.vars.U = pimpl->file->add_var(
                 "U", ncFloat, pimpl->layout.dims.t, pimpl->layout.dims.y_half, pimpl->layout.dims.x_ghost);
     pimpl->layout.vars.V = pimpl->file->add_var(
@@ -198,14 +198,14 @@ void NetCDFWriter::init(int nx, int ny, float dt, float dx, float dy, float f, f
     nc_def_var_deflate(pimpl->file->id(), pimpl->layout.vars.V->id(), 1, 1, 2);
 
     // write data
-    pimpl->layout.vars.H->put(H, ny + 1, nx + 1);
+    pimpl->layout.vars.H->put(H, ny, nx);
     pimpl->timestepCounter = 0;
     pimpl->layout.vars.eta->set_cur(pimpl->timestepCounter, 0, 0);
-    pimpl->layout.vars.eta->put(eta, 1, ny + 1, nx + 1);
+    pimpl->layout.vars.eta->put(eta, 1, ny, nx);
     pimpl->layout.vars.U->set_cur(pimpl->timestepCounter, 0, 0);
-    pimpl->layout.vars.U->put(U, 1, ny - 1, nx + 2);
+    pimpl->layout.vars.U->put(U, 1, ny, nx + 1);
     pimpl->layout.vars.V->set_cur(pimpl->timestepCounter, 0, 0);
-    pimpl->layout.vars.V->put(V, 1, ny + 2, nx - 1);
+    pimpl->layout.vars.V->put(V, 1, ny + 1, nx);
 
     pimpl->file->sync();
     ++pimpl->timestepCounter;
@@ -227,13 +227,13 @@ void NetCDFWriter::writeTimestep(float *eta, float *U, float *V, float t)
     pimpl->layout.vars.t->put(&t, 1);
 
     pimpl->layout.vars.eta->set_cur(pimpl->timestepCounter, 0, 0);
-    pimpl->layout.vars.eta->put(eta, 1, pimpl->ny + 1, pimpl->nx + 1);
+    pimpl->layout.vars.eta->put(eta, 1, pimpl->ny, pimpl->nx);
 
     pimpl->layout.vars.U->set_cur(pimpl->timestepCounter, 0, 0);
-    pimpl->layout.vars.U->put(U, 1, pimpl->ny - 1, pimpl->nx + 2);
+    pimpl->layout.vars.U->put(U, 1, pimpl->ny, pimpl->nx + 1);
 
     pimpl->layout.vars.V->set_cur(pimpl->timestepCounter, 0, 0);
-    pimpl->layout.vars.V->put(V, 1, pimpl->ny + 2, pimpl->nx - 1);
+    pimpl->layout.vars.V->put(V, 1, pimpl->ny + 1, pimpl->nx);
 
     pimpl->file->sync();
     ++pimpl->timestepCounter;
