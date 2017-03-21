@@ -59,7 +59,7 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
 	ny = initCond->ny();
 	dx = initCond->dx();
 	dy = initCond->dy();
-	dt = std::min(dx, dy) * 0.01; // ### for now
+	dt = std::min(dx, dy) * 0.05; // ### for now
 	r = 0.0024;
 	f = 0.f; // ### no influence for now
 	g = 9.8;
@@ -70,38 +70,38 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
 
     // create buffers ...
     // ... H reconstructed
-    Hr_u = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * nx * (ny + 1), 0, &error);
+    Hr_u = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * (nx-1) * ny, 0, &error);
     CL_CHECK(error);
-    Hr_v = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * (nx + 1) * ny, 0, &error);
+    Hr_v = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE, sizeof(float) * nx * (ny-1), 0, &error);
     CL_CHECK(error);
 
     // ... H
-    const int nx_H = nx + 1;
-    const int ny_H = ny + 1;
+    const int nx_H = nx;
+    const int ny_H = ny;
     _H = Field2D(new vector<float>(nx_H * ny_H), nx_H, ny_H, dx, dy);
     _H.fill(initCond->H());
     H = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * _H.data()->size(), _H.data()->data(), &error);
     CL_CHECK(error);
 
     // ... U
-    const int nx_U = nx + 2;
-    const int ny_U = ny - 1;
+    const int nx_U = nx + 1; //including ghost cells
+    const int ny_U = ny;
     _U = Field2D(new vector<float>(nx_U * ny_U), nx_U, ny_U, dx, dy);
     _U.fill(0.0f);
     U = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * _U.data()->size(), _U.data()->data(), &error);
     CL_CHECK(error);
 
     // ... V
-    const int nx_V = nx - 1;
-    const int ny_V = ny + 2;
+    const int nx_V = nx;
+    const int ny_V = ny + 1; //including ghost cells
     _V = Field2D(new vector<float>(nx_V * ny_V), nx_V, ny_V, dx, dy);
     _V.fill(0.0f);
     V = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * _V.data()->size(), _V.data()->data(), &error);
     CL_CHECK(error);
 
     // ... eta
-    const int nx_eta = nx + 1;
-    const int ny_eta = ny + 1;
+    const int nx_eta = nx;
+    const int ny_eta = ny;
     _eta = Field2D(new vector<float>(nx_eta * ny_eta), nx_eta, ny_eta, dx, dy);
     _eta.fill(initCond->eta());
     eta = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * _eta.data()->size(), _eta.data()->data(), &error);
