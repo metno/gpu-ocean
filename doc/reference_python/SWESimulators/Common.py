@@ -49,10 +49,13 @@ class OpenCLArray2D:
             # asymHalo = [halo_north, halo_east, halo_south, halo_west]
             self.nx_halo = nx + asymHalo[1] + asymHalo[3]
             self.ny_halo = ny + asymHalo[0] + asymHalo[2]
-            print("\nASYM HALO\n")
+            print("\nASYM HALO")
+            print((nx, ny))
+            print((self.nx_halo, self.ny_halo))
+            print(asymHalo)
             
         assert(host_data.shape[1] == self.nx_halo), str(host_data.shape[1]) + " vs " + str(self.nx_halo)
-        assert(host_data.shape[0] == self.ny_halo)
+        assert(host_data.shape[0] == self.ny_halo), str(host_data.shape[0]) + " vs " + str(self.ny_halo)
         
         assert(data.shape == (self.ny_halo, self.nx_halo))
 
@@ -145,16 +148,21 @@ class SWEDataArakawaC:
         #FIXME: This at least works for 0 and 1 ghost cells, but not convinced it generalizes
         assert(halo_x <= 1 and halo_y <= 1)
         # FIXME: asymHalo has not been tested for other values either.
+        asymHaloU = asymHalo
+        asymHaloV = asymHalo
         if (asymHalo is not None):
+            print(asymHalo)
             assert(max(asymHalo) <= 1)
-        
+            asymHaloU = [asymHalo[0], 0, asymHalo[2], 0]
+            asymHaloV = [0, asymHalo[1], 0, asymHalo[3]]
+            
         self.h0   = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0, asymHalo)
-        self.hu0  = OpenCLArray2D(cl_ctx, nx+1, ny, 0, halo_y, hu0, asymHalo)
-        self.hv0  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, 0, hv0, asymHalo)
+        self.hu0  = OpenCLArray2D(cl_ctx, nx+1, ny, 0, halo_y, hu0, asymHaloU)
+        self.hv0  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, 0, hv0, asymHaloV)
         
         self.h1   = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0, asymHalo)
-        self.hu1  = OpenCLArray2D(cl_ctx, nx+1, ny, 0, halo_y, hu0, asymHalo)
-        self.hv1  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, 0, hv0, asymHalo)
+        self.hu1  = OpenCLArray2D(cl_ctx, nx+1, ny, 0, halo_y, hu0, asymHaloU)
+        self.hv1  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, 0, hv0, asymHaloV)
                    
         
     """
@@ -280,7 +288,11 @@ class BoundaryConditions:
                     (self.east != self.west)), \
                     'The given periodic boundary conditions are not periodically (east/west)'
 
-
+    def isDefault(self):
+        return (self.north == 1 and \
+                self.east == 1 and \
+                self.south == 1 and \
+                self.east == 1)
             
             
                  
