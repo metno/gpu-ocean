@@ -37,13 +37,20 @@ class OpenCLArray2D:
     """
     Uploads initial data to the CL device
     """
-    def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, data):
+    def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, data, \
+                 asymHalo=None):
         host_data = self.convert_to_float32(data)
-        
+
         self.nx = nx
         self.ny = ny
         self.nx_halo = nx + 2*halo_x
         self.ny_halo = ny + 2*halo_y
+        if (asymHalo is not None and len(asymHalo) == 4):
+            # asymHalo = [halo_north, halo_east, halo_south, halo_west]
+            self.nx_halo = nx + asymHalo[1] + asymHalo[3]
+            self.ny_halo = ny + asymHalo[0] + asymHalo[2]
+            print("\nASYM HALO\n")
+            
         assert(host_data.shape[1] == self.nx_halo), str(host_data.shape[1]) + " vs " + str(self.nx_halo)
         assert(host_data.shape[0] == self.ny_halo)
         
@@ -82,14 +89,9 @@ class OpenCLArray2D:
         else:
             return data
 
-        
-        
-        
-        
-        
-        
-        
-        
+
+
+    
 """
 A class representing an Arakawa A type (unstaggered, logically Cartesian) grid
 """
@@ -136,8 +138,54 @@ We use h as cell centers
 class SWEDataArakawaC:
     """
     Uploads initial data to the CL device
+    asymHalo needs to be on the form [north, east, south, west]
     """
-    def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, h0, hu0, hv0):
+    def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, h0, hu0, hv0, \
+                 asymHalo=None):
+        #FIXME: This at least works for 0 and 1 ghost cells, but not convinced it generalizes
+        assert(halo_x <= 1 and halo_y <= 1)
+        # FIXME: asymHalo has not been tested for other values either.
+        if (asymHalo is not None):
+            assert(max(asymHalo) <= 1)
+        
+        self.h0   = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0, asymHalo)
+        self.hu0  = OpenCLArray2D(cl_ctx, nx+1, ny, 0, halo_y, hu0, asymHalo)
+        self.hv0  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, 0, hv0, asymHalo)
+        
+        self.h1   = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0, asymHalo)
+        self.hu1  = OpenCLArray2D(cl_ctx, nx+1, ny, 0, halo_y, hu0, asymHalo)
+        self.hv1  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, 0, hv0, asymHalo)
+                   
+        
+    """
+    Swaps the variables after a timestep has been completed
+    """
+    def swap(self):
+        #h is assumed to be constant (bottom topography really)
+        self.h1,  self.h0  = self.h0, self.h1
+        self.hu1, self.hu0 = self.hu0, self.hu1
+        self.hv1, self.hv0 = self.hv0, self.hv1
+        
+    """
+    Enables downloading data from CL device to Python
+    """
+    def download(self, cl_queue):
+        h_cpu  = self.h0.download(cl_queue)
+        hu_cpu = self.hu0.download(cl_queue)
+        hv_cpu = self.hv0.download(cl_queue)
+        
+        return h_cpu, hu_cpu, hv_cpu
+
+"""
+A class representing asymmetric Arakawa C type grid (see above)
+"""
+class SWEDataAsymArakawaC:
+    """
+    Uploads initial data to the CL device
+    """
+    def __init__(self, cl_ctx, nx, ny, \
+                 halo_north, halo_west, halo_south, halo_east, \
+                 h0, hu0, hv0):
         #FIXME: This at least works for 0 and 1 ghost cells, but not convinced it generalizes
         assert(halo_x <= 1 and halo_y <= 1)
 
@@ -168,8 +216,9 @@ class SWEDataArakawaC:
         hv_cpu = self.hv0.download(cl_queue)
         
         return h_cpu, hu_cpu, hv_cpu
-        
 
+
+    
 
 """
 Class which represents different wind stresses
@@ -204,8 +253,36 @@ class WindStressParams:
         self.u0 = np.float32(u0)
         self.v0 = np.float32(v0)
                  
-                 
-                 
+
+"""
+Class that represents different forms for boundary conidtions
+"""
+class BoundaryConditions:
+    """
+    There is one parameter for each of the cartesian boundaries.
+    Values can be set as follows:
+    1 = Wall
+    2 = Periodic (requires same for opposite boundary as well)
+    3 = Numerical Sponge
+    """
+    def __init__(self, \
+                 north=1, east=1, south=1, west=1):
+        self.north = north
+        self.east  = east
+        self.south = south
+        self.west  = west
+
+        # Checking that periodic boundaries are periodic
+        assert not ((self.north == 2 or self.south == 2) and  \
+                    (self.north != self.south)), \
+                    'The given periodic boundary conditions are not periodically (north/south)'
+        assert not ((self.east == 2 or self.west == 2) and \
+                    (self.east != self.west)), \
+                    'The given periodic boundary conditions are not periodically (east/west)'
+
+
+            
+            
                  
                  
                  
