@@ -36,6 +36,7 @@ import Common
 
 
 
+reload(Common)
 
 
 
@@ -70,6 +71,7 @@ class FBL:
                  dx, dy, dt, \
                  g, f, r, \
                  wind_stress=Common.WindStressParams(), \
+                 boundary_conditions=Common.BoundaryConditions(), \
                  block_width=16, block_height=16):
         reload(Common)
         self.cl_ctx = cl_ctx
@@ -115,10 +117,11 @@ class FBL:
                       ) 
         print("FBL.local_size: " + str(self.local_size))
         print("FBL.global_size: " + str(self.global_size))
-    
-        self.boundaryConditions = FBL_periodic_boundary(self.cl_ctx, \
-                                                        self.nx,
-                                                        self.ny)
+
+        self.boundary_conditions = boundary_conditions
+        self.bc_kernel = FBL_periodic_boundary(self.cl_ctx, \
+                                               self.nx,
+                                               self.ny)
         
     
     """
@@ -147,8 +150,9 @@ class FBL:
                     self.wind_stress.u0, self.wind_stress.v0, \
                     self.t)
 
-            # Fix U boundary
-            self.boundaryConditions.periodicBoundaryConditionU(self.cl_queue, self.cl_data.hu0)
+            if (self.boundary_conditions.north == 2):
+                # Fix U boundary
+                self.bc_kernel.periodicBoundaryConditionU(self.cl_queue, self.cl_data.hu0)
             
             self.v_kernel.computeVKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
@@ -165,7 +169,8 @@ class FBL:
                     self.t)
 
             # Fix V boundary
-            self.boundaryConditions.periodicBoundaryConditionV(self.cl_queue, self.cl_data.hv0)
+            if (self.boundary_conditions.east == 2) :
+                self.bc_kernel.periodicBoundaryConditionV(self.cl_queue, self.cl_data.hv0)
             
             self.eta_kernel.computeEtaKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
