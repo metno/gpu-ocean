@@ -75,9 +75,13 @@ class FBL:
                  block_width=16, block_height=16):
         reload(Common)
         self.cl_ctx = cl_ctx
-
+        self.boundary_conditions = boundary_conditions
+        
         print("(ny, nx): " + str((ny, nx)))
         print("H.shape: " + str(H.shape))
+        print("eta.shape: " + str(eta0.shape))
+        print("U shape: " + str(hu0.shape))
+        print("V shape: " + str(hv0.shape))
                 
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
@@ -90,8 +94,16 @@ class FBL:
         #Create data by uploading to device
         ghost_cells_x = 0
         ghost_cells_y = 0
-        self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, H)
-        self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
+        asym_ghost_cells = None
+        if not self.boundary_conditions.isDefault():
+            asym_ghost_cells = [0, 0, 0, 0]
+            if self.boundary_conditions.north == 2:
+                asym_ghost_cells[0] = 1
+            if self.boundary_conditions.east == 2:
+                asym_ghost_cells[1] = 1
+            
+        self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, H, asym_ghost_cells)
+        self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, asym_ghost_cells)
         
         #Save input parameters
         #Notice that we need to specify them in the correct dataformat for the
@@ -118,10 +130,12 @@ class FBL:
         print("FBL.local_size: " + str(self.local_size))
         print("FBL.global_size: " + str(self.global_size))
 
-        self.boundary_conditions = boundary_conditions
         self.bc_kernel = FBL_periodic_boundary(self.cl_ctx, \
-                                               self.nx,
-                                               self.ny)
+                                               self.nx, \
+                                               self.ny, \
+                                               self.boundary_conditions, \
+                                               asym_ghost_cells
+        )
         
     
     """
@@ -135,6 +149,9 @@ class FBL:
             
             if (local_dt <= 0.0):
                 break
+
+            
+            
                 
             self.u_kernel.computeUKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
@@ -202,15 +219,19 @@ class FBL:
 
 class FBL_periodic_boundary:
     def __init__(self, cl_ctx, nx, ny, \
-            block_width=16, block_height=16 ):
+                 boundary_conditions, asym_ghost_cells, \
+                 block_width=16, block_height=16 ):
 
         self.cl_ctx = cl_ctx
+        self.boundary_conditions = boundary_conditions
+        self.asym_ghost_cells = asym_ghost_cells
         
         self.nx = np.int32(nx)
         self.ny = np.int32(ny)
 
         # Load kernel for periodic boundary.
-        self.periodicBoundaryKernel = Common.get_kernel(self.cl_ctx,\
+        self.periodicBoundaryKernel \
+            = Common.get_kernel(self.cl_ctx,\
             "FBL_periodic_boundary.opencl", block_width, block_height)
 
          #Compute kernel launch parameters
