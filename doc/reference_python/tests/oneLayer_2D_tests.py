@@ -8,6 +8,7 @@ import xmlrunner
 
 #import testUtils
 from schemes.FBLtest import FBLtest
+from schemes.CTCStest import CTCStest
 
 # In order to format the test report so that Jenkins can read it:
 jenkins = False
@@ -20,7 +21,8 @@ if (jenkins):
 
 
 # Define the tests that will be part of our test suite:
-test_classes_to_run = [FBLtest]
+test_classes_to_run = [FBLtest, \
+                       CTCStest]
 
 loader = unittest.TestLoader()
 suite_list = []

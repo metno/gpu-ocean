@@ -11,7 +11,6 @@ from SWESimulators import FBL
 class FBLtest(unittest.TestCase):
 
     def setUp(self):
-        self.a = 123
         self.cl_ctx = make_cl_ctx()
 
         self.nx = 50
