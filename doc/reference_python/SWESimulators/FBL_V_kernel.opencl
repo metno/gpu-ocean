@@ -68,7 +68,7 @@ __kernel void computeVKernel(
     const int ti = get_global_id(0); 
     const int tj = get_global_id(1);
     
-    //Compute pointer to current row in the U array
+    //Compute pointer to current row in the V array
     __global float* const V_row = (__global float*) ((__global char*) V_ptr_ + V_pitch_*tj);
 
     //Read current V
@@ -154,14 +154,14 @@ __kernel void computeVKernel(
     float V_next = B*(V_current + dt_*(-f_*U_m + P + Y) );
 
     //Write to main memory
-    if (ti < nx_ && tj < ny_+1) {
+    if (ti < nx_ && tj > 0 && tj < ny_ ) {
         //Closed boundaries 
-        if (tj == 0) {
-            V_next = 0.0f;
-        }
-        else if (tj == ny_) {
-            V_next = 0.0f;
-        }
+        //if (tj == 0) {
+        //    V_next = 0.0f;
+        //}
+        //else if (tj == ny_) {
+        //    V_next = 0.0f;
+        //}
 
         V_row[ti] = V_next;
     }

@@ -153,11 +153,17 @@ __kernel void computeUKernel(
     float U_next = B*(U_current + dt_*(f_*V_m + P + X) );
 
     //Write to main memory for internal cells
-    if (ti < nx_+1 && tj < ny_) {
+    if (ti > 0 && ti < nx_ && tj < ny_) {
         //Closed boundaries
-        if (ti == 0 || ti == nx_) {
-            U_next = 0.0f;
-        }
+        //if (ti == 0 || ti == nx_) {
+	//     U_next = 0.0f;
+        //}
+
+	// DEBUG:
+	//if (tj == ny_-1 && ti > 10 && ti < 48) {
+	//    U_next = 1;
+	//}
+    
         U_row[ti] = U_next;
     }
 }

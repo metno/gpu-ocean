@@ -125,8 +125,8 @@ class FBL:
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height) # WARNING::: MUST MATCH defines of block_width/height in kernels!
         self.global_size =  ( \
-                       int(np.ceil(self.nx / float(self.local_size[0])) * self.local_size[0]), \
-                       int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
+                       int(np.ceil(self.nx_halo / float(self.local_size[0])) * self.local_size[0]), \
+                       int(np.ceil(self.ny_halo / float(self.local_size[1])) * self.local_size[1]) \
                       ) 
         print("FBL.local_size: " + str(self.local_size))
         print("FBL.global_size: " + str(self.global_size))
@@ -137,6 +137,8 @@ class FBL:
                                                self.boundary_conditions, \
                                                self.asym_ghost_cells
         )
+
+        self.totalNumIterations = 0
         
     
     """
@@ -149,10 +151,17 @@ class FBL:
         self.bc_kernel.boundaryConditionU(self.cl_queue, self.cl_data.hu0)
         self.bc_kernel.boundaryConditionV(self.cl_queue, self.cl_data.hv0)
         self.bc_kernel.boundaryConditionEta(self.cl_queue, self.cl_data.h0)
-            
+
+
         for i in range(0, n):        
             local_dt = np.float32(min(self.dt, t_end-i*self.dt))
             
+            #if self.totalNumIterations > 240:
+            #if self.totalNumIterations > 5:
+            #    self.t += t_end
+            #    return self.t
+
+
             if (local_dt <= 0.0):
                 break
 
@@ -202,7 +211,9 @@ class FBL:
             self.bc_kernel.boundaryConditionEta(self.cl_queue, self.cl_data.h0)
    
             self.t += local_dt
-        
+            self.totalNumIterations += 1
+            
+
         return self.t
     
     
@@ -234,8 +245,13 @@ class FBL_periodic_boundary:
         self.ny = np.int32(ny)
         self.nx_halo = np.int32(nx + self.ghostsX)
         self.ny_halo = np.int32(ny + self.ghostsY)
+
+        # Debugging variables
         self.firstU = True
         self.firstV = True
+        self.firstGhostU = True
+        self.firstGhostV = True
+        self.firstGhostEta = True
         
         # Load kernel for periodic boundary.
         self.periodicBoundaryKernel \
@@ -256,8 +272,14 @@ class FBL_periodic_boundary:
     def boundaryConditionU(self, cl_queue, hu0):
         if (self.boundary_conditions.east == 1 and \
             self.boundary_conditions.west == 1):
-            ## Solid wall is default in kernels
-            return
+            if (self.nx_halo > self.nx):
+                print("Closed east-west boundary, but nx_halo > nx")
+                return
+            self.periodicBoundaryKernel.closedBoundaryUKernel(cl_queue, self.global_size, self.local_size, \
+                        self.nx, self.ny, \
+                        self.nx_halo, self.ny_halo, \
+                        hu0.data, hu0.pitch)
+
         elif (self.boundary_conditions.east == 2):
             ## Currently, this only works with 0 ghost cells:
             assert(hu0.nx == hu0.nx_halo), \
@@ -267,7 +289,9 @@ class FBL_periodic_boundary:
             if self.firstU:
                 print("Periodic boundary conditions - U")
                 self.firstU = False
+                print("[nx, ny, nx_halo, ny_halo]")
                 print([self.nx, self.ny, self.nx_halo, self.ny_halo])
+                
             self.periodicBoundaryKernel.periodicBoundaryUKernel(cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
@@ -276,9 +300,13 @@ class FBL_periodic_boundary:
             assert(False), 'Numerical sponge not yet supported'
 
         # Nonthereless: If there are ghost cells in north-south direction, update them!
-        # TODO: Generalize to both ghost_north and ghost_south        
+        # TODO: Generalize to both ghost_north and ghost_south
         if (self.ny_halo > self.ny):
-             self.periodicBoundaryKernel.updateGhostCellsUKernel(cl_queue, self.global_size, self.local_size, \
+            if self.firstGhostU:
+                print("Updating U ghosts in north-south")
+                self.firstGhostU = False
+            
+            self.periodicBoundaryKernel.updateGhostCellsUKernel(cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hu0.data, hu0.pitch)
@@ -290,8 +318,14 @@ class FBL_periodic_boundary:
     def boundaryConditionV(self, cl_queue, hv0):
         if (self.boundary_conditions.north == 1 and \
             self.boundary_conditions.south == 1):
-            ## Solid wall is default in kernels
-            return
+            if (self.ny_halo > self.ny):
+                print("Closed north-south boundary, but ny_halo > ny")
+                return
+            self.periodicBoundaryKernel.closedBoundaryVKernel(cl_queue, self.global_size, self.local_size, \
+                        self.nx, self.ny, \
+                        self.nx_halo, self.ny_halo, \
+                        hv0.data, hv0.pitch)
+
         elif (self.boundary_conditions.north == 2):
             # Periodic
             ## Currently, this only works with 0 ghost cells:
@@ -303,7 +337,9 @@ class FBL_periodic_boundary:
             if self.firstV:
                 print("Periodic boundary conditions - V")
                 self.firstV = False
-                print([self.nx, self.ny, self.nx_halo, self.ny_halo]) 
+                print("[nx, ny, nx_halo, ny_halo]")
+                print([self.nx, self.ny, self.nx_halo, self.ny_halo])
+                
             self.periodicBoundaryKernel.periodicBoundaryVKernel(cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
@@ -314,6 +350,10 @@ class FBL_periodic_boundary:
         # Nonthereless: If there are ghost cells in east-west direction, update them!
         # TODO: Generalize to both ghost_east and ghost_west
         if (self.nx_halo > self.nx):
+            if self.firstGhostV:
+                print("Updating V ghosts in east-west")
+                self.firstGhostV = False
+            
             self.periodicBoundaryKernel.updateGhostCellsVKernel(cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
@@ -328,6 +368,12 @@ class FBL_periodic_boundary:
         if (self.boundary_conditions.north == 2 or
             self.boundary_conditions.east == 2):
             # Periodic
+
+            if self.firstGhostEta:
+                print("Updating eta ghosts")
+                self.firstGhostEta = False
+                print("[nx, ny, nx_halo, ny_halo]")
+                print([self.nx, self.ny, self.nx_halo, self.ny_halo])
                     
             ## Call kernel that swaps the boundaries.
             #print("Periodic boundary conditions")
