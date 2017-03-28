@@ -35,7 +35,7 @@ __kernel void closedBoundaryUKernel(
     const int ti = get_global_id(0);
     const int tj = get_global_id(1);
 
-        //Compute pointer to current row in the U array
+    //Compute pointer to current row in the U array
     __global float* const U_row = (__global float*) ((__global char*) U_ptr_ + U_pitch_*tj);	
     
     if ( (ti ==0 || ti == nx_) && tj < ny_halo_) {
@@ -60,9 +60,6 @@ __kernel void periodicBoundaryUKernel(
     if ( ti == 0 && tj < ny_halo_) {
 	__global float* const U_row = (__global float*) ((__global char*) U_ptr_ + U_pitch_*tj);
 	U_row[0] = U_row[nx_];
-
-	// Debug
-	//U_row[10] = 1;
     }
 }
 
@@ -84,13 +81,6 @@ __kernel void updateGhostCellsUKernel(
 	__global float* const U_lower = (__global float*) ((__global char*) U_ptr_ + U_pitch_*0);
 							   
 	U_ghost[ti] = U_lower[ti];
-
-	//if (ti < 50) {
-	//    // Debug by setting a row in the middle:
-	//    __global float* const U_debug = (__global float*) ((__global char*) U_ptr_ + U_pitch_*(ny_-50));
-	//    U_debug[ti] = 1;
-	//    U_lower[ti] = 1;
-	//}
     }
       
 }
@@ -114,10 +104,6 @@ __kernel void periodicBoundaryVKernel(
 	__global float* const V_top_row = (__global float*) ((__global char*) V_ptr_ + V_pitch_*ny_);
 	__global float* const V_lower_boundary = (__global float*)((__global char*) V_ptr_ + V_pitch_*0);
 	V_lower_boundary[ti] = V_top_row[ti];
-
-	// Set a debug value on the row ny - 10:
-	//__global float* const V_debug = (__global float*) ((__global char*) V_ptr_ + V_pitch_*(ny_-10));
-	//V_debug[ti] = 10;
     }
 }
 
@@ -160,11 +146,6 @@ __kernel void updateGhostCellsVKernel(
     if (ti == nx_ && tj < ny_+1 && nx_halo_ > nx_) {
 	__global float* const V_row = (__global float*) ((__global char*) V_ptr_ + V_pitch_*tj);
 	V_row[nx_] = V_row[0];
-
-	// Debug:
-	//if (tj < 50) {
-	//    V_row[30] = 10;
-	//}
     }
 }
 
@@ -189,18 +170,10 @@ __kernel void periodicBoundaryEtaKernel(
 	// eta_row is eta_north
 	__global float* const eta_bottom = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*0);
 	eta_row[ti] = eta_bottom[ti];
-
-	// Debug:
-	//__global float* const eta_debug_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*10);
-	//eta_debug_row[ti] = 1;
-	
     }
 
     // Set eastern ghost cells
     if (ti == nx_ && tj < ny_ && nx_halo_ > nx_) {
 	eta_row[ti] = eta_row[0];
-
-	// Debug:
-	//eta_row[10] = 1;
     }
 }

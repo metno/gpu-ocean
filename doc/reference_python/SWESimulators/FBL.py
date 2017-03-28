@@ -77,12 +77,6 @@ class FBL:
         self.cl_ctx = cl_ctx
         self.boundary_conditions = boundary_conditions
         
-        print("(ny, nx): " + str((ny, nx)))
-        print("H.shape: " + str(H.shape))
-        print("eta.shape: " + str(eta0.shape))
-        print("U shape: " + str(hu0.shape))
-        print("V shape: " + str(hv0.shape))
-                
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
 
@@ -128,8 +122,8 @@ class FBL:
                        int(np.ceil(self.nx_halo / float(self.local_size[0])) * self.local_size[0]), \
                        int(np.ceil(self.ny_halo / float(self.local_size[1])) * self.local_size[1]) \
                       ) 
-        print("FBL.local_size: " + str(self.local_size))
-        print("FBL.global_size: " + str(self.global_size))
+        #print("FBL.local_size: " + str(self.local_size))
+        #print("FBL.global_size: " + str(self.global_size))
 
         self.bc_kernel = FBL_periodic_boundary(self.cl_ctx, \
                                                self.nx, \
@@ -247,11 +241,12 @@ class FBL_periodic_boundary:
         self.ny_halo = np.int32(ny + self.ghostsY)
 
         # Debugging variables
-        self.firstU = True
-        self.firstV = True
-        self.firstGhostU = True
-        self.firstGhostV = True
-        self.firstGhostEta = True
+        debug = False
+        self.firstU = debug
+        self.firstV = debug
+        self.firstGhostU = debug
+        self.firstGhostV = debug
+        self.firstGhostEta = debug
         
         # Load kernel for periodic boundary.
         self.periodicBoundaryKernel \
@@ -301,6 +296,7 @@ class FBL_periodic_boundary:
 
         # Nonthereless: If there are ghost cells in north-south direction, update them!
         # TODO: Generalize to both ghost_north and ghost_south
+        # Updating northern ghost cells
         if (self.ny_halo > self.ny):
             if self.firstGhostU:
                 print("Updating U ghosts in north-south")
@@ -349,6 +345,7 @@ class FBL_periodic_boundary:
 
         # Nonthereless: If there are ghost cells in east-west direction, update them!
         # TODO: Generalize to both ghost_east and ghost_west
+        # Updating eastern ghost cells
         if (self.nx_halo > self.nx):
             if self.firstGhostV:
                 print("Updating V ghosts in east-west")
