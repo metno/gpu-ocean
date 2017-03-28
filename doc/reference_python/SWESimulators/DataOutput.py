@@ -25,9 +25,10 @@ from datetime import date
 from netCDF4 import Dataset
 
 class CTCSNetCDFWriter:
-    def __init__(self, outfilename, nx, ny, dx, dy, ignore_ghostcells=True):
+    def __init__(self, outfilename, nx, ny, dx, dy, num_layers=1, ignore_ghostcells=True):
         self.ncfile = Dataset(outfilename,'w', clobber=True) 
         self.ignore_ghostcells = ignore_ghostcells
+        self.num_layers = num_layers
         
         #Create dimensions 
         self.ncfile.createDimension('time', None) #Unlimited time dimension
@@ -88,6 +89,11 @@ class CTCSNetCDFWriter:
         self.nc_u = self.ncfile.createVariable('u', np.dtype('float32').char, ('time', 'y_u', 'x_u'))
         self.nc_v = self.ncfile.createVariable('v', np.dtype('float32').char, ('time', 'y_v', 'x_v'))
         
+        if(num_layers == 2):
+            self.nc_eta2 = self.ncfile.createVariable('eta2', np.dtype('float32').char, ('time', 'y_eta', 'x_eta'))
+            self.nc_u2 = self.ncfile.createVariable('u2', np.dtype('float32').char, ('time', 'y_u', 'x_u'))
+            self.nc_v2 = self.ncfile.createVariable('v2', np.dtype('float32').char, ('time', 'y_v', 'x_v'))
+        
         #Set units
         self.nc_eta.units = 'm'
         self.nc_u.units = 'm'
@@ -112,7 +118,7 @@ class CTCSNetCDFWriter:
         
         
         
-    def write(self, i, t, eta, u, v):
+    def write(self, i, t, eta, u, v, eta2=None, u2=None, v2=None):
         if (self.ignore_ghostcells):
             self.nc_time[i] = t
             self.nc_eta[i, :] = eta[1:-1, 1:-1]
@@ -123,3 +129,13 @@ class CTCSNetCDFWriter:
             self.nc_eta[i, :] = eta
             self.nc_u[i, :] = u
             self.nc_v[i, :] = v
+            
+        if(self.num_layers == 2):
+            if (self.ignore_ghostcells):
+                self.nc_eta2[i, :] = eta2[1:-1, 1:-1]
+                self.nc_u2[i, :] = u2[1:-1, 1:-1]
+                self.nc_v2[i, :] = v2[1:-1, 1:-1]
+            else:
+                self.nc_eta2[i, :] = eta2
+                self.nc_u2[i, :] = u2
+                self.nc_v2[i, :] = v2
