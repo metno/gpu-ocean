@@ -155,14 +155,10 @@ __kernel void computeVKernel(
 
     //Write to main memory
     if (ti < nx_ && tj > 0 && tj < ny_ ) {
-        //Closed boundaries 
-        //if (tj == 0) {
-        //    V_next = 0.0f;
-        //}
-        //else if (tj == ny_) {
-        //    V_next = 0.0f;
-        //}
-
         V_row[ti] = V_next;
     }
+
+    // TODO:
+    // Currently, boundary conditions are individual kernels.
+    // They should be moved to be within-kernel functions.
 }

@@ -9,7 +9,7 @@ def get_kernel(cl_ctx, kernel_filename, block_width, block_height):
     #Create define string
     define_string = "#define block_width " + str(block_width) + "\n"
     define_string += "#define block_height " + str(block_height) + "\n"
-    print ("define_string:\n" + define_string)
+    #print ("define_string:\n" + define_string)
 
     #Read the proper program
     module_path = os.path.dirname(os.path.realpath(__file__))
@@ -49,10 +49,6 @@ class OpenCLArray2D:
             # asymHalo = [halo_north, halo_east, halo_south, halo_west]
             self.nx_halo = nx + asymHalo[1] + asymHalo[3]
             self.ny_halo = ny + asymHalo[0] + asymHalo[2]
-            print("\nASYM HALO")
-            print((nx, ny))
-            print((self.nx_halo, self.ny_halo))
-            print(asymHalo)
             
         assert(host_data.shape[1] == self.nx_halo), str(host_data.shape[1]) + " vs " + str(self.nx_halo)
         assert(host_data.shape[0] == self.ny_halo), str(host_data.shape[0]) + " vs " + str(self.ny_halo)
@@ -151,7 +147,7 @@ class SWEDataArakawaC:
         asymHaloU = asymHalo
         asymHaloV = asymHalo
         if (asymHalo is not None):
-            print(asymHalo)
+            #print(asymHalo)
             assert(max(asymHalo) <= 1)
             asymHaloU = [asymHalo[0], 0, asymHalo[2], 0]
             asymHaloV = [0, asymHalo[1], 0, asymHalo[3]]
