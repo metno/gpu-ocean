@@ -21,11 +21,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy as np
+from datetime import date
 from netCDF4 import Dataset
 
 class CTCSNetCDFWriter:
     def __init__(self, outfilename, nx, ny, dx, dy, ignore_ghostcells=True):
-        self.ncfile = Dataset(outfilename,'w') 
+        self.ncfile = Dataset(outfilename,'w', clobber=True) 
         self.ignore_ghostcells = ignore_ghostcells
         
         #Create dimensions 
@@ -69,7 +70,7 @@ class CTCSNetCDFWriter:
             y_u[:] = np.linspace(-dy/2.0, ny*dy + dy/2.0, ny+2)
             x_v[:] = np.linspace(-dx/2.0, nx*dx + dx/2.0, nx+2)
             y_v[:] = np.linspace(0, ny*dy, ny+1)
-
+            
         #Set units
         self.nc_time.units = 's'
         x_eta.units = 'm'
@@ -79,7 +80,8 @@ class CTCSNetCDFWriter:
         x_v.units = 'm'
         y_v.units = 'm'
 
-        
+        # Reference time does not make sense at this time. May be useful later on.
+        #self.nc_time.reference_time = date.today().isoformat()
 
         #Create output data variables
         self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'y_eta', 'x_eta'))
