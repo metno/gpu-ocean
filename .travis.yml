@@ -1,9 +1,17 @@
 language: cpp
 
+matrix:
+  exclude:
+    - os: linux
+      dist: precise
+  include:
+    - os: linux
+      dist: trusty
+
 compiler: gcc
 before_install:
 - sudo apt-get update -qq
-- sudo apt-get install -qq libboost-filesystem-dev libboost-system-dev libboost-thread-dev libboost-program-options-dev libboost-test-dev ocl-icd-opencl-dev opencl-headers
+- sudo apt-get install -qq libboost-filesystem-dev libboost-system-dev libboost-thread-dev libboost-program-options-dev libboost-test-dev ocl-icd-opencl-dev opencl-headers libnetcdf-dev
 script:
 - mkdir build
 - cd build
