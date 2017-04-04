@@ -1,17 +1,9 @@
 language: cpp
 
-matrix:
-  exclude:
-    - os: linux
-      dist: precise
-  include:
-    - os: linux
-      dist: xenial
-
 compiler: gcc
 before_install:
-- sudo apt-get update || true
-- sudo apt-get install -qq libboost-filesystem-dev libboost-system-dev libboost-thread-dev libboost-program-options-dev libboost-test-dev beignet-opencl-icd ocl-icd-opencl-dev opencl-headers libnetcdf-cxx-legacy-dev
+- sudo apt-get update -qq
+- sudo apt-get install -qq libboost-filesystem-dev libboost-system-dev libboost-thread-dev libboost-program-options-dev libboost-test-dev ocl-icd-opencl-dev opencl-headers
 script:
 - mkdir build
 - cd build
