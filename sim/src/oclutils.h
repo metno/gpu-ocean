@@ -14,7 +14,13 @@
 #define CL_HPP_ENABLE_PROGRAM_CONSTRUCTION_FROM_ARRAY_COMPATIBILITY
 
 #include "config.h"
+
+#if OPENCL_VERSION_MAJOR == 2
 #include <CL/cl2.hpp>
+#else
+#include <CL/cl.hpp>
+#endif
+
 #include <cstdio>
 #include <vector>
 #include <string>
