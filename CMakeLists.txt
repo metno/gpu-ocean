@@ -4,6 +4,15 @@ INCLUDE(CTest)
 
 SET(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/Modules" CACHE STRING " ")
 
+# We probably don't want this to run on every build.
+option(COVERALLS "Generate coveralls data" OFF)
+
+if (COVERALLS)
+    include(Coveralls)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage")
+endif()
+
 IF(NOT CMAKE_BUILD_TYPE)
 	SET(CMAKE_BUILD_TYPE "Release" CACHE STRING " " FORCE)
 ENDIF()
