@@ -11,6 +11,15 @@ if (COVERALLS)
     include(Coveralls)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage")
+
+    set(COVERAGE_SRCS 
+        sim/src/oclutils.cpp sim/src/simbase.cpp sim/src/simulator.cpp sim/src/testsim.cpp)
+
+    # Create the coveralls target.
+    coveralls_setup(
+        "${COVERAGE_SRCS}" # The source files.
+        ON                 # If we should upload.
+    )
 endif()
 
 IF(NOT CMAKE_BUILD_TYPE)
