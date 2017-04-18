@@ -14,4 +14,5 @@ script:
 - export COVERALLS_REPO_TOKEN=N5DQzXpRwmJg84M0xfeFlDV2D6Zz4yUVt
 - cmake -DCOVERALLS=ON -DCMAKE_BUILD_TYPE=Debug ..
 - make
+- export KERNELDIR=../sim/src/kernels/
 - make coveralls
