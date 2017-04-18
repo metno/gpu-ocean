@@ -1,16 +1,6 @@
 PROJECT(sim)
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
-if (COVERALLS)
-    set(COVERAGE_SRCS src/oclutils.cpp src/simbase.cpp src/simulator.cpp src/testsim.cpp)
-
-    # Create the coveralls target.
-    coveralls_setup(
-        "${COVERAGE_SRCS}" # The source files.
-        ON                 # If we should upload.
-        )
-endif()
-
 FIND_PACKAGE(OpenCL REQUIRED)
 
 SET(sim_OPENCL_VERSION_MAJOR ${OpenCL_VERSION_MAJOR} CACHE STRING "OpenCL (major) version")
