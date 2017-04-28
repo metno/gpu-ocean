@@ -10,7 +10,7 @@ before_install:
 - wget http://portablecl.org/downloads/pocl-0.10.tar.gz
 - tar xzf pocl-0.10.tar.gz && cd pocl-0.10
 - ./configure
-- make -j4 && sudo make install
+- make -j2 && sudo make install
 - cd ..
 script:
 - mkdir build
@@ -19,5 +19,5 @@ script:
 - export COVERALLS_REPO_TOKEN=N5DQzXpRwmJg84M0xfeFlDV2D6Zz4yUVt
 - cmake -DCOVERALLS=ON -DCMAKE_BUILD_TYPE=Debug ..
 - make
-- export KERNELDIR=../sim/src/kernels/
+- export KERNELDIR=../../sim/src/kernels/
 - make coveralls
