@@ -11,6 +11,7 @@ before_install:
 - tar xzf pocl-0.10.tar.gz && cd pocl-0.10
 - ./configure
 - make && sudo make install
+- cd ..
 script:
 - mkdir build
 - cd build
