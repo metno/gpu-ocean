@@ -143,6 +143,17 @@ void OpenCLUtils::init(const vector<pair<string, string> > &sources, cl_device_t
         if (!devices.empty())
             break; // found at last one relevant device on this platform
     }
+
+    // try default device, if specified deviceType is not found
+    if (pfmIndex == platforms.size()) {
+        cerr << "Could not find a device of type " << deviceType << "; using default device!" << endl;
+        for (pfmIndex = 0; pfmIndex < platforms.size(); ++pfmIndex) {
+            platforms[pfmIndex].getDevices(CL_DEVICE_TYPE_DEFAULT, &devices);
+            if (!devices.empty())
+                break; // found at last one relevant device on this platform
+            }
+    }
+
     if (pfmIndex == platforms.size())
         throw runtime_error("No relevant OpenCL devices found on any platform");
 
