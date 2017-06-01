@@ -183,9 +183,9 @@ void NetCDFWriter::init(int nx, int ny, float dt, float dx, float dy, float f, f
     pimpl->layout.vars.eta = pimpl->file->add_var(
                 "eta", ncFloat, pimpl->layout.dims.t, pimpl->layout.dims.y_half, pimpl->layout.dims.x_half);
     pimpl->layout.vars.U = pimpl->file->add_var(
-                "U", ncFloat, pimpl->layout.dims.t, pimpl->layout.dims.y_half, pimpl->layout.dims.x_ghost);
+                "U", ncFloat, pimpl->layout.dims.t, pimpl->layout.dims.y_half, pimpl->layout.dims.x_half_ghost);
     pimpl->layout.vars.V = pimpl->file->add_var(
-                "V", ncFloat, pimpl->layout.dims.t, pimpl->layout.dims.y_ghost, pimpl->layout.dims.x_half);
+                "V", ncFloat, pimpl->layout.dims.t, pimpl->layout.dims.y_half_ghost, pimpl->layout.dims.x_half);
 
     pimpl->layout.vars.eta->add_att("description", "Water elevation disturbances");
     pimpl->layout.vars.U->add_att("description", "Longitudal water discharge");

@@ -447,13 +447,13 @@ float InitConditions::height() const
 float InitConditions::dx() const
 {
     assert(pimpl->nx > 1);
-    return pimpl->width / (pimpl->nx - 1);
+    return pimpl->width / pimpl->nx;
 }
 
 float InitConditions::dy() const
 {
     assert(pimpl->ny > 1);
-    return pimpl->height / (pimpl->ny - 1);
+    return pimpl->height / pimpl->ny;
 }
 
 Field2D InitConditions::waterElevationField() const

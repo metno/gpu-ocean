@@ -59,7 +59,7 @@ NetCDFReader::NetCDFReader(const std::string &fname)
     if ((attrs.count("width") > 0) && attrs.at("width")->is_valid() && (attrs.at("width")->as_float(0) > 0))
         pimpl->width = attrs.at("width")->as_float(0);
     else if ((attrs.count("dx") > 0) && attrs.at("dx")->is_valid() && (attrs.at("dx")->as_float(0) > 0))
-        pimpl->width = (pimpl->nx - 1) * attrs.at("dx")->as_float(0);
+        pimpl->width = pimpl->nx * attrs.at("dx")->as_float(0);
     else
         throw runtime_error("neither width nor dx readable as a valid NetCDF float attribute > 0");
 
@@ -67,7 +67,7 @@ NetCDFReader::NetCDFReader(const std::string &fname)
     if ((attrs.count("height") > 0) && attrs.at("height")->is_valid() && (attrs.at("height")->as_float(0) > 0))
         pimpl->height = attrs.at("height")->as_float(0);
     else if ((attrs.count("dy") > 0) && attrs.at("dy")->is_valid() && (attrs.at("dy")->as_float(0) > 0))
-        pimpl->height = (pimpl->ny - 1) * attrs.at("dy")->as_float(0);
+        pimpl->height = pimpl->ny * attrs.at("dy")->as_float(0);
     else
         throw runtime_error("neither height nor dy readable as a valid NetCDF float attribute > 0");
 
@@ -111,18 +111,18 @@ float NetCDFReader::height() const
 float NetCDFReader::dx() const
 {
     assert(pimpl->nx > 1);
-    return pimpl->width / (pimpl->nx - 1);
+    return pimpl->width / pimpl->nx;
 }
 
 float NetCDFReader::dy() const
 {
     assert(pimpl->ny > 1);
-    return pimpl->height / (pimpl->ny - 1);
+    return pimpl->height / pimpl->ny;
 }
 
 Field2D NetCDFReader::H() const
 {
-    return read2DFloatField("H", pimpl->nx + 1, pimpl->ny + 1);
+    return read2DFloatField("H", pimpl->nx, pimpl->ny);
 }
 
 long NetCDFReader::etaTimesteps() const
@@ -132,7 +132,7 @@ long NetCDFReader::etaTimesteps() const
 
 Field2D NetCDFReader::eta(long timestep) const
 {
-    return read2DFloatField("eta", pimpl->nx + 1, pimpl->ny + 1, timestep);
+    return read2DFloatField("eta", pimpl->nx, pimpl->ny, timestep);
 }
 
 long NetCDFReader::UTimesteps() const
@@ -142,7 +142,7 @@ long NetCDFReader::UTimesteps() const
 
 Field2D NetCDFReader::U(long timestep) const
 {
-    return read2DFloatField("U", pimpl->nx + 2, pimpl->ny - 1, timestep);
+    return read2DFloatField("U", pimpl->nx + 1, pimpl->ny, timestep);
 }
 
 long NetCDFReader::VTimesteps() const
@@ -152,7 +152,7 @@ long NetCDFReader::VTimesteps() const
 
 Field2D NetCDFReader::V(long timestep) const
 {
-    return read2DFloatField("V", pimpl->nx - 1, pimpl->ny + 2, timestep);
+    return read2DFloatField("V", pimpl->nx, pimpl->ny + 1, timestep);
 }
 
 Field2D NetCDFReader::read2DFloatField(const string &name, int nx_exp, int ny_exp, long timestep) const
