@@ -25,11 +25,12 @@ private:
     virtual double _maxTime() const;
     virtual float _deltaTime() const;
     virtual void _execNextStep(ProfileInfo *);
+    virtual Field2D _H() const;
     virtual Field2D _U() const;
     virtual Field2D _V() const;
     virtual Field2D _eta() const;
-    virtual float _F() const;
-    virtual float _R() const;
+    virtual float _f() const;
+    virtual float _r() const;
     virtual void _printStatus() const;
 
     struct SimulatorImpl;

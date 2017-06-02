@@ -47,6 +47,11 @@ public:
      */
     bool execNextStep(ProfileInfo *profInfo = 0);
 
+	/**
+     * Returns the equilibrium depth at the current simulation time.
+     */
+    Field2D H() const;
+    
     /**
      * Returns the sea surface deviation away from the equilibrium depth at the current simulation time.
      */
@@ -65,12 +70,12 @@ public:
     /**
      * Returns the friction.
      */
-    float F() const;
+    float f() const;
 
     /**
      * Returns the Coriolis effect.
      */
-    float R() const;
+    float r() const;
 
     /**
      * Prints status.
@@ -102,11 +107,12 @@ protected:
     virtual double _maxTime() const = 0;
     virtual float _deltaTime() const = 0;
     virtual void _execNextStep(ProfileInfo *) = 0;
+    virtual Field2D _H() const = 0;
     virtual Field2D _U() const = 0;
     virtual Field2D _V() const = 0;
     virtual Field2D _eta() const = 0;
-    virtual float _F() const = 0;
-    virtual float _R() const = 0;
+    virtual float _f() const = 0;
+    virtual float _r() const = 0;
     virtual void _printStatus() const = 0;
 
 private:
