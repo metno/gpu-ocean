@@ -71,6 +71,12 @@ bool SimBase::execNextStep(ProfileInfo *profInfo)
     return true;
 }
 
+Field2D SimBase::H() const
+{
+    assertInitialized();
+    return _H();
+}
+
 Field2D SimBase::eta() const
 {
     assertInitialized();
@@ -89,16 +95,16 @@ Field2D SimBase::V() const
     return _V();
 }
 
-float SimBase::F() const
+float SimBase::f() const
 {
     assertInitialized();
-    return _F();
+    return _f();
 }
 
-float SimBase::R() const
+float SimBase::r() const
 {
     assertInitialized();
-    return _R();
+    return _r();
 }
 
 void SimBase::printStatus() const
