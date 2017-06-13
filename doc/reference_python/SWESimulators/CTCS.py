@@ -66,8 +66,11 @@ class CTCS:
                  dx, dy, dt, \
                  g, f, r, A, \
                  wind_stress=Common.WindStressParams(), \
+                 boundary_conditions=Common.BoundaryConditions(), \
                  block_width=16, block_height=16):
+        reload(Common)
         self.cl_ctx = cl_ctx
+        
 
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
