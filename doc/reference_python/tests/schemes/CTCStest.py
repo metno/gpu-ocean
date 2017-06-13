@@ -30,11 +30,13 @@ class CTCStest(unittest.TestCase):
         self.u0 = np.zeros((self.ny+2, self.nx+1), dtype=np.float32);
         self.v0 = np.zeros((self.ny+1, self.nx+2), dtype=np.float32);
 
+        self.ghostCells = [1,1,1,1]
+
         self.T = 50.0
         
 
     def test_wall_central(self):
-        makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, 1, 1)
+        makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghostCells)
         sim = CTCS.CTCS(self.cl_ctx, \
                         self.h0, self.eta0, self.u0, self.v0, \
                         self.nx, self.ny, \
@@ -60,7 +62,7 @@ class CTCStest(unittest.TestCase):
 
 
     def test_wall_corner(self):
-        makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, 1, 1)
+        makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghostCells)
         sim = CTCS.CTCS(self.cl_ctx, \
                         self.h0, self.eta0, self.u0, self.v0, \
                         self.nx, self.ny, \
@@ -78,8 +80,8 @@ class CTCStest(unittest.TestCase):
         self.assertAlmostEqual(diffEta, 0.0,
                                msg='Unexpected eta - L2 difference: ' + str(diffEta))
 
-        self.assertAlmostEqual(diffU, 0.0,
+        self.assertAlmostEqual(diffU, 0.0, places=6,
                                msg='Unexpected U - L2 difference: ' + str(diffU))
-        self.assertAlmostEqual(diffV, 0.0,
-                               msg='Unexpected V - L2 difference: ' + str(diffV))
+        self.assertAlmostEqual(diffV, 0.0, places=6,
+                                msg='Unexpected V - L2 difference: ' + str(diffV))
        
