@@ -85,11 +85,11 @@ class CTCStest(unittest.TestCase):
                                         refRange[3]:refRange[1]])
             
         
-        self.assertAlmostEqual(diffEta, 0.0,
+        self.assertAlmostEqual(diffEta, 0.0, places=6,
                                msg='Unexpected eta - L2 difference: ' + str(diffEta))
-        self.assertAlmostEqual(diffU, 0.0,
+        self.assertAlmostEqual(diffU, 0.0, places=6,
                                msg='Unexpected U - L2 difference: ' + str(diffU))
-        self.assertAlmostEqual(diffV, 0.0,
+        self.assertAlmostEqual(diffV, 0.0, places=6,
                                msg='Unexpected V - L2 difference: ' + str(diffV))
 
         
@@ -137,4 +137,4 @@ class CTCStest(unittest.TestCase):
         eta1, u1, v1 = sim.download()
         eta2, u2, v2 = loadResults("CTCS", "wallBC", "upperCorner")
         
-        
+        self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
