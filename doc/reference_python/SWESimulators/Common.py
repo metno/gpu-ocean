@@ -180,47 +180,6 @@ class SWEDataArakawaC:
         
         return h_cpu, hu_cpu, hv_cpu
 
-"""
-A class representing asymmetric Arakawa C type grid (see above)
-"""
-class SWEDataAsymArakawaC:
-    """
-    Uploads initial data to the CL device
-    """
-    def __init__(self, cl_ctx, nx, ny, \
-                 halo_north, halo_west, halo_south, halo_east, \
-                 h0, hu0, hv0):
-        #FIXME: This at least works for 0 and 1 ghost cells, but not convinced it generalizes
-        assert(halo_x <= 1 and halo_y <= 1)
-
-        self.h0   = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0)
-        self.hu0  = OpenCLArray2D(cl_ctx, nx+1, ny, 0, halo_y, hu0)
-        self.hv0  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, 0, hv0)
-        
-        self.h1   = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0)
-        self.hu1  = OpenCLArray2D(cl_ctx, nx+1, ny, 0, halo_y, hu0)
-        self.hv1  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, 0, hv0)
-                   
-        
-    """
-    Swaps the variables after a timestep has been completed
-    """
-    def swap(self):
-        #h is assumed to be constant (bottom topography really)
-        self.h1,  self.h0  = self.h0, self.h1
-        self.hu1, self.hu0 = self.hu0, self.hu1
-        self.hv1, self.hv0 = self.hv0, self.hv1
-        
-    """
-    Enables downloading data from CL device to Python
-    """
-    def download(self, cl_queue):
-        h_cpu  = self.h0.download(cl_queue)
-        hu_cpu = self.hu0.download(cl_queue)
-        hv_cpu = self.hv0.download(cl_queue)
-        
-        return h_cpu, hu_cpu, hv_cpu
-
 
     
 
