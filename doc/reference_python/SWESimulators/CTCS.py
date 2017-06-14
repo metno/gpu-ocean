@@ -66,8 +66,11 @@ class CTCS:
                  dx, dy, dt, \
                  g, f, r, A, \
                  wind_stress=Common.WindStressParams(), \
+                 boundary_conditions=Common.BoundaryConditions(), \
                  block_width=16, block_height=16):
+        reload(Common)
         self.cl_ctx = cl_ctx
+        self.boundary_conditions = boundary_conditions
 
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
@@ -79,16 +82,27 @@ class CTCS:
         self.eta_kernel = Common.get_kernel(self.cl_ctx, "CTCS_eta_kernel.opencl", block_width, block_height)
         
         #Create data by uploading to device
-        ghost_cells_x = 1
-        ghost_cells_y = 1
-        self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, H)
-        self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
+        halo_x = 1
+        halo_y = 1
+        # Even with periodic boundary conditions, the number of ghost cells will
+        # be the same as before?
+        #if not self.boundary_conditions.isDefault():
+        #    if self.boundary_conditions.north == 2:
+        #        ghost_cells_y = 2
+        #    if self.boundary_conditions.east == 2:
+        #        ghost_cells_x = 2
+        
+        
+        self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, halo_x, halo_y, H)
+        self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, halo_x, halo_y, eta0, hu0, hv0)
         
         #Save input parameters
         #Notice that we need to specify them in the correct dataformat for the
         #OpenCL kernel
         self.nx = np.int32(nx)
         self.ny = np.int32(ny)
+        self.halo_x = np.int32(halo_x)
+        self.halo_y = np.int32(halo_y)
         self.dx = np.float32(dx)
         self.dy = np.float32(dy)
         self.dt = np.float32(dt)
@@ -108,7 +122,12 @@ class CTCS:
                        int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
                       ) 
     
-    
+        self.bc_kernel = CTCS_boundary_condition(self.cl_ctx, \
+                                                 self.nx, \
+                                                 self.ny, \
+                                                 self.boundary_conditions, \
+                                                 halo_x, halo_y \
+        )
     
     
     """
@@ -183,11 +202,86 @@ class CTCS:
         return self.cl_data.download(self.cl_queue)
 
 
+
+
+
+
         
+class CTCS_boundary_condition:
+    def __init__(self, cl_ctx, nx, ny, \
+                 boundary_conditions, halo_x, halo_y, \
+                 block_width=16, block_height=16):
+
+        self.cl_ctx = cl_ctx
+        self.boundary_conditions = boundary_conditions
+
+        self.nx = np.int32(nx)
+        self.ny = np.int32(ny)
+        self.nx_halo = np.int32(nx + 2*halo_x) 
+        self.ny_halo = np.int32(ny + 2*halo_y)
+
+        # Load kernel for periodic boundary
+        self.periodicBoundaryKernel \
+            = Common.get_kernel(self.cl_ctx,\
+            "CTCS_boundary.opencl", block_width, block_height)
+
+        # Set kernel launch parameters
+        self.local_size = (block_width, block_height)
+        self.global_size = ( \
+                             int(np.ceil((self.nx_halo + 1)/float(self.local_size[0])) * self.local_size[0]), \
+                             int(np.ceil((self.ny_halo + 1)/float(self.local_size[1])) * self.local_size[1]) )
+
+        
+       
+    """
+    Updates hu according periodic boundary conditions
+    """
+    def boundaryConditionU(self, cl_queue, hu0):
+        if (self.boundary_conditions.east == 1 and \
+            self.boundary_conditions.west == 1):
+            # TODO: CALL KERNEL
+            dummy = 1
+
+        elif (self.boundary_conditions.east == 2):
+            # TODO: CALL KERNEL
+            dummy = 1
+        else:
+            assert(False), 'Numerical sponge not yet supported'
+
+        
+    """
+    Updates hv according to periodic boundary conditions
+    """
+    def boundaryConditionV(self, cl_queue, hv0):
+        if (self.boundary_conditions.north == 1 and \
+            self.boundary_conditions.south == 1):
+            # TODO: CALL KERNEL
+            dummy = 1
+        elif (self.boundary_conditions.north == 2):
+            # Periodic
+            # TODO: CALL KERNEL
+            dummy = 1
+        else:
+            assert(False), 'Numerical sponge not yet supported'
 
 
+    """
+    Updates eta boundary conditions (ghost cells)
+    """
+    def boundaryConditionEta(self, cl_queue, eta0):
+        if (self.boundary_conditions.north == 1 and \
+            self.boundary_conditions.south == 1):
+            # Update ghost cells
+            # TODO: CALL KERNEL
+            dummy = 1
+        elif (self.boundary_conditions.north == 2):
+            # Periodic
+            # TODO: CALL KERNEL
+            dummy = 1
+        else:
+            assert(False), 'Numerical sponge not yet supported'
 
-
+        
 
 
 
