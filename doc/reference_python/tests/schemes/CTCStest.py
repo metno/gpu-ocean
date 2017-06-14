@@ -27,8 +27,8 @@ class CTCStest(unittest.TestCase):
         
         self.h0 = np.ones((self.ny+2, self.nx+2), dtype=np.float32) * 60;
         self.eta0 = np.zeros((self.ny+2, self.nx+2), dtype=np.float32);
-        self.u0 = np.zeros((self.ny+2, self.nx+1), dtype=np.float32);
-        self.v0 = np.zeros((self.ny+1, self.nx+2), dtype=np.float32);
+        self.u0 = np.zeros((self.ny+2, self.nx+1+2), dtype=np.float32);
+        self.v0 = np.zeros((self.ny+1+2, self.nx+2), dtype=np.float32);
 
         self.ghosts = None # [1,1,1,1]
         self.arrayRange = None
@@ -41,7 +41,13 @@ class CTCStest(unittest.TestCase):
         if (bcSettings == 1):
             self.boundaryConditions = Common.BoundaryConditions()
             self.ghosts = [1,1,1,1] # north, east, south, west
-            self.arrayRange = [-1, -1, 1, 1]
+            #self.arrayRange = [-1, -1, 1, 1]
+            self.etaRange = [-1, -1, 1, 1]
+            self.uRange = [-1, -2, 1, 2]
+            self.vRange = [-2, -1, 2, 1]
+            #self.uRange = [-1, -3, 1, 1]
+            #self.vRange = [-3, -1, 1, 1]
+            self.refRange = [-1, -1, 1, 1]
 
             # TODO: FIX below here
         elif (bcSettings == 2):
@@ -61,18 +67,22 @@ class CTCStest(unittest.TestCase):
         
     def checkResults(self, eta1, u1, v1, etaRef, uRef, vRef, refRange=None):
         if refRange is None:
-            diffEta = np.linalg.norm(eta1[self.arrayRange[2]:self.arrayRange[0], self.arrayRange[3]:self.arrayRange[1]] - etaRef)
-            diffU = np.linalg.norm(u1[self.arrayRange[2]:self.arrayRange[0], :]-uRef)
-            diffV = np.linalg.norm(v1[:, self.arrayRange[3]:self.arrayRange[1]]-vRef)
+            diffEta = np.linalg.norm(eta1[self.etaRange[2]:self.etaRange[0], self.eta[3]:self.etaRange[1]] - etaRef)
+            diffU = np.linalg.norm(u1[self.uRange[2]:self.uRange[0], :]-uRef)
+            diffV = np.linalg.norm(v1[:, self.vRange[3]:self.vRange[1]]-vRef)
         else:
-            diffEta = np.linalg.norm(eta1[self.arrayRange[2]:self.arrayRange[0], 
-                                          self.arrayRange[3]:self.arrayRange[1]] - 
+            diffEta = np.linalg.norm(eta1[self.etaRange[2]:self.etaRange[0], 
+                                          self.etaRange[3]:self.etaRange[1]] - 
                                      etaRef[refRange[2]:refRange[0],
                                             refRange[3]:refRange[1]])
-            diffU = np.linalg.norm(u1[self.arrayRange[2]:self.arrayRange[0], :] -
-                                   uRef[refRange[2]:refRange[0], :])
-            diffV = np.linalg.norm(v1[:, self.arrayRange[3]:self.arrayRange[1]] - 
-                                   vRef[:, refRange[3]:refRange[1]])
+            diffU = np.linalg.norm(u1[self.uRange[2]:self.uRange[0],
+                                      self.uRange[3]:self.uRange[1]] -
+                                   uRef[refRange[2]:refRange[0],
+                                        refRange[3]:refRange[1]])
+            diffV = np.linalg.norm(v1[self.vRange[2]:self.vRange[0],
+                                      self.vRange[3]:self.vRange[1]] - 
+                                   vRef[refRange[2]:refRange[0],
+                                        refRange[3]:refRange[1]])
             
         
         self.assertAlmostEqual(diffEta, 0.0,
@@ -96,7 +106,7 @@ class CTCStest(unittest.TestCase):
         eta1, u1, v1 = sim.download()
         eta2, u2, v2 = loadResults("CTCS", "wallBC", "central")
 
-        self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
+        self.checkResults(eta1, u1, v1, eta2, u2, v2, self.refRange)
 
 
     def test_wall_corner(self):
@@ -112,7 +122,7 @@ class CTCStest(unittest.TestCase):
         eta1, u1, v1 = sim.download()
         eta2, u2, v2 = loadResults("CTCS", "wallBC", "corner")
 
-        self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
+        self.checkResults(eta1, u1, v1, eta2, u2, v2, self.refRange)
        
     def test_wall_upperCorner(self):
         self.setBoundaryConditions()

@@ -151,14 +151,15 @@ class SWEDataArakawaC:
             assert(max(asymHalo) <= 1)
             asymHaloU = [asymHalo[0], 0, asymHalo[2], 0]
             asymHaloV = [0, asymHalo[1], 0, asymHalo[3]]
+
             
         self.h0   = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0, asymHalo)
-        self.hu0  = OpenCLArray2D(cl_ctx, nx+1, ny, 0, halo_y, hu0, asymHaloU)
-        self.hv0  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, 0, hv0, asymHaloV)
+        self.hu0  = OpenCLArray2D(cl_ctx, nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
+        self.hv0  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
         
         self.h1   = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0, asymHalo)
-        self.hu1  = OpenCLArray2D(cl_ctx, nx+1, ny, 0, halo_y, hu0, asymHaloU)
-        self.hv1  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, 0, hv0, asymHaloV)
+        self.hu1  = OpenCLArray2D(cl_ctx, nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
+        self.hv1  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
                    
         
     """
