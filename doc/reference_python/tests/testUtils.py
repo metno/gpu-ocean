@@ -50,6 +50,18 @@ def makeCentralBump(eta, nx, ny, dx, dy, halo):
             size = 500.0*min(dx, dy)
             if (np.sqrt(x**2 + y**2) < size):
                 eta[j+halo[2], i+halo[3]] = np.exp(-(x**2/size+y**2/size))
+
+def makeUpperCornerBump(eta, nx, ny, dx, dy, halo):
+    x_center = (nx-4)*dx
+    y_center = (ny-4)*dy
+    for j in range(-halo[2], ny + halo[0]):
+        for i in range(-halo[3], nx + halo[1]):
+            x = dx*i - x_center
+            y = dy*j - y_center
+            size = 500.0*min(dx, dy)
+            if (np.sqrt(x**2 + y**2) < size):
+                eta[j+halo[2], i+halo[3]] = np.exp(-(x**2/size+y**2/size))
+
                 
 def makeLowerLeftBump(eta, nx, ny, dx, dy, halo):
     x_center = dx*nx*0.3
