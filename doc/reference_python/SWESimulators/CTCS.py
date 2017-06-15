@@ -84,13 +84,13 @@ class CTCS:
         #Create data by uploading to device
         halo_x = 1
         halo_y = 1
-        # Even with periodic boundary conditions, the number of ghost cells will
-        # be the same as before?
-        #if not self.boundary_conditions.isDefault():
-        #    if self.boundary_conditions.north == 2:
-        #        ghost_cells_y = 2
-        #    if self.boundary_conditions.east == 2:
-        #        ghost_cells_x = 2
+        closedBoundary_NS = 1
+        closedBoundary_EA = 1
+        if not self.boundary_conditions.isDefault():
+            if self.boundary_conditions.north == 2:
+                closedBoundary_NS = 0
+            if self.boundary_conditions.east == 2:
+                closedBoundary_EA = 0
         
         
         self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, halo_x, halo_y, H)
@@ -103,6 +103,8 @@ class CTCS:
         self.ny = np.int32(ny)
         self.halo_x = np.int32(halo_x)
         self.halo_y = np.int32(halo_y)
+        self.closedBoundary_NS = np.int32(closedBoundary_NS)
+        self.closedBoundary_EA = np.int32(closedBoundary_EA)
         self.dx = np.float32(dx)
         self.dy = np.float32(dy)
         self.dt = np.float32(dt)
@@ -167,7 +169,7 @@ class CTCS:
             
             self.u_kernel.computeUKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
-                    self.halo_x, self.halo_y, \
+                    self.closedBoundary_EA, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.r, self.A,\
                     self.H.data, self.H.pitch, \
@@ -185,7 +187,7 @@ class CTCS:
             
             self.v_kernel.computeVKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
-                    self.halo_x, self.halo_y, \
+                    self.closedBoundary_NS, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.r, self.A,\
                     self.H.data, self.H.pitch, \

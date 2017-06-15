@@ -30,7 +30,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 __kernel void computeUKernel(
         //Discretization parameters
         int nx_, int ny_,
-        int halo_x_, int halo_y_,
+        int closed_boundary_,
         float dx_, float dy_, float dt_,
     
         //Physical parameters
@@ -79,7 +79,8 @@ __kernel void computeUKernel(
     float U0 = 0.0f;
     //if (ti > 0 && ti < nx_ && tj > 0 && tj < ny_+1) {
     //if (ti > halo_x_-1+1 && ti < nx_ + 2*halo_x_-1+1 && tj > halo_y_-1 && tj < ny_+halo_y_) {
-    if (ti >= 2 && ti <= nx_ && tj >= 1 && tj <= ny_) {
+    //if (ti >= 2 && ti <= nx_ && tj >= 1 && tj <= ny_) {
+    if (ti >= closed_boundary_+1 && ti <= nx_+1-closed_boundary_ && tj >= 1 && tj <= ny_) {
         U0 = U0_row[ti];
     }
 
@@ -239,7 +240,8 @@ __kernel void computeUKernel(
     //Write to main memory for internal cells
     // if (ti > 0 && ti < nx_ && tj > 0 && tj < ny_+1) {
     //if (ti > halo_x_-1+1 && ti < nx_ + 2*halo_x_-1+1 && tj > halo_y_-1 && tj < ny_+halo_y_) {
-    if (ti >= 2 && ti <= nx_ && tj >= 1 && tj <= ny_) {
+    // if (ti >= 2 && ti <= nx_ && tj >= 1 && tj <= ny_) {
+    if (ti >= closed_boundary_+1 && ti <= nx_+1-closed_boundary_ && tj >= 1 && tj <= ny_) {
         U0_row[ti] = U2;
     }
 }
