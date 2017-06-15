@@ -33,7 +33,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 __kernel void computeVKernel(
         //Discretization parameters
         int nx_, int ny_,
-        int halo_x_, int halo_y_,
+        int closed_boundary_,
         float dx_, float dy_, float dt_,
     
         //Physical parameters
@@ -81,7 +81,8 @@ __kernel void computeVKernel(
     //Read current V
     float V0 = 0.0f;
     // if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
-    if ( ti >= 1 && ti <= nx_ && tj >= 2 && tj <= ny_) {
+    //if ( ti >= 1 && ti <= nx_ && tj >= 2 && tj <= ny_) {
+    if (ti >= 1 && ti <= nx_ && tj >= 1+closed_boundary_ && tj <= ny_+1-closed_boundary_) {        
         V0 = V0_row[ti];
     }
 
@@ -235,7 +236,8 @@ __kernel void computeVKernel(
 
     //Write to main memory for internal cells
     //if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
-    if ( ti >= 1 && ti <= nx_ && tj >= 2 && tj <= ny_) {
+    //if ( ti >= 1 && ti <= nx_ && tj >= 2 && tj <= ny_) {
+    if (ti >= 1 && ti <= nx_ && tj >= 1+closed_boundary_ && tj <= ny_+1-closed_boundary_) {        
         V0_row[ti] = V2;
     }
 }
