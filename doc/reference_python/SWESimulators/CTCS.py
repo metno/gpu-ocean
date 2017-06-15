@@ -118,8 +118,8 @@ class CTCS:
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height) 
         self.global_size = ( \
-                       int(np.ceil(self.nx / float(self.local_size[0])) * self.local_size[0]), \
-                       int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
+                       int(np.ceil((self.nx+2*halo_x) / float(self.local_size[0])) * self.local_size[0]), \
+                       int(np.ceil((self.ny+2*halo_y) / float(self.local_size[1])) * self.local_size[1]) \
                       ) 
     
         self.bc_kernel = CTCS_boundary_condition(self.cl_ctx, \
@@ -135,6 +135,11 @@ class CTCS:
     """
     def step(self, t_end=0.0):
         n = int(t_end / self.dt + 1)
+
+        # Just to be on the safe side, we ensure that these are sat:
+        self.bc_kernel.boundaryConditionEta(self.cl_queue, self.cl_data.h0)
+        self.bc_kernel.boundaryConditionU(self.cl_queue, self.cl_data.hu0)
+        self.bc_kernel.boundaryConditionV(self.cl_queue, self.cl_data.hv0)
         
         for i in range(0, n):
             #Notation: 
@@ -157,9 +162,12 @@ class CTCS:
                     self.cl_data.h0.data, self.cl_data.h0.pitch,     # eta^{n-1} => eta^{n+1} \
                     self.cl_data.hu1.data, self.cl_data.hu1.pitch,   # U^{n} \
                     self.cl_data.hv1.data, self.cl_data.hv1.pitch)   # V^{n}
+
+            self.bc_kernel.boundaryConditionEta(self.cl_queue, self.cl_data.h0)
             
             self.u_kernel.computeUKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
+                    self.halo_x, self.halo_y, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.r, self.A,\
                     self.H.data, self.H.pitch, \
@@ -172,9 +180,12 @@ class CTCS:
                     self.wind_stress.x0, self.wind_stress.y0, \
                     self.wind_stress.u0, self.wind_stress.v0, \
                     self.t)
+
+            self.bc_kernel.boundaryConditionU(self.cl_queue, self.cl_data.hu0)
             
             self.v_kernel.computeVKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
+                    self.halo_x, self.halo_y, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.r, self.A,\
                     self.H.data, self.H.pitch, \
@@ -187,6 +198,8 @@ class CTCS:
                     self.wind_stress.x0, self.wind_stress.y0, \
                     self.wind_stress.u0, self.wind_stress.v0, \
                     self.t)
+
+            self.bc_kernel.boundaryConditionV(self.cl_queue, self.cl_data.hv0)
             
             #After the kernels, swap the data pointers
             self.cl_data.swap()
@@ -217,12 +230,13 @@ class CTCS_boundary_condition:
 
         self.nx = np.int32(nx)
         self.ny = np.int32(ny)
+        self.halo_x = np.int32(halo_x)
+        self.halo_y = np.int32(halo_y)
         self.nx_halo = np.int32(nx + 2*halo_x) 
         self.ny_halo = np.int32(ny + 2*halo_y)
 
         # Load kernel for periodic boundary
-        self.periodicBoundaryKernel \
-            = Common.get_kernel(self.cl_ctx,\
+        self.boundaryKernels = Common.get_kernel(self.cl_ctx,\
             "CTCS_boundary.opencl", block_width, block_height)
 
         # Set kernel launch parameters
@@ -239,8 +253,12 @@ class CTCS_boundary_condition:
     def boundaryConditionU(self, cl_queue, hu0):
         if (self.boundary_conditions.east == 1 and \
             self.boundary_conditions.west == 1):
-            # TODO: CALL KERNEL
-            dummy = 1
+            # Set boundary and ghost cells
+            self.boundaryKernels.closedBoundaryUKernel( \
+                cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, \
+                self.halo_x, self.halo_y, \
+                hu0.data, hu0.pitch)
 
         elif (self.boundary_conditions.east == 2):
             # TODO: CALL KERNEL
@@ -255,8 +273,13 @@ class CTCS_boundary_condition:
     def boundaryConditionV(self, cl_queue, hv0):
         if (self.boundary_conditions.north == 1 and \
             self.boundary_conditions.south == 1):
-            # TODO: CALL KERNEL
-            dummy = 1
+            # Set boundary and ghost cells
+            self.boundaryKernels.closedBoundaryVKernel( \
+                cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, \
+                self.halo_x, self.halo_y, \
+                hv0.data, hv0.pitch)
+
         elif (self.boundary_conditions.north == 2):
             # Periodic
             # TODO: CALL KERNEL
@@ -272,8 +295,17 @@ class CTCS_boundary_condition:
         if (self.boundary_conditions.north == 1 and \
             self.boundary_conditions.south == 1):
             # Update ghost cells
-            # TODO: CALL KERNEL
-            dummy = 1
+            self.boundaryKernels.closedBoundaryEtaKernel_NS( \
+                cl_queue, self.global_size, self.local_size, \
+                self.nx, self. ny, \
+                self.halo_x, self.halo_y, \
+                eta0.data, eta0.pitch)
+            self.boundaryKernels.closedBoundaryEtaKernel_EW( \
+                cl_queue, self.global_size, self.local_size, \
+                self.nx, self. ny, \
+                self.halo_x, self.halo_y, \
+                eta0.data, eta0.pitch)
+  
         elif (self.boundary_conditions.north == 2):
             # Periodic
             # TODO: CALL KERNEL
