@@ -137,4 +137,4 @@ class CTCStest(unittest.TestCase):
         eta1, u1, v1 = sim.download()
         eta2, u2, v2 = loadResults("CTCS", "wallBC", "upperCorner")
         
-        self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
+        self.checkResults(eta1, u1, v1, eta2, u2, v2, self.refRange)
