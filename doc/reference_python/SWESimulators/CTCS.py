@@ -262,7 +262,19 @@ class CTCS_boundary_condition:
                 self.halo_x, self.halo_y, \
                 hu0.data, hu0.pitch)
 
-        elif (self.boundary_conditions.east == 2):
+        elif (self.boundary_conditions.east ==  2 and \
+              self.boundary_conditions.north == 2):
+            # Set periodic boundary conditions for U
+            self.boundaryKernels.periodicBoundaryUKernel_NS( \
+                cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, \
+                self.halo_x, self.halo_y, \
+                hu0.data, hu0.pitch)
+            self.boundaryKernels.periodicBoundaryUKernel_EW( \
+                cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, \
+                self.halo_x, self.halo_y, \
+                hu0.data, hu0.pitch)
             # TODO: CALL KERNEL
             dummy = 1
         else:
@@ -282,7 +294,19 @@ class CTCS_boundary_condition:
                 self.halo_x, self.halo_y, \
                 hv0.data, hv0.pitch)
 
-        elif (self.boundary_conditions.north == 2):
+        elif (self.boundary_conditions.east == 2 and \
+              self.boundary_conditions.north == 2):
+            # Set periodic boundary conditions for V
+            self.boundaryKernels.periodicBoundaryVKernel_NS( \
+                cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, \
+                self.halo_x, self.halo_y, \
+                hv0.data, hv0.pitch)
+            self.boundaryKernels.periodicBoundaryVKernel_EW( \
+                cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, \
+                self.halo_x, self.halo_y, \
+                hv0.data, hv0.pitch)
             # Periodic
             # TODO: CALL KERNEL
             dummy = 1
@@ -307,11 +331,20 @@ class CTCS_boundary_condition:
                 self.nx, self. ny, \
                 self.halo_x, self.halo_y, \
                 eta0.data, eta0.pitch)
-  
-        elif (self.boundary_conditions.north == 2):
-            # Periodic
-            # TODO: CALL KERNEL
-            dummy = 1
+
+        elif (self.boundary_conditions.east == 2 and \
+              self.boundary_conditions.north == 2):
+            # Set periodic boundary conditions for eta
+            self.boundaryKernels.periodicBoundaryEtaKernel_NS( \
+                cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, \
+                self.halo_x, self.halo_y, \
+                eta0.data, eta0.pitch)
+            self.boundaryKernels.periodicBoundaryEtaKernel_EW( \
+                cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, \
+                self.halo_x, self.halo_y, \
+                eta0.data, eta0.pitch)
         else:
             assert(False), 'Numerical sponge not yet supported'
 

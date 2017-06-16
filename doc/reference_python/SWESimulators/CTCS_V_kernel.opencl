@@ -69,7 +69,7 @@ __kernel void computeVKernel(
     
     //Start of block within domain
     const int bx = get_local_size(0) * get_group_id(0) + 1; //Skip global ghost cells
-    const int by = get_local_size(1) * get_group_id(1) + 2; //Skip global ghost cells
+    const int by = get_local_size(1) * get_group_id(1) + 1 + closed_boundary_; //Skip global ghost cells
 
     //Index of cell within domain
     const int ti = bx + tx;
