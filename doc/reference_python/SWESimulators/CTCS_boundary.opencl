@@ -154,11 +154,12 @@ __kernel void closedBoundaryVKernel(
 
 
  // Fix north-south boundary before east-west (to get the corners right)
-__kernel void periodicBoundaryEtaKernel_NS(
+__kernel void boundaryEtaKernel_NS(
 	// Discretization parameters
         int nx_, int ny_,
         int halo_x_, int halo_y_,
-
+	int periodic_,
+	
         // Data
         __global float* eta_ptr_, int eta_pitch_) {
     // Index of cell within domain
@@ -166,7 +167,8 @@ __kernel void periodicBoundaryEtaKernel_NS(
     const int tj = get_global_id(1);
 
     int opposite_row_index = ny_;
-    if (tj == ny_+1) {
+    //if (tj == ny_+1) {
+    if ( (tj == ny_+1 && periodic_ == 1) || (tj == 0 && periodic_ != 1) ) {
 	opposite_row_index = 1;
     }
     
@@ -180,10 +182,11 @@ __kernel void periodicBoundaryEtaKernel_NS(
 }
 
 // Fix north-south boundary before east-west (to get the corners right)
-__kernel void periodicBoundaryEtaKernel_EW(
+__kernel void boundaryEtaKernel_EW(
 	// Discretization parameters
         int nx_, int ny_,
         int halo_x_, int halo_y_,
+	int periodic_, 
 
         // Data
         __global float* eta_ptr_, int eta_pitch_) {
@@ -192,7 +195,7 @@ __kernel void periodicBoundaryEtaKernel_EW(
     const int tj = get_global_id(1);
 
     int opposite_col_index = nx_;
-    if (ti == nx_+1) {
+    if ( (ti == nx_+1 && periodic_ == 1) || (ti == 0 && periodic_ != 1) ) {
 	opposite_col_index = 1;
     }
     
@@ -205,10 +208,11 @@ __kernel void periodicBoundaryEtaKernel_EW(
 }
 
 // NS need to be called before EW!
-__kernel void periodicBoundaryUKernel_NS(
+__kernel void boundaryUKernel_NS(
         // Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
+	int periodic_,
 
         // Data
         __global float* U_ptr_, int U_pitch_) {
@@ -218,11 +222,12 @@ __kernel void periodicBoundaryUKernel_NS(
     const int tj = get_global_id(1);
 
     // Check if thread is in the domain:
-    if (ti <= nx_+2 && tj <= ny_+1) {	
+    if (ti <= nx_+2 && tj <= ny_+1) {
+	// The thread's row:
 	__global float* u_row = (__global float*) ((__global char*) U_ptr_ + U_pitch_*tj);
 
 	 int opposite_row_index = ny_;
-	 if (tj == ny_+1) {
+	 if ( (tj == ny_+1 && periodic_ == 1) || (tj == 0 && periodic_ != 1) ) {
 	     opposite_row_index = 1;
 	 }
 	
@@ -233,11 +238,11 @@ __kernel void periodicBoundaryUKernel_NS(
     } 
 }
 
-__kernel void periodicBoundaryUKernel_EW(
+__kernel void boundaryUKernel_EW(
         // Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
-
+	int periodic_,
         // Data
         __global float* U_ptr_, int U_pitch_) {
 
@@ -249,15 +254,21 @@ __kernel void periodicBoundaryUKernel_EW(
     if (ti <= nx_+2 && tj <= ny_+1) {	
 	__global float* u_row = (__global float*) ((__global char*) U_ptr_ + U_pitch_*tj);
 
-	 int opposite_col_index = nx_+1;
-	 if (ti == nx_+2) {
-	     opposite_col_index = 1;
-	 }
-	
-	// We should have computed both u_row[1] and u_row[nx_+1],
-	// and these two should already have the same values.
-	 if ( ti == 0 || ti == nx_+2) {
-	     u_row[ti] = u_row[opposite_col_index];
+	if (periodic_ != 1 && ( ti < 2 || ti > nx_ ) ) {
+	    u_row[ti] = 0;
+	}
+	else if (periodic_ == 1) {
+	    // Periodic
+	    int opposite_col_index = nx_+1;
+	    if (ti == nx_+2) {
+		opposite_col_index = 1;
+	    }
+	    
+	    // We should have computed both u_row[1] and u_row[nx_+1],
+	    // and these two should already have the same values.
+	    if ( ti == 0 || ti == nx_+2) {
+		u_row[ti] = u_row[opposite_col_index];
+	    }
 	}
     }
 }
@@ -265,10 +276,11 @@ __kernel void periodicBoundaryUKernel_EW(
 
 
 // NS need to be called before EW!
-__kernel void periodicBoundaryVKernel_NS(
+__kernel void boundaryVKernel_NS(
         // Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
+	int periodic_,
 
         // Data
         __global float* V_ptr_, int V_pitch_) {
@@ -281,22 +293,30 @@ __kernel void periodicBoundaryVKernel_NS(
     if (ti <= nx_+1 && tj <= ny_+2) {	
 	__global float* v_row = (__global float*) ((__global char*) V_ptr_ + V_pitch_*tj);
 
-	 int opposite_row_index = ny_;
-	 if (tj == ny_+2) {
-	     opposite_row_index = 1;
-	 }
 	
-	 if ( (tj == 0 || tj == ny_+2) && ti > 0 && ti < nx_+1 ) {
-	     __global float* v_opposite_row = (__global float*) ((__global char*) V_ptr_ + V_pitch_*opposite_row_index);
-	    v_row[ti] = v_opposite_row[ti];
+	if (periodic_ != 1 && ( tj < 2 || tj > ny_ ) ) {
+	    v_row[ti] = 0;
 	}
-    } 
+	else if (periodic_ == 1) {
+	    // Periodic
+	    int opposite_row_index = ny_;
+	    if (tj == ny_+2) {
+		opposite_row_index = 1;
+	    }
+	    
+	    if ( (tj == 0 || tj == ny_+2) && ti > 0 && ti < nx_+1 ) {
+		__global float* v_opposite_row = (__global float*) ((__global char*) V_ptr_ + V_pitch_*opposite_row_index);
+		v_row[ti] = v_opposite_row[ti];
+	    }
+	}
+    }
 }
 
-__kernel void periodicBoundaryVKernel_EW(
+__kernel void boundaryVKernel_EW(
         // Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
+	int periodic_,
 
         // Data
         __global float* V_ptr_, int V_pitch_) {
@@ -310,7 +330,7 @@ __kernel void periodicBoundaryVKernel_EW(
 	__global float* v_row = (__global float*) ((__global char*) V_ptr_ + V_pitch_*tj);
 
 	 int opposite_col_index = nx_;
-	 if (ti == nx_+1) {
+	 if ( (ti == nx_+1 && periodic_ == 1) || (ti == 0 && periodic_ != 1) ) {
 	     opposite_col_index = 1;
 	 }
 	

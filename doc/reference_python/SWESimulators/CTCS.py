@@ -230,6 +230,10 @@ class CTCS_boundary_condition:
         self.cl_ctx = cl_ctx
         self.boundary_conditions = boundary_conditions
 
+        self.periodic_NS = np.int32(boundary_conditions.north - 1)
+        self.periodic_EW = np.int32(boundary_conditions.east - 1)
+        
+        
         self.nx = np.int32(nx)
         self.ny = np.int32(ny)
         self.halo_x = np.int32(halo_x)
@@ -253,102 +257,73 @@ class CTCS_boundary_condition:
     Updates hu according periodic boundary conditions
     """
     def boundaryConditionU(self, cl_queue, hu0):
-        if (self.boundary_conditions.east == 1 and \
-            self.boundary_conditions.west == 1):
-            # Set boundary and ghost cells
-            self.boundaryKernels.closedBoundaryUKernel( \
-                cl_queue, self.global_size, self.local_size, \
-                self.nx, self.ny, \
-                self.halo_x, self.halo_y, \
-                hu0.data, hu0.pitch)
+       
+        assert(self.boundary_conditions.north != 3 and \
+               self.boundary_conditions.east  != 3 and \
+               self.boundary_conditions.south != 3 and \
+               self.boundary_conditions.west  != 3), \
+               'Numerical sponge not yet supported'
 
-        elif (self.boundary_conditions.east ==  2 and \
-              self.boundary_conditions.north == 2):
-            # Set periodic boundary conditions for U
-            self.boundaryKernels.periodicBoundaryUKernel_NS( \
-                cl_queue, self.global_size, self.local_size, \
-                self.nx, self.ny, \
-                self.halo_x, self.halo_y, \
-                hu0.data, hu0.pitch)
-            self.boundaryKernels.periodicBoundaryUKernel_EW( \
-                cl_queue, self.global_size, self.local_size, \
-                self.nx, self.ny, \
-                self.halo_x, self.halo_y, \
-                hu0.data, hu0.pitch)
-            # TODO: CALL KERNEL
-            dummy = 1
-        else:
-            assert(False), 'Numerical sponge not yet supported'
+        self.boundaryKernels.boundaryUKernel_NS( \
+            cl_queue, self.global_size, self.local_size, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, self.periodic_NS, \
+            hu0.data, hu0.pitch)
 
+        self.boundaryKernels.boundaryUKernel_EW( \
+            cl_queue, self.global_size, self.local_size, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, self.periodic_EW, \
+            hu0.data, hu0.pitch)
+        
         
     """
     Updates hv according to periodic boundary conditions
     """
     def boundaryConditionV(self, cl_queue, hv0):
-        if (self.boundary_conditions.north == 1 and \
-            self.boundary_conditions.south == 1):
-            # Set boundary and ghost cells
-            self.boundaryKernels.closedBoundaryVKernel( \
-                cl_queue, self.global_size, self.local_size, \
-                self.nx, self.ny, \
-                self.halo_x, self.halo_y, \
-                hv0.data, hv0.pitch)
 
-        elif (self.boundary_conditions.east == 2 and \
-              self.boundary_conditions.north == 2):
-            # Set periodic boundary conditions for V
-            self.boundaryKernels.periodicBoundaryVKernel_NS( \
-                cl_queue, self.global_size, self.local_size, \
-                self.nx, self.ny, \
-                self.halo_x, self.halo_y, \
-                hv0.data, hv0.pitch)
-            self.boundaryKernels.periodicBoundaryVKernel_EW( \
-                cl_queue, self.global_size, self.local_size, \
-                self.nx, self.ny, \
-                self.halo_x, self.halo_y, \
-                hv0.data, hv0.pitch)
-            # Periodic
-            # TODO: CALL KERNEL
-            dummy = 1
-        else:
-            assert(False), 'Numerical sponge not yet supported'
+        assert(self.boundary_conditions.north != 3 and \
+               self.boundary_conditions.east  != 3 and \
+               self.boundary_conditions.south != 3 and \
+               self.boundary_conditions.west  != 3), \
+               'Numerical sponge not yet supported'
+
+        self.boundaryKernels.boundaryVKernel_NS( \
+            cl_queue, self.global_size, self.local_size, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, self.periodic_NS, \
+            hv0.data, hv0.pitch)
+
+        self.boundaryKernels.boundaryVKernel_EW( \
+            cl_queue, self.global_size, self.local_size, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, self.periodic_EW, \
+            hv0.data, hv0.pitch)
 
 
     """
     Updates eta boundary conditions (ghost cells)
     """
     def boundaryConditionEta(self, cl_queue, eta0):
-        if (self.boundary_conditions.north == 1 and \
-            self.boundary_conditions.south == 1):
-            # Update ghost cells
-            self.boundaryKernels.closedBoundaryEtaKernel_NS( \
-                cl_queue, self.global_size, self.local_size, \
-                self.nx, self. ny, \
-                self.halo_x, self.halo_y, \
-                eta0.data, eta0.pitch)
-            self.boundaryKernels.closedBoundaryEtaKernel_EW( \
-                cl_queue, self.global_size, self.local_size, \
-                self.nx, self. ny, \
-                self.halo_x, self.halo_y, \
-                eta0.data, eta0.pitch)
+        assert(self.boundary_conditions.north != 3 and \
+               self.boundary_conditions.east  != 3 and \
+               self.boundary_conditions.south != 3 and \
+               self.boundary_conditions.west  != 3), \
+               'Numerical sponge not yet supported'
 
-        elif (self.boundary_conditions.east == 2 and \
-              self.boundary_conditions.north == 2):
-            # Set periodic boundary conditions for eta
-            self.boundaryKernels.periodicBoundaryEtaKernel_NS( \
-                cl_queue, self.global_size, self.local_size, \
-                self.nx, self.ny, \
-                self.halo_x, self.halo_y, \
-                eta0.data, eta0.pitch)
-            self.boundaryKernels.periodicBoundaryEtaKernel_EW( \
-                cl_queue, self.global_size, self.local_size, \
-                self.nx, self.ny, \
-                self.halo_x, self.halo_y, \
-                eta0.data, eta0.pitch)
-        else:
-            assert(False), 'Numerical sponge not yet supported'
+        self.boundaryKernels.boundaryEtaKernel_NS( \
+            cl_queue, self.global_size, self.local_size, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, self.periodic_NS, \
+            eta0.data, eta0.pitch)
 
-        
+        self.boundaryKernels.boundaryEtaKernel_EW( \
+            cl_queue, self.global_size, self.local_size, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, self.periodic_EW, \
+            eta0.data, eta0.pitch)
+
+              
 
 
 
