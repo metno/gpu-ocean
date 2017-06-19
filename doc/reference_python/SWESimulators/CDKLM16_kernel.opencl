@@ -113,7 +113,7 @@ __kernel void swe_2D(
         float t_, 
     
         // Boundary conditions
-        int boundary_conditions_type // < 1: wall, 2: periodic, 
+        int boundary_conditions_type_ // < 1: wall, 2: periodic, 
                                        //   3: periodicNS, 4: periodicEW
 ) {
         
@@ -173,7 +173,10 @@ __kernel void swe_2D(
     
     
     //Fix boundary conditions
+    if (boundary_conditions_type_ == 1)
     {
+        // These boundary conditions are dealt with inside shared memory
+        
         const int i = tx + 3; //Skip local ghost cells, i.e., +3
         const int j = ty + 3;
         
@@ -230,6 +233,10 @@ __kernel void swe_2D(
             R[2][j+3][i] = -R[2][j-2][i];
         }
     }
+    //else if (boundary_conditions_type_ == 2) {
+    //     
+    //}
+    
     barrier(CLK_LOCAL_MEM_FENCE);
     
     
