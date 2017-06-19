@@ -61,8 +61,9 @@ class CDKLM16:
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
-                 theta=1.3, use_rk2=True,
+                 theta=1.3, use_rk2=True, \
                  wind_stress=Common.WindStressParams(), \
+                 boundary_conditions=Common.BoundaryConditions(), \
                  block_width=16, block_height=16):
         self.cl_ctx = cl_ctx
 
@@ -91,6 +92,15 @@ class CDKLM16:
         self.theta = np.float32(theta)
         self.use_rk2 = use_rk2
         self.wind_stress = wind_stress
+
+        self.boundary_conditions = boundary_conditions
+        self.boundaryType = np.int32(1)
+        if (boundary_conditions.north == 2 and boundary_conditions.east == 2):
+            self.boundaryType = np.int32(2)
+        elif (boundary_conditions.north == 2):
+            self.boundaryType = np.int32(3)
+        elif (boundary_conditions.east == 2):
+            self.boundaryType = np.int32(4)
         
         #Initialize time
         self.t = np.float32(0.0)
@@ -136,7 +146,8 @@ class CDKLM16:
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
-                        self.t)
+                        self.t, \
+                        self.boundaryType )
                 self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
                         self.dx, self.dy, local_dt, \
@@ -155,7 +166,8 @@ class CDKLM16:
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
-                        self.t)
+                        self.t, \
+                        self.boundaryType )
             else:
                 self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
@@ -175,7 +187,8 @@ class CDKLM16:
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
-                        self.t)
+                        self.t, \
+                        self.boundaryType )
                 self.cl_data.swap()
                 
             self.t += local_dt
