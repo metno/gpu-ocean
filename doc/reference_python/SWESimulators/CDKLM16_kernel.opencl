@@ -110,7 +110,12 @@ __kernel void swe_2D(
         float tau0_, float rho_, float alpha_, float xm_, float Rc_,
         float x0_, float y0_,
         float u0_, float v0_,
-        float t_) {
+        float t_, 
+    
+        // Boundary conditions
+        int boundary_conditions_type // < 1: wall, 2: periodic, 
+                                       //   3: periodicNS, 4: periodicEW
+) {
         
     //Index of thread within block
     const int tx = get_local_id(0);
