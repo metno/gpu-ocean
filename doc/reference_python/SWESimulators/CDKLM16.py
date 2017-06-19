@@ -37,15 +37,15 @@ import Common
 
 
 """
-Class that solves the SW equations using the Forward-Backward linear scheme
+Class that solves the SW equations using the Coriolis well balanced reconstruction scheme, as given by the publication of Chertock, Dudzinski, Kurganov and Lukacova-Medvidova (CDFLM) in 2016.
 """
 class CDKLM16:
 
     """
     Initialization routine
-    h0: Water depth incl ghost cells, (nx+1)*(ny+1) cells
-    u0: Initial momentum along x-axis incl ghost cells, (nx+1)*(ny+1) cells
-    v0: Initial momentum along y-axis incl ghost cells, (nx+1)*(ny+1) cells
+    h0: Water depth incl ghost cells, (nx+3)*(ny+3) cells
+    u0: Initial momentum along x-axis incl ghost cells, (nx+3)*(ny+3) cells
+    v0: Initial momentum along y-axis incl ghost cells, (nx+3)*(ny+3) cells
     nx: Number of cells along x-axis
     ny: Number of cells along y-axis
     dx: Grid cell spacing along x-axis (20 000 m)
