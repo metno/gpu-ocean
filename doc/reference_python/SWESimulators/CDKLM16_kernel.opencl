@@ -1,10 +1,9 @@
 /*
 This OpenCL kernel implements the Kurganov-Petrova numerical scheme 
 for the shallow water equations, described in 
-A. Kurganov & Guergana Petrova
-A Second-Order Well-Balanced Positivity Preserving Central-Upwind
-Scheme for the Saint-Venant System Communications in Mathematical
-Sciences, 5 (2007), 133-160. 
+A. Chertock, M. Dudzinski, A. Kurganov & M. Lukacova-Medvidova
+Well-Balanced Schemes for the Shallow Water Equations with Coriolis Forces,
+Numerische Mathematik 2016 
 
 Copyright (C) 2016  SINTEF ICT
 
