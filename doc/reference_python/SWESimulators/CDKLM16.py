@@ -112,7 +112,11 @@ class CDKLM16:
                        int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
                       ) 
     
-    
+        self.bc_kernel = CDKLM16_boundary_condition(self.cl_ctx, \
+                                                    self.nx, \
+                                                    self.ny, \
+                                                    self.boundary_conditions, \
+        )
     
     
     """
@@ -126,7 +130,11 @@ class CDKLM16:
             
             if (local_dt <= 0.0):
                 break
-        
+
+            self.bc_kernel.boundaryCondition(self.cl_queue, \
+                        self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+
+            
             if (self.use_rk2):
                 self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
@@ -148,6 +156,10 @@ class CDKLM16:
                         self.wind_stress.u0, self.wind_stress.v0, \
                         self.t, \
                         self.boundaryType )
+
+                self.bc_kernel.boundaryCondition(self.cl_queue, \
+                        self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+                
                 self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
                         self.dx, self.dy, local_dt, \
@@ -214,3 +226,64 @@ class CDKLM16:
     def download(self):
         return self.cl_data.download(self.cl_queue)
 
+
+
+
+
+# Strategy for using periodic boundary conditions:    
+class CDKLM16_boundary_condition:
+    def __init__(self, cl_ctx, nx, ny, \
+                 boundary_conditions, \
+                 block_width = 16, block_height = 16):
+
+        self.cl_ctx = cl_ctx
+        self.boundary_conditions = boundary_conditions
+
+        self.periodic_NS = np.int32(boundary_conditions.north - 1)
+        self.periodic_EW = np.int32(boundary_conditions.east - 1)
+        self.allWallBC = boundary_conditions.isDefault()
+        
+        self.nx = np.int32(nx)
+        self.ny = np.int32(ny)
+
+        # Load kernel for periodic boundary
+        self.boundaryKernels = Common.get_kernel(self.cl_ctx,\
+            "CDKLM16_boundary.opencl", block_width, block_height)
+
+        # Set kernel launch parameters
+        self.local_size = (block_width, block_height)
+        self.global_size = ( \
+                             int(np.ceil((self.nx + 7)/float(self.local_size[0])) * self.local_size[0]), \
+                             int(np.ceil((self.ny + 7)/float(self.local_size[1])) * self.local_size[1]) )
+
+
+        
+    def boundaryCondition(self, cl_queue, h, u, v):
+         assert(self.boundary_conditions.north != 3 and \
+               self.boundary_conditions.east  != 3 and \
+               self.boundary_conditions.south != 3 and \
+               self.boundary_conditions.west  != 3), \
+               'Numerical sponge not yet supported'
+         
+         if not self.allWallBC:
+             self.periodic_boundary_NS(cl_queue, h, u, v)
+             self.periodic_boundary_EW(cl_queue, h, u, v)
+        
+    def periodic_boundary_NS(self, cl_queue, h, u, v):
+      
+        self.boundaryKernels.boundaryKernel_NS( \
+            cl_queue, self.global_size, self.local_size, \
+            self.nx, self.ny, \
+            h.data, h.pitch, \
+            u.data, u.pitch, \
+            v.data, v.pitch)
+        
+
+    def periodic_boundary_EW(self, cl_queue, h, v, u):
+
+        self.boundaryKernels.boundaryKernel_EW( \
+            cl_queue, self.global_size, self.local_size, \
+            self.nx, self.ny, \
+            h.data, h.pitch, \
+            u.data, u.pitch, \
+            v.data, v.pitch)
