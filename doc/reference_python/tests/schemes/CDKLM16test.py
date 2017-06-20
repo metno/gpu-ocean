@@ -61,9 +61,21 @@ class CDKLM16test(unittest.TestCase):
             self.extra_ghosts_y = 3
             self.validDomain = self.validDomain+3
         elif bcSettings == 3:
+            # Periodic NS
             self.boundaryConditions = Common.BoundaryConditions(2,1,2,1)
+            self.refRange = [-6, -3, 6, 3]
+            self.dataRange = [-6, -3, 6, 3]
+            self.validDomain[0] = self.validDomain[0] + 3
+            self.validDomain[2] = self.validDomain[2] + 3
+            self.extra_ghosts_y = 3
         else:
+            # Periodic EW
             self.boundaryConditions = Common.BoundaryConditions(1,2,1,2)
+            self.refRange = [-3, -6, 3, 6]
+            self.dataRange = [-3, -6, 3, 6]
+            self.validDomain[1] = self.validDomain[1] + 3
+            self.validDomain[3] = self.validDomain[3] + 3
+            self.extra_ghosts_x = 3
 
 
         
@@ -204,3 +216,122 @@ class CDKLM16test(unittest.TestCase):
         eta2, u2, v2 = loadResults("CDKLM16", "periodic", "upperCorner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+
+## North-south periodic boundary conditions
+
+    def test_periodicNS_central(self):
+        self.setBoundaryConditions(bcSettings=3)
+        self.allocData()
+        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                    self.h0, self.u0, self.v0, \
+                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
+                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.dx, self.dy, self.dt, \
+                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+
+        t = sim.step(self.T)
+        h1, u1, v1 = sim.download()
+        eta1 = h1 - self.waterHeight
+        eta2, u2, v2 = loadResults("CDKLM16", "wallBC", "central")
+        self.refRange = [-3, -3, 3, 3]
+        
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+        
+    def test_periodicNS_corner(self):
+        self.setBoundaryConditions(bcSettings=3)
+        self.allocData()
+        addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                    self.h0, self.u0, self.v0, \
+                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
+                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.dx, self.dy, self.dt, \
+                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+
+        t = sim.step(self.T)
+        h1, u1, v1 = sim.download()
+        eta1 = h1 - self.waterHeight
+        eta2, u2, v2 = loadResults("CDKLM16", "periodicNS", "corner")
+        
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+
+        
+    def test_periodicNS_upperCorner(self):
+        self.setBoundaryConditions(bcSettings=3)
+        self.allocData()
+        addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                    self.h0, self.u0, self.v0, \
+                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
+                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.dx, self.dy, self.dt, \
+                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+
+        t = sim.step(self.T)
+        h1, u1, v1 = sim.download()
+        eta1 = h1 - self.waterHeight
+        eta2, u2, v2 = loadResults("CDKLM16", "periodicNS", "upperCorner")
+        
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+ ## East-west periodic boundary conditions
+
+    def test_periodicEW_central(self):
+        self.setBoundaryConditions(bcSettings=4)
+        self.allocData()
+        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                    self.h0, self.u0, self.v0, \
+                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
+                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.dx, self.dy, self.dt, \
+                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+
+        t = sim.step(self.T)
+        h1, u1, v1 = sim.download()
+        eta1 = h1 - self.waterHeight
+        eta2, u2, v2 = loadResults("CDKLM16", "wallBC", "central")
+        self.refRange = [-3, -3, 3, 3]
+        
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)       
+
+
+    def test_periodicEW_corner(self):
+        self.setBoundaryConditions(bcSettings=4)
+        self.allocData()
+        addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                    self.h0, self.u0, self.v0, \
+                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
+                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.dx, self.dy, self.dt, \
+                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+
+        t = sim.step(self.T)
+        h1, u1, v1 = sim.download()
+        eta1 = h1 - self.waterHeight
+        eta2, u2, v2 = loadResults("CDKLM16", "periodicEW", "corner")
+        
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)       
+
+    def test_periodicEW_upperCorner(self):
+        self.setBoundaryConditions(bcSettings=4)
+        self.allocData()
+        addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                    self.h0, self.u0, self.v0, \
+                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
+                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.dx, self.dy, self.dt, \
+                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+
+        t = sim.step(self.T)
+        h1, u1, v1 = sim.download()
+        eta1 = h1 - self.waterHeight
+        eta2, u2, v2 = loadResults("CDKLM16", "periodicEW", "upperCorner")
+        
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)       
