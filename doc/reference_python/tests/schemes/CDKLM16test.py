@@ -51,31 +51,32 @@ class CDKLM16test(unittest.TestCase):
 
 
     def setBoundaryConditions(self, bcSettings=1):
+        e = 3
         if (bcSettings == 1):
             self.boundaryConditions = Common.BoundaryConditions()
         elif (bcSettings == 2):
             self.boundaryConditions = Common.BoundaryConditions(2,2,2,2)
             self.refRange = [-6, -6, 6, 6]
-            self.dataRange = [-6, -6, 6, 6]
-            self.extra_ghosts_x = 3
-            self.extra_ghosts_y = 3
-            self.validDomain = self.validDomain+3
+            self.dataRange = [-(3+e), -(3+e), 3+e, 3+e]
+            self.extra_ghosts_x = e
+            self.extra_ghosts_y = e
+            self.validDomain = self.validDomain + e
         elif bcSettings == 3:
             # Periodic NS
             self.boundaryConditions = Common.BoundaryConditions(2,1,2,1)
             self.refRange = [-6, -3, 6, 3]
-            self.dataRange = [-6, -3, 6, 3]
-            self.validDomain[0] = self.validDomain[0] + 3
-            self.validDomain[2] = self.validDomain[2] + 3
-            self.extra_ghosts_y = 3
+            self.dataRange = [-(3+e), -3, 3+e, 3]
+            self.validDomain[0] = self.validDomain[0] + e
+            self.validDomain[2] = self.validDomain[2] + e
+            self.extra_ghosts_y = e
         else:
             # Periodic EW
             self.boundaryConditions = Common.BoundaryConditions(1,2,1,2)
             self.refRange = [-3, -6, 3, 6]
-            self.dataRange = [-3, -6, 3, 6]
-            self.validDomain[1] = self.validDomain[1] + 3
-            self.validDomain[3] = self.validDomain[3] + 3
-            self.extra_ghosts_x = 3
+            self.dataRange = [-3, -(3+e), 3, 3+e]
+            self.validDomain[1] = self.validDomain[1] + e
+            self.validDomain[3] = self.validDomain[3] + e
+            self.extra_ghosts_x = e
 
 
         
@@ -335,3 +336,11 @@ class CDKLM16test(unittest.TestCase):
         eta2, u2, v2 = loadResults("CDKLM16", "periodicEW", "upperCorner")
         
         self.checkResults(eta1, u1, v1, eta2, u2, v2)       
+
+    def test_bug(self):
+        message = '\n\nThere is a bug related to the extra ghost cells used for periodic boundary. ' + \
+                  'It can be seen by changing the "e" parameter in this file, or in Tests2D.ipynb. ' + \
+                  'Reference data is generated for e=3, but e=2 or e=1 should be sufficient. ' + \
+                  'Also, e=4 should give equal result as for e=3, but does not. ' + \
+                  'The results for all e > 3 are equal to each other, which is expected, and which makes it evident that we have a bug.'
+        self.assertTrue(False, msg=message)

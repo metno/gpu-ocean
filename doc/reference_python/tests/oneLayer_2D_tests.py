@@ -22,8 +22,8 @@ if (jenkins):
 
 
 # Define the tests that will be part of our test suite:
-test_classes_to_run = [FBLtest, CTCStest] #, CDKLM16test]
-#test_classes_to_run = [CDKLM16test]
+#test_classes_to_run = [FBLtest, CTCStest] #, CDKLM16test]
+test_classes_to_run = [CDKLM16test]
 
 loader = unittest.TestLoader()
 suite_list = []
