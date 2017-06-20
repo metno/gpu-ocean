@@ -24,6 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 __kernel void boundaryKernel_NS(
 	// Discretization parameters
         int nx_, int ny_,
+	int extra_ghosts_x_, int extra_ghosts_y_,
 	
         // Data
         __global float* h_ptr_, int h_pitch_,
@@ -35,12 +36,13 @@ __kernel void boundaryKernel_NS(
     const int tj = get_global_id(1);
 
     int opposite_row_index = ny_ + tj;
-    if ( tj > ny_+2) {
+    if ( tj > ny_ + 2 + extra_ghosts_y_) {
 	opposite_row_index = tj - ny_;
     }
     
     // Set ghost cells equal to inner neighbour's value
-    if ((tj < 3 || tj >  ny_+2) && tj > -1  && tj < ny_+6 && ti > 2 && ti < nx_+3) {
+    if ((tj < 3+extra_ghosts_y_ || tj >  ny_+2+extra_ghosts_y_)
+	&& tj > -1  && tj < ny_+6+2*extra_ghosts_y_ && ti > 2+extra_ghosts_x_ && ti < nx_+3+extra_ghosts_x_) {
 	__global float* ghost_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
 	__global float* opposite_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*opposite_row_index);
 
@@ -61,7 +63,8 @@ __kernel void boundaryKernel_NS(
 __kernel void boundaryKernel_EW(
 	// Discretization parameters
         int nx_, int ny_,
-        
+	int extra_ghosts_x_, int extra_ghosts_y_,
+	
 	// Data
         __global float* h_ptr_, int h_pitch_,
         __global float* u_ptr_, int u_pitch_,
@@ -72,12 +75,13 @@ __kernel void boundaryKernel_EW(
     const int tj = get_global_id(1);
 
     int opposite_col_index = nx_ + ti;
-    if ( ti > nx_+2) {
+    if ( ti > nx_+2+extra_ghosts_x_) {
 	opposite_col_index = ti - nx_;
     }
     
     // Set ghost cells equal to inner neighbour's value
-    if ((ti < 3 || ti > nx_+2) && ti > -1 && ti < nx_+6 && tj > -1 && tj < ny_+6) {
+    if ((ti < 3+extra_ghosts_x_ || ti > nx_+2+extra_ghosts_x_)
+	&& ti > -1 && ti < nx_+6+2*extra_ghosts_x_ && tj > -1 && tj < ny_+6+2*extra_ghosts_y_) {
 	__global float* h_row = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
 	__global float* u_row = (__global float*) ((__global char*) u_ptr_ + u_pitch_*tj);
 	__global float* v_row = (__global float*) ((__global char*) v_ptr_ + v_pitch_*tj);
