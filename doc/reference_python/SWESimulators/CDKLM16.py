@@ -248,7 +248,7 @@ class CDKLM16_boundary_condition:
         self.boundary_conditions = boundary_conditions
         self.extra_ghosts_x = np.int32(extra_ghosts_x)
         self.extra_ghosts_y = np.int32(extra_ghosts_y)
-
+        
         self.periodic_NS = np.int32(boundary_conditions.north - 1)
         self.periodic_EW = np.int32(boundary_conditions.east - 1)
         self.allWallBC = boundary_conditions.isDefault()
@@ -269,16 +269,18 @@ class CDKLM16_boundary_condition:
 
         
     def boundaryCondition(self, cl_queue, h, u, v):
-         assert(self.boundary_conditions.north != 3 and \
+        assert(self.boundary_conditions.north != 3 and \
                self.boundary_conditions.east  != 3 and \
                self.boundary_conditions.south != 3 and \
                self.boundary_conditions.west  != 3), \
                'Numerical sponge not yet supported'
          
-         if not self.allWallBC:
-             self.periodic_boundary_NS(cl_queue, h, u, v)
-             self.periodic_boundary_EW(cl_queue, h, u, v)
-        
+        if self.boundary_conditions.north == 2:
+            self.periodic_boundary_NS(cl_queue, h, u, v)
+        if self.boundary_conditions.east == 2:
+            self.periodic_boundary_EW(cl_queue, h, u, v)
+
+             
     def periodic_boundary_NS(self, cl_queue, h, u, v):
       
         self.boundaryKernels.boundaryKernel_NS( \

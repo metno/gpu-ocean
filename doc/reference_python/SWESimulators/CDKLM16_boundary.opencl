@@ -42,7 +42,7 @@ __kernel void boundaryKernel_NS(
     
     // Set ghost cells equal to inner neighbour's value
     if ((tj < 3+extra_ghosts_y_ || tj >  ny_+2+extra_ghosts_y_)
-	&& tj > -1  && tj < ny_+6+2*extra_ghosts_y_ && ti > 2+extra_ghosts_x_ && ti < nx_+3+extra_ghosts_x_) {
+	&& tj > -1  && tj < ny_+6+2*extra_ghosts_y_ && ti > -1 && ti < nx_+6+2*extra_ghosts_x_) {
 	__global float* ghost_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
 	__global float* opposite_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*opposite_row_index);
 
