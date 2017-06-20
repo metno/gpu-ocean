@@ -48,6 +48,8 @@ class CDKLM16:
     v0: Initial momentum along y-axis incl ghost cells, (nx+3)*(ny+3) cells
     nx: Number of cells along x-axis
     ny: Number of cells along y-axis
+    extra_ghosts_x: Number of extra ghost cells along x-axis
+    extra_ghosts_y: Number of extra ghost cells along y-axis
     dx: Grid cell spacing along x-axis (20 000 m)
     dy: Grid cell spacing along y-axis (20 000 m)
     dt: Size of each timestep (90 s)
@@ -59,6 +61,7 @@ class CDKLM16:
                  cl_ctx, \
                  h0, hu0, hv0, \
                  nx, ny, \
+                 extra_ghosts_x, extra_ghosts_y, \
                  dx, dy, dt, \
                  g, f, r, \
                  theta=1.3, use_rk2=True, \
@@ -92,6 +95,8 @@ class CDKLM16:
         self.theta = np.float32(theta)
         self.use_rk2 = use_rk2
         self.wind_stress = wind_stress
+        self.extra_ghosts_x = extra_ghosts_x
+        self.extra_ghosts_y = extra_ghosts_y
 
         self.boundary_conditions = boundary_conditions
         self.boundaryType = np.int32(1)
@@ -115,6 +120,8 @@ class CDKLM16:
         self.bc_kernel = CDKLM16_boundary_condition(self.cl_ctx, \
                                                     self.nx, \
                                                     self.ny, \
+                                                    self.extra_ghosts_x, \
+                                                    self.extra_ghosts_y, \
                                                     self.boundary_conditions, \
         )
     
@@ -233,18 +240,21 @@ class CDKLM16:
 # Strategy for using periodic boundary conditions:    
 class CDKLM16_boundary_condition:
     def __init__(self, cl_ctx, nx, ny, \
+                 extra_ghosts_x, extra_ghosts_y, \
                  boundary_conditions, \
                  block_width = 16, block_height = 16):
 
         self.cl_ctx = cl_ctx
         self.boundary_conditions = boundary_conditions
+        self.extra_ghosts_x = np.int32(extra_ghosts_x)
+        self.extra_ghosts_y = np.int32(extra_ghosts_y)
 
         self.periodic_NS = np.int32(boundary_conditions.north - 1)
         self.periodic_EW = np.int32(boundary_conditions.east - 1)
         self.allWallBC = boundary_conditions.isDefault()
         
-        self.nx = np.int32(nx)
-        self.ny = np.int32(ny)
+        self.nx = np.int32(nx - 2*extra_ghosts_x) ## Actual nx
+        self.ny = np.int32(ny - 2*extra_ghosts_y) ## Actual ny
 
         # Load kernel for periodic boundary
         self.boundaryKernels = Common.get_kernel(self.cl_ctx,\
@@ -253,8 +263,8 @@ class CDKLM16_boundary_condition:
         # Set kernel launch parameters
         self.local_size = (block_width, block_height)
         self.global_size = ( \
-                             int(np.ceil((self.nx + 7)/float(self.local_size[0])) * self.local_size[0]), \
-                             int(np.ceil((self.ny + 7)/float(self.local_size[1])) * self.local_size[1]) )
+                             int(np.ceil((self.nx + 7 + 2*extra_ghosts_x )/float(self.local_size[0])) * self.local_size[0]), \
+                             int(np.ceil((self.ny + 7 + 2*extra_ghosts_y )/float(self.local_size[1])) * self.local_size[1]) )
 
 
         
@@ -274,6 +284,7 @@ class CDKLM16_boundary_condition:
         self.boundaryKernels.boundaryKernel_NS( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
+            self.extra_ghosts_x, self.extra_ghosts_y, \
             h.data, h.pitch, \
             u.data, u.pitch, \
             v.data, v.pitch)
@@ -284,6 +295,7 @@ class CDKLM16_boundary_condition:
         self.boundaryKernels.boundaryKernel_EW( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
+            self.extra_ghosts_x, self.extra_ghosts_y, \
             h.data, h.pitch, \
             u.data, u.pitch, \
             v.data, v.pitch)
