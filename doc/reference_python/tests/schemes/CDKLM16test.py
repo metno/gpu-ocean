@@ -27,20 +27,27 @@ class CDKLM16test(unittest.TestCase):
         
         #self.h0 = np.ones((self.ny+2, self.nx+2), dtype=np.float32) * 60;
         self.waterHeight = 60
-        self.h0 = np.ones((self.ny+6, self.nx+6), dtype=np.float32) * self.waterHeight;
-        self.u0 = np.zeros((self.ny+6, self.nx+6), dtype=np.float32);
-        self.v0 = np.zeros((self.ny+6, self.nx+6), dtype=np.float32);
+        self.h0 = None
+        self.u0 = None
+        self.v0 = None
 
         self.ghosts = [3,3,3,3] # north, east, south, west
-        self.refEtaRange = [-3, -3, 3, 3]
-        self.refURange = [-3, -3, 3, 3] #[-1, -1, 1, 1]
-        self.refVRange = [-3, -3, 3, 3] #[-1, -1, 1, 1]
-        self.etaRange = [-3, -3, 3, 3] #[-1, -1, 1, 1]
-        self.uRange = [-3, -3, 3, 3] #[-1, -2, 1, 2]
-        self.vRange = [-3, -3, 3, 3] #[-2, -1, 2, 1]
+        self.validDomain = np.array([3,3,3,3])
+        self.extra_ghosts_x = 0
+        self.extra_ghosts_y = 0
+        self.refRange = [-3, -3, 3, 3]
+        self.dataRange = [-3, -3, 3, 3] #[-1, -1, 1, 1]
         self.boundaryConditions = None
 
         self.T = 50.0
+
+    def allocData(self):
+        dataShape = (self.ny+ 2*self.extra_ghosts_y +self.ghosts[0]+self.ghosts[2], 
+                     self.nx+ 2*self.extra_ghosts_x +self.ghosts[1]+self.ghosts[3])
+        self.h0 = np.ones( dataShape, dtype=np.float32) * self.waterHeight
+        self.u0 = np.zeros(dataShape, dtype=np.float32)
+        self.v0 = np.zeros(dataShape, dtype=np.float32)
+        
 
 
     def setBoundaryConditions(self, bcSettings=1):
@@ -48,6 +55,10 @@ class CDKLM16test(unittest.TestCase):
             self.boundaryConditions = Common.BoundaryConditions()
         elif (bcSettings == 2):
             self.boundaryConditions = Common.BoundaryConditions(2,2,2,2)
+            self.refRange = [-6, -6, 6, 6]
+            self.extra_ghosts_x = 3
+            self.extra_ghosts_y = 3
+            self.validDomain = self.validDomain+3
         elif bcSettings == 3:
             self.boundaryConditions = Common.BoundaryConditions(2,1,2,1)
         else:
@@ -56,18 +67,18 @@ class CDKLM16test(unittest.TestCase):
 
         
     def checkResults(self, eta1, u1, v1, etaRef, uRef, vRef):
-        diffEta = np.linalg.norm(eta1[self.etaRange[2]:self.etaRange[0], 
-                                      self.etaRange[3]:self.etaRange[1]] - 
-                                 etaRef[self.refEtaRange[2]:self.refEtaRange[0],
-                                        self.refEtaRange[3]:self.refEtaRange[1]])
-        diffU = np.linalg.norm(u1[self.uRange[2]:self.uRange[0],
-                                  self.uRange[3]:self.uRange[1]] -
-                               uRef[self.refURange[2]:self.refURange[0],
-                                    self.refURange[3]:self.refURange[1]])
-        diffV = np.linalg.norm(v1[self.vRange[2]:self.vRange[0],
-                                  self.vRange[3]:self.vRange[1]] - 
-                               vRef[ self.refVRange[2]:self.refVRange[0],
-                                     self.refVRange[3]:self.refVRange[1]])
+        diffEta = np.linalg.norm(eta1[self.dataRange[2]:self.dataRange[0], 
+                                      self.dataRange[3]:self.dataRange[1]] - 
+                                 etaRef[self.refRange[2]:self.refRange[0],
+                                        self.refRange[3]:self.refRange[1]])
+        diffU = np.linalg.norm(u1[self.dataRange[2]:self.dataRange[0],
+                                  self.dataRange[3]:self.dataRange[1]] -
+                               uRef[self.refRange[2]:self.refRange[0],
+                                    self.refRange[3]:self.refRange[1]])
+        diffV = np.linalg.norm(v1[self.dataRange[2]:self.dataRange[0],
+                                  self.dataRange[3]:self.dataRange[1]] - 
+                               vRef[ self.refRange[2]:self.refRange[0],
+                                     self.refRange[3]:self.refRange[1]])
         
         self.assertAlmostEqual(diffEta, 0.0, places=6,
                                msg='Unexpected eta - L2 difference: ' + str(diffEta))
@@ -80,10 +91,12 @@ class CDKLM16test(unittest.TestCase):
     
     def test_wall_central(self):
         self.setBoundaryConditions()
-        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
+        self.allocData()
+        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx, self.ny, \
+                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
+                    self.extra_ghosts_x, self.extra_ghosts_y, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
 
@@ -98,10 +111,12 @@ class CDKLM16test(unittest.TestCase):
  
     def test_wall_corner(self):
         self.setBoundaryConditions()
-        addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
+        self.allocData()
+        addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx, self.ny, \
+                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
+                    self.extra_ghosts_x, self.extra_ghosts_y, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
 
@@ -114,10 +129,12 @@ class CDKLM16test(unittest.TestCase):
 
     def test_wall_upperCorner(self):
         self.setBoundaryConditions()
-        addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
+        self.allocData()
+        addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx, self.ny, \
+                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
+                    self.extra_ghosts_x, self.extra_ghosts_y, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
 
