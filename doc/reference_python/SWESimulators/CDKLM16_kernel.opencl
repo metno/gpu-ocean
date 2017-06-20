@@ -181,7 +181,8 @@ __kernel void swe_2D(
         const int j = ty + 3;
         
         if (ti == 3 && boundary_conditions_type_ != 3) {
-            R[0][j][i-1] =  R[0][j][i];
+	    // Wall boundary on north and south
+	    R[0][j][i-1] =  R[0][j][i];
             R[1][j][i-1] = -R[1][j][i];
             R[2][j][i-1] =  R[2][j][i];
             
@@ -194,6 +195,7 @@ __kernel void swe_2D(
             R[2][j][i-3] =  R[2][j][i+2];
         }
         if (ti == nx_+2 && boundary_conditions_type_ != 3) {
+	    // Wall boundary on north and south
             R[0][j][i+1] =  R[0][j][i];
             R[1][j][i+1] = -R[1][j][i];
             R[2][j][i+1] =  R[2][j][i];
@@ -207,7 +209,8 @@ __kernel void swe_2D(
             R[2][j][i+3] =  R[2][j][i-2];
         }
         if (tj == 3 && boundary_conditions_type_ != 4) {
-            R[0][j-1][i] =  R[0][j][i];
+	    // Wall boundary on east and west
+	    R[0][j-1][i] =  R[0][j][i];
             R[1][j-1][i] =  R[1][j][i];
             R[2][j-1][i] = -R[2][j][i];
             
@@ -220,6 +223,7 @@ __kernel void swe_2D(
             R[2][j-3][i] = -R[2][j+2][i];
         }
         if (tj == ny_+2 && boundary_conditions_type_ != 4) {
+	    // Wall boundary on east and west
             R[0][j+1][i] =  R[0][j][i];
             R[1][j+1][i] =  R[1][j][i];
             R[2][j+1][i] = -R[2][j][i];
