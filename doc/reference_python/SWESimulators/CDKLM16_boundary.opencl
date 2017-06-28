@@ -55,6 +55,7 @@ __kernel void boundaryKernel_NS(
 	ghost_row_h[ti] = opposite_row_h[ti];
 	ghost_row_u[ti] = opposite_row_u[ti];
 	ghost_row_v[ti] = opposite_row_v[ti];
+
     }
 }
 
@@ -80,15 +81,18 @@ __kernel void boundaryKernel_EW(
     }
     
     // Set ghost cells equal to inner neighbour's value
-    if ((ti < 3+extra_ghosts_x_ || ti > nx_+2+extra_ghosts_x_)
-	&& ti > -1 && ti < nx_+6+2*extra_ghosts_x_ && tj > -1 && tj < ny_+6+2*extra_ghosts_y_) {
-	__global float* h_row = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
-	__global float* u_row = (__global float*) ((__global char*) u_ptr_ + u_pitch_*tj);
-	__global float* v_row = (__global float*) ((__global char*) v_ptr_ + v_pitch_*tj);
+    if ( (ti > -1) && (ti < nx_+6+2*extra_ghosts_x_) &&
+	 (tj > -1) && (tj < ny_+6+2*extra_ghosts_y_)    ) {
 
-	h_row[ti] = h_row[opposite_col_index];
-	u_row[ti] = u_row[opposite_col_index];
-	v_row[ti] = v_row[opposite_col_index];
+	if ( (ti < 3+extra_ghosts_x_) || (ti > nx_+2+extra_ghosts_x_) ) {
+	    __global float* h_row = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
+	    __global float* u_row = (__global float*) ((__global char*) u_ptr_ + u_pitch_*tj);
+	    __global float* v_row = (__global float*) ((__global char*) v_ptr_ + v_pitch_*tj);
+	    
+	    h_row[ti] = h_row[opposite_col_index];
+	    u_row[ti] = u_row[opposite_col_index];
+	    v_row[ti] = v_row[opposite_col_index];
+	}
     }
     // TODO: USE HALO PARAMS
 }
