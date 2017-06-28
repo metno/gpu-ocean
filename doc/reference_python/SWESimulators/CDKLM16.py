@@ -95,8 +95,8 @@ class CDKLM16:
         self.theta = np.float32(theta)
         self.use_rk2 = use_rk2
         self.wind_stress = wind_stress
-        self.extra_ghosts_x = extra_ghosts_x
-        self.extra_ghosts_y = extra_ghosts_y
+        self.extra_ghosts_x = np.int32(extra_ghosts_x)
+        self.extra_ghosts_y = np.int32(extra_ghosts_y)
 
         self.boundary_conditions = boundary_conditions
         self.boundaryType = np.int32(1)
@@ -131,6 +131,9 @@ class CDKLM16:
     """
     def step(self, t_end=0.0):
         n = int(t_end / self.dt + 1)
+
+        self.bc_kernel.boundaryCondition(self.cl_queue, \
+                self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
         
         for i in range(0, n):        
             local_dt = np.float32(min(self.dt, t_end-i*self.dt))
@@ -138,8 +141,8 @@ class CDKLM16:
             if (local_dt <= 0.0):
                 break
 
-            self.bc_kernel.boundaryCondition(self.cl_queue, \
-                        self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+            #self.bc_kernel.boundaryCondition(self.cl_queue, \
+            #            self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
 
             
             if (self.use_rk2):
@@ -187,6 +190,10 @@ class CDKLM16:
                         self.wind_stress.u0, self.wind_stress.v0, \
                         self.t, \
                         self.boundaryType )
+
+                self.bc_kernel.boundaryCondition(self.cl_queue, \
+                        self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+                
             else:
                 self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
@@ -209,7 +216,10 @@ class CDKLM16:
                         self.t, \
                         self.boundaryType )
                 self.cl_data.swap()
-                
+
+                self.bc_kernel.boundaryCondition(self.cl_queue, \
+                        self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+              
             self.t += local_dt
             
         
@@ -249,12 +259,13 @@ class CDKLM16_boundary_condition:
         self.extra_ghosts_x = np.int32(extra_ghosts_x)
         self.extra_ghosts_y = np.int32(extra_ghosts_y)
         
-        self.periodic_NS = np.int32(boundary_conditions.north - 1)
-        self.periodic_EW = np.int32(boundary_conditions.east - 1)
-        self.allWallBC = boundary_conditions.isDefault()
+        #self.periodic_NS = np.int32(boundary_conditions.north - 1)
+        #self.periodic_EW = np.int32(boundary_conditions.east - 1)
+        #self.allWallBC = boundary_conditions.isDefault()
         
         self.nx = np.int32(nx - 2*extra_ghosts_x) ## Actual nx
         self.ny = np.int32(ny - 2*extra_ghosts_y) ## Actual ny
+        #print("boundary nx and ny: ", self.nx, self.ny)
 
         # Load kernel for periodic boundary
         self.boundaryKernels = Common.get_kernel(self.cl_ctx,\
