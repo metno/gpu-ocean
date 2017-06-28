@@ -51,7 +51,7 @@ class CDKLM16test(unittest.TestCase):
 
 
     def setBoundaryConditions(self, bcSettings=1):
-        e = 3
+        e = 2
         if (bcSettings == 1):
             self.boundaryConditions = Common.BoundaryConditions()
         elif (bcSettings == 2):
@@ -337,10 +337,4 @@ class CDKLM16test(unittest.TestCase):
         
         self.checkResults(eta1, u1, v1, eta2, u2, v2)       
 
-    def test_bug(self):
-        message = '\n\nThere is a bug related to the extra ghost cells used for periodic boundary. ' + \
-                  'It can be seen by changing the "e" parameter in this file, or in Tests2D.ipynb. ' + \
-                  'Reference data is generated for e=3, but e=2 or e=1 should be sufficient. ' + \
-                  'Also, e=4 should give equal result as for e=3, but does not. ' + \
-                  'The results for all e > 3 are equal to each other, which is expected, and which makes it evident that we have a bug.'
-        self.assertTrue(False, msg=message)
+  
