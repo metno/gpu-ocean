@@ -33,17 +33,15 @@ class CDKLM16test(unittest.TestCase):
 
         self.ghosts = [3,3,3,3] # north, east, south, west
         self.validDomain = np.array([3,3,3,3])
-        self.extra_ghosts_x = 0
-        self.extra_ghosts_y = 0
         self.refRange = [-3, -3, 3, 3]
-        self.dataRange = [-3, -3, 3, 3] #[-1, -1, 1, 1]
+        self.dataRange = self.refRange
         self.boundaryConditions = None
 
         self.T = 50.0
 
     def allocData(self):
-        dataShape = (self.ny+ 2*self.extra_ghosts_y +self.ghosts[0]+self.ghosts[2], 
-                     self.nx+ 2*self.extra_ghosts_x +self.ghosts[1]+self.ghosts[3])
+        dataShape = (self.ny + self.ghosts[0]+self.ghosts[2], 
+                     self.nx + self.ghosts[1]+self.ghosts[3])
         self.h0 = np.ones( dataShape, dtype=np.float32) * self.waterHeight
         self.u0 = np.zeros(dataShape, dtype=np.float32)
         self.v0 = np.zeros(dataShape, dtype=np.float32)
@@ -51,33 +49,17 @@ class CDKLM16test(unittest.TestCase):
 
 
     def setBoundaryConditions(self, bcSettings=1):
-        e = 2
+
         if (bcSettings == 1):
             self.boundaryConditions = Common.BoundaryConditions()
         elif (bcSettings == 2):
-            self.boundaryConditions = Common.BoundaryConditions(2,2,2,2)
-            self.refRange = [-6, -6, 6, 6]
-            self.dataRange = [-(3+e), -(3+e), 3+e, 3+e]
-            self.extra_ghosts_x = e
-            self.extra_ghosts_y = e
-            self.validDomain = self.validDomain + e
+            self.boundaryConditions = Common.BoundaryConditions(2,2,2,2)            
         elif bcSettings == 3:
             # Periodic NS
             self.boundaryConditions = Common.BoundaryConditions(2,1,2,1)
-            self.refRange = [-6, -3, 6, 3]
-            self.dataRange = [-(3+e), -3, 3+e, 3]
-            self.validDomain[0] = self.validDomain[0] + e
-            self.validDomain[2] = self.validDomain[2] + e
-            self.extra_ghosts_y = e
         else:
             # Periodic EW
             self.boundaryConditions = Common.BoundaryConditions(1,2,1,2)
-            self.refRange = [-3, -6, 3, 6]
-            self.dataRange = [-3, -(3+e), 3, 3+e]
-            self.validDomain[1] = self.validDomain[1] + e
-            self.validDomain[3] = self.validDomain[3] + e
-            self.extra_ghosts_x = e
-
 
         
     def checkResults(self, eta1, u1, v1, etaRef, uRef, vRef):
@@ -109,8 +91,8 @@ class CDKLM16test(unittest.TestCase):
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
-                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.nx, self.ny, \
+                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
 
@@ -129,8 +111,8 @@ class CDKLM16test(unittest.TestCase):
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
-                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.nx, self.ny, \
+                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
 
@@ -147,8 +129,8 @@ class CDKLM16test(unittest.TestCase):
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
-                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.nx, self.ny, \
+                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
 
@@ -168,8 +150,8 @@ class CDKLM16test(unittest.TestCase):
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
-                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.nx, self.ny, \
+                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -177,7 +159,6 @@ class CDKLM16test(unittest.TestCase):
         h1, u1, v1 = sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "wallBC", "central")
-        self.refRange = [-3, -3, 3, 3]
         
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
@@ -188,8 +169,8 @@ class CDKLM16test(unittest.TestCase):
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
-                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.nx, self.ny, \
+                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -206,8 +187,8 @@ class CDKLM16test(unittest.TestCase):
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
-                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.nx, self.ny, \
+                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -227,8 +208,8 @@ class CDKLM16test(unittest.TestCase):
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
-                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.nx, self.ny, \
+                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -236,7 +217,6 @@ class CDKLM16test(unittest.TestCase):
         h1, u1, v1 = sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "wallBC", "central")
-        self.refRange = [-3, -3, 3, 3]
         
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
@@ -247,8 +227,8 @@ class CDKLM16test(unittest.TestCase):
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
-                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.nx, self.ny, \
+                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -267,8 +247,8 @@ class CDKLM16test(unittest.TestCase):
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
-                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.nx, self.ny, \
+                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -287,8 +267,8 @@ class CDKLM16test(unittest.TestCase):
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
-                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.nx, self.ny, \
+                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -296,7 +276,6 @@ class CDKLM16test(unittest.TestCase):
         h1, u1, v1 = sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "wallBC", "central")
-        self.refRange = [-3, -3, 3, 3]
         
         self.checkResults(eta1, u1, v1, eta2, u2, v2)       
 
@@ -307,8 +286,8 @@ class CDKLM16test(unittest.TestCase):
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
-                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.nx, self.ny, \
+                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -325,8 +304,8 @@ class CDKLM16test(unittest.TestCase):
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
-                    self.nx + 2*self.extra_ghosts_x, self.ny + 2*self.extra_ghosts_y, \
-                    self.extra_ghosts_x, self.extra_ghosts_y, \
+                    self.nx, self.ny, \
+                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
