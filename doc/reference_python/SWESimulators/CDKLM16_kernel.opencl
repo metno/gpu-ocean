@@ -180,8 +180,8 @@ __kernel void swe_2D(
         const int i = tx + 3; //Skip local ghost cells, i.e., +3
         const int j = ty + 3;
         
-        if (ti == 3 && boundary_conditions_type_ != 3) {
-	    // Wall boundary on north and south
+        if (ti == 3 && boundary_conditions_type_ != 4) {
+	    // Wall boundary on east and west
 	    R[0][j][i-1] =  R[0][j][i];
             R[1][j][i-1] = -R[1][j][i];
             R[2][j][i-1] =  R[2][j][i];
@@ -194,8 +194,8 @@ __kernel void swe_2D(
             R[1][j][i-3] = -R[1][j][i+2];
             R[2][j][i-3] =  R[2][j][i+2];
         }
-        if (ti == nx_+2 && boundary_conditions_type_ != 3) {
-	    // Wall boundary on north and south
+        if (ti == nx_+2 && boundary_conditions_type_ != 4) {
+	    // Wall boundary on east and west
             R[0][j][i+1] =  R[0][j][i];
             R[1][j][i+1] = -R[1][j][i];
             R[2][j][i+1] =  R[2][j][i];
@@ -208,8 +208,8 @@ __kernel void swe_2D(
             R[1][j][i+3] = -R[1][j][i-2];
             R[2][j][i+3] =  R[2][j][i-2];
         }
-        if (tj == 3 && boundary_conditions_type_ != 4) {
-	    // Wall boundary on east and west
+        if (tj == 3 && boundary_conditions_type_ != 3) {
+	    // Wall boundary on north and south
 	    R[0][j-1][i] =  R[0][j][i];
             R[1][j-1][i] =  R[1][j][i];
             R[2][j-1][i] = -R[2][j][i];
@@ -222,8 +222,8 @@ __kernel void swe_2D(
             R[1][j-3][i] =  R[1][j+2][i];
             R[2][j-3][i] = -R[2][j+2][i];
         }
-        if (tj == ny_+2 && boundary_conditions_type_ != 4) {
-	    // Wall boundary on east and west
+        if (tj == ny_+2 && boundary_conditions_type_ != 3) {
+	    // Wall boundary on north and south
             R[0][j+1][i] =  R[0][j][i];
             R[1][j+1][i] =  R[1][j][i];
             R[2][j+1][i] = -R[2][j][i];
@@ -237,16 +237,9 @@ __kernel void swe_2D(
             R[2][j+3][i] = -R[2][j-2][i];
         }
     }
-    //else if (boundary_conditions_type_ == 2) {
-    //     
-    //}
     
     barrier(CLK_LOCAL_MEM_FENCE);
-    
-    
-    
-    
-    
+        
     
     //Create our "steady state" reconstruction variables (u, v, K, L)
     for (int j=ty; j<block_height+4; j+=get_local_size(1)) {

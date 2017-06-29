@@ -215,6 +215,7 @@ class CDKLM16:
                         self.wind_stress.u0, self.wind_stress.v0, \
                         self.t, \
                         self.boundaryType )
+                
                 self.cl_data.swap()
 
                 self.bc_kernel.boundaryCondition(self.cl_queue, \
