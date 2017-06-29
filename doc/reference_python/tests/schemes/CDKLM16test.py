@@ -92,7 +92,6 @@ class CDKLM16test(unittest.TestCase):
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
 
@@ -112,7 +111,6 @@ class CDKLM16test(unittest.TestCase):
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
 
@@ -130,7 +128,6 @@ class CDKLM16test(unittest.TestCase):
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
 
@@ -151,7 +148,6 @@ class CDKLM16test(unittest.TestCase):
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -170,7 +166,6 @@ class CDKLM16test(unittest.TestCase):
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -188,7 +183,6 @@ class CDKLM16test(unittest.TestCase):
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -209,7 +203,6 @@ class CDKLM16test(unittest.TestCase):
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -228,7 +221,6 @@ class CDKLM16test(unittest.TestCase):
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -248,7 +240,6 @@ class CDKLM16test(unittest.TestCase):
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -268,7 +259,6 @@ class CDKLM16test(unittest.TestCase):
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -287,7 +277,6 @@ class CDKLM16test(unittest.TestCase):
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
@@ -305,7 +294,6 @@ class CDKLM16test(unittest.TestCase):
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
                     self.h0, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    0, 0, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
