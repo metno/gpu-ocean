@@ -112,12 +112,7 @@ class FBL:
         self.f = np.float32(f)
         self.r = np.float32(r)
         self.wind_stress = wind_stress
-        print("Wind parameters:\n",
-              "wind type", self.wind_stress.type,
-              "dy", self.dy,
-              "tau0", self.wind_stress.tau0, 
-              "rho", self.wind_stress.rho,
-              "alpha", self.wind_stress.alpha)
+        
               
         #Initialize time
         self.t = np.float32(0.0)
