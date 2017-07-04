@@ -196,10 +196,10 @@ __kernel void swe_2D(
                                      + (G[0][ty][tx] - G[0][ty+1][tx  ]) * dt_ / dy_;
         const float hu1 = Q[1][j][i] + (F[1][ty][tx] - F[1][ty  ][tx+1]) * dt_ / dx_ 
                                      + (G[1][ty][tx] - G[1][ty+1][tx  ]) * dt_ / dy_
-                                     + dt_*X - dt_*f_*Q[2][j][i];
+                                     + dt_*X + dt_*f_*Q[2][j][i];
         const float hv1 = Q[2][j][i] + (F[2][ty][tx] - F[2][ty  ][tx+1]) * dt_ / dx_ 
                                      + (G[2][ty][tx] - G[2][ty+1][tx  ]) * dt_ / dy_
-                                     + dt_*Y + dt_*f_*Q[1][j][i];
+                                     + dt_*Y - dt_*f_*Q[1][j][i];
 
         __global float* const h_row  = (__global float*) ((__global char*) h1_ptr_ + h1_pitch_*tj);
         __global float* const hu_row = (__global float*) ((__global char*) hu1_ptr_ + hu1_pitch_*tj);
