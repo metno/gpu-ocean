@@ -163,3 +163,36 @@ class PlotHelper:
         time.sleep(0.001)
         
         
+
+"""
+For easily creating a plot of values on a 2D domain
+"""        
+class SinglePlot:
+    
+    def __init__(self, fig, x_coords, y_coords, data, interpolation_type='spline36'):
+        self.ny, self.nx = data.shape
+        self.fig = fig;
+        
+        fig.set_figheight(5)
+        fig.set_figwidth(5)
+        
+        min_x = np.min(x_coords[:,0]);
+        min_y = np.min(y_coords[0,:]);
+        
+        max_x = np.max(x_coords[0,:]);
+        max_y = np.max(y_coords[:,0]);
+        
+        domain_extent = [ x_coords[0, 0], x_coords[0, -1], y_coords[0, 0], y_coords[-1, 0] ]
+        
+        self.gs = gridspec.GridSpec(1,1)
+        
+        maxValue = np.max(data)
+        minValue = np.min(data)
+        
+        ax = self.fig.add_subplot(self.gs[0, 0])
+        self.sp_eta = plt.imshow(data, interpolation=interpolation_type, origin='bottom', vmin=minValue, vmax=maxValue, extent=domain_extent)
+        plt.axis('tight')
+        ax.set_aspect('equal')
+        plt.title('Data')
+        plt.colorbar()
+        
