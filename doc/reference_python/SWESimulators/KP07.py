@@ -51,6 +51,7 @@ class KP07:
     g: Gravitational accelleration (9.81 m/s^2)
     f: Coriolis parameter (1.2e-4 s^1)
     r: Bottom friction coefficient (2.4e-3 m/s)
+    theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
     wind_type: Type of wind stress, 0=Uniform along shore, 1=bell shaped along shore, 2=moving cyclone
     wind_tau0: Amplitude of wind stress (Pa)
     wind_rho: Density of sea water (1025.0 kg / m^3)
@@ -70,6 +71,7 @@ class KP07:
                  g, f=0.0, r=0.0, \
                  theta=1.3, use_rk2=True,
                  wind_stress=Common.WindStressParams(), \
+                 boundary_conditions=Common.BoundaryConditions(), \
                  block_width=16, block_height=16):
         self.cl_ctx = cl_ctx
                  
