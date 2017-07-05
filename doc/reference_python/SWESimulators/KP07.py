@@ -87,7 +87,7 @@ class KP07:
         ghost_cells_y = 2
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, w0, hu0, hv0)
         
-        self.B = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Bi)
+        self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Bi)
         
         #Save input parameters
         #Notice that we need to specify them in the correct dataformat for the
@@ -144,6 +144,8 @@ class KP07:
                         self.cl_data.h1.data,  self.cl_data.h1.pitch,  \
                         self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
                         self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
+                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
+                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
                         self.wind_stress.type, \
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
@@ -163,6 +165,8 @@ class KP07:
                         self.cl_data.h0.data,  self.cl_data.h0.pitch,  \
                         self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
                         self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
+                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
+                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
                         self.wind_stress.type, \
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
@@ -183,6 +187,8 @@ class KP07:
                         self.cl_data.h1.data,  self.cl_data.h1.pitch,  \
                         self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
                         self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
+                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
+                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
                         self.wind_stress.type, \
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
@@ -202,5 +208,5 @@ class KP07:
         return self.cl_data.download(self.cl_queue)
     
     def downloadBathymetry(self):
-        return self.B.download(self.cl_queue)
+        return self.bathymetry.download(self.cl_queue)
 
