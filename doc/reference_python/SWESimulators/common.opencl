@@ -96,6 +96,33 @@ void readBlock2(__global float* h_ptr_, int h_pitch_,
     }
 }
 
+/**
+  * Reads a block of data  with two ghost cells for the shallow water equations
+  */
+void readBlock2single(__global float* data_ptr_, int data_pitch_,
+		      __local float shmem[block_height+4][block_width+4],
+		      const int nx_, const int ny_) {
+    //Index of thread within block
+    const int tx = get_local_id(0);
+    const int ty = get_local_id(1);
+    
+    //Index of block within domain
+    const int bx = get_local_size(0) * get_group_id(0);
+    const int by = get_local_size(1) * get_group_id(1);
+    
+    //Read into shared memory
+    for (int j=ty; j<block_height+4; j+=get_local_size(1)) {
+        const int l = clamp(by + j, 0, ny_+3); // Out of bounds
+        
+        //Compute the pointer to current row in the arrays
+        __global float* const data_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*l);
+        
+        for (int i=tx; i<block_width+4; i+=get_local_size(0)) {
+            const int k = clamp(bx + i, 0, nx_+3); // Out of bounds
+	    shmem[j][i] = data_row[k];
+        }
+    }
+}
 
 
 
@@ -480,6 +507,7 @@ float windStressX(int wind_stress_type_,
         {
             const float y = (get_global_id(1)+0.5f)*dy_;
             X = tau0_/rho_ * exp(-alpha_*y);
+            //X = 0.2f;
         }
         break;
     case 1: //BELL_SHAPED_ALONGSHORE
@@ -583,11 +611,59 @@ float3 CentralUpwindFlux(const float3 Qm, float3 Qp, const float g) {
 }
 
 
+/**
+  * Central upwind flux function
+  */
+float3 CentralUpwindFluxWithB(float3 Qm, float3 Qp, const float RB, const float g) {
+    Qp.x = Qp.x - RB;
+    const float3 Fp = F_func(Qp, g);
+    const float up = Qp.y / Qp.x;   // hu / h
+    const float cp = sqrt(g*Qp.x); // sqrt(g*h)
+
+    Qm.x = Qm.x - RB;
+    const float3 Fm = F_func(Qm, g);
+    const float um = Qm.y / Qm.x;   // hu / h
+    const float cm = sqrt(g*Qm.x); // sqrt(g*h)
+    
+    const float am = min(min(um-cm, up-cp), 0.0f); // largest negative wave speed
+    const float ap = max(max(um+cm, up+cp), 0.0f); // largest positive wave speed
+
+    //Qp.x = Qp.x + RB;
+    //Qm.x = Qm.x + RB;
+    return ((ap*Fm - am*Fp) + ap*am*(Qp-Qm))/(ap-am);
+}
 
 
+/**
+  *  Source terms related to bathymetry 
+  */
+float bottomSourceTerm2(__local float   Q[3][block_height+4][block_width+4],
+			__local float  Qx[3][block_height+2][block_width+2],
+			__local float RBx[block_height+4][block_width+4],
+			const float g, 
+			const int p, const int q) {
+    // Compansating for the smaller shmem for Qx relative to Q:
+    const int pQx = p - 1;
+    const int qQx = q - 1;
+    
+    const float hp = Q[0][q][p] + Qx[0][qQx][pQx];
+    const float hm = Q[0][q][p] - Qx[0][qQx][pQx];
+    return - 0.5f*g*(RBx[q][p+1] - RBx[q][p])*(hp - RBx[q][p+1] + hm - RBx[q][p]);
+}
 
-
-
+float bottomSourceTerm3(__local float   Q[3][block_height+4][block_width+4],
+			__local float  Qy[3][block_height+2][block_width+2],
+			__local float RBy[block_height+4][block_width+4],
+			const float g, 
+			const int p, const int q) {
+    // Compansating for the smaller shmem for Qy relative to Q:
+    const int pQy = p - 1;
+    const int qQy = q - 1;
+    
+    const float hp = Q[0][q][p] + Qy[0][qQy][pQy];
+    const float hm = Q[0][q][p] - Qy[0][qQy][pQy];
+    return - 0.5f*g*(RBy[q+1][p] - RBy[q][p])*(hp - RBy[q+1][p] + hm - RBy[q][p]);
+}
 
 
 
