@@ -62,6 +62,61 @@ void reconstructB(__local float RBx[block_height+4][block_width+4],
 }
 
 
+void adjustSlopeUx(__local float Qx[3][block_height+2][block_width+2],
+		   __local float RBx[block_height+4][block_width+4],
+		   __local float Q[3][block_height+4][block_width+4],
+		   const int p, const int q) {
+    // define indices in the Qx world:
+    const int pQx = p - 1;
+    const int qQx = q - 1;
+    
+    Qx[0][qQx][pQx] = (Q[0][q][p]-Qx[0][qQx][pQx] < RBx[q][p]) ?
+	(Q[0][q][p] - RBx[q][p]) : Qx[0][qQx][pQx];
+    Qx[0][qQx][pQx] = (Q[0][q][p]+Qx[0][qQx][pQx] < RBx[q][p+1]) ?
+	(RBx[q][p+1] - Q[0][q][p]) : Qx[0][qQx][pQx];
+    
+}
+
+void adjustSlopeUy(__local float Qy[3][block_height+2][block_width+2],
+		   __local float RBy[block_height+4][block_width+4],
+		   __local float Q[3][block_height+4][block_width+4],
+		   const int p, const int q) {
+    // define indices in the Qy world:
+    const int pQy = p - 1;
+    const int qQy = q - 1;
+
+    Qy[0][qQy][pQy] = (Q[0][q][p]-Qy[0][qQy][pQy] < RBy[q][p]) ?
+	(Q[0][q][p] - RBy[q][p]) : Qy[0][qQy][pQy];
+    Qy[0][qQy][pQy] = (Q[0][q][p]+Qy[0][qQy][pQy] < RBy[q+1][p]) ?
+	(RBy[q+1][p] - Q[0][q][p]) : Qy[0][qQy][pQy];
+    
+}
+
+void adjustSlopes(__local float Qx[3][block_height+2][block_width+2],
+		  __local float Qy[3][block_height+2][block_width+2],
+		  __local float RBx[block_height+4][block_width+4],
+		  __local float RBy[block_height+4][block_width+4],
+		  __local float Q[3][block_height+4][block_width+4] ) {
+    const int p = get_local_id(0) + 2;
+    const int q = get_local_id(1) + 2;
+
+    adjustSlopeUx(Qx, RBx, Q, p, q);
+    adjustSlopeUy(Qy, RBy, Q, p, q);
+
+    // Use one warp to perform the extra adjustments
+    if (get_local_id(1) == 0) {
+	adjustSlopeUy(Qy, RBy, Q, p, 1);
+	adjustSlopeUy(Qy, RBy, Q, p, block_height+2);
+
+	if (get_local_id(0) < block_height) {
+	    adjustSlopeUx(Qx, RBx, Q, 1, p);
+	    adjustSlopeUx(Qx, RBx, Q, block_width+2, p);
+	}
+    }
+    
+}
+
+
 
 void computeFluxF(__local float Q[3][block_height+4][block_width+4],
                   __local float Qx[3][block_height+2][block_width+2],
@@ -125,6 +180,23 @@ void computeFluxG(__local float Q[3][block_height+4][block_width+4],
     }
 }
 
+
+
+
+void init_B_with_garbage(__local float Bi[block_height+4][block_width+4],
+			 __local float RBx[block_height+4][block_width+4],
+			 __local float RBy[block_height+4][block_width+4] ) {
+
+    if (get_local_id(0) == 0 && get_local_id(1) == 0) {
+	for (int j = 0; j < block_height+4; j++) {
+	    for (int i = 0; i < block_width+4; i++) {
+		Bi[j][i]  = -99.0f; //0.1*get_global_id(0);
+		RBx[j][i] = -99.0f; //0.1*get_global_id(0);
+		RBy[j][i] = -99.0f; //0.1*get_global_id(0);
+	    }
+	}
+    }
+}
 
 
 
@@ -194,17 +266,19 @@ __kernel void swe_2D(
     __local float RBx[block_height+4][block_width+4];
     __local float RBy[block_height+4][block_width+4];
 
+    init_B_with_garbage(Bi, RBx, RBy);
+    barrier(CLK_LOCAL_MEM_FENCE);
+    
     // Read B in mid-cell:
     __global float* const Bm_row  = (__global float*) ((__global char*) Bm_ptr_ + Bm_pitch_*tj);
     const float Bm = Bm_row[ti];
-    
+       
     //Read Q = [h, hu, hv] into shared memory
     readBlock2(h0_ptr_, h0_pitch_,
                hu0_ptr_, hu0_pitch_,
                hv0_ptr_, hv0_pitch_,
                Q, nx_, ny_);
-    barrier(CLK_LOCAL_MEM_FENCE);
-
+   
     // Read B into sheared memory
     readBlock2single(Bi_ptr_, Bi_pitch_,
 		     Bi, nx_, ny_);
@@ -213,8 +287,7 @@ __kernel void swe_2D(
     // Reconstruct B at the cell faces
     reconstructB(RBx, RBy, Bi);
     barrier(CLK_LOCAL_MEM_FENCE);
-    
-        
+
     //Fix boundary conditions
     // TODO: Add if on boundary condition
     noFlowBoundary2(Q, nx_, ny_);
@@ -226,7 +299,9 @@ __kernel void swe_2D(
     minmodSlopeY(Q, Qy, theta_);
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    // TODO: Add adjustment for handling dry states
+    // Adjust the slopes to avoid negative values at integration points
+    adjustSlopes(Qx, Qy, RBx, RBy, Q);
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     //Compute fluxes along the x and y axis
     computeFluxF(Q, Qx, F, RBx, g_);
