@@ -252,12 +252,53 @@ class BoundaryConditions:
             
             
                  
+"""
+Class for holding bathymetry defined on cell intersections (cell corners) and reconstructed on 
+cell mid-points.
+"""
+class Bathymetry:
+    
+    def __init__(self, cl_ctx, cl_queue, nx, ny, halo_x, halo_y, Bi_host, \
+                 block_width=16, block_height=16):
+        self.cl_ctx = cl_ctx
+        # Convert scalar data to int32
+        self.halo_nx = np.int32(nx + 2*halo_x)
+        self.halo_ny = np.int32(ny + 2*halo_y)
+             
+        # Check that Bi has the size corresponding to number of cell intersections
+        BiShapeY, BiShapeX = Bi_host.shape
+        assert(BiShapeX == nx+1+2*halo_x and BiShapeY == ny+1+2*halo_y), \
+                "Wrong size of bottom bathymetry, should be defined on cell intersections, not cell centers. " + \
+                str((BiShapeX, BiShapeY)) + " vs " + str((nx+1+2*halo_x, ny+1+2*halo_y))
+        
+        # Upload Bi to device
+        self.Bi = OpenCLArray2D(cl_ctx, nx+1, ny+1, halo_x, halo_y, Bi_host)       
+        
+        # Allocate Bm
+        Bm_host = np.zeros((self.halo_ny, self.halo_nx), dtype=np.float32, order='C')
+        self.Bm = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, Bm_host)
+        
+        # Load kernel for finding Bm from Bi
+        self.initBm_kernel = get_kernel(self.cl_ctx, "initBm_kernel.opencl", block_width, block_height)
+        self.local_size = (block_width, block_height) 
+        self.global_size = ( \
+                       int(np.ceil( (self.halo_nx) / float(self.local_size[0])) * self.local_size[0]), \
+                       int(np.ceil( (self.halo_ny) / float(self.local_size[1])) * self.local_size[1]) \
+                      ) 
+        
+        
+        # Call kernel
+        self.initBm_kernel.initBm(cl_queue, self.global_size, self.local_size, \
+                                   self.halo_nx, self.halo_ny, \
+                                   self.Bi.data, self.Bi.pitch, \
+                                   self.Bm.data, self.Bm.pitch)
                  
                  
-                 
-                 
-                 
-                 
+    def download(self, cl_queue):
+        Bm_cpu = self.Bm.download(cl_queue)
+        Bi_cpu = self.Bi.download(cl_queue)
+
+        return Bi_cpu, Bm_cpu
                  
                  
                  
