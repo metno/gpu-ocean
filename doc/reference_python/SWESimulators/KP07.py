@@ -75,16 +75,7 @@ class KP07:
                  boundary_conditions=Common.BoundaryConditions(), \
                  block_width=16, block_height=16):
         self.cl_ctx = cl_ctx
-        
-        # Check input sizes:
-        h0ShapeY, h0ShapeX = w0.shape
-        assert(h0ShapeX == nx + 4 and h0ShapeY == ny + 4), \
-                "Inconsistent shape of input data: " + str([(h0ShapeX, h0ShapeY), (nx + 4, ny + 4)])
-        BiShapeY, BiShapeX = Bi.shape
-        assert(BiShapeX == h0ShapeX+1 and BiShapeY == h0ShapeY+1), \
-                "Wrong size of bottom bathymetry, should be defined on cell intersections, not cell centers. " + \
-                str((BiShapeX, BiShapeY)) + " vs " + str((h0ShapeX+1, h0ShapeY+1))
-        
+            
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
 
@@ -95,6 +86,8 @@ class KP07:
         ghost_cells_x = 2
         ghost_cells_y = 2
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, w0, hu0, hv0)
+        
+        self.B = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Bi)
         
         #Save input parameters
         #Notice that we need to specify them in the correct dataformat for the
@@ -207,4 +200,7 @@ class KP07:
     
     def download(self):
         return self.cl_data.download(self.cl_queue)
+    
+    def downloadBathymetry(self):
+        return self.B.download(self.cl_queue)
 
