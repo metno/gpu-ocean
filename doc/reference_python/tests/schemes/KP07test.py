@@ -84,6 +84,18 @@ class KP07test(unittest.TestCase):
         self.assertAlmostEqual(diffV, 0.0, places=6,
                                msg='Unexpected V - L2 difference: ' + str(diffV))
 
+    def lakeAtRest(self, eta, u, v, waterLevel):
+        etaMinMax = [np.min(eta), np.max(eta)]
+        uMinMax = [np.min(u), np.max(u)]
+        vMinMax = [np.min(v), np.max(v)]
+
+        self.assertEqual(etaMinMax, [waterLevel, waterLevel],
+                         msg='Non-constant water level: ' + str(etaMinMax) + ", should be " + str(waterLevel))
+        self.assertEqual(uMinMax, [0.0, 0.0],
+                         msg='Movement in water (u): ' + str(uMinMax))
+        self.assertEqual(vMinMax, [0.0, 0.0],
+                         msg='Movement in water (v): ' + str(vMinMax))
+                         
     ## Wall boundary conditions
     
     def test_wall_central(self):
@@ -139,7 +151,51 @@ class KP07test(unittest.TestCase):
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
+## Test lake at rest cases
+    def test_lake_at_rest_flat_bottom(self):
+        self.setBoundaryConditions()
+        self.allocData()
+        self.Bi = self.Bi+10.0
+        sim = KP07.KP07(self.cl_ctx, \
+                    self.h0, self.Bi, self.u0, self.v0, \
+                    self.nx, self.ny, \
+                    self.dx, self.dy, self.dt, \
+                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
 
+        t = sim.step(self.T)
+        h, u, v = sim.download()
+        self.lakeAtRest(h, u, v, self.waterHeight)
+
+## Test lake at rest cases
+    def test_lake_at_rest_crater_bottom(self):
+        self.setBoundaryConditions()
+        self.allocData()
+        makeBathymetryCrater(self.Bi, self.nx+1, self.ny+1, self.dx, self.dy, self.ghosts)
+        sim = KP07.KP07(self.cl_ctx, \
+                    self.h0, self.Bi, self.u0, self.v0, \
+                    self.nx, self.ny, \
+                    self.dx, self.dy, self.dt, \
+                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+
+        t = sim.step(self.T)
+        h, u, v = sim.download()
+        self.lakeAtRest(h, u, v, self.waterHeight)        
+
+## Test lake at rest cases
+    def test_lake_at_rest_crazy_bottom(self):
+        self.setBoundaryConditions()
+        self.allocData()
+        makeBathymetryCrazyness(self.Bi, self.nx+1, self.ny+1, self.dx, self.dy, self.ghosts)
+        sim = KP07.KP07(self.cl_ctx, \
+                    self.h0, self.Bi, self.u0, self.v0, \
+                    self.nx, self.ny, \
+                    self.dx, self.dy, self.dt, \
+                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+
+        t = sim.step(self.T)
+        h, u, v = sim.download()
+        self.lakeAtRest(h, u, v, self.waterHeight)
+        
 ## Full periodic boundary conditions
 ## TODO: These below here are not yet supported!
 
