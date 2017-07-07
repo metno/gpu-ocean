@@ -467,6 +467,7 @@ void minmodSlopeX(__local float  Q[3][block_height+4][block_width+4],
 }
 
 
+
 /**
   * Reconstructs a minmod slope for a whole block along y
   */
@@ -594,6 +595,7 @@ float3 F_func(const float3 Q, const float g) {
 
 /**
   * Central upwind flux function
+  * Takes Q = [h, hu, hv] as input, not [w, hu, hv].
   */
 float3 CentralUpwindFlux(const float3 Qm, float3 Qp, const float g) {
     const float3 Fp = F_func(Qp, g);
@@ -610,28 +612,6 @@ float3 CentralUpwindFlux(const float3 Qm, float3 Qp, const float g) {
     return ((ap*Fm - am*Fp) + ap*am*(Qp-Qm))/(ap-am);
 }
 
-
-/**
-  * Central upwind flux function
-  */
-float3 CentralUpwindFluxWithB(float3 Qm, float3 Qp, const float RB, const float g) {
-    Qp.x = Qp.x - RB;
-    const float3 Fp = F_func(Qp, g);
-    const float up = Qp.y / Qp.x;   // hu / h
-    const float cp = sqrt(g*Qp.x); // sqrt(g*h)
-
-    Qm.x = Qm.x - RB;
-    const float3 Fm = F_func(Qm, g);
-    const float um = Qm.y / Qm.x;   // hu / h
-    const float cm = sqrt(g*Qm.x); // sqrt(g*h)
-    
-    const float am = min(min(um-cm, up-cp), 0.0f); // largest negative wave speed
-    const float ap = max(max(um+cm, up+cp), 0.0f); // largest positive wave speed
-
-    //Qp.x = Qp.x + RB;
-    //Qm.x = Qm.x + RB;
-    return ((ap*Fm - am*Fp) + ap*am*(Qp-Qm))/(ap-am);
-}
 
 
 /**

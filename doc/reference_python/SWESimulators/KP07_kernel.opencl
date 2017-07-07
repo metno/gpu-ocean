@@ -132,15 +132,17 @@ void computeFluxF(__local float Q[3][block_height+4][block_width+4],
         for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
             const int k = i + 1;
             // Q at interface from the right and left
-            float3 Qp = (float3)(Q[0][l][k+1] - 0.5f*Qx[0][j][i+1],
+	    // In CentralUpwindFlux we need [h, hu, hv]
+	    // Subtract the bottom elevation on the relevant face in Q[0]
+            float3 Qp = (float3)(Q[0][l][k+1] - 0.5f*Qx[0][j][i+1] - RBx[l][k+1],
                                  Q[1][l][k+1] - 0.5f*Qx[1][j][i+1],
                                  Q[2][l][k+1] - 0.5f*Qx[2][j][i+1]);
-            float3 Qm = (float3)(Q[0][l][k  ] + 0.5f*Qx[0][j][i  ],
+            float3 Qm = (float3)(Q[0][l][k  ] + 0.5f*Qx[0][j][i  ] - RBx[l][k+1],
                                  Q[1][l][k  ] + 0.5f*Qx[1][j][i  ],
                                  Q[2][l][k  ] + 0.5f*Qx[2][j][i  ]);
                                        
             // Computed flux
-            const float3 flux = CentralUpwindFluxWithB(Qm, Qp, RBx[l][k+1], g_);
+            const float3 flux = CentralUpwindFlux(Qm, Qp, g_);
             F[0][j][i] = flux.x;
             F[1][j][i] = flux.y;
             F[2][j][i] = flux.z;
@@ -163,16 +165,16 @@ void computeFluxG(__local float Q[3][block_height+4][block_width+4],
             const int k = i + 2; //Skip ghost cells
             // Q at interface from the right and left
             // Note that we swap hu and hv
-            float3 Qp = (float3)(Q[0][l+1][k] - 0.5f*Qy[0][j+1][i],
+            float3 Qp = (float3)(Q[0][l+1][k] - 0.5f*Qy[0][j+1][i] - RBy[l+1][k],
                                  Q[2][l+1][k] - 0.5f*Qy[2][j+1][i],
                                  Q[1][l+1][k] - 0.5f*Qy[1][j+1][i]);
-            float3 Qm = (float3)(Q[0][l  ][k] + 0.5f*Qy[0][j  ][i],
+            float3 Qm = (float3)(Q[0][l  ][k] + 0.5f*Qy[0][j  ][i] - RBy[l+1][k],
                                  Q[2][l  ][k] + 0.5f*Qy[2][j  ][i],
                                  Q[1][l  ][k] + 0.5f*Qy[1][j  ][i]);
                                        
             // Computed flux
             // Note that we swap back
-            const float3 flux = CentralUpwindFluxWithB(Qm, Qp, RBy[l+1][k], g_);
+            const float3 flux = CentralUpwindFlux(Qm, Qp, g_);
             G[0][j][i] = flux.x;
             G[1][j][i] = flux.z;
             G[2][j][i] = flux.y;
