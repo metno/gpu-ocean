@@ -84,7 +84,7 @@ class KP07test(unittest.TestCase):
         self.assertAlmostEqual(diffV, 0.0, places=6,
                                msg='Unexpected V - L2 difference: ' + str(diffV))
 
-    def lakeAtRest(self, eta, u, v, waterLevel):
+    def checkLakeAtRest(self, eta, u, v, waterLevel):
         etaMinMax = [np.min(eta), np.max(eta)]
         uMinMax = [np.min(u), np.max(u)]
         vMinMax = [np.min(v), np.max(v)]
@@ -115,6 +115,26 @@ class KP07test(unittest.TestCase):
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
+    def test_wall_central_with_nonzero_flat_bottom(self):
+        self.setBoundaryConditions()
+        self.allocData()
+        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        extraBottom = 10.0
+        self.Bi = self.Bi + extraBottom
+        self.h0 = self.h0 + extraBottom
+        
+        sim = KP07.KP07(self.cl_ctx, \
+                    self.h0, self.Bi, self.u0, self.v0, \
+                    self.nx, self.ny, \
+                    self.dx, self.dy, self.dt, \
+                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+
+        t = sim.step(self.T)
+        h1, u1, v1 = sim.download()
+        eta1 = h1 - self.waterHeight - extraBottom
+        eta2, u2, v2 = loadResults("KP07", "wallBC", "central")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
  
     def test_wall_corner(self):
@@ -164,9 +184,9 @@ class KP07test(unittest.TestCase):
 
         t = sim.step(self.T)
         h, u, v = sim.download()
-        self.lakeAtRest(h, u, v, self.waterHeight)
+        self.checkLakeAtRest(h, u, v, self.waterHeight)
 
-## Test lake at rest cases
+
     def test_lake_at_rest_crater_bottom(self):
         self.setBoundaryConditions()
         self.allocData()
@@ -179,9 +199,9 @@ class KP07test(unittest.TestCase):
 
         t = sim.step(self.T)
         h, u, v = sim.download()
-        self.lakeAtRest(h, u, v, self.waterHeight)        
+        self.checkLakeAtRest(h, u, v, self.waterHeight)        
 
-## Test lake at rest cases
+
     def test_lake_at_rest_crazy_bottom(self):
         self.setBoundaryConditions()
         self.allocData()
@@ -194,7 +214,7 @@ class KP07test(unittest.TestCase):
 
         t = sim.step(self.T)
         h, u, v = sim.download()
-        self.lakeAtRest(h, u, v, self.waterHeight)
+        self.checkLakeAtRest(h, u, v, self.waterHeight)
         
 ## Full periodic boundary conditions
 ## TODO: These below here are not yet supported!
