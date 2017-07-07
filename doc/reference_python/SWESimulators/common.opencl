@@ -624,7 +624,7 @@ float bottomSourceTerm2(__local float   Q[3][block_height+4][block_width+4],
 			const int p, const int q) {
     // Compansating for the smaller shmem for Qx relative to Q:
     const int pQx = p - 1;
-    const int qQx = q - 1;
+    const int qQx = q - 2;
     
     const float hp = Q[0][q][p] + Qx[0][qQx][pQx];
     const float hm = Q[0][q][p] - Qx[0][qQx][pQx];
@@ -637,7 +637,7 @@ float bottomSourceTerm3(__local float   Q[3][block_height+4][block_width+4],
 			const float g, 
 			const int p, const int q) {
     // Compansating for the smaller shmem for Qy relative to Q:
-    const int pQy = p - 1;
+    const int pQy = p - 2;
     const int qQy = q - 1;
     
     const float hp = Q[0][q][p] + Qy[0][qQy][pQy];

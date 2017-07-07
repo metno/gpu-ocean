@@ -68,7 +68,7 @@ void adjustSlopeUx(__local float Qx[3][block_height+2][block_width+2],
 		   const int p, const int q) {
     // define indices in the Qx world:
     const int pQx = p - 1;
-    const int qQx = q - 1;
+    const int qQx = q - 2;
     
     Qx[0][qQx][pQx] = (Q[0][q][p]-Qx[0][qQx][pQx] < RBx[q][p]) ?
 	(Q[0][q][p] - RBx[q][p]) : Qx[0][qQx][pQx];
@@ -82,7 +82,7 @@ void adjustSlopeUy(__local float Qy[3][block_height+2][block_width+2],
 		   __local float Q[3][block_height+4][block_width+4],
 		   const int p, const int q) {
     // define indices in the Qy world:
-    const int pQy = p - 1;
+    const int pQy = p - 2;
     const int qQy = q - 1;
 
     Qy[0][qQy][pQy] = (Q[0][q][p]-Qy[0][qQy][pQy] < RBy[q][p]) ?
@@ -312,6 +312,7 @@ __kernel void swe_2D(
     
     
     //Sum fluxes and advance in time for all internal cells
+    //Check global indices against global domain
     if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
         const int i = tx + 2; //Skip local ghost cells, i.e., +2
         const int j = ty + 2;
