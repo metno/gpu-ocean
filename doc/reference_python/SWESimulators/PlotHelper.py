@@ -169,7 +169,7 @@ For easily creating a plot of values on a 2D domain
 """        
 class SinglePlot:
     
-    def __init__(self, fig, x_coords, y_coords, data, interpolation_type='spline36'):
+    def __init__(self, fig, x_coords, y_coords, data, interpolation_type='spline36', title='Data'):
         self.ny, self.nx = data.shape
         self.fig = fig;
         
@@ -193,6 +193,6 @@ class SinglePlot:
         self.sp_eta = plt.imshow(data, interpolation=interpolation_type, origin='bottom', vmin=minValue, vmax=maxValue, extent=domain_extent)
         plt.axis('tight')
         ax.set_aspect('equal')
-        plt.title('Data')
+        plt.title(title)
         plt.colorbar()
         

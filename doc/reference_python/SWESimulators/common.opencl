@@ -460,7 +460,7 @@ void minmodSlopeX(__local float  Q[3][block_height+4][block_width+4],
         for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
             const int k = i + 1;
             for (int p=0; p<3; ++p) {
-                Qx[p][j][i] = minmodSlope(Q[p][l][k-1], Q[p][l][k], Q[p][l][k+1], theta_);
+                Qx[p][j][i] = 0.5f * minmodSlope(Q[p][l][k-1], Q[p][l][k], Q[p][l][k+1], theta_);
             }
         }
     }
@@ -483,7 +483,7 @@ void minmodSlopeY(__local float  Q[3][block_height+4][block_width+4],
         for (int i=tx; i<block_width; i+=get_local_size(0)) {            
             const int k = i + 2; //Skip ghost cells
             for (int p=0; p<3; ++p) {
-                Qy[p][j][i] = minmodSlope(Q[p][l-1][k], Q[p][l][k], Q[p][l+1][k], theta_);
+                Qy[p][j][i] = 0.5f * minmodSlope(Q[p][l-1][k], Q[p][l][k], Q[p][l+1][k], theta_);
             }
         }
     }
@@ -589,10 +589,6 @@ float3 F_func(const float3 Q, const float g) {
     return F;
 }
 
-
-
-
-
 /**
   * Central upwind flux function
   * Takes Q = [h, hu, hv] as input, not [w, hu, hv].
@@ -612,6 +608,43 @@ float3 CentralUpwindFlux(const float3 Qm, float3 Qp, const float g) {
     return ((ap*Fm - am*Fp) + ap*am*(Qp-Qm))/(ap-am);
 }
 
+
+float3 F_func_bottom(const float3 Q, const float h, const float u, const float g) {
+    float3 F;
+
+    F.x = Q.y;                       //hu
+    F.y = Q.y*u + 0.5f*g*(h*h);      //hu*u + 0.5f*g*h*h;
+    F.z = Q.z*u;                     //hv*u;
+
+    return F;
+}
+
+/**
+  * Central upwind flux function
+  * Takes Q = [h, hu, hv] as input, not [w, hu, hv].
+  */
+float3 CentralUpwindFluxBottom(const float3 Qm, float3 Qp, const float b, const float g) {
+    const float hp = Qp.x - b;  // h = w - B
+    const float up = Qp.y / (float) hp; // hu/h
+    const float3 Fp = F_func_bottom(Qp, hp, up, g);
+    const float cp = sqrt(g*hp); // sqrt(g*h)
+
+    const float hm = Qm.x - b;
+    const float um = Qm.y / (float) hm;   // hu / h
+    const float3 Fm = F_func_bottom(Qm, hm, um, g);
+    const float cm = sqrt(g*hm); // sqrt(g*h)
+    
+    const float am = min(min(um-cm, up-cp), 0.0f); // largest negative wave speed
+    const float ap = max(max(um+cm, up+cp), 0.0f); // largest positive wave speed
+    // Related to dry zones
+    // The constant is a compiler constant in the CUDA code.
+    const float KPSIMULATOR_FLUX_SLOPE_EPS = 1.0e-4f;
+    if ( fabs(ap - am) < KPSIMULATOR_FLUX_SLOPE_EPS ) {
+	return (float3)(0.0f, 0.0f, 0.0f);
+    }
+    
+    return ((ap*Fm - am*Fp) + ap*am*(Qp-Qm))/(ap-am);
+}
 
 
 /**
