@@ -63,7 +63,7 @@ class KP07test(unittest.TestCase):
             self.boundaryConditions = Common.BoundaryConditions(1,2,1,2)
 
         
-    def checkResults(self, eta1, u1, v1, etaRef, uRef, vRef):
+    def checkResults(self, eta1, u1, v1, etaRef, uRef, vRef, message=""):
         diffEta = np.linalg.norm(eta1[self.dataRange[2]:self.dataRange[0], 
                                       self.dataRange[3]:self.dataRange[1]] - 
                                  etaRef[self.refRange[2]:self.refRange[0],
@@ -78,23 +78,23 @@ class KP07test(unittest.TestCase):
                                      self.refRange[3]:self.refRange[1]])
         
         self.assertAlmostEqual(diffEta, 0.0, places=6,
-                               msg='Unexpected eta - L2 difference: ' + str(diffEta))
+                               msg='Unexpected eta - L2 difference: ' + str(diffEta) + message)
         self.assertAlmostEqual(diffU, 0.0, places=6,
-                               msg='Unexpected U - L2 difference: ' + str(diffU))
+                               msg='Unexpected U - L2 difference: ' + str(diffU) + message)
         self.assertAlmostEqual(diffV, 0.0, places=6,
-                               msg='Unexpected V - L2 difference: ' + str(diffV))
+                               msg='Unexpected V - L2 difference: ' + str(diffV) + message)
 
-    def checkLakeAtRest(self, eta, u, v, waterLevel):
+    def checkLakeAtRest(self, eta, u, v, waterLevel, message=""):
         etaMinMax = [np.min(eta), np.max(eta)]
         uMinMax = [np.min(u), np.max(u)]
         vMinMax = [np.min(v), np.max(v)]
 
         self.assertEqual(etaMinMax, [waterLevel, waterLevel],
-                         msg='Non-constant water level: ' + str(etaMinMax) + ", should be " + str(waterLevel))
+                         msg='Non-constant water level: ' + str(etaMinMax) + ", should be " + str(waterLevel) + message)
         self.assertEqual(uMinMax, [0.0, 0.0],
-                         msg='Movement in water (u): ' + str(uMinMax))
+                         msg='Movement in water (u): ' + str(uMinMax) + message)
         self.assertEqual(vMinMax, [0.0, 0.0],
-                         msg='Movement in water (v): ' + str(vMinMax))
+                         msg='Movement in water (v): ' + str(vMinMax) + message)
                          
     ## Wall boundary conditions
     
@@ -134,7 +134,7 @@ class KP07test(unittest.TestCase):
         eta1 = h1 - self.waterHeight - extraBottom
         eta2, u2, v2 = loadResults("KP07", "wallBC", "central")
 
-        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+        self.checkResults(eta1, u1, v1, eta2, u2, v2, message="\nKNOWN TO FAIL...")
 
  
     def test_wall_corner(self):
@@ -199,7 +199,7 @@ class KP07test(unittest.TestCase):
 
         t = sim.step(self.T)
         h, u, v = sim.download()
-        self.checkLakeAtRest(h, u, v, self.waterHeight)        
+        self.checkLakeAtRest(h, u, v, self.waterHeight, message="\nKNOWN TO FAIL...")        
 
 
     def test_lake_at_rest_crazy_bottom(self):
@@ -214,7 +214,7 @@ class KP07test(unittest.TestCase):
 
         t = sim.step(self.T)
         h, u, v = sim.download()
-        self.checkLakeAtRest(h, u, v, self.waterHeight)
+        self.checkLakeAtRest(h, u, v, self.waterHeight, message="\nKNOWN TO FAIL...")
         
 ## Full periodic boundary conditions
 ## TODO: These below here are not yet supported!
