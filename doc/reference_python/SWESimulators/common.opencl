@@ -661,7 +661,7 @@ float bottomSourceTerm2(__local float   Q[3][block_height+4][block_width+4],
     
     const float hp = Q[0][q][p] + Qx[0][qQx][pQx];
     const float hm = Q[0][q][p] - Qx[0][qQx][pQx];
-    return - 0.5f*g*(RBx[q][p+1] - RBx[q][p])*(hp - RBx[q][p+1] + hm - RBx[q][p]);
+    return 0.5f*g*(RBx[q][p+1] - RBx[q][p])*(hp - RBx[q][p+1] + hm - RBx[q][p]);
 }
 
 float bottomSourceTerm3(__local float   Q[3][block_height+4][block_width+4],
@@ -675,7 +675,7 @@ float bottomSourceTerm3(__local float   Q[3][block_height+4][block_width+4],
     
     const float hp = Q[0][q][p] + Qy[0][qQy][pQy];
     const float hm = Q[0][q][p] - Qy[0][qQy][pQy];
-    return - 0.5f*g*(RBy[q+1][p] - RBy[q][p])*(hp - RBy[q+1][p] + hm - RBy[q][p]);
+    return 0.5f*g*(RBy[q+1][p] - RBy[q][p])*(hp - RBy[q+1][p] + hm - RBy[q][p]);
 }
 
 
