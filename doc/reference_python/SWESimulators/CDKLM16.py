@@ -254,12 +254,14 @@ class CDKLM16_boundary_condition:
         
         self.nx = np.int32(nx) ## Actual nx
         self.ny = np.int32(ny) ## Actual ny
+        self.halo_x = np.int32(3)
+        self.halo_y = np.int32(3)
         #print("boundary nx and ny: ", self.nx, self.ny)
 
         # Load kernel for periodic boundary
         self.boundaryKernels = Common.get_kernel(self.cl_ctx,\
-            "CDKLM16_boundary.opencl", block_width, block_height)
-
+            "periodic_boundary_kernel.opencl", block_width, block_height)
+       
         # Set kernel launch parameters
         self.local_size = (block_width, block_height)
         self.global_size = ( \
@@ -286,6 +288,7 @@ class CDKLM16_boundary_condition:
         self.boundaryKernels.boundaryKernel_NS( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
+            self.halo_x, self.halo_y, \
             h.data, h.pitch, \
             u.data, u.pitch, \
             v.data, v.pitch)
@@ -296,6 +299,7 @@ class CDKLM16_boundary_condition:
         self.boundaryKernels.boundaryKernel_EW( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
+            self.halo_x, self.halo_y, \
             h.data, h.pitch, \
             u.data, u.pitch, \
             v.data, v.pitch)

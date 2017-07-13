@@ -1,6 +1,6 @@
 /*
-These OpenCL kernels implement boundary conditions for 
-the Coriolis well balanced reconstruction scheme, as given by the publication of Chertock, Dudzinski, Kurganov and Lukacova-Medvidova (CDFLM) in 2016.
+General kernels for periodic boundary conditions.
+
 Copyright (C) 2016  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
@@ -20,10 +20,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "common.opencl"
 
 
- // Fix north-south boundary before east-west (to get the corners right)
+
+/*
+ *  These kernels assumes that values are defined in cell centers, and that the halo is symmetric in both north and south directions
+ * 
+ * Fix north-south boundary before east-west (to get the corners right)
+ */
+
 __kernel void boundaryKernel_NS(
 	// Discretization parameters
         int nx_, int ny_,
+	int halo_x, int halo_y,
 	
         // Data
         __global float* h_ptr_, int h_pitch_,
@@ -34,14 +41,14 @@ __kernel void boundaryKernel_NS(
     const int ti = get_global_id(0);
     const int tj = get_global_id(1);
 
-    int opposite_row_index = ny_ + tj;
-    if ( tj > ny_ + 2) {
+    int opposite_row_index = tj + ny_;
+    if ( tj > ny_ + halo_y - 1) {
 	opposite_row_index = tj - ny_;
     }
     
     // Set ghost cells equal to inner neighbour's value
-    if ((tj < 3 || tj >  ny_+2)
-	&& tj > -1  && tj < ny_+6 && ti > -1 && ti < nx_+6 ) {
+    if ((tj < halo_y || tj >  ny_+halo_y-1)
+	&& tj > -1  && tj < ny_+(2*halo_y) && ti > -1 && ti < nx_+(2*halo_x) ) {
 	__global float* ghost_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
 	__global float* opposite_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*opposite_row_index);
 
@@ -63,7 +70,8 @@ __kernel void boundaryKernel_NS(
 __kernel void boundaryKernel_EW(
 	// Discretization parameters
         int nx_, int ny_,
-	
+	int halo_x, int halo_y,
+
 	// Data
         __global float* h_ptr_, int h_pitch_,
         __global float* u_ptr_, int u_pitch_,
@@ -73,16 +81,16 @@ __kernel void boundaryKernel_EW(
     const int ti = get_global_id(0);
     const int tj = get_global_id(1);
 
-    int opposite_col_index = nx_ + ti;
-    if ( ti > nx_+2 ) {
+    int opposite_col_index = ti + nx_;
+    if ( ti > nx_ + halo_x - 1 ) {
 	opposite_col_index = ti - nx_;
     }
     
     // Set ghost cells equal to inner neighbour's value
-    if ( (ti > -1) && (ti < nx_+6) &&
-	 (tj > -1) && (tj < ny_+6)    ) {
+    if ( (ti > -1) && (ti < nx_+(2*halo_x)) &&
+	 (tj > -1) && (tj < ny_+(2*halo_y))    ) {
 
-	if ( (ti < 3) || (ti > nx_+2) ) {
+	if ( (ti < halo_x) || (ti > nx_+halo_x-1) ) {
 	    __global float* h_row = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
 	    __global float* u_row = (__global float*) ((__global char*) u_ptr_ + u_pitch_*tj);
 	    __global float* v_row = (__global float*) ((__global char*) v_ptr_ + v_pitch_*tj);
@@ -90,6 +98,73 @@ __kernel void boundaryKernel_EW(
 	    h_row[ti] = h_row[opposite_col_index];
 	    u_row[ti] = u_row[opposite_col_index];
 	    v_row[ti] = v_row[opposite_col_index];
+	}
+    }
+}
+
+
+/*
+ *  These kernels assumes that values are defined in cell centers, and that the halo is symmetric in both north and south directions
+ * 
+ * These two only fixes the values of one data set, not three as above.
+ * 
+ * Fix north-south boundary before east-west (to get the corners right)
+ */
+
+__kernel void boundaryKernel_single_NS(
+	// Discretization parameters
+        int nx_, int ny_,
+	int halo_x, int halo_y,
+	
+        // Data
+        __global float* data_ptr_, int data_pitch_) {
+
+    // Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    int opposite_row_index = tj + ny_;
+    if ( tj > ny_ + halo_y - 1) {
+	opposite_row_index = tj - ny_;
+    }
+    
+    // Set ghost cells equal to inner neighbour's value
+    if ((tj < halo_y || tj >  ny_+halo_y-1)
+	&& tj > -1  && tj < ny_+(2*halo_y) && ti > -1 && ti < nx_+(2*halo_x) ) {
+	__global float* ghost_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*tj);
+	__global float* opposite_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*opposite_row_index);
+
+	ghost_row[ti] = opposite_row[ti];
+    }
+}
+
+
+// Fix north-south boundary before east-west (to get the corners right)
+__kernel void boundaryKernel_single_EW(
+	// Discretization parameters
+        int nx_, int ny_,
+	int halo_x, int halo_y,
+
+	// Data
+	__global float* data_ptr_, int data_pitch_) {
+
+    // Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    int opposite_col_index = ti + nx_;
+    if ( ti > nx_ + halo_x - 1 ) {
+	opposite_col_index = ti - nx_;
+    }
+    
+    // Set ghost cells equal to inner neighbour's value
+    if ( (ti > -1) && (ti < nx_+2*halo_x) &&
+	 (tj > -1) && (tj < ny_+2*halo_y)    ) {
+
+	if ( (ti < halo_x) || (ti > nx_+halo_x-1) ) {
+	    __global float* data_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*tj);
+	    
+	    data_row[ti] = data_row[opposite_col_index];
 	}
     }
 }
