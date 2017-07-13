@@ -335,29 +335,32 @@ __kernel void swe_2D(
             x0_, y0_,
             u0_, v0_,
             t_);
-        
-        const float h1  = Q[0][j][i] + (F[0][ty][tx] - F[0][ty  ][tx+1]) * dt_ / dx_ 
-                                     + (G[0][ty][tx] - G[0][ty+1][tx  ]) * dt_ / dy_;
-        const float hu1 = Q[1][j][i] + (F[1][ty][tx] - F[1][ty  ][tx+1]) * dt_ / dx_ 
-                                     + (G[1][ty][tx] - G[1][ty+1][tx  ]) * dt_ / dy_
-	                             + dt_*X + dt_*f_*Q[2][j][i] + dt_*ST2/dx_;
-        const float hv1 = Q[2][j][i] + (F[2][ty][tx] - F[2][ty  ][tx+1]) * dt_ / dx_ 
-                                     + (G[2][ty][tx] - G[2][ty+1][tx  ]) * dt_ / dy_
-                                     + dt_*Y - dt_*f_*Q[1][j][i] + dt_*ST3/dy_;
 
-        __global float* const h_row  = (__global float*) ((__global char*) h1_ptr_ + h1_pitch_*tj);
+	const float R1 =
+	    - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_
+	    - (G[0][ty+1][tx  ] - G[0][ty][tx]) / dy_;
+	const float R2 =
+	    - (F[1][ty  ][tx+1] - F[1][ty][tx]) / dx_ 
+	    - (G[1][ty+1][tx  ] - G[1][ty][tx]) / dy_
+	    + (X + f_*Q[2][j][i] - ST2/dx_);
+	const float R3 =
+	    - (F[2][ty  ][tx+1] - F[2][ty][tx]) / dx_
+	    - (G[2][ty+1][tx  ] - G[2][ty][tx]) / dy_
+	    + (Y - f_*Q[1][j][i] - ST3/dy_);
+						       
+	
+	__global float* const h_row  = (__global float*) ((__global char*) h1_ptr_ + h1_pitch_*tj);
         __global float* const hu_row = (__global float*) ((__global char*) hu1_ptr_ + hu1_pitch_*tj);
         __global float* const hv_row = (__global float*) ((__global char*) hv1_ptr_ + hv1_pitch_*tj);
 
-	// Is this bottom friction?
-        const float C = 2.0f*r_*dt_/(Q[0][j][i]-Bm);
+	const float C = 2.0f*r_*dt_/(Q[0][j][i]-Bm);
                     
         if  (step_ == 0) {
             //First step of RK2 ODE integrator
             
-            h_row[ti] = h1;
-            hu_row[ti] = hu1 / (1.0f + C);
-            hv_row[ti] = hv1 / (1.0f + C);
+            h_row[ti]  =  Q[0][j][i] + dt_*R1;
+            hu_row[ti] = (Q[1][j][i] + dt_*R2) / (1.0f + C);
+            hv_row[ti] = (Q[2][j][i] + dt_*R3) / (1.0f + C);
         }
         else if (step_ == 1) {
             //Second step of RK2 ODE integrator
@@ -368,9 +371,9 @@ __kernel void swe_2D(
             const float hv_a = hv_row[ti];
             
             //Compute Q^n+1
-            const float h_b  = 0.5f*(h_a + h1);
-            const float hu_b = 0.5f*(hu_a + hu1);
-            const float hv_b = 0.5f*(hv_a + hv1);
+            const float h_b  = 0.5f*(h_a  + (Q[0][j][i] + dt_*R1));
+            const float hu_b = 0.5f*(hu_a + (Q[1][j][i] + dt_*R2));
+            const float hv_b = 0.5f*(hv_a + (Q[2][j][i] + dt_*R3));
             
             //Write to main memory
             h_row[ti] = h_b;
