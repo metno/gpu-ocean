@@ -105,7 +105,7 @@ __kernel void boundaryKernel_EW(
 
 
 /*
- *  These kernels handles periodic boundary conditions for values defined on cell intersections, and assumes that the halo consist of the same number of ghost cells on each periodic boundary.
+ *  These kernels handles periodic boundary conditions for values defined on cell intersections, and assumes that the halo consists of the same number of ghost cells on each periodic boundary.
  * 
  * The values at the actual boundary is defined by the input values on the western and southern boundaries.
  * 
@@ -166,5 +166,69 @@ __kernel void periodic_boundary_intersections_EW(
 	    
 	    data_row[ti] = data_row[opposite_col_index];
 	}
+    }
+}
+
+
+/*
+ *  These kernels handles wall boundary conditions for values defined on cell intersections, and assumes that the halo consists of the same number of ghost cells on each periodic boundary.
+ * 
+ */
+
+__kernel void closed_boundary_intersections_EW(
+	// Discretization parameters
+        int nx_, int ny_,
+	int halo_x_, int halo_y_,
+	
+        // Data
+        __global float* data_ptr_, int data_pitch_) {
+
+    // Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    
+    if ( ti == 0 && tj < ny_ + (2*halo_x_) + 1) {
+	__global float* data_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*tj);
+	// Western boundary:
+	for (int i = 0; i < halo_x_; ++i) {
+	    data_row[i] = data_row[2*halo_x_ - i];
+	}
+	// Eastern boundary:
+	for (int i = 0; i < halo_x_; ++i) {
+	    data_row[nx_ + 2*halo_x_ - i] = data_row[nx_ + i];
+	}
+    }
+}
+
+__kernel void closed_boundary_intersections_NS(
+	// Discretization parameters
+        int nx_, int ny_,
+	int halo_x_, int halo_y_,
+
+	// Data
+	__global float* data_ptr_, int data_pitch_) {
+
+    // Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    if ( tj == 0 && ti < ny_ + (2*halo_y_) +1) {
+	// Southern boundary:
+	for (int j = 0; j < halo_y_; ++j) {
+	    const int inner_index = 2*halo_y_ - j;
+	    __global float* ghost_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*j);
+	    __global float* inner_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*inner_index);
+	    ghost_row[ti] = inner_row[ti];
+	}
+	// Northern boundary:
+	for (int j = 0; j < halo_y_; ++j) {
+	    const int ghost_index = ny_ + 2*halo_y_ - j;
+	    const int inner_index = ny_ + j;
+	    __global float* ghost_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*ghost_index);
+	    __global float* inner_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*inner_index);
+	    ghost_row[ti] = inner_row[ti];
+	}
+	
     }
 }
