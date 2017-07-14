@@ -63,6 +63,7 @@ class KP07:
     wind_y0: Initial y position of moving cyclone (dy*(ny/2) - v0*3600.0*48.0)
     wind_u0: Translation speed along x for moving cyclone (30.0/sqrt(5.0))
     wind_v0: Translation speed along y for moving cyclone (-0.5*u0)
+    boundary_conditions: A BoundaryConditions object
     """
     def __init__(self, \
                  cl_ctx, \
@@ -87,7 +88,8 @@ class KP07:
         ghost_cells_y = 2
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, w0, hu0, hv0)
         
-        self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Bi)
+        #
+        self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Bi, boundary_conditions)
         
         #Save input parameters
         #Notice that we need to specify them in the correct dataformat for the
@@ -106,6 +108,18 @@ class KP07:
         
         #Initialize time
         self.t = np.float32(0.0)
+        
+        #Boundary conditions
+        self.boundaryConditions = boundary_conditions
+        self.boundaryType = np.int32(1)
+        if (boundary_conditions.north == 2 and boundary_conditions.east == 2):
+            self.boundaryType = np.int32(2)
+        elif (boundary_conditions.north == 2):
+            self.boundaryType = np.int32(2)
+        elif (boundary_conditions == 3):
+            self.boundaryType = np.int32(3)
+        elif (boundary_conditions == 4):
+            self.boundaryType = np.int32(4)
         
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height) 

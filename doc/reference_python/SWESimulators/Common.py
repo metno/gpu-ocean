@@ -259,11 +259,18 @@ cell mid-points.
 class Bathymetry:
     
     def __init__(self, cl_ctx, cl_queue, nx, ny, halo_x, halo_y, Bi_host, \
+                 boundary_conditions=BoundaryConditions(), \
                  block_width=16, block_height=16):
+        self.cl_queue = cl_queue
         self.cl_ctx = cl_ctx
         # Convert scalar data to int32
+        self.nx = np.int32(nx)
+        self.ny = np.int32(ny)
+        self.halo_x = np.int32(halo_x)
+        self.halo_y = np.int32(halo_y)
         self.halo_nx = np.int32(nx + 2*halo_x)
         self.halo_ny = np.int32(ny + 2*halo_y)
+        self.boundary_conditions = boundary_conditions
              
         # Check that Bi has the size corresponding to number of cell intersections
         BiShapeY, BiShapeX = Bi_host.shape
@@ -272,27 +279,33 @@ class Bathymetry:
                 str((BiShapeX, BiShapeY)) + " vs " + str((nx+1+2*halo_x, ny+1+2*halo_y))
         
         # Upload Bi to device
-        self.Bi = OpenCLArray2D(cl_ctx, nx+1, ny+1, halo_x, halo_y, Bi_host)       
+        self.Bi = OpenCLArray2D(cl_ctx, nx+1, ny+1, halo_x, halo_y, Bi_host)
+
+        # Define OpenCL parameters
+        self.local_size = (block_width, block_height) 
+        self.global_size = ( \
+                       int(np.ceil( (self.halo_nx+1) / float(self.local_size[0])) * self.local_size[0]), \
+                       int(np.ceil( (self.halo_ny+1) / float(self.local_size[1])) * self.local_size[1]) \
+        ) 
+        
+        # Check boundary conditions and make Bi periodic if necessary
+        self.bi_boundary_kernel = get_kernel(self.cl_ctx, "periodic_boundary_kernel.opencl", block_width, block_height)
+        self._boundaryConditions()
         
         # Allocate Bm
         Bm_host = np.zeros((self.halo_ny, self.halo_nx), dtype=np.float32, order='C')
-        self.Bm = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, Bm_host)
+        self.Bm = OpenCLArray2D(self.cl_ctx, nx, ny, halo_x, halo_y, Bm_host)
         
         # Load kernel for finding Bm from Bi
         self.initBm_kernel = get_kernel(self.cl_ctx, "initBm_kernel.opencl", block_width, block_height)
-        self.local_size = (block_width, block_height) 
-        self.global_size = ( \
-                       int(np.ceil( (self.halo_nx) / float(self.local_size[0])) * self.local_size[0]), \
-                       int(np.ceil( (self.halo_ny) / float(self.local_size[1])) * self.local_size[1]) \
-                      ) 
-        
+      
         
         # Call kernel
-        self.initBm_kernel.initBm(cl_queue, self.global_size, self.local_size, \
+        self.initBm_kernel.initBm(self.cl_queue, self.global_size, self.local_size, \
                                    self.halo_nx, self.halo_ny, \
                                    self.Bi.data, self.Bi.pitch, \
                                    self.Bm.data, self.Bm.pitch)
-                 
+
                  
     def download(self, cl_queue):
         Bm_cpu = self.Bm.download(cl_queue)
@@ -300,9 +313,31 @@ class Bathymetry:
 
         return Bi_cpu, Bm_cpu
                  
-                 
-                 
-                 
+
+    def _boundaryConditions(self):
+        # North-south:
+        if (self.boundary_conditions.north == 2) and (self.boundary_conditions.south == 2):
+            self.bi_boundary_kernel.periodic_boundary_intersections_NS( \
+                self.cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, self.halo_x, self.halo_y, \
+                self.Bi.data, self.Bi.pitch)
+        else:
+            self.bi_boundary_kernel.closed_boundary_intersections_NS( \
+                self.cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, self.halo_x, self.halo_y, \
+                self.Bi.data, self.Bi.pitch)
+
+        # East-west:
+        if (self.boundary_conditions.east == 2) and (self.boundary_conditions.west == 2):
+            self.bi_boundary_kernel.periodic_boundary_intersections_EW( \
+                self.cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, self.halo_x, self.halo_y, \
+                self.Bi.data, self.Bi.pitch)
+        else:
+            self.bi_boundary_kernel.closed_boundary_intersections_EW( \
+                self.cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, self.halo_x, self.halo_y, \
+                self.Bi.data, self.Bi.pitch)
                  
                  
                  
