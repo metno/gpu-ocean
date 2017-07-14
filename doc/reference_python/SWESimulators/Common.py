@@ -250,7 +250,77 @@ class BoundaryConditions:
                 self.south == 1 and \
                 self.east == 1)
             
-            
+
+
+"""
+Class that checks boundary conditions and calls the required kernels for Arakawa A type grids.
+"""
+class BoundaryConditionsArakawaA:
+    def __init__(self, cl_ctx, nx, ny, \
+                 halo_x, halo_y, \
+                 boundary_conditions, \
+                 block_width = 16, block_height = 16):
+
+        self.cl_ctx = cl_ctx
+        self.boundary_conditions = boundary_conditions
+        
+        self.nx = np.int32(nx) 
+        self.ny = np.int32(ny) 
+        self.halo_x = np.int32(halo_x)
+        self.halo_y = np.int32(halo_y)
+        #print("boundary nx and ny: ", self.nx, self.ny)
+
+        # Load kernel for periodic boundary
+        self.boundaryKernels = get_kernel(self.cl_ctx,\
+            "boundary_kernels.opencl", block_width, block_height)
+       
+        # Set kernel launch parameters
+        self.local_size = (block_width, block_height)
+        self.global_size = ( \
+                             int(np.ceil((self.nx + 2*self.halo_x + 1)/float(self.local_size[0])) * self.local_size[0]), \
+                             int(np.ceil((self.ny + 2*self.halo_y + 1)/float(self.local_size[1])) * self.local_size[1]) )
+
+
+        
+    def boundaryCondition(self, cl_queue, h, u, v):
+        assert(self.boundary_conditions.north != 3 and \
+               self.boundary_conditions.east  != 3 and \
+               self.boundary_conditions.south != 3 and \
+               self.boundary_conditions.west  != 3), \
+               'Numerical sponge not yet supported'
+         
+        if self.boundary_conditions.north == 2:
+            self.periodic_boundary_NS(cl_queue, h, u, v)
+        if self.boundary_conditions.east == 2:
+            self.periodic_boundary_EW(cl_queue, h, u, v)
+
+             
+    def periodic_boundary_NS(self, cl_queue, h, u, v):
+      
+        self.boundaryKernels.periodicBoundary_NS( \
+            cl_queue, self.global_size, self.local_size, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, \
+            h.data, h.pitch, \
+            u.data, u.pitch, \
+            v.data, v.pitch)
+        
+
+    def periodic_boundary_EW(self, cl_queue, h, v, u):
+
+        self.boundaryKernels.periodicBoundary_EW( \
+            cl_queue, self.global_size, self.local_size, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, \
+            h.data, h.pitch, \
+            u.data, u.pitch, \
+            v.data, v.pitch)
+
+
+
+
+
+    
                  
 """
 Class for holding bathymetry defined on cell intersections (cell corners) and reconstructed on 
