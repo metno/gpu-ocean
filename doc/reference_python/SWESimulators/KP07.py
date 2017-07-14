@@ -115,20 +115,22 @@ class KP07:
         if (boundary_conditions.north == 2 and boundary_conditions.east == 2):
             self.boundaryType = np.int32(2)
         elif (boundary_conditions.north == 2):
-            self.boundaryType = np.int32(2)
-        elif (boundary_conditions == 3):
             self.boundaryType = np.int32(3)
-        elif (boundary_conditions == 4):
+        elif (boundary_conditions.east == 2):
             self.boundaryType = np.int32(4)
-        
+       
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height) 
         self.global_size = ( \
                        int(np.ceil(self.nx / float(self.local_size[0])) * self.local_size[0]), \
                        int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
                       ) 
-    
-    
+        self.bc_kernel = Common.BoundaryConditionsArakawaA(self.cl_ctx, \
+                                                           self.nx, \
+                                                           self.ny, \
+                                                           ghost_cells_x, \
+                                                           ghost_cells_y, \
+                                                       self.boundaryConditions)
     
     
     """
@@ -136,6 +138,9 @@ class KP07:
     """
     def step(self, t_end=0.0):
         n = int(t_end / self.dt + 1)
+                
+        self.bc_kernel.boundaryCondition(self.cl_queue, \
+                self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
         
         for i in range(0, n):        
             local_dt = np.float32(min(self.dt, t_end-i*self.dt))
@@ -164,7 +169,12 @@ class KP07:
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
+                        self.boundaryType, \
                         self.t)
+                
+                self.bc_kernel.boundaryCondition(self.cl_queue, \
+                        self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+                
                 self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
                         self.dx, self.dy, local_dt, \
@@ -185,7 +195,11 @@ class KP07:
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
+                        self.boundaryType, \
                         self.t)
+                
+                self.bc_kernel.boundaryCondition(self.cl_queue, \
+                        self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0) 
             else:
                 self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
@@ -207,8 +221,11 @@ class KP07:
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
+                        self.boundaryType, \
                         self.t)
                 self.cl_data.swap()
+                self.bc_kernel.boundaryCondition(self.cl_queue, \
+                        self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
                 
             self.t += local_dt
             

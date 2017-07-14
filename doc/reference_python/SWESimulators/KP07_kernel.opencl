@@ -236,6 +236,11 @@ __kernel void swe_2D(
         float tau0_, float rho_, float alpha_, float xm_, float Rc_,
         float x0_, float y0_,
         float u0_, float v0_,
+
+	// Boundary condition flag
+	int boundary_conditions_type_, // < 1: wall, 2: periodic, 
+                                       //   3: periodicNS, 4: periodicEW
+	
         float t_) {
         
     //Index of thread within block
@@ -292,7 +297,7 @@ __kernel void swe_2D(
 
     //Fix boundary conditions
     // TODO: Add if on boundary condition
-    noFlowBoundary2(Q, nx_, ny_);
+    noFlowBoundary2(Q, nx_, ny_, boundary_conditions_type_);
     barrier(CLK_LOCAL_MEM_FENCE);
     
     
