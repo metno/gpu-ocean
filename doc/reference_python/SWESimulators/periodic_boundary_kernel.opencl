@@ -27,6 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * Fix north-south boundary before east-west (to get the corners right)
  */
 
+// Rename to periodicBoundary_NS
 __kernel void boundaryKernel_NS(
 	// Discretization parameters
         int nx_, int ny_,
@@ -104,14 +105,14 @@ __kernel void boundaryKernel_EW(
 
 
 /*
- *  These kernels assumes that values are defined in cell centers, and that the halo is symmetric in both north and south directions
+ *  These kernels handles periodic boundary conditions for values defined on cell intersections, and assumes that the halo consist of the same number of ghost cells on each periodic boundary.
  * 
- * These two only fixes the values of one data set, not three as above.
+ * The values at the actual boundary is defined by the input values on the western and southern boundaries.
  * 
  * Fix north-south boundary before east-west (to get the corners right)
  */
 
-__kernel void boundaryKernel_single_NS(
+__kernel void periodic_boundary_intersections_NS(
 	// Discretization parameters
         int nx_, int ny_,
 	int halo_x, int halo_y,
@@ -128,9 +129,9 @@ __kernel void boundaryKernel_single_NS(
 	opposite_row_index = tj - ny_;
     }
     
-    // Set ghost cells equal to inner neighbour's value
+    // Set ghost cells equal to inner opposite's value
     if ((tj < halo_y || tj >  ny_+halo_y-1)
-	&& tj > -1  && tj < ny_+(2*halo_y) && ti > -1 && ti < nx_+(2*halo_x) ) {
+	&& tj > -1  && tj < ny_+(2*halo_y)+1 && ti > -1 && ti < nx_+(2*halo_x)+1 ) {
 	__global float* ghost_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*tj);
 	__global float* opposite_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*opposite_row_index);
 
@@ -138,9 +139,8 @@ __kernel void boundaryKernel_single_NS(
     }
 }
 
-
 // Fix north-south boundary before east-west (to get the corners right)
-__kernel void boundaryKernel_single_EW(
+__kernel void periodic_boundary_intersections_EW(
 	// Discretization parameters
         int nx_, int ny_,
 	int halo_x, int halo_y,
@@ -158,8 +158,8 @@ __kernel void boundaryKernel_single_EW(
     }
     
     // Set ghost cells equal to inner neighbour's value
-    if ( (ti > -1) && (ti < nx_+2*halo_x) &&
-	 (tj > -1) && (tj < ny_+2*halo_y)    ) {
+    if ( (ti > -1) && (ti < nx_+2*halo_x + 1) &&
+	 (tj > -1) && (tj < ny_+2*halo_y + 1)    ) {
 
 	if ( (ti < halo_x) || (ti > nx_+halo_x-1) ) {
 	    __global float* data_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*tj);

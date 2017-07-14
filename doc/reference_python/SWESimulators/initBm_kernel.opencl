@@ -63,7 +63,7 @@ __kernel void initBm(const int nx_, const int ny_,
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Calculate Bm and write to main memory
-    if (ti > 0 && ti < nx_ && tj > 0 && tj < ny_) {
+    if (ti < nx_ && tj < ny_) {
 	__global float* Bm_row = (__global float*) ((__global char*) Bm_ptr_ + Bm_pitch_*tj);
 	Bm_row[ti] = 0.25f*(Bi[ty][tx] + Bi[ty+1][tx] + Bi[ty][tx+1] + Bi[ty+1][tx+1]);
     }
