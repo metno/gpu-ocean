@@ -134,7 +134,7 @@ class KP07test(unittest.TestCase):
         eta1 = h1 - self.waterHeight - extraBottom
         eta2, u2, v2 = loadResults("KP07", "wallBC", "central")
 
-        self.checkResults(eta1, u1, v1, eta2, u2, v2, message="\nKNOWN TO FAIL...")
+        self.checkResults(eta1, u1, v1, eta2, u2, v2, message="\nKNOWN TO FAIL with value   eta - L2 difference: 0.000251422989705...")
 
  
     def test_wall_corner(self):
@@ -199,7 +199,7 @@ class KP07test(unittest.TestCase):
 
         t = sim.step(self.T)
         h, u, v = sim.download()
-        self.checkLakeAtRest(h, u, v, self.waterHeight, message="\nKNOWN TO FAIL...")        
+        self.checkLakeAtRest(h, u, v, self.waterHeight, message="\nKNOWN TO FAIL with value          (u): [-0.00020415332, 0.00017600729]...")        
 
 
     def test_lake_at_rest_crazy_bottom(self):
@@ -214,7 +214,7 @@ class KP07test(unittest.TestCase):
 
         t = sim.step(self.T)
         h, u, v = sim.download()
-        self.checkLakeAtRest(h, u, v, self.waterHeight, message="\nKNOWN TO FAIL...")
+        self.checkLakeAtRest(h, u, v, self.waterHeight, message="\nKNOWN TO FAIL with value          (u): [-0.00014652009, 0.0001398803]...")
         
 ## Full periodic boundary conditions
 ## TODO: These below here are not yet supported!
