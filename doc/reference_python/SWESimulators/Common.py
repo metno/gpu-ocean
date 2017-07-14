@@ -289,7 +289,7 @@ class Bathymetry:
         ) 
         
         # Check boundary conditions and make Bi periodic if necessary
-        self.bi_boundary_kernel = get_kernel(self.cl_ctx, "periodic_boundary_kernel.opencl", block_width, block_height)
+        self.bi_boundary_kernel = get_kernel(self.cl_ctx, "boundary_kernels.opencl", block_width, block_height)
         self._boundaryConditions()
         
         # Allocate Bm

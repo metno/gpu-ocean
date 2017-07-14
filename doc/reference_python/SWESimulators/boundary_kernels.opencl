@@ -27,8 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * Fix north-south boundary before east-west (to get the corners right)
  */
 
-// Rename to periodicBoundary_NS
-__kernel void boundaryKernel_NS(
+__kernel void periodicBoundary_NS(
 	// Discretization parameters
         int nx_, int ny_,
 	int halo_x, int halo_y,
@@ -68,7 +67,7 @@ __kernel void boundaryKernel_NS(
 
 
 // Fix north-south boundary before east-west (to get the corners right)
-__kernel void boundaryKernel_EW(
+__kernel void periodicBoundary_EW(
 	// Discretization parameters
         int nx_, int ny_,
 	int halo_x, int halo_y,
