@@ -260,7 +260,7 @@ class CDKLM16_boundary_condition:
 
         # Load kernel for periodic boundary
         self.boundaryKernels = Common.get_kernel(self.cl_ctx,\
-            "periodic_boundary_kernel.opencl", block_width, block_height)
+            "boundary_kernels.opencl", block_width, block_height)
        
         # Set kernel launch parameters
         self.local_size = (block_width, block_height)
@@ -285,7 +285,7 @@ class CDKLM16_boundary_condition:
              
     def periodic_boundary_NS(self, cl_queue, h, u, v):
       
-        self.boundaryKernels.boundaryKernel_NS( \
+        self.boundaryKernels.periodicBoundary_NS( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
@@ -296,7 +296,7 @@ class CDKLM16_boundary_condition:
 
     def periodic_boundary_EW(self, cl_queue, h, v, u):
 
-        self.boundaryKernels.boundaryKernel_EW( \
+        self.boundaryKernels.periodicBoundary_EW( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
