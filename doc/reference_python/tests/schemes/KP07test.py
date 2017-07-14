@@ -217,9 +217,8 @@ class KP07test(unittest.TestCase):
         self.checkLakeAtRest(h, u, v, self.waterHeight, message="\nKNOWN TO FAIL with value          (u): [-0.00014652009, 0.0001398803]...")
         
 ## Full periodic boundary conditions
-## TODO: These below here are not yet supported!
 
-    def atest_periodic_central(self):
+    def test_periodic_central(self):
         self.setBoundaryConditions(bcSettings=2)
         self.allocData()
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
@@ -237,7 +236,7 @@ class KP07test(unittest.TestCase):
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
 
-    def atest_periodic_corner(self):
+    def test_periodic_corner(self):
         self.setBoundaryConditions(bcSettings=2)
         self.allocData()
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
@@ -254,7 +253,7 @@ class KP07test(unittest.TestCase):
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
-    def atest_periodic_upperCorner(self):
+    def test_periodic_upperCorner(self):
         self.setBoundaryConditions(bcSettings=2)
         self.allocData()
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
@@ -274,7 +273,7 @@ class KP07test(unittest.TestCase):
 
 ## North-south periodic boundary conditions
 
-    def atest_periodicNS_central(self):
+    def test_periodicNS_central(self):
         self.setBoundaryConditions(bcSettings=3)
         self.allocData()
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
@@ -292,7 +291,7 @@ class KP07test(unittest.TestCase):
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
         
-    def atest_periodicNS_corner(self):
+    def test_periodicNS_corner(self):
         self.setBoundaryConditions(bcSettings=3)
         self.allocData()
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
@@ -311,7 +310,7 @@ class KP07test(unittest.TestCase):
 
 
         
-    def atest_periodicNS_upperCorner(self):
+    def test_periodicNS_upperCorner(self):
         self.setBoundaryConditions(bcSettings=3)
         self.allocData()
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
@@ -330,7 +329,7 @@ class KP07test(unittest.TestCase):
 
  ## East-west periodic boundary conditions
 
-    def atest_periodicEW_central(self):
+    def test_periodicEW_central(self):
         self.setBoundaryConditions(bcSettings=4)
         self.allocData()
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
@@ -348,7 +347,7 @@ class KP07test(unittest.TestCase):
         self.checkResults(eta1, u1, v1, eta2, u2, v2)       
 
 
-    def atest_periodicEW_corner(self):
+    def test_periodicEW_corner(self):
         self.setBoundaryConditions(bcSettings=4)
         self.allocData()
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
@@ -365,7 +364,7 @@ class KP07test(unittest.TestCase):
         
         self.checkResults(eta1, u1, v1, eta2, u2, v2)       
 
-    def atest_periodicEW_upperCorner(self):
+    def test_periodicEW_upperCorner(self):
         self.setBoundaryConditions(bcSettings=4)
         self.allocData()
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
