@@ -382,8 +382,33 @@ class Bathymetry:
         Bi_cpu = self.Bi.download(cl_queue)
 
         return Bi_cpu, Bm_cpu
-                 
 
+    # Transforming water elevation into water depth
+    def waterElevationToDepth(self, h):
+
+        assert ((h.ny_halo, h.nx_halo) == (self.halo_ny, self.halo_nx)), \
+            "h0 not the correct shape: " + str(h0.shape) + ", but should be " + str((self.halo_ny, self.halo_nx))
+
+        # Call kernel        
+        self.initBm_kernel.waterElevationToDepth(self.cl_queue, self.global_size, self.local_size, \
+                                   self.halo_nx, self.halo_ny, \
+                                   h.data, h.pitch, \
+                                   self.Bm.data, self.Bm.pitch)
+        
+    # Transforming water depth into water elevation
+    def waterDepthToElevation(self, w, h):
+
+        assert ((h.ny_halo, h.nx_halo) == (self.halo_ny, self.halo_nx)), \
+            "h0 not the correct shape: " + str(h0.shape) + ", but should be " + str((self.halo_ny, self.halo_nx))
+        assert ((w.ny_halo, w.nx_halo) == (self.halo_ny, self.halo_nx)), \
+            "w not the correct shape: " + str(w.shape) + ", but should be " + str((self.halo_ny, self.halo_nx))
+        # Call kernel        
+        self.initBm_kernel.waterDepthToElevation(self.cl_queue, self.global_size, self.local_size, \
+                                   self.halo_nx, self.halo_ny, \
+                                   w.data, w.pitch, \
+                                   h.data, h.pitch, \
+                                   self.Bm.data, self.Bm.pitch)
+        
     def _boundaryConditions(self):
         # North-south:
         if (self.boundary_conditions.north == 2) and (self.boundary_conditions.south == 2):

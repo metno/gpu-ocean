@@ -173,9 +173,6 @@ __kernel void swe_2D(
     barrier(CLK_LOCAL_MEM_FENCE);
     
 
-    // TODO
-    // Read bathymetry and reconstruct RBx and RBy
-    
     // Read Bm into shared memory with 4x4 halo
     for (int j=ty; j < block_height+4; j+=get_local_size(1)) {
 	// Ensure that we read from correct domain
@@ -297,9 +294,8 @@ __kernel void swe_2D(
             const float u = R[1][l][k] / h;
             const float v = R[2][l][k] / h;
 
-	    // TODO:
 	    // B = Bm for the given cell -> Bm should be in shared mem with a halo of 2.
-            const float B = 0.0f;
+            const float B = Bm[j][i];
 	    
 	    // TODO:
 	    // U and V are defined recursivly in Eq (2.5).
@@ -371,9 +367,8 @@ __kernel void swe_2D(
             const float vm = Q[1][l][k  ];
             const float V = 0.5f * f_/g_ * (vp + vm);
 
-	    // TODO
-	    // Replace B with the RBx on the given face!
-	    const float B = 0.0f;	    
+	    // B is RBx on the given face!
+	    const float B = RBx[j][i];	    
             
             // Reconstruct h = K/g + V - B
             const float hp = Rp.z + V - B;
@@ -411,9 +406,8 @@ __kernel void swe_2D(
             const float um = Q[0][l  ][k];
             const float U = 0.5f * f_/g_ * (up + um);
 
-	    // TODO
-	    // Replace B with the RBy on the given face!
-            const float B = 0.0f;
+	    // B is RBy on the given face!
+            const float B = RBy[j][i];
             
             // Reconstruct h = L/g - U - B
             const float hp = Rp.w - U - B;
@@ -460,15 +454,17 @@ __kernel void swe_2D(
 
 	// TODO:
 	// Add bottom topography source terms!
+	const float st1 = -g_*R[0][j][i]*(RBx[ty  ][tx+1] - RBx[ty][tx]);
+	const float st2 = -g_*R[0][j][i]*(RBy[ty+1][tx  ] - RBy[ty][tx]);
         
         const float h1  = R[0][j][i] + (F[0][ty][tx] - F[0][ty  ][tx+1]) * dt_ / dx_ 
                                      + (G[0][ty][tx] - G[0][ty+1][tx  ]) * dt_ / dy_;
         const float hu1 = R[1][j][i] + (F[1][ty][tx] - F[1][ty  ][tx+1]) * dt_ / dx_ 
                                      + (G[1][ty][tx] - G[1][ty+1][tx  ]) * dt_ / dy_
-                                     + dt_*X + dt_*f_*R[2][j][i];
+                                     + dt_*X + dt_*f_*R[2][j][i] + st1*dt_/dx_;
         const float hv1 = R[2][j][i] + (F[2][ty][tx] - F[2][ty  ][tx+1]) * dt_ / dx_ 
                                      + (G[2][ty][tx] - G[2][ty+1][tx  ]) * dt_ / dy_
-                                     + dt_*Y - dt_*f_*R[1][j][i];
+                                     + dt_*Y - dt_*f_*R[1][j][i] + st2*dt_/dy_;
 
         __global float* const h_row  = (__global float*) ((__global char*) h1_ptr_ + h1_pitch_*tj);
         __global float* const hu_row = (__global float*) ((__global char*) hu1_ptr_ + hu1_pitch_*tj);

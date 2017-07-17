@@ -68,3 +68,47 @@ __kernel void initBm(const int nx_, const int ny_,
 	Bm_row[ti] = 0.25f*(Bi[ty][tx] + Bi[ty+1][tx] + Bi[ty][tx+1] + Bi[ty+1][tx+1]);
     }
 }
+
+/**
+ *  Kernel for changing water elevation to water depth (e.g. for CDKLM16)
+ *  (nx, ny) is the size of domain **including** ghost cells.
+ */
+__kernel void waterElevationToDepth(const int nx_, const int ny_,
+				    __global float* h_ptr_, int h_pitch_,
+				    __global float* Bm_ptr_, int Bm_pitch_ ) {
+    
+    //Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    if (ti < nx_ && tj < ny_) {
+	__global float* const h_row = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
+	__global float* const Bm_row = (__global float*) ((__global char*) Bm_ptr_ + Bm_pitch_*tj);
+	h_row[ti] -= Bm_row[ti];
+    }
+    
+}
+
+
+/**
+ *  Kernel for changing water elevation to water depth (e.g. for CDKLM16)
+ *  (nx, ny) is the size of domain **including** ghost cells.
+ */
+__kernel void waterDepthToElevation(const int nx_, const int ny_,
+				    __global float* w_ptr_, int w_pitch_,
+				    __global float* h_ptr_, int h_pitch_,
+				    __global float* Bm_ptr_, int Bm_pitch_ ) {
+    
+    //Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    if (ti < nx_ && tj < ny_) {
+	__global float* const h_row = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
+	__global float* const Bm_row = (__global float*) ((__global char*) Bm_ptr_ + Bm_pitch_*tj);
+	__global float* const w_row = (__global float*) ((__global char*) w_ptr_ + w_pitch_*tj);
+	
+	w_row[ti] = h_row[ti] + Bm_row[ti];
+    }
+    
+}
