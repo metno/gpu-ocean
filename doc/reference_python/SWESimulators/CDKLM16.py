@@ -43,9 +43,10 @@ class CDKLM16:
 
     """
     Initialization routine
-    h0: Water depth incl ghost cells, (nx+3)*(ny+3) cells
-    u0: Initial momentum along x-axis incl ghost cells, (nx+3)*(ny+3) cells
-    v0: Initial momentum along y-axis incl ghost cells, (nx+3)*(ny+3) cells
+    h0: Water depth incl ghost cells, (nx+6)*(ny+6) cells
+    u0: Initial momentum along x-axis incl ghost cells, (nx+6)*(ny+6) cells
+    v0: Initial momentum along y-axis incl ghost cells, (nx+6)*(ny+6) cells
+    Bi: Bottom topography defined on cell corners, (nx+7)*(ny+7) corners
     nx: Number of cells along x-axis
     ny: Number of cells along y-axis
     extra_ghosts_x: Number of extra ghost cells along x-axis
@@ -60,6 +61,7 @@ class CDKLM16:
     def __init__(self, \
                  cl_ctx, \
                  h0, hu0, hv0, \
+                 Bi, \
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
@@ -79,6 +81,9 @@ class CDKLM16:
         ghost_cells_x = 3
         ghost_cells_y = 3
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, h0, hu0, hv0)
+
+        #Bathymetry
+        self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Bi, boundary_conditions)
         
         #Save input parameters
         #Notice that we need to specify them in the correct dataformat for the
@@ -157,6 +162,8 @@ class CDKLM16:
                         self.cl_data.h1.data, self.cl_data.h1.pitch, \
                         self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
                         self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
+                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
+                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
                         self.wind_stress.type, \
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
@@ -181,6 +188,8 @@ class CDKLM16:
                         self.cl_data.h0.data, self.cl_data.h0.pitch, \
                         self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
                         self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
+                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
+                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
                         self.wind_stress.type, \
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
@@ -206,6 +215,8 @@ class CDKLM16:
                         self.cl_data.h1.data, self.cl_data.h1.pitch, \
                         self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
                         self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
+                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
+                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
                         self.wind_stress.type, \
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
@@ -241,3 +252,5 @@ class CDKLM16:
     def download(self):
         return self.cl_data.download(self.cl_queue)
 
+    def downloadBathymetry(self):
+        return self.bathymetry.download(self.cl_queue)
