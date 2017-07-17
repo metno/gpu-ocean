@@ -68,6 +68,7 @@ class CDKLM16:
                  theta=1.3, use_rk2=True, \
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
+                 h0AsWaterElevation=True, \
                  block_width=16, block_height=16):
         self.cl_ctx = cl_ctx
 
@@ -99,6 +100,7 @@ class CDKLM16:
         self.theta = np.float32(theta)
         self.use_rk2 = use_rk2
         self.wind_stress = wind_stress
+        self.h0AsWaterElevation = h0AsWaterElevation
 
         self.boundary_conditions = boundary_conditions
         self.boundaryType = np.int32(1)
@@ -126,7 +128,11 @@ class CDKLM16:
                                                            ghost_cells_y, \
                                                            self.boundary_conditions, \
         )
-    
+
+        if self.h0AsWaterElevation:
+            self.bathymetry.waterElevationToDepth(self.cl_data.h0)
+            
+        
     
     """
     Function which steps n timesteps
@@ -250,6 +256,13 @@ class CDKLM16:
     
     
     def download(self):
+        if (self.h0AsWaterElevation):
+            # Swap h0 with h1, fill h0 with w, download, swap back h0 with h1
+            self.cl_data.h0, self.cl_data.h1 = self.cl_data.h1, self.cl_data.h0
+            self.bathymetry.waterDepthToElevation(self.cl_data.h0, self.cl_data.h1)
+            h1, hu1, hv1 = self.cl_data.download(self.cl_queue)
+            self.cl_data.h0, self.cl_data.h1 = self.cl_data.h1, self.cl_data.h0
+            return h1, hu1, hv1
         return self.cl_data.download(self.cl_queue)
 
     def downloadBathymetry(self):

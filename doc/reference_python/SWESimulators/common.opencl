@@ -1062,6 +1062,3 @@ float3 FORCE_1D_flux(const float3 Q_l, const float3 Q_r, const float g_, const f
 }
 
 
-
-
-
