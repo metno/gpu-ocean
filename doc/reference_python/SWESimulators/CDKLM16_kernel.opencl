@@ -104,7 +104,11 @@ __kernel void swe_2D(
         __global float* h1_ptr_, int h1_pitch_,
         __global float* hu1_ptr_, int hu1_pitch_,
         __global float* hv1_ptr_, int hv1_pitch_,
-        
+
+	//Bathymery
+	__global float* Bi_ptr_, int Bi_pitch_,
+	__global float* Bm_ptr_, int Bm_pitch_,
+	
         //Wind stress parameters
         int wind_stress_type_, 
         float tau0_, float rho_, float alpha_, float xm_, float Rc_,
@@ -142,7 +146,11 @@ __kernel void swe_2D(
     __local float G[3][block_height+1][block_width];
     
     
-    
+    // Bathymetry
+    __local float  Bi[block_height+1][block_width+1];
+    __local float  Bm[block_height+4][block_width+4];
+    __local float RBx[block_height  ][block_width+1];
+    __local float RBy[block_height+1][block_width  ];
     
     
     //Read into shared memory
@@ -164,13 +172,51 @@ __kernel void swe_2D(
     }
     barrier(CLK_LOCAL_MEM_FENCE);
     
+
+    // TODO
+    // Read bathymetry and reconstruct RBx and RBy
     
+    // Read Bm into shared memory with 4x4 halo
+    for (int j=ty; j < block_height+4; j+=get_local_size(1)) {
+	// Ensure that we read from correct domain
+	// We never read outermost halo of Bm
+	const int l = clamp(by+j+1, 1, ny_+4); 
+	__global float* const Bm_row = (__global float*) ((__global char*) Bm_ptr_ + Bm_pitch_*l);
+	for(int i=tx; i < block_width+4; i+=get_local_size(0)) {
+	    const int k = clamp(bx+1+i, 1, nx_+4);
+
+	    Bm[j][i] = Bm_row[k];
+	}
+    }
+
+    // Read Bi into shared memory
+    // Read intersections on all non-ghost cells
+    for(int j=ty; j < block_height+1; j+=get_local_size(1)) {
+	// Skip ghost cells and 
+	const int l = clamp(by+j+3, 3, ny_+3);
+	__global float* const Bi_row = (__global float*) ((__global char*) Bi_ptr_ + Bi_pitch_*l);
+	for(int i=tx; i < block_width+1; i+=get_local_size(0)) {
+	    const int k = clamp(bx+i+3, 3, nx_+3);
+
+	    Bi[j][i] = Bi_row[k];
+	}
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
     
-    
-    
-    
-    
-    
+    // Evaluate piecewise bi-linear for RBx 
+    for (int j=ty; j<block_height; j+=get_local_size(1)) {
+        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+            RBx[j][i] = 0.5f*( Bi[j][i] + Bi[j+1][i] );
+	}
+    }
+    // Evaluate piecewise bi-linear for RBx 
+    for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
+        for (int i=tx; i<block_width; i+=get_local_size(0)) {
+            RBy[j][i] = 0.5f*( Bi[j][i] + Bi[j][i+1] );
+	}
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     //Fix boundary conditions
     if (boundary_conditions_type_ != 2)
@@ -250,8 +296,14 @@ __kernel void swe_2D(
             const float h = R[0][l][k];
             const float u = R[1][l][k] / h;
             const float v = R[2][l][k] / h;
-            
+
+	    // TODO:
+	    // B = Bm for the given cell -> Bm should be in shared mem with a halo of 2.
             const float B = 0.0f;
+	    
+	    // TODO:
+	    // U and V are defined recursivly in Eq (2.5).
+	    // Find out why we take a weighted average instead here (obviously more comp. effective on GPU, but still?)
             const float U = 0.25f * f_/g_ * (1.0*R[1][l+1][k]/R[0][l+1][k] + 2.0f*u + 1.0f*R[1][l-1][k]/R[0][l-1][k]);
             const float V = 0.25f * f_/g_ * (1.0*R[2][l][k+1]/R[0][l][k+1] + 2.0f*v + 1.0f*R[2][l][k-1]/R[0][l][k-1]);
             //const float U = f_/g_ * u;
@@ -294,11 +346,8 @@ __kernel void swe_2D(
         }
     }
     barrier(CLK_LOCAL_MEM_FENCE);
-    
-    
-    
-    
-    
+
+      
     
     
     //Compute fluxes along the x axis
@@ -321,7 +370,10 @@ __kernel void swe_2D(
             const float vp = Q[1][l][k+1];
             const float vm = Q[1][l][k  ];
             const float V = 0.5f * f_/g_ * (vp + vm);
-            const float B = 0.0f;
+
+	    // TODO
+	    // Replace B with the RBx on the given face!
+	    const float B = 0.0f;	    
             
             // Reconstruct h = K/g + V - B
             const float hp = Rp.z + V - B;
@@ -358,6 +410,9 @@ __kernel void swe_2D(
             const float up = Q[0][l+1][k];
             const float um = Q[0][l  ][k];
             const float U = 0.5f * f_/g_ * (up + um);
+
+	    // TODO
+	    // Replace B with the RBy on the given face!
             const float B = 0.0f;
             
             // Reconstruct h = L/g - U - B
@@ -402,6 +457,9 @@ __kernel void swe_2D(
             x0_, y0_,
             u0_, v0_,
             t_);
+
+	// TODO:
+	// Add bottom topography source terms!
         
         const float h1  = R[0][j][i] + (F[0][ty][tx] - F[0][ty  ][tx+1]) * dt_ / dx_ 
                                      + (G[0][ty][tx] - G[0][ty+1][tx  ]) * dt_ / dy_;
@@ -442,7 +500,10 @@ __kernel void swe_2D(
             h_row[ti] = h_b;
             hu_row[ti] = hu_b / (1.0f + 0.5f*C);
             hv_row[ti] = hv_b / (1.0f + 0.5f*C);
-        }
+	    //hu_row[ti] = RBx[ty][tx];
+	    //hv_row[ti] = RBy[ty][tx];
+
+	}
     }
     
 }
