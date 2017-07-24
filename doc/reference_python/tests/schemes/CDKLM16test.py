@@ -30,7 +30,8 @@ class CDKLM16test(unittest.TestCase):
         self.h0 = None
         self.u0 = None
         self.v0 = None
-
+        self.Bi = None
+        
         self.ghosts = [3,3,3,3] # north, east, south, west
         self.validDomain = np.array([3,3,3,3])
         self.refRange = [-3, -3, 3, 3]
@@ -45,6 +46,8 @@ class CDKLM16test(unittest.TestCase):
         self.h0 = np.ones( dataShape, dtype=np.float32) * self.waterHeight
         self.u0 = np.zeros(dataShape, dtype=np.float32)
         self.v0 = np.zeros(dataShape, dtype=np.float32)
+        self.Bi = np.zeros((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C')
+
         
 
 
@@ -90,7 +93,7 @@ class CDKLM16test(unittest.TestCase):
         self.allocData()
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, \
+                    self.h0, self.u0, self.v0, self.Bi, \
                     self.nx, self.ny, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
@@ -109,7 +112,7 @@ class CDKLM16test(unittest.TestCase):
         self.allocData()
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, \
+                    self.h0, self.u0, self.v0, self.Bi, \
                     self.nx, self.ny, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
@@ -126,7 +129,7 @@ class CDKLM16test(unittest.TestCase):
         self.allocData()
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, \
+                    self.h0, self.u0, self.v0, self.Bi, \
                     self.nx, self.ny, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
@@ -146,7 +149,7 @@ class CDKLM16test(unittest.TestCase):
         self.allocData()
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, \
+                    self.h0, self.u0, self.v0, self.Bi, \
                     self.nx, self.ny, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
@@ -164,7 +167,7 @@ class CDKLM16test(unittest.TestCase):
         self.allocData()
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, \
+                    self.h0, self.u0, self.v0, self.Bi, \
                     self.nx, self.ny, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
@@ -181,7 +184,7 @@ class CDKLM16test(unittest.TestCase):
         self.allocData()
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, \
+                    self.h0, self.u0, self.v0, self.Bi, \
                     self.nx, self.ny, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
@@ -201,7 +204,7 @@ class CDKLM16test(unittest.TestCase):
         self.allocData()
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, \
+                    self.h0, self.u0, self.v0, self.Bi, \
                     self.nx, self.ny, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
@@ -219,7 +222,7 @@ class CDKLM16test(unittest.TestCase):
         self.allocData()
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, \
+                    self.h0, self.u0, self.v0, self.Bi, \
                     self.nx, self.ny, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
@@ -238,7 +241,7 @@ class CDKLM16test(unittest.TestCase):
         self.allocData()
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, \
+                    self.h0, self.u0, self.v0, self.Bi, \
                     self.nx, self.ny, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
@@ -257,7 +260,7 @@ class CDKLM16test(unittest.TestCase):
         self.allocData()
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, \
+                    self.h0, self.u0, self.v0, self.Bi, \
                     self.nx, self.ny, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
@@ -275,7 +278,7 @@ class CDKLM16test(unittest.TestCase):
         self.allocData()
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, \
+                    self.h0, self.u0, self.v0, self.Bi, \
                     self.nx, self.ny, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
@@ -292,7 +295,7 @@ class CDKLM16test(unittest.TestCase):
         self.allocData()
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, \
+                    self.h0, self.u0, self.v0, self.Bi, \
                     self.nx, self.ny, \
                     self.dx, self.dy, self.dt, \
                     self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
