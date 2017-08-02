@@ -447,7 +447,14 @@ float minmodSlope(float left, float center, float right, float theta) {
 		*min( min(fabs(backward), fabs(central)), fabs(forward) );
 }
 
+float minmodRaw(float backward, float central, float forward) {
 
+    return 0.25f
+	*copysign(1.0f, backward)
+	*(copysign(1.0f, backward) + copysign(1.0f, central))
+	*(copysign(1.0f, central) + copysign(1.0f, forward))
+	*min( min(fabs(backward), fabs(central)), fabs(forward) );
+}
 
 
 /**
