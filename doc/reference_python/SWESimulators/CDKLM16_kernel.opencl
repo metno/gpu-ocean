@@ -153,6 +153,8 @@ __kernel void swe_2D(
     __local float RBy[block_height+1][block_width  ];
 
 
+    theta_ = 1.5f;
+    
     //Read into shared memory
     for (int j=ty; j<block_height+6; j+=get_local_size(1)) {
         const int l = clamp(by + j, 0, ny_+5); // Out of bounds
@@ -328,7 +330,8 @@ __kernel void swe_2D(
 	    float backward = theta_*g_*(center_w - left_w   - V_constant*(center_v + left_v ) );
 	    float central  =   0.5f*g_*(right_w  - left_w   - V_constant*(right_v + 2*center_v + left_v) ); 
 	    float forward  = theta_*g_*(right_w  - center_w - V_constant*(center_v + right_v) );
-	    
+
+	    // Qx[2] is really dx*Kx
 	    Qx[2][j][i] = minmodRaw(backward, central, forward); 
 	    
         }
@@ -342,21 +345,22 @@ __kernel void swe_2D(
             for (int p=0; p<2; ++p) {
                 Qy[p][j][i] = minmodSlope(Q[p][l-1][k], Q[p][l][k], Q[p][l+1][k], theta_);
             }
-	    // Qy[2] = Lx, which we need to find differently than uy and vy
+	    // Qy[2] = Ly, which we need to find differently than uy and vy
 	    float lower_w  = R[0][l  ][k+1] + Bm[l-1][k];
 	    float center_w = R[0][l+1][k+1] + Bm[l  ][k];
 	    float upper_w  = R[0][l+2][k+1] + Bm[l+1][k];
 
-	    float lower_v  = Q[1][l-1][k];
-	    float center_v = Q[1][l  ][k];
-	    float upper_v  = Q[1][l+1][k];
+	    float lower_u  = Q[0][l-1][k];
+	    float center_u = Q[0][l  ][k];
+	    float upper_u  = Q[0][l+1][k];
 
-	    float V_constant = dy_*f_/(2.0f*g_);
+	    float U_constant = dy_*f_/(2.0f*g_);
 
-	    float backward = theta_*g_*(center_w - lower_w  - V_constant*(center_v + lower_v ) );
-	    float central  =   0.5f*g_*(upper_w  - lower_w  - V_constant*(upper_v + 2*center_v + lower_v) ); 
-	    float forward  = theta_*g_*(upper_w  - center_w - V_constant*(center_v + upper_v) );
-	    
+	    float backward = theta_*g_*(center_w - lower_w  + U_constant*(center_u + lower_u ) );
+	    float central  =   0.5f*g_*(upper_w  - lower_w  + U_constant*(upper_u + 2*center_u + lower_u) ); 
+	    float forward  = theta_*g_*(upper_w  - center_w + U_constant*(center_u + upper_u) );
+
+	    // Qy[2] is really dy*Ly
 	    Qy[2][j][i] = minmodRaw(backward, central, forward); 
         }
     }
@@ -389,11 +393,12 @@ __kernel void swe_2D(
 
 	    const float h_bar_p = R[0][l+1][k+2];
 	    const float h_bar_m = R[0][l+1][k+1];
-	    
+
+	    // Qx[2] is really dx*Kx
 	    const float Kx_p = Qx[2][j][i+1];
             const float Kx_m = Qx[2][j][i  ];
 	    
-            // Reconstruct h = K/g + V - B
+            // Reconstruct h 
             const float hp = h_bar_p + Bm_p - B_face - (Kx_p + dx_*f_*vp)/(2.0f*g_); 
 	    const float hm = h_bar_m + Bm_m - B_face + (Kx_m + dx_*f_*vm)/(2.0f*g_);
 	    
@@ -432,11 +437,12 @@ __kernel void swe_2D(
 
 	    const float h_bar_p = R[0][l+2][k+1];
 	    const float h_bar_m = R[0][l+1][k+1];
-	    
+
+	    // Qy[2] is really dy*Ly
 	    const float Ly_p = Qy[2][j+1][i];
             const float Ly_m = Qy[2][j  ][i];
             
-            // Reconstruct h = L/g - U - B
+            // Reconstruct h 
 	    const float hp = h_bar_p + Bm_p - B_face + (-Ly_p + dy_*f_*up)/(2.0f*g_); 
 	    const float hm = h_bar_m + Bm_m - B_face + ( Ly_m - dy_*f_*um)/(2.0f*g_); 
 
@@ -479,8 +485,7 @@ __kernel void swe_2D(
             u0_, v0_,
             t_);
 
-	// TODO:
-	// Add bottom topography source terms!
+	// Bottom topography source terms!
 	const float st1 = -g_*R[0][j][i]*(RBx[ty  ][tx+1] - RBx[ty][tx]);
 	const float st2 = -g_*R[0][j][i]*(RBy[ty+1][tx  ] - RBy[ty][tx]);
         
