@@ -61,7 +61,7 @@ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
     float3 F;
     
     F.x = ((ap*Fm.x - am*Fp.x) + ap*am*(Qp.x-Qm.x))/(ap-am);
-    F.y = ((ap*Fm.y - am*Fp.y) + ap*am*(Qp.y-Qm.y))/(ap-am);
+    F.y = ((ap*Fm.y - am*Fp.y) + ap*am*(Fp.x-Fm.x))/(ap-am);
     F.z = (Qm.y + Qp.y > 0) ? Fm.z : Fp.z; //Upwinding to be consistent
     
     return F;
@@ -153,7 +153,7 @@ __kernel void swe_2D(
     __local float RBy[block_height+1][block_width  ];
 
 
-    theta_ = 1.5f;
+    // theta_ = 1.5f;
     
     //Read into shared memory
     for (int j=ty; j<block_height+6; j+=get_local_size(1)) {
