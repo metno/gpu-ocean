@@ -69,6 +69,7 @@ class CDKLM16:
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  h0AsWaterElevation=True, \
+                 reportGeostrophicEquilibrium=False, \
                  block_width=16, block_height=16):
         self.cl_ctx = cl_ctx
 
@@ -83,6 +84,14 @@ class CDKLM16:
         ghost_cells_y = 3
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, h0, hu0, hv0)
 
+        ## Allocating memory for geostrophical equilibrium variables
+        self.reportGeostrophicEquilibrium = np.int32(reportGeostrophicEquilibrium)
+        dummy_zero_array = np.zeros((ny+6, nx+6), dtype=np.float32, order='C') 
+        self.geoEq_uxpvy = Common.OpenCLArray2D(cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+        self.geoEq_Kx = Common.OpenCLArray2D(cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+        self.geoEq_Ly = Common.OpenCLArray2D(cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+
+        
         #Bathymetry
         self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Bi, boundary_conditions)
         
@@ -175,7 +184,12 @@ class CDKLM16:
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
                         self.t, \
-                        self.boundaryType )
+                        self.boundaryType, \
+                        np.int32(0), \
+                        self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
+                        self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
+                        self.geoEq_Ly.data, self.geoEq_Ly.pitch )
+
 
                 self.bc_kernel.boundaryCondition(self.cl_queue, \
                         self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
@@ -201,7 +215,11 @@ class CDKLM16:
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
                         self.t, \
-                        self.boundaryType )
+                        self.boundaryType, \
+                        self.reportGeostrophicEquilibrium, \
+                        self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
+                        self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
+                        self.geoEq_Ly.data, self.geoEq_Ly.pitch )
 
                 self.bc_kernel.boundaryCondition(self.cl_queue, \
                         self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
@@ -228,7 +246,11 @@ class CDKLM16:
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
                         self.t, \
-                        self.boundaryType )
+                        self.boundaryType, \
+                        self.reportGeostrophicEquilibrium, \
+                        self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
+                        self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
+                        self.geoEq_Ly.data, self.geoEq_Ly.pitch )
                 
                 self.cl_data.swap()
 
@@ -267,3 +289,15 @@ class CDKLM16:
 
     def downloadBathymetry(self):
         return self.bathymetry.download(self.cl_queue)
+
+    def downloadGeoEqNorm(self):
+        
+        uxpvy_cpu = self.geoEq_uxpvy.download(self.cl_queue)
+        Kx_cpu = self.geoEq_Kx.download(self.cl_queue)
+        Ly_cpu = self.geoEq_Ly.download(self.cl_queue)
+
+        uxpvy_norm = np.linalg.norm(uxpvy_cpu)
+        Kx_norm = np.linalg.norm(Kx_cpu)
+        Ly_norm = np.linalg.norm(Ly_cpu)
+
+        return uxpvy_norm, Kx_norm, Ly_norm

@@ -70,6 +70,8 @@ class RecursiveCDKLM16:
                  boundary_conditions=Common.BoundaryConditions(), \
                  h0AsWaterElevation=True, \
                  block_width=16, block_height=16):
+
+        print("Using RECURSIVE CDKLM scheme!")
         self.cl_ctx = cl_ctx
 
         #Create an OpenCL command queue

@@ -117,9 +117,17 @@ __kernel void swe_2D(
         float t_, 
     
         // Boundary conditions
-        int boundary_conditions_type_ // < 1: wall, 2: periodic, 
+        int boundary_conditions_type_, // < 1: wall, 2: periodic, 
                                        //   3: periodicNS, 4: periodicEW
-) {
+
+	// Geostrophic Equilibrium memory buffers
+	// The buffers have the same size as input/output
+	int report_geostrophical_equilibrium,
+	__global float* uxpvy_ptr_, int uxpvy_pitch_,
+	__global float* Kx_ptr_, int Kx_pitch_,
+	__global float* Ly_ptr_, int Ly_pitch_
+
+    ) {
         
     //Index of thread within block
     const int tx = get_local_id(0);
@@ -532,6 +540,20 @@ __kernel void swe_2D(
 	    //hv_row[ti] = RBy[ty][tx];
 
 	}
+
+	// Write geostrophical equilibrium variables:
+	if (report_geostrophical_equilibrium) {
+
+	    __global float* const uxpvy_row  = (__global float*) ((__global char*) uxpvy_ptr_ + uxpvy_pitch_*tj);
+	    __global float* const Kx_row = (__global float*) ((__global char*) Kx_ptr_ + Kx_pitch_*tj);
+	    __global float* const Ly_row = (__global float*) ((__global char*) Ly_ptr_ + Ly_pitch_*tj);
+
+	    uxpvy_row[ti] = Qx[0][ty][tx+1] + Qy[1][ty+1][tx]; // u_x + v_y
+	    Kx_row[ti]    = Qx[2][ty][tx+1];  // K_x
+	    Ly_row[ti]    = Qy[2][ty+1][tx];  // L_y
+	}
     }
+
+	
     
 }

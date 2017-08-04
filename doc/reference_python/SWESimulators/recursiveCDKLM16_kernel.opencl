@@ -560,7 +560,7 @@ __kernel void swe_2D(
             const float hv_b = 0.5f*(hv_a + hv1);
             
             //Write to main memory
-            h_row[ti] = h_b;
+            h_row[ti]  = h_b;
             hu_row[ti] = hu_b / (1.0f + 0.5f*C);
             hv_row[ti] = hv_b / (1.0f + 0.5f*C);
 	    //hu_row[ti] = RBx[ty][tx];
