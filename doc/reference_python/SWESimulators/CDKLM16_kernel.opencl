@@ -92,8 +92,9 @@ __kernel void swe_2D(
         
         float f_, //< Coriolis coefficient
         float r_, //< Bottom friction coefficient
-        
-        int step_,
+
+	int rk_order, // runge kutta order
+        int step_,    // runge kutta step
         
         //Input h^n
         __global float* h0_ptr_, int h0_pitch_,
@@ -496,49 +497,112 @@ __kernel void swe_2D(
 	// Bottom topography source terms!
 	const float st1 = -g_*R[0][j][i]*(RBx[ty  ][tx+1] - RBx[ty][tx]);
 	const float st2 = -g_*R[0][j][i]*(RBy[ty+1][tx  ] - RBy[ty][tx]);
-        
-        const float h1  = R[0][j][i] + (F[0][ty][tx] - F[0][ty  ][tx+1]) * dt_ / dx_ 
-                                     + (G[0][ty][tx] - G[0][ty+1][tx  ]) * dt_ / dy_;
-        const float hu1 = R[1][j][i] + (F[1][ty][tx] - F[1][ty  ][tx+1]) * dt_ / dx_ 
-                                     + (G[1][ty][tx] - G[1][ty+1][tx  ]) * dt_ / dy_
-                                     + dt_*X + dt_*f_*R[2][j][i] + st1*dt_/dx_;
-        const float hv1 = R[2][j][i] + (F[2][ty][tx] - F[2][ty  ][tx+1]) * dt_ / dx_ 
-                                     + (G[2][ty][tx] - G[2][ty+1][tx  ]) * dt_ / dy_
-                                     + dt_*Y - dt_*f_*R[1][j][i] + st2*dt_/dy_;
 
-        __global float* const h_row  = (__global float*) ((__global char*) h1_ptr_  + h1_pitch_*tj);
+
+        const float L1  = - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_ 
+	                  - (G[0][ty+1][tx  ] - G[0][ty][tx]) / dy_;
+        const float L2  = - (F[1][ty  ][tx+1] - F[1][ty][tx]) / dx_ 
+                          - (G[1][ty+1][tx  ] - G[1][ty][tx]) / dy_
+  	                  + (X + f_*R[2][j][i] + st1/dx_);
+        const float L3  = - (F[2][ty  ][tx+1] - F[2][ty][tx]) / dx_ 
+                          - (G[2][ty+1][tx  ] - G[2][ty][tx]) / dy_
+	                  + (Y - f_*R[1][j][i] + st2/dy_);
+	
+        
+	__global float* const h_row  = (__global float*) ((__global char*) h1_ptr_  + h1_pitch_*tj);
         __global float* const hu_row = (__global float*) ((__global char*) hu1_ptr_ + hu1_pitch_*tj);
         __global float* const hv_row = (__global float*) ((__global char*) hv1_ptr_ + hv1_pitch_*tj);
-        
-        const float C = 2.0f*r_*dt_/R[0][j][i];
-                     
-        if  (step_ == 0) {
-            //First step of RK2 ODE integrator
-            
-            h_row[ti] = h1;
-            hu_row[ti] = hu1 / (1.0f + C);
-            hv_row[ti] = hv1 / (1.0f + C);
-        }
-        else if (step_ == 1) {
-            //Second step of RK2 ODE integrator
-            
-            //First read Q^n
-            const float h_a  = h_row[ti];
-            const float hu_a = hu_row[ti];
-            const float hv_a = hv_row[ti];
-            
-            //Compute Q^n+1
-            const float h_b  = 0.5f*(h_a + h1);
-            const float hu_b = 0.5f*(hu_a + hu1);
-            const float hv_b = 0.5f*(hv_a + hv1);
-            
-            //Write to main memory
-            h_row[ti] = h_b;
-            hu_row[ti] = hu_b / (1.0f + 0.5f*C);
-            hv_row[ti] = hv_b / (1.0f + 0.5f*C);
-	    //hu_row[ti] = RBx[ty][tx];
-	    //hv_row[ti] = RBy[ty][tx];
 
+	if (rk_order < 3) {
+         
+	    const float C = 2.0f*r_*dt_/R[0][j][i];
+                     
+	    if  (step_ == 0) {
+		//First step of RK2 ODE integrator
+            
+		h_row[ti]  =  R[0][j][i] + dt_*L1;
+		hu_row[ti] = (R[1][j][i] + dt_*L2) / (1.0f + C);
+		hv_row[ti] = (R[2][j][i] + dt_*L3) / (1.0f + C);
+	    }
+	    else if (step_ == 1) {
+		//Second step of RK2 ODE integrator
+            
+		//First read Q^n
+		const float h_a  = h_row[ti];
+		const float hu_a = hu_row[ti];
+		const float hv_a = hv_row[ti];
+            
+		//Compute Q^n+1
+		const float h_b  = 0.5f*(h_a  + (R[0][j][i] + dt_*L1));
+		const float hu_b = 0.5f*(hu_a + (R[1][j][i] + dt_*L2));
+		const float hv_b = 0.5f*(hv_a + (R[2][j][i] + dt_*L3));
+            
+		//Write to main memory
+		h_row[ti] = h_b;
+		hu_row[ti] = hu_b / (1.0f + 0.5f*C);
+		hv_row[ti] = hv_b / (1.0f + 0.5f*C);
+		//hu_row[ti] = RBx[ty][tx];
+		//hv_row[ti] = RBy[ty][tx];
+
+	    }
+	}
+	
+	else if (rk_order == 3) {
+	    // Third order Runge Kutta - only valid if r_ = 0.0 (no friction)
+
+	    if (step_ == 0) {
+		//First step of RK3 ODE integrator
+		// q^(1) = q^n + dt*L(q^n)
+            
+		h_row[ti]  =  R[0][j][i] + dt_*L1;
+		hu_row[ti] = (R[1][j][i] + dt_*L2);
+		hv_row[ti] = (R[2][j][i] + dt_*L3);
+
+	    } else if (step_ == 1) {
+		// Second step of RK3 ODE integrator
+		// Q^(2) = 3/4 Q^n + 1/4 ( Q^(1) + dt*L(Q^(1)) )
+		// Q^n is here in h1, but will be used in next iteration as well --> write to h0
+
+		// First read Q^n:
+		const float h_a  = h_row[ti];
+		const float hu_a = hu_row[ti];
+		const float hv_a = hv_row[ti];
+
+		// Compute Q^(2):
+		const float h_b  = 0.75f*h_a  + 0.25f*(R[0][j][i] + dt_*L1);
+		const float hu_b = 0.75f*hu_a + 0.25f*(R[1][j][i] + dt_*L2);
+		const float hv_b = 0.75f*hv_a + 0.25f*(R[2][j][i] + dt_*L3);
+
+		// Write output to the input buffer:
+		__global float* const h_out_row  = (__global float*) ((__global char*) h0_ptr_  + h0_pitch_*tj);
+		__global float* const hu_out_row = (__global float*) ((__global char*) hu0_ptr_ + hu0_pitch_*tj);
+		__global float* const hv_out_row = (__global float*) ((__global char*) hv0_ptr_ + hv0_pitch_*tj);
+		h_out_row[ti] = h_b;
+		hu_out_row[ti] = hu_b;
+		hv_out_row[ti] = hv_b;
+		
+	    } else if (step_ == 2) {
+		// Third step of RK3 ODE integrator
+		// Q^n+1 = 1/3 Q^n + 2/3 (Q^(2) + dt*L(Q^(2))
+
+		// First read Q^n:
+		const float h_a  = h_row[ti];
+		const float hu_a = hu_row[ti];
+		const float hv_a = hv_row[ti];
+
+		// Compute Q^n+1:
+		const float h_b  = (h_a  + 2.0f*(R[0][j][i] + dt_*L1)) / 3.0f;
+		const float hu_b = (hu_a + 2.0f*(R[1][j][i] + dt_*L2)) / 3.0f;
+		const float hv_b = (hv_a + 2.0f*(R[2][j][i] + dt_*L3)) / 3.0f;
+
+		//Write to main memory
+		h_row[ti] = h_b;
+		hu_row[ti] = hu_b;
+		hv_row[ti] = hv_b;
+
+		__global float* const Kx_row = (__global float*) ((__global char*) Kx_ptr_ + Kx_pitch_*tj);	    
+		Kx_row[ti]    = 4;  // K_x
+	    }
 	}
 
 	// Write geostrophical equilibrium variables:

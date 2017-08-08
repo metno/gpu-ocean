@@ -65,7 +65,7 @@ class CDKLM16:
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
-                 theta=1.3, use_rk2=True, \
+                 theta=1.3, rk_order=2, \
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  h0AsWaterElevation=True, \
@@ -94,6 +94,11 @@ class CDKLM16:
         
         #Bathymetry
         self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Bi, boundary_conditions)
+
+        assert( rk_order < 4 or rk_order > 0 ), "Only 1st, 2nd and 3rd order Runge Kutta supported"
+
+        if (rk_order == 3):
+            assert(r == 0.0), "3rd order Runge Kutta supported only without friction"
         
         #Save input parameters
         #Notice that we need to specify them in the correct dataformat for the
@@ -107,7 +112,7 @@ class CDKLM16:
         self.f = np.float32(f)
         self.r = np.float32(r)
         self.theta = np.float32(theta)
-        self.use_rk2 = use_rk2
+        self.rk_order = np.int32(rk_order)
         self.wind_stress = wind_stress
         self.h0AsWaterElevation = h0AsWaterElevation
 
@@ -160,9 +165,9 @@ class CDKLM16:
 
             #self.bc_kernel.boundaryCondition(self.cl_queue, \
             #            self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
-
             
-            if (self.use_rk2):
+            # 2nd order Runge Kutta
+            if (self.rk_order == 2):
                 self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
                         self.dx, self.dy, local_dt, \
@@ -170,6 +175,7 @@ class CDKLM16:
                         self.theta, \
                         self.f, \
                         self.r, \
+                        self.rk_order, \
                         np.int32(0), \
                         self.cl_data.h0.data, self.cl_data.h0.pitch, \
                         self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
@@ -201,6 +207,7 @@ class CDKLM16:
                         self.theta, \
                         self.f, \
                         self.r, \
+                        self.rk_order, \
                         np.int32(1), \
                         self.cl_data.h1.data, self.cl_data.h1.pitch, \
                         self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
@@ -224,7 +231,7 @@ class CDKLM16:
                 self.bc_kernel.boundaryCondition(self.cl_queue, \
                         self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
                 
-            else:
+            elif (self.rk_order == 1):
                 self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
                         self.dx, self.dy, local_dt, \
@@ -232,6 +239,7 @@ class CDKLM16:
                         self.theta, \
                         self.f, \
                         self.r, \
+                        self.rk_order, \
                         np.int32(0), \
                         self.cl_data.h0.data, self.cl_data.h0.pitch, \
                         self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
@@ -256,7 +264,103 @@ class CDKLM16:
 
                 self.bc_kernel.boundaryCondition(self.cl_queue, \
                         self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
-              
+
+            # 3rd order RK method:
+            elif (self.rk_order == 3):
+                self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
+                        self.nx, self.ny, \
+                        self.dx, self.dy, local_dt, \
+                        self.g, \
+                        self.theta, \
+                        self.f, \
+                        self.r, \
+                        self.rk_order, \
+                        np.int32(0), \
+                        self.cl_data.h0.data, self.cl_data.h0.pitch, \
+                        self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
+                        self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
+                        self.cl_data.h1.data, self.cl_data.h1.pitch, \
+                        self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
+                        self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
+                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
+                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
+                        self.wind_stress.type, \
+                        self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
+                        self.wind_stress.x0, self.wind_stress.y0, \
+                        self.wind_stress.u0, self.wind_stress.v0, \
+                        self.t, \
+                        self.boundaryType, \
+                        np.int32(0), \
+                        self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
+                        self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
+                        self.geoEq_Ly.data, self.geoEq_Ly.pitch )
+
+
+                self.bc_kernel.boundaryCondition(self.cl_queue, \
+                        self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+
+                self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
+                        self.nx, self.ny, \
+                        self.dx, self.dy, local_dt, \
+                        self.g, \
+                        self.theta, \
+                        self.f, \
+                        self.r, \
+                        self.rk_order, \
+                        np.int32(1), \
+                        self.cl_data.h1.data, self.cl_data.h1.pitch, \
+                        self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
+                        self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
+                        self.cl_data.h0.data, self.cl_data.h0.pitch, \
+                        self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
+                        self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
+                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
+                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
+                        self.wind_stress.type, \
+                        self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
+                        self.wind_stress.x0, self.wind_stress.y0, \
+                        self.wind_stress.u0, self.wind_stress.v0, \
+                        self.t, \
+                        self.boundaryType, \
+                        self.reportGeostrophicEquilibrium, \
+                        self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
+                        self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
+                        self.geoEq_Ly.data, self.geoEq_Ly.pitch )
+
+                self.bc_kernel.boundaryCondition(self.cl_queue, \
+                        self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+
+                self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
+                        self.nx, self.ny, \
+                        self.dx, self.dy, local_dt, \
+                        self.g, \
+                        self.theta, \
+                        self.f, \
+                        self.r, \
+                        self.rk_order, \
+                        np.int32(2), \
+                        self.cl_data.h1.data, self.cl_data.h1.pitch, \
+                        self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
+                        self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
+                        self.cl_data.h0.data, self.cl_data.h0.pitch, \
+                        self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
+                        self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
+                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
+                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
+                        self.wind_stress.type, \
+                        self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
+                        self.wind_stress.x0, self.wind_stress.y0, \
+                        self.wind_stress.u0, self.wind_stress.v0, \
+                        self.t, \
+                        self.boundaryType, \
+                        self.reportGeostrophicEquilibrium, \
+                        self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
+                        self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
+                        self.geoEq_Ly.data, self.geoEq_Ly.pitch )
+
+                self.bc_kernel.boundaryCondition(self.cl_queue, \
+                        self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+                
             self.t += local_dt
             
         
