@@ -127,7 +127,7 @@ bool ProgramOptions::init(int argc, char *argv[])
         }
 
         if (vm.count("version")) {
-            pimpl->msg = "GPU EPS HAV, version 1.0\n";
+            pimpl->msg = "GPU Ocean, version 0.8\n";
             return false;
         }
 
@@ -222,14 +222,14 @@ float ProgramOptions::dx() const
 {
     assertInitialized();
     assert(pimpl->nx > 1);
-    return pimpl->width / (pimpl->nx - 1);
+    return pimpl->width / pimpl->nx;
 }
 
 float ProgramOptions::dy() const
 {
     assertInitialized();
     assert(pimpl->ny > 1);
-    return pimpl->height / (pimpl->ny - 1);
+    return pimpl->height / pimpl->ny;
 }
 
 double ProgramOptions::duration() const

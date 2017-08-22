@@ -8,6 +8,7 @@
 #include <boost/format.hpp>
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 
 using namespace std;
 
@@ -36,10 +37,10 @@ struct Simulator::SimulatorImpl
     cl::Buffer V;
     cl::Buffer eta;
     // host buffers:
-    Field2D _H;
-    Field2D _U;
-    Field2D _V;
-    Field2D _eta;
+    Field2D H_host;
+    Field2D U_host;
+    Field2D V_host;
+    Field2D eta_host;
 
     SimulatorImpl();
     void init(const OptionsPtr &, const InitCondPtr &);
@@ -55,10 +56,10 @@ Simulator::SimulatorImpl::SimulatorImpl()
 
 void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr &initCond)
 {
-	nx = initCond->nx();
-	ny = initCond->ny();
-	dx = initCond->dx();
-	dy = initCond->dy();
+	nx = initCond->getNx();
+	ny = initCond->getNy();
+	dx = initCond->getDx();
+	dy = initCond->getDy();
 	dt = std::min(dx, dy) * 0.05; // ### for now
 	r = 0.0024;
 	f = 0.f; // ### no influence for now
@@ -78,33 +79,33 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
     // ... H
     const int nx_H = nx;
     const int ny_H = ny;
-    _H = Field2D(new vector<float>(nx_H * ny_H), nx_H, ny_H, dx, dy);
-    _H.fill(initCond->H());
-    H = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * _H.data()->size(), _H.data()->data(), &error);
+    H_host = Field2D(new vector<float>(nx_H * ny_H), nx_H, ny_H, dx, dy);
+    H_host.fill(initCond->H());
+    H = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * H_host.getData()->size(), H_host.getData()->data(), &error);
     CL_CHECK(error);
 
     // ... U
     const int nx_U = nx + 1; //including ghost cells
     const int ny_U = ny;
-    _U = Field2D(new vector<float>(nx_U * ny_U), nx_U, ny_U, dx, dy);
-    _U.fill(0.0f);
-    U = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * _U.data()->size(), _U.data()->data(), &error);
+    U_host = Field2D(new vector<float>(nx_U * ny_U), nx_U, ny_U, dx, dy);
+    U_host.fill(0.0f);
+    U = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * U_host.getData()->size(), U_host.getData()->data(), &error);
     CL_CHECK(error);
 
     // ... V
     const int nx_V = nx;
     const int ny_V = ny + 1; //including ghost cells
-    _V = Field2D(new vector<float>(nx_V * ny_V), nx_V, ny_V, dx, dy);
-    _V.fill(0.0f);
-    V = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * _V.data()->size(), _V.data()->data(), &error);
+    V_host = Field2D(new vector<float>(nx_V * ny_V), nx_V, ny_V, dx, dy);
+    V_host.fill(0.0f);
+    V = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * V_host.getData()->size(), V_host.getData()->data(), &error);
     CL_CHECK(error);
 
     // ... eta
     const int nx_eta = nx;
     const int ny_eta = ny;
-    _eta = Field2D(new vector<float>(nx_eta * ny_eta), nx_eta, ny_eta, dx, dy);
-    _eta.fill(initCond->eta());
-    eta = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * _eta.data()->size(), _eta.data()->data(), &error);
+    eta_host = Field2D(new vector<float>(nx_eta * ny_eta), nx_eta, ny_eta, dx, dy);
+    eta_host.fill(initCond->eta());
+    eta = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * eta_host.getData()->size(), eta_host.getData()->data(), &error);
     CL_CHECK(error);
 }
 
@@ -138,18 +139,18 @@ void Simulator::SimulatorImpl::reconstructH(const OptionsPtr &options, const Ini
     const Field2D Hfi = initCond->H();
 
     // check preconditions on H
-    assert(Hfi.data()->size() == Hfi.nx() * Hfi.ny());
-    assert(Hfi.nx() == nx + 1);
-    assert(Hfi.ny() == ny + 1);
-    assert(Hfi.nx() > 2);
-    assert(Hfi.ny() > 2);
+    assert(Hfi.getData()->size() == Hfi.getNx() * Hfi.getNy());
+    assert(Hfi.getNx() == nx + 1);
+    assert(Hfi.getNy() == ny + 1);
+    assert(Hfi.getNx() > 2);
+    assert(Hfi.getNy() > 2);
 
     cl_int error = CL_SUCCESS;
 
     // create buffer for H (released from device after reconstruction is complete)
     H = cl::Buffer(
                 *OpenCLUtils::getContext(), CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                sizeof(float) * Hfi.nx() * Hfi.ny(), Hfi.data()->data(), &error);
+                sizeof(float) * Hfi.getNx() * Hfi.getNy(), Hfi.getData()->data(), &error);
     CL_CHECK(error);
 
     // ensure that we have enough local memory for the work-group
@@ -211,13 +212,13 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
 	ws.v0 = 0.0f;
     kernel->setArg(1, ws);
     kernel->setArg<cl::Buffer>(2, H);
-    kernel->setArg<int>(3, _H.nx()*sizeof(float));
+    kernel->setArg<int>(3, H_host.getNx()*sizeof(float));
     kernel->setArg<cl::Buffer>(4, U);
-    kernel->setArg<int>(5, _U.nx()*sizeof(float));
+    kernel->setArg<int>(5, U_host.getNx()*sizeof(float));
     kernel->setArg<cl::Buffer>(6, V);
-    kernel->setArg<int>(7, _V.nx()*sizeof(float));
+    kernel->setArg<int>(7, V_host.getNx()*sizeof(float));
     kernel->setArg<cl::Buffer>(8, eta);
-    kernel->setArg<int>(9, _eta.nx()*sizeof(float));
+    kernel->setArg<int>(9, eta_host.getNx()*sizeof(float));
     kernel->setArg<float>(10, currTime);
 
     // execute kernel
@@ -229,7 +230,7 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
         profInfo->time_computeU = OpenCLUtils::elapsedMilliseconds(event);
 
     // copy result from device to host
-    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(U, CL_TRUE, 0, sizeof(float) * _U.data()->size(), _U.data()->data(), 0, 0));
+    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(U, CL_TRUE, 0, sizeof(float) * U_host.getData()->size(), U_host.getData()->data(), 0, 0));
 }
 
 /**
@@ -263,13 +264,13 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
 	ws.v0 = 0.0f;
 	kernel->setArg(1, ws);
 	kernel->setArg<cl::Buffer>(2, H);
-	kernel->setArg<int>(3, _H.nx()*sizeof(float));
+	kernel->setArg<int>(3, H_host.getNx()*sizeof(float));
 	kernel->setArg<cl::Buffer>(4, U);
-	kernel->setArg<int>(5, _U.nx()*sizeof(float));
+	kernel->setArg<int>(5, U_host.getNx()*sizeof(float));
 	kernel->setArg<cl::Buffer>(6, V);
-	kernel->setArg<int>(7, _V.nx()*sizeof(float));
+	kernel->setArg<int>(7, V_host.getNx()*sizeof(float));
 	kernel->setArg<cl::Buffer>(8, eta);
-	kernel->setArg<int>(9, _eta.nx()*sizeof(float));
+	kernel->setArg<int>(9, eta_host.getNx()*sizeof(float));
 	kernel->setArg<float>(10, currTime);
 
     // execute kernel
@@ -281,7 +282,7 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
         profInfo->time_computeV = OpenCLUtils::elapsedMilliseconds(event);
 
     // copy result from device to host
-    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(V, CL_TRUE, 0, sizeof(float) * _V.data()->size(), _V.data()->data(), 0, 0));
+    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(V, CL_TRUE, 0, sizeof(float) * V_host.getData()->size(), V_host.getData()->data(), 0, 0));
 }
 
 /**
@@ -303,11 +304,11 @@ void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitC
 	args.r = r;
     kernel->setArg(0, args);
     kernel->setArg<cl::Buffer>(1, U);
-    kernel->setArg<int>(2, _U.nx()*sizeof(float));
+    kernel->setArg<int>(2, U_host.getNx()*sizeof(float));
     kernel->setArg<cl::Buffer>(3, V);
-    kernel->setArg<int>(4, _V.nx()*sizeof(float));
+    kernel->setArg<int>(4, V_host.getNx()*sizeof(float));
     kernel->setArg<cl::Buffer>(5, eta);
-    kernel->setArg<int>(6, _eta.nx()*sizeof(float));
+    kernel->setArg<int>(6, eta_host.getNx()*sizeof(float));
 
     // execute kernel
     cl::Event event;
@@ -318,7 +319,7 @@ void Simulator::SimulatorImpl::computeEta(const OptionsPtr &options, const InitC
         profInfo->time_computeEta = OpenCLUtils::elapsedMilliseconds(event);
 
     // copy result from device to host
-    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(eta, CL_TRUE, 0, sizeof(float) * _eta.data()->size(), _eta.data()->data(), 0, 0));
+    CL_CHECK(OpenCLUtils::getQueue()->enqueueReadBuffer(eta, CL_TRUE, 0, sizeof(float) * eta_host.getData()->size(), eta_host.getData()->data(), 0, 0));
 }
 
 Simulator::Simulator(const OptionsPtr &options, const InitCondPtr &initCond)
@@ -331,7 +332,7 @@ Simulator::~Simulator()
 {
 }
 
-bool Simulator::_init()
+bool Simulator::init()
 {
     // initialize OpenCL structures
     vector<pair<string, string> > sources;
@@ -355,23 +356,27 @@ bool Simulator::_init()
     return true;
 }
 
-double Simulator::_currTime() const
+double Simulator::currTime() const
 {
     return pimpl->currTime;
 }
 
-double Simulator::_maxTime() const
+double Simulator::maxTime() const
 {
     return pimpl->maxTime;
 }
 
-float Simulator::_deltaTime() const
+float Simulator::deltaTime() const
 {
     return pimpl->dt;
 }
 
-void Simulator::_execNextStep(ProfileInfo *profInfo)
+bool Simulator::execNextStep(ProfileInfo *profInfo)
 {
+	// check if a time-bounded simulation is exhausted
+	if ((options()->duration() >= 0) && (currTime() >= maxTime()))
+		return false;
+
     // compute U
     pimpl->computeU(options(), initCond(), profInfo);
 
@@ -382,39 +387,41 @@ void Simulator::_execNextStep(ProfileInfo *profInfo)
     pimpl->computeEta(options(), initCond(), profInfo);
 
     pimpl->currTime += pimpl->dt; // advance simulation time
+
+    return true;
 }
 
-Field2D Simulator::_H() const
+Field2D Simulator::H() const
 {
-    return pimpl->_H;
+    return pimpl->H_host;
 }
 
-Field2D Simulator::_U() const
+Field2D Simulator::U() const
 {
-    return pimpl->_U;
+    return pimpl->U_host;
 }
 
-Field2D Simulator::_V() const
+Field2D Simulator::V() const
 {
-    return pimpl->_V;
+    return pimpl->V_host;
 }
 
-Field2D Simulator::_eta() const
+Field2D Simulator::eta() const
 {
-    return pimpl->_eta;
+    return pimpl->eta_host;
 }
 
-float Simulator::_f() const
+float Simulator::f() const
 {
     return pimpl->f;
 }
 
-float Simulator::_r() const
+float Simulator::r() const
 {
     return pimpl->r;
 }
 
-void Simulator::_printStatus() const
+void Simulator::printStatus() const
 {
     cout << "Simulator::_printStatus(); options: " << *options() << endl;
 }
