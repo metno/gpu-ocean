@@ -31,7 +31,7 @@ std::pair<int, char **> createArgs(const std::string &s);
  */
 #define CHECK_VECTORS_EQUAL(f1, f2) \
     do { \
-        BOOST_CHECK(*(f1.data().get()) == *(f2.data().get())); \
+        BOOST_CHECK(*(f1.getData().get()) == *(f2.getData().get())); \
     } while (false)
 
 /**
@@ -41,10 +41,10 @@ std::pair<int, char **> createArgs(const std::string &s);
  */
 #define CHECK_FIELDS_EQUAL(f1, f2) \
     do { \
-        BOOST_CHECK_EQUAL(f1.nx(), f2.nx()); \
-        BOOST_CHECK_EQUAL(f1.ny(), f2.ny()); \
-        BOOST_CHECK_EQUAL(f1.dx(), f2.dx()); \
-        BOOST_CHECK_EQUAL(f1.dy(), f2.dy()); \
+        BOOST_CHECK_EQUAL(f1.getNx(), f2.getNx()); \
+        BOOST_CHECK_EQUAL(f1.getNy(), f2.getNy()); \
+        BOOST_CHECK_EQUAL(f1.getDx(), f2.getDx()); \
+        BOOST_CHECK_EQUAL(f1.getDy(), f2.getDy()); \
         CHECK_VECTORS_EQUAL(f1, f2); \
     } while (false)
 

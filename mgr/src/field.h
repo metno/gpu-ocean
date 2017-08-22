@@ -21,7 +21,7 @@ public:
     /**
      * Constructs the object with an initial field.
      */
-    Field2D(const FieldPtr &fp, int nx, int ny, float dx, float dy);
+    Field2D(const FieldPtr &fp_, int nx_, int ny_, float dx_, float dy_);
 
     /**
      * Constructs the object with an initial field.
@@ -36,27 +36,27 @@ public:
     /**
      * Returns the 1D representation.
      */
-    FieldPtr data() const;
+    FieldPtr getData() const;
 
     /**
      * Returns the number of grid points in the x dimension.
      */
-    int nx() const;
+    int getNx() const;
 
     /**
      * Returns the number of grid points in the y dimension.
      */
-    int ny() const;
+    int getNy() const;
 
     /**
      * Returns the width of a grid cell.
      */
-    float dx() const;
+    float getDx() const;
 
     /**
      * Returns the height of a grid cell.
      */
-    float dy() const;
+    float getDy() const;
 
     /**
      * Returns a reference to an element in a 2D field.
@@ -89,11 +89,11 @@ public:
 
 private:
 
-    int nx_;
-    int ny_;
-    float dx_;
-    float dy_;
-    FieldPtr data_;
+    int nx;
+    int ny;
+    float dx;
+    float dy;
+    FieldPtr data;
 
     /**
      * Validates the field (verifies that the number of elements is nx * ny etc.).
