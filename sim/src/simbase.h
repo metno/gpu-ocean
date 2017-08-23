@@ -18,24 +18,24 @@ public:
 
     /**
      * Initializes the simulator. This includes resetting the current and final step values.
-     * @returns Initialization status (true iff initialization was successful).
+     * @returns Initialization status (true if initialization was successful).
      */
-    bool init();
+	virtual bool init() = 0;
 
     /**
      * Returns the current simulation time in seconds.
      */
-    double currTime() const;
+    virtual double currTime() const = 0;
 
     /**
      * Returns the maximum simulation time in seconds.
      */
-    double maxTime() const;
+    virtual double maxTime() const = 0;
 
     /**
      * Returns the time (in seconds) by which to advance the simulation in each step.
      */
-    float deltaTime() const;
+    virtual float deltaTime() const = 0;
 
     /**
      * Executes the next simulation step and returns true if the simulation is not time-bounded
@@ -45,42 +45,42 @@ public:
      * @param profInfo: If non-null, structure in which profiling is written (if applicable).
      * @returns True iff a time-bounded simulation was not exhausted.
      */
-    bool execNextStep(ProfileInfo *profInfo = 0);
+    virtual bool execNextStep(ProfileInfo *profInfo = 0) = 0;
 
 	/**
      * Returns the equilibrium depth at the current simulation time.
      */
-    Field2D H() const;
+    virtual Field2D H() const = 0;
     
     /**
      * Returns the sea surface deviation away from the equilibrium depth at the current simulation time.
      */
-    Field2D eta() const;
+    virtual Field2D eta() const = 0;
 
     /**
      * Returns the depth averaged velocity in the x direction at the current simulation time.
      */
-    Field2D U() const;
+    virtual Field2D U() const = 0;
 
     /**
      * Returns the depth averaged velocity in the y direction at the current simulation time.
      */
-    Field2D V() const;
+    virtual Field2D V() const = 0;
 
     /**
      * Returns the friction.
      */
-    float f() const;
+    virtual float f() const = 0;
 
     /**
      * Returns the Coriolis effect.
      */
-    float r() const;
+    virtual float r() const = 0;
 
     /**
      * Prints status.
      */
-    void printStatus() const;
+    virtual void printStatus() const = 0;
 
     /**
      * Returns the program options.
@@ -92,6 +92,12 @@ public:
      */
     InitCondPtr initCond() const;
 
+    /**
+     * Asserts that the simulator is initialized with a successful call to init().
+     * @throws std::runtime_error if init() has not been successfully called.
+     */
+    virtual void assertInitialized() const = 0;
+
 protected:
 
     /**
@@ -102,28 +108,11 @@ protected:
     SimBase(const OptionsPtr &options, const InitCondPtr &initCond);
 
     virtual ~SimBase();
-    virtual bool _init() = 0;
-    virtual double _currTime() const = 0;
-    virtual double _maxTime() const = 0;
-    virtual float _deltaTime() const = 0;
-    virtual void _execNextStep(ProfileInfo *) = 0;
-    virtual Field2D _H() const = 0;
-    virtual Field2D _U() const = 0;
-    virtual Field2D _V() const = 0;
-    virtual Field2D _eta() const = 0;
-    virtual float _f() const = 0;
-    virtual float _r() const = 0;
-    virtual void _printStatus() const = 0;
 
 private:
     struct SimBaseImpl;
     SimBaseImpl *pimpl;
 
-    /**
-     * Asserts that the simulator is initialized with a successful call to init().
-     * @throws std::runtime_error if init() has not been successfully called.
-     */
-    void assertInitialized() const;
 };
 
 typedef std::shared_ptr<SimBase> SimBasePtr;

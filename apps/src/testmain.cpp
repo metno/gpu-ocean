@@ -13,7 +13,7 @@ using namespace std;
 
 static void processResults(const Field2D &eta, int step, double currTime, double maxTime, const OptionsPtr &options)
 {
-    cout << "processResults(): eta.data()->size(): " << eta.data()->size() << ", step: " << step << ", currTime: " << currTime
+    cout << "processResults(): eta.data()->size(): " << eta.getData()->size() << ", step: " << step << ", currTime: " << currTime
          << ", maxTime: " << maxTime << "; options: " << *options << ((currTime >= maxTime) ? "; (final results!)" : "") << endl;
 }
 

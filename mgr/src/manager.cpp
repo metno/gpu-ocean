@@ -94,9 +94,9 @@ void Manager::initSim()
                     ? new NetCDFWriter() // generate file names automatically
                     : new NetCDFWriter(ofname)); // use explicit file name
         pimpl->fileWriter->init(
-                    initConditions()->nx(), initConditions()->ny(), pimpl->sim->deltaTime(), initConditions()->dx(), initConditions()->dy(),
-                    pimpl->sim->f(), pimpl->sim->r(), initConditions()->H().data()->data(), initConditions()->eta().data()->data(),
-                    pimpl->sim->U().data()->data(), pimpl->sim->V().data()->data());
+                    initConditions()->getNx(), initConditions()->getNy(), pimpl->sim->deltaTime(), initConditions()->getDx(), initConditions()->getDy(),
+                    pimpl->sim->f(), pimpl->sim->r(), initConditions()->H().getData()->data(), initConditions()->eta().getData()->data(),
+                    pimpl->sim->U().getData()->data(), pimpl->sim->V().getData()->data());
     }
 	#endif
 }
@@ -110,9 +110,9 @@ bool Manager::execNextStep(ProfileInfo *profInfo)
 	#ifdef mgr_USE_NETCDF
     if (pimpl->fileWriter.get())
         pimpl->fileWriter->writeTimestep(
-                    pimpl->sim->eta().data()->data(),
-                    pimpl->sim->U().data()->data(),
-                    pimpl->sim->V().data()->data(),
+                    pimpl->sim->eta().getData()->data(),
+                    pimpl->sim->U().getData()->data(),
+                    pimpl->sim->V().getData()->data(),
                     pimpl->sim->currTime());
 	#endif
 
