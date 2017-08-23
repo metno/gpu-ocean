@@ -251,7 +251,7 @@ inline Field2D generateH(int nx, int ny, float width, float height, Field2D B, f
 
 #pragma omp parallel for
     for (int i = 0; i < f->size(); ++i) {
-        f->at(i) = w - B.data()->at(i);
+        f->at(i) = w - B.getData()->at(i);
         if (f->at(i) < 0.0f) {
 			cout << "Negative values in H are not allowed. (Increase global water elevation (w) or change bathymetry (B) input.)" << endl;
 			exit(-1);
@@ -424,12 +424,12 @@ void InitConditions::init(const OptionsPtr &options)
         pimpl->waterElevationField = generateWaterElevation(options->waterElevationNo(), pimpl->nx, pimpl->ny, pimpl->width, pimpl->height);
 }
 
-int InitConditions::nx() const
+int InitConditions::getNx() const
 {
     return pimpl->nx;
 }
 
-int InitConditions::ny() const
+int InitConditions::getNy() const
 {
     return pimpl->ny;
 }
@@ -444,13 +444,13 @@ float InitConditions::height() const
     return pimpl->height;
 }
 
-float InitConditions::dx() const
+float InitConditions::getDx() const
 {
     assert(pimpl->nx > 1);
     return pimpl->width / pimpl->nx;
 }
 
-float InitConditions::dy() const
+float InitConditions::getDy() const
 {
     assert(pimpl->ny > 1);
     return pimpl->height / pimpl->ny;
