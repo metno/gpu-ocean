@@ -30,12 +30,6 @@ SimBase::~SimBase()
 {
 }
 
-void SimBase::assertInitialized() const
-{
-    if (!pimpl->isInit)
-        throw runtime_error("SimBase: not initialized");
-}
-
 OptionsPtr SimBase::options() const
 {
     return pimpl->options;
