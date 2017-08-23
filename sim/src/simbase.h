@@ -92,6 +92,12 @@ public:
      */
     InitCondPtr initCond() const;
 
+    /**
+     * Asserts that the simulator is initialized with a successful call to init().
+     * @throws std::runtime_error if init() has not been successfully called.
+     */
+    virtual void assertInitialized() const = 0;
+
 protected:
 
     /**
@@ -107,11 +113,6 @@ private:
     struct SimBaseImpl;
     SimBaseImpl *pimpl;
 
-    /**
-     * Asserts that the simulator is initialized with a successful call to init().
-     * @throws std::runtime_error if init() has not been successfully called.
-     */
-    void assertInitialized() const;
 };
 
 typedef std::shared_ptr<SimBase> SimBasePtr;

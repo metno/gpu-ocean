@@ -14,6 +14,7 @@ using namespace std;
 
 struct Simulator::SimulatorImpl
 {
+	bool isInit; // true if Simulator is initialized
     int nx; // number of grid points excluding points on the outside of ghost cells (number of cells is nx - 1)
     int ny; // ...
     float dx; // grid cell size in meters
@@ -51,6 +52,7 @@ struct Simulator::SimulatorImpl
 };
 
 Simulator::SimulatorImpl::SimulatorImpl()
+	: isInit(false)
 {
 }
 
@@ -107,6 +109,8 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
     eta_host.fill(initCond->eta());
     eta = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * eta_host.getData()->size(), eta_host.getData()->data(), &error);
     CL_CHECK(error);
+
+    isInit = true;
 }
 
 // Returns the ceiling of the result of dividing two integers.
@@ -356,23 +360,34 @@ bool Simulator::init()
     return true;
 }
 
+void Simulator::assertInitialized() const
+{
+    if (!pimpl->isInit)
+        throw runtime_error("SimBase: not initialized");
+}
+
 double Simulator::currTime() const
 {
+	assertInitialized();
     return pimpl->currTime;
 }
 
 double Simulator::maxTime() const
 {
+	assertInitialized();
     return pimpl->maxTime;
 }
 
 float Simulator::deltaTime() const
 {
+	assertInitialized();
     return pimpl->dt;
 }
 
 bool Simulator::execNextStep(ProfileInfo *profInfo)
 {
+	assertInitialized();
+
 	// check if a time-bounded simulation is exhausted
 	if ((options()->duration() >= 0) && (currTime() >= maxTime()))
 		return false;
@@ -393,35 +408,42 @@ bool Simulator::execNextStep(ProfileInfo *profInfo)
 
 Field2D Simulator::H() const
 {
+	assertInitialized();
     return pimpl->H_host;
 }
 
 Field2D Simulator::U() const
 {
+	assertInitialized();
     return pimpl->U_host;
 }
 
 Field2D Simulator::V() const
 {
+	assertInitialized();
     return pimpl->V_host;
 }
 
 Field2D Simulator::eta() const
 {
+	assertInitialized();
     return pimpl->eta_host;
 }
 
 float Simulator::f() const
 {
+	assertInitialized();
     return pimpl->f;
 }
 
 float Simulator::r() const
 {
+	assertInitialized();
     return pimpl->r;
 }
 
 void Simulator::printStatus() const
 {
+	assertInitialized();
     cout << "Simulator::_printStatus(); options: " << *options() << endl;
 }

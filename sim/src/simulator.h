@@ -24,6 +24,7 @@ public:
 
 private:
     virtual bool init();
+    virtual void assertInitialized() const;
     virtual double currTime() const;
     virtual double maxTime() const;
     virtual float deltaTime() const;
