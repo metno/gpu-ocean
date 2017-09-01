@@ -13,7 +13,7 @@ def get_kernel(cl_ctx, kernel_filename, block_width, block_height):
     #Read the proper program
     module_path = os.path.dirname(os.path.realpath(__file__))
     fullpath = os.path.join(module_path, kernel_filename)
-    options = ['-I', "'" + module_path + "'"]
+    options = ['-I', module_path, '-I', "../../sim/src/kernels"]
     with open(fullpath, "r") as kernel_file:
         kernel_string = define_string + kernel_file.read()
         kernel = pyopencl.Program(cl_ctx, kernel_string).build(options)

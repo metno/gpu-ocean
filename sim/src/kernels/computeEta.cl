@@ -88,3 +88,39 @@ __kernel void computeEta(
         eta_row[ti] = eta_next;
     }
 }
+
+/**
+  * Python-wrapper.
+  */
+__kernel void computeEtaKernel(
+        //Discretization parameters
+        int nx, int ny,
+        float dx, float dy, float dt,
+
+        //Physical parameters
+        float g, //< Gravitational constant
+        float f, //< Coriolis coefficient
+        float r, //< Bottom friction coefficient
+
+        //Data
+        __global float* H_ptr, int H_pitch,
+        __global float* U_ptr, int U_pitch,
+        __global float* V_ptr, int V_pitch,
+        __global float* eta_ptr, int eta_pitch) {
+
+	computeEta_args args;
+	args.nx = nx;
+	args.ny = ny;
+	args.dt = dt;
+	args.dx = dx;
+	args.dy = dy;
+	args.r = r;
+	args.f = f;
+	args.g = g;
+
+    computeEta(args,
+        U_ptr, U_pitch,
+        V_ptr, V_pitch,
+        eta_ptr, eta_pitch);
+
+}
