@@ -77,7 +77,7 @@ __kernel void swe_2D(
     }
 
     //Make sure all threads have read into shared mem
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     //Save our input variables
@@ -111,7 +111,7 @@ __kernel void swe_2D(
             Q[2][j+1][i] = -Q[2][j][i];
         }
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     //Compute fluxes along the x axis
@@ -135,7 +135,7 @@ __kernel void swe_2D(
             F[2][j][i] = flux.z;
         }
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     //Evolve along x axis (dimensional splitting)
@@ -147,7 +147,7 @@ __kernel void swe_2D(
         Q[1][j][i] = Q[1][j][i] + (F[1][ty][tx] - F[1][ty  ][tx+1]) * dt_ / dx_;
         Q[2][j][i] = Q[2][j][i] + (F[2][ty][tx] - F[2][ty  ][tx+1]) * dt_ / dx_;
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     
@@ -177,7 +177,7 @@ __kernel void swe_2D(
             Q[2][j+1][i] = -Q[2][j][i];
         }
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     //Compute fluxes along the y axis
@@ -203,7 +203,7 @@ __kernel void swe_2D(
             G[2][j][i] = flux.y;
         }
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     

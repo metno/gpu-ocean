@@ -96,7 +96,7 @@ __kernel void computeEtaKernel(
     }
 
     //Make sure all threads have read into shared mem
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
 
     //Compute the H at the next timestep
     float eta2 = eta0 - 2.0f*dt_/dx_ * (U1_shared[ty][tx+1] - U1_shared[ty][tx])
