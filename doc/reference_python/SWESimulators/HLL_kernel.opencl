@@ -96,7 +96,7 @@ __kernel void swe_2D(
     }
     
     //Make sure all threads have read into shared mem
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
 
     {
@@ -126,7 +126,7 @@ __kernel void swe_2D(
         }
         
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     
@@ -165,7 +165,7 @@ __kernel void swe_2D(
     
 
     //Make sure all threads have finished computing fluxes
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     
