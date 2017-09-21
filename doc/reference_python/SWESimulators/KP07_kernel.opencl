@@ -101,7 +101,7 @@ __kernel void swe_2D(
             Q[2][j][i] = hv_row[k];
         }
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     
@@ -153,7 +153,7 @@ __kernel void swe_2D(
             Q[2][j+2][i] = -Q[2][j-1][i];
         }
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     
@@ -179,7 +179,7 @@ __kernel void swe_2D(
             }
         }
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     
@@ -230,7 +230,7 @@ __kernel void swe_2D(
             G[2][j][i] = flux.y;
         }
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     
