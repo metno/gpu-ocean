@@ -77,9 +77,13 @@ class FBL:
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
 
         #Get kernels
-        self.u_kernel = Common.get_kernel(self.cl_ctx, "FBL_U_kernel.opencl", block_width, block_height)
-        self.v_kernel = Common.get_kernel(self.cl_ctx, "FBL_V_kernel.opencl", block_width, block_height)
-        self.eta_kernel = Common.get_kernel(self.cl_ctx, "FBL_eta_kernel.opencl", block_width, block_height)
+        self.u_kernel = Common.get_kernel(self.cl_ctx, "../../../sim/src/kernels/computeU.cl", block_width, block_height)
+        self.v_kernel = Common.get_kernel(self.cl_ctx, "../../../sim/src/kernels/computeV.cl", block_width, block_height)
+        self.eta_kernel = Common.get_kernel(self.cl_ctx, "../../../sim/src/kernels/computeEta.cl", block_width, block_height)
+        
+        #self.u_kernel = Common.get_kernel(self.cl_ctx, "FBL_U_kernel.opencl", block_width, block_height)
+        #self.v_kernel = Common.get_kernel(self.cl_ctx, "FBL_V_kernel.opencl", block_width, block_height)
+        #self.eta_kernel = Common.get_kernel(self.cl_ctx, "FBL_eta_kernel.opencl", block_width, block_height)
         
         #Create data by uploading to device
         ghost_cells_x = 0

@@ -137,3 +137,61 @@ __kernel void computeV(
         V_row[ti] = V_next;
     }
 }
+
+/**
+  * Python-wrapper.
+  */
+__kernel void computeVKernel(
+        //Discretization parameters
+        int nx, int ny,
+        float dx, float dy, float dt,
+
+        //Physical parameters
+        float g, //< Gravitational constant
+        float f, //< Coriolis coefficient
+        float r, //< Bottom friction coefficient
+
+        //Data
+        __global float* H_ptr, int H_pitch,
+        __global float* U_ptr, int U_pitch,
+        __global float* V_ptr, int V_pitch,
+        __global float* eta_ptr, int eta_pitch,
+
+        // Wind stress parameters
+        int wind_stress_type,
+        float tau0, float rho, float alpha, float xm, float Rc,
+        float x0, float y0,
+        float u0, float v0,
+        float t) {
+
+	computeV_args args;
+	args.nx = nx;
+	args.ny = ny;
+	args.dt = dt;
+	args.dx = dx;
+	args.dy = dy;
+	args.r = r;
+	args.f = f;
+	args.g = g;
+
+	windStress_args ws;
+	ws.wind_stress_type = wind_stress_type;
+	ws.tau0 = tau0;
+	ws.rho = rho;
+	ws.alpha = alpha;
+	ws.xm = xm;
+	ws.Rc = Rc;
+	ws.x0 = x0;
+	ws.y0 = y0;
+	ws.u0 = u0;
+	ws.v0 = v0;
+
+    computeV(args,
+        ws,
+        H_ptr, H_pitch,
+        U_ptr, U_pitch,
+        V_ptr, V_pitch,
+        eta_ptr, eta_pitch,
+        t);
+
+}
