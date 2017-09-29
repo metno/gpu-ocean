@@ -27,7 +27,10 @@ This file contains functions for creating initial conditions
 and bathymetry
 """
 
-## A common initial condition maker:
+"""
+make*Bump functions generate a bump on a selected part of the domain
+and leave the rest of the water surface unchanged"
+"""
 def makeCornerBump(eta, nx, ny, dx, dy, halo):
     x_center = 4*dx
     y_center = 4*dy
@@ -75,6 +78,10 @@ def makeLowerLeftBump(eta, nx, ny, dx, dy, halo):
                 
                 
 ## Adding initial conditions on top of an existing initialCondition:
+"""
+add*Bump functions add a bump to a selected part of the domain on top of 
+the already existing input array
+"""
 def addCornerBump(eta, nx, ny, dx, dy, halo):
     x_center = 4*dx
     y_center = 4*dy
@@ -139,7 +146,12 @@ def addDebugBump(eta, nx, ny, dx, dy, posx, posy, halo):
             size = 500.0*min(dx, dy)
             if (np.sqrt(x**2 + y**2) < size):
                 eta[j+halo[2], i+halo[3]] += np.exp(-(x**2/size+y**2/size))
-                
+
+"""
+Generates a smooth jeté along the x-axis at y=0.25*ny
+This is done by decreasing the water depth and is therefore best
+suited for staggered schemes.
+"""
 def addTopographyBump(h, nx, ny, dx, dy, halo, bumpsize):
     # Creating a bump in y direction (uniform in x direction)
     yPos = np.floor(ny*0.25)
@@ -151,6 +163,10 @@ def addTopographyBump(h, nx, ny, dx, dy, halo, bumpsize):
             r = 0.01*(yPos - j)**2
             h[j+halo[2], i+halo[3]] -= bumpsize*np.exp(-r) 
 
+"""
+Generates a crater in the bathymetry B centered in the middle of the domain.
+Can also be described as a radial bottom bump.
+"""            
 def makeBathymetryCrater(B, nx, ny, dx, dy, halo):
     x_center = dx*nx/2.0
     y_center = dy*ny/2.0
@@ -166,7 +182,10 @@ def makeBathymetryCrater(B, nx, ny, dx, dy, halo):
                 B[j+halo[2], i+halo[3]] = 30.0*np.sin((radius - innerEdge)/(outerEdge - innerEdge)*np.pi )**2
             else:
                 B[j+halo[2], i+halo[3]] = 0.0
-                
+
+"""
+Adds a semi-crazy bottom consisting of a few periods of sines both in x and y direction. 
+"""
 def makeBathymetryCrazyness(B, nx, ny, dx, dy, halo):
     length = dx*nx*1.0
     height = dy*ny*1.0
@@ -175,13 +194,21 @@ def makeBathymetryCrazyness(B, nx, ny, dx, dy, halo):
             x = dx*i*1.0
             y = dy*j*1.0
             B[j+halo[2], i+halo[3]] = 25.0*(np.sin(np.pi*(x/length)*4)**2 + np.sin(np.pi*(y/height)*4)**2)
-            
+
+"""
+Generates a bathymetry with a constant slope along the x-axis.
+B(x,y) = low + x*(high-low)/(nx*dx)
+"""
 def linearBathymetryX(B, nx, ny, dx, dy, halo, low, high):
     length=dx*nx*1.0
     gradient = (high-low)/length
     for j in range(0, ny+1):
         for i in range(0, nx+1):
             B[j+halo[2], i+halo[3]] = low + i*dx*gradient
+"""
+Generates a bathymetry with a constant slope along the y-axis.
+B(x,y) = low + y*(high-low)/(ny*dy)
+"""
             
 def linearBathymetryY(B, nx, ny, dx, dy, halo, low, high):
     length=dy*ny*1.0
@@ -190,7 +217,9 @@ def linearBathymetryY(B, nx, ny, dx, dy, halo, low, high):
         for i in range(0, nx+1):
             B[j+halo[2], i+halo[3]] = low + j*dy*gradient
             
-            
+"""
+Generates a smooth jeté diagonally across the domain
+"""            
 def diagonalWallBathymetry(B, nx, ny, dx, dy, halo, height):
     for j in range(0, ny+1):
         for i in range(0, nx+1):
@@ -199,13 +228,19 @@ def diagonalWallBathymetry(B, nx, ny, dx, dy, halo, height):
                 factor = 1 - np.exp(-0.01*(abs(10 - j + i)**2))
             B[j+halo[2], i+halo[3]] = factor*height*np.exp(-0.006*(abs(100-j - i)**2))
 
-                
+"""
+Generates initial conditions for a dam break, where the dam is diagonal in a 
+corner of the domain
+"""                
 def addDiagonalDam(h, nx, ny, dx, dy, halo, height):
     for j in range(0, ny+1):
         for i in range(0, nx+1):
             if ( i+j < 50):
                 h[j+halo[2], i+halo[3]] += height
-                
+            
+"""
+Generates a smooth jeté along the x-axis across the domain
+"""                 
 def straightWallBathymetry(B, nx, ny, dx, dy, halo, height):
     for j in range(0, ny+1):
         for i in range(0, nx+1):
@@ -214,13 +249,20 @@ def straightWallBathymetry(B, nx, ny, dx, dy, halo, height):
                 factor = 1 - np.exp(-0.05*(abs(50 - i)**2))
             B[j+halo[2], i+halo[3]] = factor*height*np.exp(-0.01*(abs(80-j)**2))
 
+"""
+Generates initial conditions for a dam break, where the dam is across the
+entire domain along the x-axis, located at y = dam_start_y
+"""       
 def addStraightDam(h, nx, ny, dx, dy, halo, height, dam_start_y=30):
     for j in range(0, ny+1):
         if ( j < dam_start_y):
             for i in range(0, nx+1):
                 h[j+halo[2], i+halo[3]] += height
-                
-# Continental shelf in the sou
+
+"""
+Adds a continental shelf in the south of the domain.
+The shelf is sharp and discontinuous
+"""                
 def addContinentalShelfBathymetry(B, nx, ny, halo, shallow, deep, where_in_y):
     where_in_ny = ny*where_in_y
     for j in range(0, ny+1):
@@ -231,8 +273,17 @@ def addContinentalShelfBathymetry(B, nx, ny, halo, shallow, deep, where_in_y):
             for i in range(0, nx+1):
                 B[j+halo[2], i+halo[3]] = deep;
 
+"""
+Adds a smooth continental shelf in the south of the domain.
+The shelf is smooth in order to avoid discontinuous bathymetry
+"""
+def addContinentalShelfBathymetrySmooth(B, nx, ny, halo, shallow, deep, where_in_y):
+    print "addContinentalShelfBathymetrySmooth not implemented"
+    
+
                 
 """
+Dual vortex initial conditions.
 Qualitatively inspired by the figures in this paper:
 http://journals.ametsoc.org/doi/pdf/10.1175/1520-0469(1992)049%3C2015:LMOASW%3E2.0.CO%3B2
 """
