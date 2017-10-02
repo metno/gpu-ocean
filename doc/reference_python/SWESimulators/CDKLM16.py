@@ -166,6 +166,13 @@ class CDKLM16:
     def cleanUp(self):
         if self.write_netcdf:
             self.sim_writer.__exit__(0,0,0)
+            self.write_netcdf = False
+        self.cl_data.release()
+        self.geoEq_uxpvy.release()
+        self.geoEq_Kx.release()
+        self.geoEq_Ly.release()
+        self.bathymetry.release()
+        self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
     
     """
     Function which steps n timesteps
@@ -382,8 +389,8 @@ class CDKLM16:
                 
             self.t += local_dt
             
-        #if self.write_netcdf:
-        #    self.sim_writer.writeTimestep(self)
+        if self.write_netcdf:
+            self.sim_writer.writeTimestep(self)
             
         return self.t
     
