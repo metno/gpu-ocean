@@ -56,11 +56,12 @@ class SimNetCDFWriter:
         # Simulator info
         self.sim = sim
         self.boundary_conditions = str(sim.boundary_conditions)
-        self.init_conditions_h = sim.h_init
-        self.init_conditions_u = sim.hu_init/sim.h_init
-        self.init_conditions_v = sim.hv_init/sim.h_init
+        
         self.dt = sim.dt
-        self.bathymetry = sim.bathymetry.download(self.cl_queue)[0]
+        if self.staggered_grid:
+            self.bathymetry = -sim.H.download(self.cl_queue)
+        else:
+            self.bathymetry = sim.bathymetry.download(self.cl_queue)[1] # Bm
         self.time_integrator = sim.rk_order
         self.minmod_theta = sim.theta
         self.coriolis_force = sim.f
@@ -81,16 +82,14 @@ class SimNetCDFWriter:
 
         #Create dimensions 
         self.ncfile.createDimension('time', None) #Unlimited time dimension
+        self.ncfile.createDimension('x', nx + 2*self.ghost_cells_x)
+        self.ncfile.createDimension('y', ny + 2*self.ghost_cells_y)
         if (not self.ignore_ghostcells) and (self.staggered_grid):
-            self.ncfile.createDimension('x_eta', nx + 2*self.ghost_cells_x)
-            self.ncfile.createDimension('y_eta', ny + 2*self.ghost_cells_y)
-            self.ncfile.createDimension('x_u',   nx + 2*self.ghost_cells_x - 1)
+            self.ncfile.createDimension('x_u',   nx + 2*self.ghost_cells_x + 1)
             self.ncfile.createDimension('y_u',   ny + 2*self.ghost_cells_y)
             self.ncfile.createDimension('x_v',   nx + 2*self.ghost_cells_x)
-            self.ncfile.createDimension('y_v',   ny + 2*self.ghost_cells_y - 1)
-        elif (not self.ignore_ghostcells) and (not self.staggered_grid):
-            self.ncfile.createDimension('x', nx + 2*self.ghost_cells_x)
-            self.ncfile.createDimension('y', ny + 2*self.ghost_cells_y)
+            self.ncfile.createDimension('y_v',   ny + 2*self.ghost_cells_y + 1)
+
         #Create axis
         self.nc_time = self.ncfile.createVariable('time', np.dtype('float32').char, 'time')
         x = self.ncfile.createVariable('x', np.dtype('float32').char, 'x')
@@ -101,6 +100,20 @@ class SimNetCDFWriter:
         x.axis = "X"
         y.axis = "Y"
 
+        if (not self.ignore_ghostcells) and (self.staggered_grid):
+            x_u = self.ncfile.createVariable('x_u', np.dtype('float32').char, 'x_u')
+            y_u = self.ncfile.createVariable('y_u', np.dtype('float32').char, 'y_u')
+            x_u.standard_name = "projection_x_coordinate"
+            y_u.standard_name = "projection_y_coordinate"
+            x_u.axis = "X"
+            y_u.axis = "Y"
+            x_v = self.ncfile.createVariable('x_v', np.dtype('float32').char, 'x_v')
+            y_v = self.ncfile.createVariable('y_v', np.dtype('float32').char, 'y_v')
+            x_v.standard_name = "projection_x_coordinate"
+            y_v.standard_name = "projection_y_coordinate"
+            x_v.axis = "X"
+            y_v.axis = "Y"
+            
         #Create bogus projection variable
         self.nc_proj = self.ncfile.createVariable('projection_stere', np.dtype('int32').char)
         self.nc_proj.grid_mapping_name = 'polar_stereographic'
@@ -110,33 +123,35 @@ class SimNetCDFWriter:
         self.nc_proj.earth_radius = 6371000.0
         self.nc_proj.proj4 = '+proj=stere +lat_0=90 +lon_0=70 +lat_ts=60 +units=m +a=6.371e+06 +e=0 +no_defs'
 
+        x[:] = np.linspace(-self.ghost_cells_x*dx + dx/2.0, \
+                           (nx + self.ghost_cells_x)*dx - dx/2.0, \
+                           nx + 2*self.ghost_cells_x)
+        y[:] = np.linspace(-self.ghost_cells_y*dy + dy/2.0, \
+                           (ny + self.ghost_cells_y)*dy - dy/2.0, \
+                           ny + 2*self.ghost_cells_y)
         if not self.ignore_ghostcells and self.staggered_grid:
-            x_eta[:] = np.linspace(-dx/2.0, nx*dx + dx/2.0, nx+2)
-            y_eta[:] = np.linspace(-dy/2.0, ny*dy + dy/2.0, ny+2)
-            x_u[:] = np.linspace(0, nx*dx, nx+1)
-            y_u[:] = np.linspace(-dy/2.0, ny*dy + dy/2.0, ny+2)
-            x_v[:] = np.linspace(-dx/2.0, nx*dx + dx/2.0, nx+2)
-            y_v[:] = np.linspace(0, ny*dy, ny+1)
-        elif not self.ignore_ghostcells and not self.staggered_grid:
-            x[:] = np.linspace(-self.ghost_cells_x*dx + dx/2.0, \
-                               (nx + self.ghost_cells_x)*dx - dx/2.0, \
-                               nx + 2*self.ghost_cells_x)
-            y[:] = np.linspace(-self.ghost_cells_y*dy + dy/2.0, \
-                               (ny + self.ghost_cells_y)*dy - dy/2.0, \
+            x_u[:] = np.linspace(-self.ghost_cells_x*dx, \
+                                 (nx + 2*self.ghost_cells_x)*dx, \
+                                 nx + 2*self.ghost_cells_x + 1)
+            y_u[:] = np.linspace(-self.ghost_cells_y*dy + dy/2.0, \
+                               (ny + self.ghost_cells_y)*dy + dy/2.0, \
                                ny + 2*self.ghost_cells_y)
-
+            x_v[:] = np.linspace(-self.ghost_cells_x*dx + dx/2.0, \
+                               (nx + self.ghost_cells_x)*dx + dx/2.0, \
+                               nx + 2*self.ghost_cells_x)
+            y_v[:] = np.linspace(-self.ghost_cells_y*dy, \
+                                 (ny + 2*self.ghost_cells_y)*dy, \
+                                 ny + 2*self.ghost_cells_y + 1)
+            
         #Set units
         self.nc_time.units = 'seconds since 1970-01-01 00:00:00'
+        x.units = 'meter'
+        y.units = 'meter'
         if self.staggered_grid:
-            x_eta.units = 'meter'
-            y_eta.units = 'meter'
             x_u.units = 'meter'
             y_u.units = 'meter'
             x_v.units = 'meter'
             y_v.units = 'meter'
-        else:
-            x.units = 'meter'
-            y.units = 'meter'
 
         #Create a land mask (with no land)
         self.nc_land = self.ncfile.createVariable('land_binary_mask', np.dtype('float32').char, ('y', 'x'))
@@ -144,9 +159,23 @@ class SimNetCDFWriter:
         self.nc_land.units = '1'
         self.nc_land[:] = 0
 
+        # Create info about bathymetry
+        self.nc_bathymetry = self.ncfile.createVariable('bathymetry', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
+        self.nc_bathymetry.standard_name = 'bedrock_altitude'
+        self.nc_bathymetry.grid_mapping = 'projection_stere'
+        self.nc_bathymetry.coordinates = 'lon lat'
+        self.nc_bathymetry.units = 'meter'
+        self.nc_bathymetry[0, :] = self.bathymetry
+        
+        
         self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
-        self.nc_u = self.ncfile.createVariable('u', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
-        self.nc_v = self.ncfile.createVariable('v', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
+        if self.staggered_grid:
+            self.nc_u = self.ncfile.createVariable('u', np.dtype('float32').char, ('time', 'y_u', 'x_u'), zlib=True)
+            self.nc_v = self.ncfile.createVariable('v', np.dtype('float32').char, ('time', 'y_v', 'x_v'), zlib=True)
+        else:
+            self.nc_u = self.ncfile.createVariable('u', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
+            self.nc_v = self.ncfile.createVariable('v', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
+            
         self.nc_eta.standard_name = 'sea_water_elevation'
         self.nc_u.standard_name = 'x_sea_water_velocity'
         self.nc_v.standard_name = 'y_sea_water_velocity'
@@ -166,124 +195,6 @@ class SimNetCDFWriter:
         self.i = 0
         self.writeTimestep(sim)
 
-
-    #--------------------------------------------------------------___#
-        
-    def oldInit(self, outfilename, nx, ny, dx, dy, num_layers=1, ignore_ghostcells=True, \
-                width=1, height=1):
-        self.ncfile = Dataset(outfilename,'w', clobber=True) 
-        self.ignore_ghostcells = ignore_ghostcells
-        self.num_layers = num_layers
-        
-        #Create dimensions 
-        self.ncfile.createDimension('time', None) #Unlimited time dimension
-        if (self.ignore_ghostcells):
-            #self.ncfile.createDimension('x_eta', nx)
-            #self.ncfile.createDimension('y_eta', ny)
-            #self.ncfile.createDimension('x_u', nx-1)
-            #self.ncfile.createDimension('y_u', ny)
-            #self.ncfile.createDimension('x_v', nx)
-            #self.ncfile.createDimension('y_v', ny-1)
-            self.ncfile.createDimension('x', nx-1)
-            self.ncfile.createDimension('y', ny-1)
-        else:
-            self.ncfile.createDimension('x_eta', nx+2)
-            self.ncfile.createDimension('y_eta', ny+2)
-            self.ncfile.createDimension('x_u', nx+1)
-            self.ncfile.createDimension('y_u', ny+2)
-            self.ncfile.createDimension('x_v', nx+2)
-            self.ncfile.createDimension('y_v', ny+1)
-
-        #Create axis
-        self.nc_time = self.ncfile.createVariable('time', np.dtype('float32').char, 'time')
-        #x_eta = self.ncfile.createVariable('x_eta', np.dtype('float32').char, 'x_eta')
-        #y_eta = self.ncfile.createVariable('y_eta', np.dtype('float32').char, 'y_eta')
-        #x_u = self.ncfile.createVariable('x_u', np.dtype('float32').char, 'x_u')
-        #y_u = self.ncfile.createVariable('y_u', np.dtype('float32').char, 'y_u')
-        #x_v = self.ncfile.createVariable('x_v', np.dtype('float32').char, 'x_v')
-        #y_v = self.ncfile.createVariable('y_v', np.dtype('float32').char, 'y_v')
-        x = self.ncfile.createVariable('x', np.dtype('float32').char, 'x')
-        y = self.ncfile.createVariable('y', np.dtype('float32').char, 'y')
-        
-        x.standard_name = "projection_x_coordinate"
-        y.standard_name = "projection_y_coordinate"
-        
-        x.axis = "X"
-        y.axis = "Y"
-        
-        #Create bogus projection variable
-        self.nc_proj = self.ncfile.createVariable('projection_stere', np.dtype('int32').char)
-        self.nc_proj.grid_mapping_name = 'polar_stereographic'
-        self.nc_proj.scale_factor_at_projection_origin = 0.9330127018922193
-        self.nc_proj.straight_vertical_longitude_from_pole = 70.0
-        self.nc_proj.latitude_of_projection_origin = 90.0
-        self.nc_proj.earth_radius = 6371000.0
-        self.nc_proj.proj4 = '+proj=stere +lat_0=90 +lon_0=70 +lat_ts=60 +units=m +a=6.371e+06 +e=0 +no_defs'
-        
-        #Set axis values/ticks
-        if (self.ignore_ghostcells):
-            #x_eta[:] = np.linspace(dx/2.0, nx*dx - dx/2.0, nx)
-            #y_eta[:] = np.linspace(dy/2.0, ny*dy - dy/2.0, ny)
-            #x_u[:] = np.linspace(1, (nx-1)*dx, nx-1)
-            #y_u[:] = np.linspace(dy/2.0, ny*dy - dy/2.0, ny)
-            #x_v[:] = np.linspace(dx/2.0, nx*dx - dx/2.0, nx)
-            #y_v[:] = np.linspace(1, (ny-1)*dy, ny-1)
-            x[:] = np.linspace(0, width, nx-1)
-            y[:] = np.linspace(0, height, ny-1)
-        else:
-            x_eta[:] = np.linspace(-dx/2.0, nx*dx + dx/2.0, nx+2)
-            y_eta[:] = np.linspace(-dy/2.0, ny*dy + dy/2.0, ny+2)
-            x_u[:] = np.linspace(0, nx*dx, nx+1)
-            y_u[:] = np.linspace(-dy/2.0, ny*dy + dy/2.0, ny+2)
-            x_v[:] = np.linspace(-dx/2.0, nx*dx + dx/2.0, nx+2)
-            y_v[:] = np.linspace(0, ny*dy, ny+1)
-            
-        #Set units
-        self.nc_time.units = 'seconds since 1970-01-01 00:00:00'
-        #x_eta.units = 'm'
-        #y_eta.units = 'm'
-        #x_u.units = 'm'
-        #y_u.units = 'm'
-        #x_v.units = 'm'
-        #y_v.units = 'm'
-        x.units = 'm'
-        y.units = 'm'
-
-        # Reference time does not make sense at this time, but at least we are following
-        # the CF conventions.
-        #self.nc_time.reference_time = date.today().isoformat()
-
-        #Create output data variables
-        #self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'y_eta', 'x_eta'))
-        #self.nc_u = self.ncfile.createVariable('u', np.dtype('float32').char, ('time', 'y_u', 'x_u'))
-        #self.nc_v = self.ncfile.createVariable('v', np.dtype('float32').char, ('time', 'y_v', 'x_v'))
-        
-        #Create a land mask (with no land)
-        self.nc_land = self.ncfile.createVariable('land_binary_mask', np.dtype('float32').char, ('y', 'x'))
-        self.nc_land.standard_name = 'land_binary_mask'
-        self.nc_land.units = '1'
-        self.nc_land[:] = 0
-        
-        self.nc_u = self.ncfile.createVariable('u', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
-        self.nc_v = self.ncfile.createVariable('v', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
-        self.nc_u.standard_name = 'x_sea_water_velocity'
-        self.nc_v.standard_name = 'y_sea_water_velocity'
-        self.nc_u.grid_mapping = 'projection_stere'
-        self.nc_v.grid_mapping = 'projection_stere'
-        self.nc_u.coordinates = 'lon lat'
-        self.nc_v.coordinates = 'lon lat'
-        
-        if(num_layers == 2):
-            self.nc_eta2 = self.ncfile.createVariable('eta2', np.dtype('float32').char, ('time', 'y_eta', 'x_eta'))
-            self.nc_u2 = self.ncfile.createVariable('u2', np.dtype('float32').char, ('time', 'y_u', 'x_u'))
-            self.nc_v2 = self.ncfile.createVariable('v2', np.dtype('float32').char, ('time', 'y_v', 'x_v'))
-        
-        #Set units
-        #self.nc_eta.units = 'm'
-        #self.nc_u.units = 'm'
-        #self.nc_v.units = 'm'
-        self.nc_u.units = 'meter second-1'
-        self.nc_v.units = 'meter second-1'
 
         
     def __str__(self):
@@ -326,6 +237,7 @@ class SimNetCDFWriter:
             self.nc_u[self.i, :] = hu
             self.nc_v[self.i, :] = hv
             print("TIMESTEP WRITTEN!")
+            
         self.i += 1
 
             

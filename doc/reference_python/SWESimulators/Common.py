@@ -203,7 +203,17 @@ class SWEDataArakawaC:
         
         return h_cpu, hu_cpu, hv_cpu
 
-
+    """
+    Frees the allocated memory buffers on the GPU 
+    """
+    def release(self):
+        self.h0.release()
+        self.hu0.release()
+        self.hv0.release()
+        self.h1.release()
+        self.hu1.release()
+        self.hv1.release()
+        
     
 
 """
