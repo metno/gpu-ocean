@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
-import Common
+import Common, SimWriter
 
 
 
@@ -70,6 +70,7 @@ class CDKLM16:
                  boundary_conditions=Common.BoundaryConditions(), \
                  h0AsWaterElevation=True, \
                  reportGeostrophicEquilibrium=False, \
+                 write_netcdf=False, \
                  block_width=16, block_height=16):
         self.cl_ctx = cl_ctx
 
@@ -80,9 +81,13 @@ class CDKLM16:
         self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
         
         #Create data by uploading to device
+        self.ghost_cells_x = 3
+        self.ghost_cells_y = 3
         ghost_cells_x = 3
         ghost_cells_y = 3
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, h0, hu0, hv0)
+
+        
 
         ## Allocating memory for geostrophical equilibrium variables
         self.reportGeostrophicEquilibrium = np.int32(reportGeostrophicEquilibrium)
@@ -91,6 +96,9 @@ class CDKLM16:
         self.geoEq_Kx = Common.OpenCLArray2D(cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
         self.geoEq_Ly = Common.OpenCLArray2D(cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
 
+        self.h_init = h0
+        self.hu_init = hu0
+        self.hv_init = hv0
         
         #Bathymetry
         self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Bi, boundary_conditions)
@@ -145,8 +153,19 @@ class CDKLM16:
 
         if self.h0AsWaterElevation:
             self.bathymetry.waterElevationToDepth(self.cl_data.h0)
+
+        self.write_netcdf = write_netcdf
+        self.sim_writer = None
+        if self.write_netcdf:
+            self.sim_writer = SimWriter.SimNetCDFWriter(self)
             
-        
+
+    """
+    Clean up function
+    """
+    def cleanUp(self):
+        if self.write_netcdf:
+            self.sim_writer.__exit__(0,0,0)
     
     """
     Function which steps n timesteps
@@ -363,7 +382,9 @@ class CDKLM16:
                 
             self.t += local_dt
             
-        
+        #if self.write_netcdf:
+        #    self.sim_writer.writeTimestep(self)
+            
         return self.t
     
     """
