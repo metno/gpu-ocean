@@ -117,8 +117,7 @@ def addCentralBump(eta, nx, ny, dx, dy, halo):
             #size = (0.015* min(nx, ny)*min(dx, dy))**2
             if (np.sqrt(x**2 + y**2) < size):
                 eta[j+halo[2], i+halo[3]] += np.exp(-(x**2/size+y**2/size))
-                
-                
+                               
                 
 def addLowerLeftBump(eta, nx, ny, dx, dy, halo):
     print("addLowerLeftBump")
@@ -147,6 +146,28 @@ def addDebugBump(eta, nx, ny, dx, dy, posx, posy, halo):
             if (np.sqrt(x**2 + y**2) < size):
                 eta[j+halo[2], i+halo[3]] += np.exp(-(x**2/size+y**2/size))
 
+
+"""
+Generate a radial dam break initial condition with a step function
+"""                
+def addCentralDamBreakStep(eta, nx, ny, dx, dy, step_size, halo):
+    x_center = dx*nx/2.0
+    y_center = dy*ny/2.0
+    for j in range(-halo[2], ny + halo[0]):
+        for i in range(-halo[3], nx + halo[1]):
+            x = dx*i - x_center
+            y = dy*j - y_center
+            size = 10.0*min(dx, dy)
+            #size = (0.015* min(nx, ny)*min(dx, dy))**2
+            if (np.sqrt(x**2 + y**2) < size):
+                eta[j+halo[2], i+halo[3]] += step_size
+
+"""
+Generate a radial dam break initial condition with a step function
+"""                
+def addCentralDamBreakSmooth(eta, nx, ny, dx, dy, step_size, halo):
+    print "addCentralDamBreakSmooth not implemented"
+    
 """
 Generates a smooth jeté along the x-axis at y=0.25*ny
 This is done by decreasing the water depth and is therefore best
