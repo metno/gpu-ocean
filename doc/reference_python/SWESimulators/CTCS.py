@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
-import Common
+import Common, SimWriter
 
 
 
@@ -67,10 +67,13 @@ class CTCS:
                  g, f, r, A, \
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
+                 write_netcdf=False, \
                  block_width=16, block_height=16):
         reload(Common)
         self.cl_ctx = cl_ctx
         self.boundary_conditions = boundary_conditions
+        self.rk_order = 'NA'
+        self.theta = 'NA'
 
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
@@ -84,6 +87,8 @@ class CTCS:
         #Create data by uploading to device
         halo_x = 1
         halo_y = 1
+        self.ghost_cells_x = 1
+        self.ghost_cells_y = 1
         closedBoundary_NS = 1
         closedBoundary_EA = 1
         if not self.boundary_conditions.isDefault():
@@ -130,7 +135,21 @@ class CTCS:
                                                  self.boundary_conditions, \
                                                  halo_x, halo_y \
         )
-    
+
+        self.write_netcdf = write_netcdf
+        self.sim_writer = None
+        if self.write_netcdf:
+            self.sim_writer = SimWriter.SimNetCDFWriter(self, staggered_grid=True)
+
+    """
+    Clean up function
+    """
+    def cleanUp(self):
+        if self.write_netcdf:
+            self.sim_writer.__exit__(0,0,0)
+            self.write_netcdf = False
+        self.cl_data.release()
+        self.H.release()
     
     """
     Function which steps n timesteps
@@ -208,6 +227,9 @@ class CTCS:
             
             self.t += local_dt
         
+        if self.write_netcdf:
+            self.sim_writer.writeTimestep(self)
+            
         return self.t
     
     
