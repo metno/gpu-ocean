@@ -319,7 +319,7 @@ def addDualVortex(eta, u, v, nx, ny, dx, dy, halo):
             x = dx*i - x_center
             y_pos = dy*j - y_center_pos
             y_neg = dy*j - y_center_neg
-            y = dx*j - y_center
+            y = dy*j - y_center
             size = 500.0*min(dx, dy)
             contribution = 0.0
             neg_cont = 0.0
@@ -346,6 +346,63 @@ def addDualVortex(eta, u, v, nx, ny, dx, dy, halo):
             v[j+halo[2], i+halo[3]] -= velocity_scale*contribution*np.sin(phi_pos)
             
             u[j+halo[2], i+halo[3]] -= velocity_scale*neg_cont*np.cos(phi_neg)
+            v[j+halo[2], i+halo[3]] += velocity_scale*neg_cont*np.sin(phi_neg)
+
+            ## Add these two lines in order to initate a rotation of water under the dual vortices
+            #u[j+halo[2], i+halo[3]] += 0.2*velocity_scale*global_cont*np.cos(phi)
+            #v[j+halo[2], i+halo[3]] -= 0.2*velocity_scale*global_cont*np.sin(phi)
+            
+def addDualVortexStaggered(eta, u, v, nx, ny, dx, dy, halo):
+    x_center = dx*nx*0.5
+    y_center_pos = dy*ny*0.52
+    y_center_neg = dy*ny*0.48
+    y_center = dy*ny*0.5
+    for j in range(-halo[2], ny + halo[0]-1):
+        for i in range(-halo[3], nx + halo[1]-1):
+            # The -1 in the for loop is to avoid out-of-range on staggered grids...
+            x = dx*(i+0.5) - x_center
+            y_pos = dy*(j+0.5) - y_center_pos
+            y_neg = dy*(j+0.5) - y_center_neg
+            y = dy*(j+0.5) - y_center
+            size = 500.0*min(dx, dy)
+            #size = (0.015* min(nx, ny)*min(dx, dy))**2
+            if (np.sqrt(x**2 + y_pos**2) < size):
+                eta[j+halo[2], i+halo[3]] += 0.035*np.exp(-0.2*(x**2/size+y_pos**2/size))
+            if (np.sqrt(x**2 + y_neg**2) < size):
+                eta[j+halo[2], i+halo[3]] -= 0.035*np.exp(-0.2*(x**2/size+y_neg**2/size))
+
+            x = x - 0.5*dx
+            contribution = 0.0
+            neg_cont = 0.0
+            if (np.sqrt(x**2 + y_pos**2) < size):
+                contribution -= np.exp(-0.5*(x**2/size+y_pos**2/size))
+                contribution += np.exp(-0.2*(x**2/size+y_pos**2/size))
+            if (np.sqrt(x**2 + y_neg**2) < size):
+                neg_cont -= np.exp(-0.5*(x**2/size+y_neg**2/size))
+                neg_cont += np.exp(-0.2*(x**2/size+y_neg**2/size))
+            phi_pos = np.arctan2(x, y_pos)
+            phi_neg = np.arctan2(x, y_neg)
+            phi = np.arctan2(x, y)
+            velocity_scale = 10.0
+            u[j+halo[2], i+halo[3]] += velocity_scale*contribution*np.cos(phi_pos)                
+            u[j+halo[2], i+halo[3]] -= velocity_scale*neg_cont*np.cos(phi_neg)
+
+            x = x + 0.5*dx
+            y = y - 0.5*dy
+            y_pos = y_pos - 0.5*dy
+            y_neg = y_neg - 0.5*dy
+            contribution = 0.0
+            neg_cont = 0.0
+            if (np.sqrt(x**2 + y_pos**2) < size):
+                contribution -= np.exp(-0.5*(x**2/size+y_pos**2/size))
+                contribution += np.exp(-0.2*(x**2/size+y_pos**2/size))
+            if (np.sqrt(x**2 + y_neg**2) < size):
+                neg_cont -= np.exp(-0.5*(x**2/size+y_neg**2/size))
+                neg_cont += np.exp(-0.2*(x**2/size+y_neg**2/size))
+            phi_pos = np.arctan2(x, y_pos)
+            phi_neg = np.arctan2(x, y_neg)
+            phi = np.arctan2(x, y)
+            v[j+halo[2], i+halo[3]] -= velocity_scale*contribution*np.sin(phi_pos)
             v[j+halo[2], i+halo[3]] += velocity_scale*neg_cont*np.sin(phi_neg)
             
             ## Add these two lines in order to initate a rotation of water under the dual vortices
