@@ -317,7 +317,6 @@ class SimNetCDFWriter:
         self.ncfile.close()
         
         
-        
 
     def writeTimestep(self, sim):
         eta, hu, hv = sim.download()

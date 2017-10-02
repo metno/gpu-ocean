@@ -58,6 +58,7 @@ class OpenCLArray2D:
         #Upload data to the device
         mf = pyopencl.mem_flags
         self.data = pyopencl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=host_data)
+        self.holds_data = True
         
         self.bytes_per_float = host_data.itemsize
         assert(self.bytes_per_float == 4)
@@ -68,6 +69,10 @@ class OpenCLArray2D:
     Enables downloading data from CL device to Python
     """
     def download(self, cl_queue):
+        if not self.holds_data:
+            print "Throwing exception!!!!!"
+            raise RuntimeError('OpenCL buffer has been freed')
+        
         #Allocate data on the host for result
         host_data = np.empty((self.ny_halo, self.nx_halo), dtype=np.float32, order='C')
         
@@ -76,6 +81,14 @@ class OpenCLArray2D:
         
         #Return
         return host_data
+
+    """
+    Frees the allocated memory buffers on the GPU 
+    """
+    def release(self):
+        if self.holds_data:
+            self.data.release()
+            self.holds_data = False
 
     """
     Converts to C-style float 32 array suitable for the GPU/OpenCL
@@ -124,8 +137,17 @@ class SWEDataArakawaA:
         hv_cpu = self.hv0.download(cl_queue)
         
         return h_cpu, hu_cpu, hv_cpu
-    
-        
+
+    """
+    Frees the allocated memory buffers on the GPU 
+    """
+    def release(self):
+        self.h0.release()
+        self.hu0.release()
+        self.hv0.release()
+        self.h1.release()
+        self.hu1.release()
+        self.hv1.release()
         
         
         
@@ -249,8 +271,23 @@ class BoundaryConditions:
                 self.east == 1 and \
                 self.south == 1 and \
                 self.east == 1)
-            
 
+    def _toString(self, cond):
+        if cond == 1:
+            return "Wall"
+        elif cond == 2:
+            return "Periodic"
+        elif cond == 3:
+            return "Numerical Sponge"
+        else:
+            return "Invalid :|"
+        
+    def __str__(self):
+        msg = "north: "   + self._toString(self.north) + \
+              ", east: "  + self._toString(self.east)  + \
+              ", south: " + self._toString(self.south) + \
+              ", west: "  + self._toString(self.west)
+        return msg
 
 """
 Class that checks boundary conditions and calls the required kernels for Arakawa A type grids.
@@ -383,9 +420,16 @@ class Bathymetry:
 
         return Bi_cpu, Bm_cpu
 
+    """
+    Frees the allocated memory buffers on the GPU 
+    """
+    def release(self):
+        self.Bm.release()
+        self.Bi.release()
+        
     # Transforming water elevation into water depth
     def waterElevationToDepth(self, h):
-
+        
         assert ((h.ny_halo, h.nx_halo) == (self.halo_ny, self.halo_nx)), \
             "h0 not the correct shape: " + str(h0.shape) + ", but should be " + str((self.halo_ny, self.halo_nx))
 
