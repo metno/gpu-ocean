@@ -132,7 +132,13 @@ class KP07:
                                                            ghost_cells_y, \
                                                        self.boundaryConditions)
     
-    
+    """
+    Clean up function
+    """
+    def cleanUp(self):
+        self.cl_data.release()
+        self.bathymetry.release()
+        
     """
     Function which steps n timesteps
     """

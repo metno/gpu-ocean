@@ -134,7 +134,13 @@ class FBL:
         )
 
         self.totalNumIterations = 0
-        
+
+    """
+    Clean up function
+    """
+    def cleanUp(self):
+        self.cl_data.release()
+        self.H.release()
     
     """
     Function which steps n timesteps

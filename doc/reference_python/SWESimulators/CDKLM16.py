@@ -92,8 +92,6 @@ class CDKLM16:
         ghost_cells_y = 3
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, h0, hu0, hv0)
 
-        
-
         ## Allocating memory for geostrophical equilibrium variables
         self.reportGeostrophicEquilibrium = np.int32(reportGeostrophicEquilibrium)
         dummy_zero_array = np.zeros((ny+6, nx+6), dtype=np.float32, order='C') 
