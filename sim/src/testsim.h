@@ -22,14 +22,14 @@ public:
     virtual ~TestSim();
 
 private:
-    virtual bool _init();
-    virtual double _currTime() const;
-    virtual double _maxTime() const;
-    virtual void _execNextStep(ProfileInfo *);
-    virtual Field2D _U() const;
-    virtual Field2D _V() const;
-    virtual Field2D _eta() const;
-    virtual void _printStatus() const;
+    virtual bool init();
+    virtual double currTime() const;
+    virtual double maxTime() const;
+    virtual bool execNextStep(ProfileInfo *);
+    virtual Field2D U() const;
+    virtual Field2D V() const;
+    virtual Field2D eta() const;
+    virtual void printStatus() const;
 
     struct TestSimImpl;
     TestSimImpl *pimpl;

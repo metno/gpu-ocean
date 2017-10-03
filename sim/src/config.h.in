@@ -11,4 +11,6 @@
 #define WGNX @sim_WGNX@
 #define WGNY @sim_WGNY@
 
+#define OPENCL_VERSION_MAJOR @sim_OPENCL_VERSION_MAJOR@
+
 #endif // CONFIG_H

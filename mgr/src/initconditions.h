@@ -27,12 +27,12 @@ public:
     /**
      * Returns the number of grid points in the x dimension (not including ghost cells).
      */
-    int nx() const;
+    int getNx() const;
 
     /**
      * Returns the number of grid points in the y dimension (not including ghost cells).
      */
-    int ny() const;
+    int getNy() const;
 
     /**
      * Returns the width of the grid in meters (not including ghost cells).
@@ -47,12 +47,12 @@ public:
     /**
      * Returns the width of a grid cell in meters.
      */
-    float dx() const;
+    float getDx() const;
 
     /**
      * Returns the height of a grid cell in meters.
      */
-    float dy() const;
+    float getDy() const;
 
     /**
      * Returns the water elevation field.

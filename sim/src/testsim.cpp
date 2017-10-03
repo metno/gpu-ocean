@@ -33,7 +33,7 @@ TestSim::TestSimImpl::TestSimImpl(int size, double maxTime)
 
 TestSim::TestSim(const OptionsPtr &options, const InitCondPtr &initCond)
     : SimBase(options, initCond)
-    , pimpl(new TestSimImpl(initCond->nx(), options->duration())) // use nx for matrix size
+    , pimpl(new TestSimImpl(initCond->getNx(), options->duration())) // use nx for matrix size
 {
 }
 
@@ -41,7 +41,7 @@ TestSim::~TestSim()
 {
 }
 
-bool TestSim::_init()
+bool TestSim::init()
 {
     // initialize OpenCL structures
     vector<pair<string, string> > sources;
@@ -59,12 +59,12 @@ bool TestSim::_init()
     return true;
 }
 
-double TestSim::_currTime() const
+double TestSim::currTime() const
 {
     return pimpl->currTime;
 }
 
-double TestSim::_maxTime() const
+double TestSim::maxTime() const
 {
     return pimpl->maxTime;
 }
@@ -88,7 +88,7 @@ static void createInputMatrices(size_t size, vector<float> &a, vector<float> &b)
     }
 }
 
-void TestSim::_execNextStep(ProfileInfo *)
+bool TestSim::execNextStep(ProfileInfo *)
 {
     cl_int error = CL_SUCCESS;
 
@@ -174,24 +174,26 @@ void TestSim::_execNextStep(ProfileInfo *)
     usleep(0.4 * 1000000); // sleep a little while to simulate a more realistic computation time
 
     pimpl->currTime += pimpl->deltaTime;
+
+    return true;
 }
 
-Field2D TestSim::_U() const
+Field2D TestSim::U() const
 {
     return Field2D(); // ### for now
 }
 
-Field2D TestSim::_V() const
+Field2D TestSim::V() const
 {
     return Field2D(); // ### for now
 }
 
-Field2D TestSim::_eta() const
+Field2D TestSim::eta() const
 {
     return Field2D(); // ### for now
 }
 
-void TestSim::_printStatus() const
+void TestSim::printStatus() const
 {
     cout << "TestSim::printStatus(); options: " << *options() << endl;
 }

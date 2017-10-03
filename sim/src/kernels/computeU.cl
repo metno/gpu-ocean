@@ -1,103 +1,195 @@
 #include "../computeU_types.h"
+#include "../windStress_types.h"
 #include "../config.h"
+#include "common.opencl"
 
 #ifndef __OPENCL_VERSION__
 #define __kernel
 #define __global
-#define local
+#define __local
 #define CLK_LOCAL_MEM_FENCE
 #endif
 
-/*
-Computes U at the eastern cell edge (and at the western cell edge if this cell is next to a western ghost cell).
-Input:
-  - args.nx, args.ny: Internal grid size (nx, ny), i.e. not including grid points at the outside of ghost cells.
-  - eta: Values defined at the center of each cell, including ghost cells. Size: (nx + 1, ny + 1).
-  - V: Values defined at the center of the southern and northern edge of each grid cell, excluding the western and eastern
-       ghost cells. Size: (nx - 1, ny + 2).
-  - Hr_u: Values defined at the center of the western and eastern edge of each grid cell, excluding the western edge of the western ghost cells
-          and the eastern edge of the eastern ghost cells. Size: (nx, ny + 1)
-Output:
-  - U: Values defined at the center of the western and eastern edge of each grid cell, excluding the southern and northern
-       ghost cells. Size: (nx + 2, ny - 1).
-*/
-__kernel void computeU (
-    __global const float *eta,
-    __global const float *V,
-    __global const float *Hr_u,
-    __global float *U,
-    computeU_args args)
-{
-    const int nx = args.nx;
-    const int ny = args.ny;
-    const float dt = args.dt;
-    const float dx = args.dx;
-    const float R = args.R;
-    const float F = args.F;
-    const float g = args.g;
+/**
+  * Kernel that evolves U one step in time.
+  */
+__kernel void computeU(
+		computeU_args args,
+		windStress_args ws,
+        //Data
+        __global float* H_ptr, int H_pitch,
+        __global float* U_ptr, int U_pitch,
+        __global float* V_ptr, int V_pitch,
+        __global float* eta_ptr, int eta_pitch,
+		float t) {
 
-    // work item within group
-    const unsigned int lx = get_local_id(0);
-    const unsigned int ly = get_local_id(1);
+    __local float H_shared[WGNY][WGNX+1];
+    __local float V_shared[WGNY+1][WGNX+1];
+    __local float eta_shared[WGNY][WGNX+1];
 
-   	// work item within domain
-    const unsigned int gx = get_global_id(0);
-    const unsigned int gy = get_global_id(1);
+    //Index of thread within block
+    const int tx = get_local_id(0);
+    const int ty = get_local_id(1);
 
-    // local and global id (linearized index)
-    const unsigned int lid = lx + get_local_size(0) * ly;
-    /// XXX: Check sizes in gmem. We may want to change them to allow easier indexing
-    const unsigned int gid = gx+1 + (nx+2) * gy; //U (+1 because we want the eastern interface)
-    const unsigned int eta_gid = gx + (nx+1) * gy;
-    const unsigned int v_gid = gx + (nx-1) * gy;
-    const unsigned int hr_u_gid = gx+1 + nx * gy; //(+1 because we want the eastern interface)
+    //Index of block within domain
+    const int bx = get_local_size(0) * get_group_id(0);
+    const int by = get_local_size(1) * get_group_id(1);
 
-    // allocate local work-group memory for Hr_u, eta, and V
-    local float Hr_u_local[WGNX * WGNY];
-    local float eta_local[(WGNX + 1) * WGNY];
-    local float V_local[(WGNX + 1) * (WGNY + 1)];
+    //Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
 
-    // copy Hr_u from global to local memory
-    Hr_u_local[lid] = Hr_u[hr_u_gid];
+    //Compute pointer to row "tj" in the U array
+    __global float* const U_row = (__global float*) ((__global char*) U_ptr + U_pitch*tj);
 
-    // copy eta from global to local memory
-    eta_local[lx + ly * (WGNX + 1)] = eta[eta_gid];
-    if(lx == WGNX-1) {
-    	eta_local[lx + ly * (WGNX + 1) + 1] = eta[eta_gid + 1];
+    //Read current U
+    float U_current = 0.0f;
+    if (ti < args.nx + 1 && tj < args.ny) {
+        U_current = U_row[ti];
     }
 
-    // copy V from global to local memory
-    V_local[lx + ly * (WGNX + 1)] = V[v_gid];
-    if(lx == WGNX-1) {
-    	V_local[lx + ly * (WGNX + 1) + 1] = V[v_gid + 1];
-    }
-    if(ly == WGNY-1) {
-        V_local[lx + ly * (WGNX + 1) + (WGNX + 1)] = V[v_gid + (nx - 1)];
-    }
-    if(lx == WGNX-1 && ly == WGNY-1) { // upper-right corner
-    	V_local[lx + ly * (WGNX + 1) + (WGNX + 1) + 1] = V[v_gid + (nx - 1) + 1];
+    //Read H and eta into local memory
+    for (int j=ty; j<WGNY; j+=get_local_size(1)) {
+        const int l = by + j;
+
+        //Compute the pointer to row "l" in the H and eta arrays
+        __global float* const H_row = (__global float*) ((__global char*) H_ptr + H_pitch*l);
+        __global float* const eta_row = (__global float*) ((__global char*) eta_ptr + eta_pitch*l);
+
+        for (int i=tx; i<WGNX+1; i+=get_local_size(0)) {
+            const int k = bx + i - 1;
+
+            if (k >= 0 && k < args.nx && l < args.ny+1) {
+                H_shared[j][i] = H_row[k];
+                eta_shared[j][i] = eta_row[k];
+            }
+            else {
+                H_shared[j][i] = 0.0f;
+                eta_shared[j][i] = 0.0f;
+            }
+        }
     }
 
-    // ensure all work-items have copied their values to local memory before proceeding
-    // assuming CLK_GLOBAL_MEM_FENCE is not necessary since the read happens before the write in each work-item
+    //Read V into shared memory
+    for (int j=ty; j<WGNY+1; j+=get_local_size(1)) {
+        const int l = by + j;
+
+        //Compute the pointer to current row in the V array
+        __global float* const V_row = (__global float*) ((__global char*) V_ptr + V_pitch*l);
+
+        for (int i=tx; i<WGNX+1; i+=get_local_size(0)) {
+            const int k = bx + i - 1;
+
+            if (k >= 0 && k < args.nx && l < args.ny+1) {
+                V_shared[j][i] = V_row[k];
+            }
+            else {
+                V_shared[j][i] = 0.0f;
+            }
+        }
+    }
+
+    //Make sure all threads have read into shared mem
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    // reconstructing V at U-positions
-    float Vr = 0.0f;
-    if (gy == 0) {
-        Vr = 0.5f * (V_local[lx + (ly+1) * (WGNX + 1)] + V_local[lx + (ly+1) * (WGNX + 1) + 1]); //(+1 we never use the outer V-values)
-    } else if (gy == ny-2) {
-    	Vr = 0.5f * (V_local[lx + (ly-1) * (WGNX + 1)] + V_local[lx + (ly-1) * (WGNX + 1) + 1]); //(-1 we never use the outer V-values)
-    } else {
-    	Vr = 0.25f * (V_local[lx + ly * (WGNX + 1)] + V_local[lx + ly * (WGNX + 1) + (WGNX + 1)] +
-    			V_local[lx + ly * (WGNX + 1) + 1] + V_local[lx + ly * (WGNX + 1) + (WGNX + 1) + 1]);
+    //Reconstruct H at the U position
+    float H_m = 0.5f*(H_shared[ty][tx] + H_shared[ty][tx+1]);
+
+    //Reconstruct V at the U position
+    float V_m = 0.0f;
+    if (tj==0) {
+        V_m = 0.5f*(V_shared[ty+1][tx] + V_shared[ty+1][tx+1]);
+    }
+    else if (tj==args.ny-1) {
+        V_m = 0.5f*(V_shared[ty][tx] + V_shared[ty][tx+1]);
+    }
+    else {
+        V_m = 0.25f*(V_shared[ty][tx] + V_shared[ty][tx+1]
+                + V_shared[ty+1][tx] + V_shared[ty+1][tx+1]);
     }
 
-    const float B = Hr_u_local[lid] / (Hr_u_local[lid] + R * dt);
-    const float P = g * Hr_u_local[lid] *
-    		(eta_local[lx + ly * (WGNX + 1)] - eta_local[lx + ly * (WGNX + 1) + 1]) / dx;
+    //Calculate the friction coefficient
+    float B = H_m/(H_m + args.r*args.dt);
 
-    if (gx < nx+2 && gy < ny-1) {
-    	U[gid] = B * (U[gid] + dt * (F * Vr + P));
+    //Calculate the gravitational effect
+    float P = args.g*H_m*(eta_shared[ty][tx] - eta_shared[ty][tx+1])/args.dx;
+
+    //Calculate the wind shear stress
+    float X = windStressX(
+        ws.wind_stress_type,
+		args.dx, args.dy, args.dt,
+		ws.tau0, ws.rho, ws.alpha, ws.xm, ws.Rc,
+		ws.x0, ws.y0,
+		ws.u0, ws.v0,
+		t);
+
+    //Compute the U at the next timestep
+    float U_next = B*(U_current + args.dt*(args.f*V_m + P + X) );
+
+    //Write to main memory for internal cells
+    if (ti < args.nx+1 && tj < args.ny) {
+        //Closed boundaries
+        if (ti == 0 || ti == args.nx) {
+            U_next = 0.0f;
+        }
+        U_row[ti] = U_next;
     }
+}
+
+/**
+  * Python-wrapper.
+  */
+__kernel void computeUKernel(
+        //Discretization parameters
+        int nx, int ny,
+        float dx, float dy, float dt,
+
+        //Physical parameters
+        float g, //< Gravitational constant
+        float f, //< Coriolis coefficient
+        float r, //< Bottom friction coefficient
+
+        //Data
+        __global float* H_ptr, int H_pitch,
+        __global float* U_ptr, int U_pitch,
+        __global float* V_ptr, int V_pitch,
+        __global float* eta_ptr, int eta_pitch,
+
+        // Wind stress parameters
+        int wind_stress_type,
+        float tau0, float rho, float alpha, float xm, float Rc,
+        float x0, float y0,
+        float u0, float v0,
+        float t) {
+
+	computeU_args args;
+	args.nx = nx;
+	args.ny = ny;
+	args.dt = dt;
+	args.dx = dx;
+	args.dy = dy;
+	args.r = r;
+	args.f = f;
+	args.g = g;
+
+	windStress_args ws;
+	ws.wind_stress_type = wind_stress_type;
+	ws.tau0 = tau0;
+	ws.rho = rho;
+	ws.alpha = alpha;
+	ws.xm = xm;
+	ws.Rc = Rc;
+	ws.x0 = x0;
+	ws.y0 = y0;
+	ws.u0 = u0;
+	ws.v0 = v0;
+
+    computeU(args,
+        ws,
+        H_ptr, H_pitch,
+        U_ptr, U_pitch,
+        V_ptr, V_pitch,
+        eta_ptr, eta_pitch,
+        t);
+
 }
