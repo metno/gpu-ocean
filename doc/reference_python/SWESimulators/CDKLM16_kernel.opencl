@@ -1,10 +1,9 @@
 /*
 This OpenCL kernel implements the Kurganov-Petrova numerical scheme 
 for the shallow water equations, described in 
-A. Kurganov & Guergana Petrova
-A Second-Order Well-Balanced Positivity Preserving Central-Upwind
-Scheme for the Saint-Venant System Communications in Mathematical
-Sciences, 5 (2007), 133-160. 
+A. Chertock, M. Dudzinski, A. Kurganov & M. Lukacova-Medvidova
+Well-Balanced Schemes for the Shallow Water Equations with Coriolis Forces,
+Numerische Mathematik 2016 
 
 Copyright (C) 2016  SINTEF ICT
 
@@ -62,7 +61,7 @@ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
     float3 F;
     
     F.x = ((ap*Fm.x - am*Fp.x) + ap*am*(Qp.x-Qm.x))/(ap-am);
-    F.y = ((ap*Fm.y - am*Fp.y) + ap*am*(Qp.y-Qm.y))/(ap-am);
+    F.y = ((ap*Fm.y - am*Fp.y) + ap*am*(Fp.x-Fm.x))/(ap-am);
     F.z = (Qm.y + Qp.y > 0) ? Fm.z : Fp.z; //Upwinding to be consistent
     
     return F;
@@ -93,8 +92,9 @@ __kernel void swe_2D(
         
         float f_, //< Coriolis coefficient
         float r_, //< Bottom friction coefficient
-        
-        int step_,
+
+	int rk_order, // runge kutta order
+        int step_,    // runge kutta step
         
         //Input h^n
         __global float* h0_ptr_, int h0_pitch_,
@@ -105,13 +105,30 @@ __kernel void swe_2D(
         __global float* h1_ptr_, int h1_pitch_,
         __global float* hu1_ptr_, int hu1_pitch_,
         __global float* hv1_ptr_, int hv1_pitch_,
-        
+
+	//Bathymery
+	__global float* Bi_ptr_, int Bi_pitch_,
+	__global float* Bm_ptr_, int Bm_pitch_,
+	
         //Wind stress parameters
         int wind_stress_type_, 
         float tau0_, float rho_, float alpha_, float xm_, float Rc_,
         float x0_, float y0_,
         float u0_, float v0_,
-        float t_) {
+        float t_, 
+    
+        // Boundary conditions
+        int boundary_conditions_type_, // < 1: wall, 2: periodic, 
+                                       //   3: periodicNS, 4: periodicEW
+
+	// Geostrophic Equilibrium memory buffers
+	// The buffers have the same size as input/output
+	int report_geostrophical_equilibrium,
+	__global float* uxpvy_ptr_, int uxpvy_pitch_,
+	__global float* Kx_ptr_, int Kx_pitch_,
+	__global float* Ly_ptr_, int Ly_pitch_
+
+    ) {
         
     //Index of thread within block
     const int tx = get_local_id(0);
@@ -129,17 +146,23 @@ __kernel void swe_2D(
     __local float R[3][block_height+6][block_width+6];
     
     // Our reconstruction variables
-    __local float Q[4][block_height+4][block_width+4];
-    __local float Qx[4][block_height][block_width+2];
-    __local float Qy[4][block_height+2][block_width];
+    __local float Q[2][block_height+4][block_width+4];
+    __local float Qx[3][block_height][block_width+2];
+    __local float Qy[3][block_height+2][block_width];
     
     // Our fluxes
     __local float F[3][block_height][block_width+1];
     __local float G[3][block_height+1][block_width];
     
     
-    
-    
+    // Bathymetry
+    __local float  Bi[block_height+1][block_width+1];
+    __local float  Bm[block_height+4][block_width+4];
+    __local float RBx[block_height  ][block_width+1];
+    __local float RBy[block_height+1][block_width  ];
+
+
+    // theta_ = 1.5f;
     
     //Read into shared memory
     for (int j=ty; j<block_height+6; j+=get_local_size(1)) {
@@ -158,23 +181,62 @@ __kernel void swe_2D(
             R[2][j][i] = hv_row[k];
         }
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
+
+    // Read Bm into shared memory with 4x4 halo
+    for (int j=ty; j < block_height+4; j+=get_local_size(1)) {
+	// Ensure that we read from correct domain
+	// We never read outermost halo of Bm
+	const int l = clamp(by+j+1, 1, ny_+4); 
+	__global float* const Bm_row = (__global float*) ((__global char*) Bm_ptr_ + Bm_pitch_*l);
+	for(int i=tx; i < block_width+4; i+=get_local_size(0)) {
+	    const int k = clamp(bx+1+i, 1, nx_+4);
+
+	    Bm[j][i] = Bm_row[k];
+	}
+    }
+
+    // Read Bi into shared memory
+    // Read intersections on all non-ghost cells
+    for(int j=ty; j < block_height+1; j+=get_local_size(1)) {
+	// Skip ghost cells and 
+	const int l = clamp(by+j+3, 3, ny_+3);
+	__global float* const Bi_row = (__global float*) ((__global char*) Bi_ptr_ + Bi_pitch_*l);
+	for(int i=tx; i < block_width+1; i+=get_local_size(0)) {
+	    const int k = clamp(bx+i+3, 3, nx_+3);
+
+	    Bi[j][i] = Bi_row[k];
+	}
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
     
-    
-    
-    
-    
-    
-    
+    // Evaluate piecewise bi-linear for RBx 
+    for (int j=ty; j<block_height; j+=get_local_size(1)) {
+        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+            RBx[j][i] = 0.5f*( Bi[j][i] + Bi[j+1][i] );
+	}
+    }
+    // Evaluate piecewise bi-linear for RBx 
+    for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
+        for (int i=tx; i<block_width; i+=get_local_size(0)) {
+            RBy[j][i] = 0.5f*( Bi[j][i] + Bi[j][i+1] );
+	}
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     //Fix boundary conditions
+    if (boundary_conditions_type_ != 2)
     {
+        // These boundary conditions are dealt with inside shared memory
+        
         const int i = tx + 3; //Skip local ghost cells, i.e., +3
         const int j = ty + 3;
         
-        if (ti == 3) {
-            R[0][j][i-1] =  R[0][j][i];
+        if (ti == 3 && boundary_conditions_type_ != 4) {
+	    // Wall boundary on east and west
+	    R[0][j][i-1] =  R[0][j][i];
             R[1][j][i-1] = -R[1][j][i];
             R[2][j][i-1] =  R[2][j][i];
             
@@ -186,7 +248,8 @@ __kernel void swe_2D(
             R[1][j][i-3] = -R[1][j][i+2];
             R[2][j][i-3] =  R[2][j][i+2];
         }
-        if (ti == nx_+2) {
+        if (ti == nx_+2 && boundary_conditions_type_ != 4) {
+	    // Wall boundary on east and west
             R[0][j][i+1] =  R[0][j][i];
             R[1][j][i+1] = -R[1][j][i];
             R[2][j][i+1] =  R[2][j][i];
@@ -199,8 +262,9 @@ __kernel void swe_2D(
             R[1][j][i+3] = -R[1][j][i-2];
             R[2][j][i+3] =  R[2][j][i-2];
         }
-        if (tj == 3) {
-            R[0][j-1][i] =  R[0][j][i];
+        if (tj == 3 && boundary_conditions_type_ != 3) {
+	    // Wall boundary on north and south
+	    R[0][j-1][i] =  R[0][j][i];
             R[1][j-1][i] =  R[1][j][i];
             R[2][j-1][i] = -R[2][j][i];
             
@@ -212,7 +276,8 @@ __kernel void swe_2D(
             R[1][j-3][i] =  R[1][j+2][i];
             R[2][j-3][i] = -R[2][j+2][i];
         }
-        if (tj == ny_+2) {
+        if (tj == ny_+2 && boundary_conditions_type_ != 3) {
+	    // Wall boundary on north and south
             R[0][j+1][i] =  R[0][j][i];
             R[1][j+1][i] =  R[1][j][i];
             R[2][j+1][i] = -R[2][j][i];
@@ -226,14 +291,12 @@ __kernel void swe_2D(
             R[2][j+3][i] = -R[2][j-2][i];
         }
     }
-    __syncthreads();
     
+    barrier(CLK_LOCAL_MEM_FENCE);
+        
     
-    
-    
-    
-    
-    //Create our "steady state" reconstruction variables (u, v, K, L)
+    //Create our "steady state" reconstruction variables (u, v)
+    // K and L are never stored, but computed where needed.
     for (int j=ty; j<block_height+4; j+=get_local_size(1)) {
         const int l = j + 1; //Skip one "ghost cell row" of Q, going from 6x6 to 4x4 "halo"
         for (int i=tx; i<block_width+4; i+=get_local_size(0)) {
@@ -242,22 +305,12 @@ __kernel void swe_2D(
             const float h = R[0][l][k];
             const float u = R[1][l][k] / h;
             const float v = R[2][l][k] / h;
-            
-            const float B = 0.0f;
-            const float U = 0.25f * f_/g_ * (1.0*R[1][l+1][k]/R[0][l+1][k] + 2.0f*u + 1.0f*R[1][l-1][k]/R[0][l-1][k]);
-            const float V = 0.25f * f_/g_ * (1.0*R[2][l][k+1]/R[0][l][k+1] + 2.0f*v + 1.0f*R[2][l][k-1]/R[0][l][k-1]);
-            //const float U = f_/g_ * u;
-            //const float V = f_/g_ * v;
-            const float K = h + B - V;
-            const float L = h + B + U;
-            
+
             Q[0][j][i] = u;
             Q[1][j][i] = v;
-            Q[2][j][i] = K;
-            Q[3][j][i] = L;         
         }
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     
@@ -269,9 +322,27 @@ __kernel void swe_2D(
         const int l = j + 2; //Skip ghost cells
         for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
             const int k = i + 1;
-            for (int p=0; p<4; ++p) {
-                Qx[p][j][i] = reconstructSlope(Q[p][l][k-1], Q[p][l][k], Q[p][l][k+1], theta_);
+            for (int p=0; p<2; ++p) {
+                Qx[p][j][i] = minmodSlope(Q[p][l][k-1], Q[p][l][k], Q[p][l][k+1], theta_);
             }
+	    // Qx[2] = Kx, which we need to find differently than ux and vx
+	    float left_w   = R[0][l+1][k  ] + Bm[l][k-1];
+	    float center_w = R[0][l+1][k+1] + Bm[l][k  ];
+	    float right_w  = R[0][l+1][k+2] + Bm[l][k+1];
+
+	    float left_v   = Q[1][l][k-1];
+	    float center_v = Q[1][l][k  ];
+	    float right_v  = Q[1][l][k+1];
+
+	    float V_constant = dx_*f_/(2.0f*g_);
+
+	    float backward = theta_*g_*(center_w - left_w   - V_constant*(center_v + left_v ) );
+	    float central  =   0.5f*g_*(right_w  - left_w   - V_constant*(right_v + 2*center_v + left_v) ); 
+	    float forward  = theta_*g_*(right_w  - center_w - V_constant*(center_v + right_v) );
+
+	    // Qx[2] is really dx*Kx
+	    Qx[2][j][i] = minmodRaw(backward, central, forward); 
+	    
         }
     }
     
@@ -280,19 +351,33 @@ __kernel void swe_2D(
         const int l = j + 1;
         for (int i=tx; i<block_width; i+=get_local_size(0)) {            
             const int k = i + 2; //Skip ghost cells
-            for (int p=0; p<4; ++p) {
-                Qy[p][j][i] = reconstructSlope(Q[p][l-1][k], Q[p][l][k], Q[p][l+1][k], theta_);
+            for (int p=0; p<2; ++p) {
+                Qy[p][j][i] = minmodSlope(Q[p][l-1][k], Q[p][l][k], Q[p][l+1][k], theta_);
             }
+	    // Qy[2] = Ly, which we need to find differently than uy and vy
+	    float lower_w  = R[0][l  ][k+1] + Bm[l-1][k];
+	    float center_w = R[0][l+1][k+1] + Bm[l  ][k];
+	    float upper_w  = R[0][l+2][k+1] + Bm[l+1][k];
+
+	    float lower_u  = Q[0][l-1][k];
+	    float center_u = Q[0][l  ][k];
+	    float upper_u  = Q[0][l+1][k];
+
+	    float U_constant = dy_*f_/(2.0f*g_);
+
+	    float backward = theta_*g_*(center_w - lower_w  + U_constant*(center_u + lower_u ) );
+	    float central  =   0.5f*g_*(upper_w  - lower_w  + U_constant*(upper_u + 2*center_u + lower_u) ); 
+	    float forward  = theta_*g_*(upper_w  - center_w + U_constant*(center_u + upper_u) );
+
+	    // Qy[2] is really dy*Ly
+	    Qy[2][j][i] = minmodRaw(backward, central, forward); 
         }
     }
-    __syncthreads();
-    
-    
-    
-    
-    
-    
-    
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+
+
+	
     //Compute fluxes along the x axis
     for (int j=ty; j<block_height; j+=get_local_size(1)) {
         const int l = j + 2; //Skip ghost cells (be consistent with reconstruction offsets)
@@ -300,25 +385,32 @@ __kernel void swe_2D(
             const int k = i + 1;
 
             // R=(u, v, K, L) reconstructed at a cell interface from the right (p) and left (m)
-            const float4 Rp = (float4)(Q[0][l][k+1] - 0.5f*Qx[0][j][i+1],
-                                       Q[1][l][k+1] - 0.5f*Qx[1][j][i+1],
-                                       Q[2][l][k+1] - 0.5f*Qx[2][j][i+1],
-                                       Q[3][l][k+1] - 0.5f*Qx[3][j][i+1]);
-            const float4 Rm = (float4)(Q[0][l][k  ] + 0.5f*Qx[0][j][i  ],
-                                       Q[1][l][k  ] + 0.5f*Qx[1][j][i  ],
-                                       Q[2][l][k  ] + 0.5f*Qx[2][j][i  ],
-                                       Q[3][l][k  ] + 0.5f*Qx[3][j][i  ]);
+	    const float2 Rp = (float2)(Q[0][l][k+1] - 0.5f*Qx[0][j][i+1],
+                                       Q[1][l][k+1] - 0.5f*Qx[1][j][i+1]);
+            const float2 Rm = (float2)(Q[0][l][k  ] + 0.5f*Qx[0][j][i  ],
+                                       Q[1][l][k  ] + 0.5f*Qx[1][j][i  ]);
 
             // Variables to reconstruct h from u, v, K, L
             const float vp = Q[1][l][k+1];
             const float vm = Q[1][l][k  ];
-            const float V = 0.5f * f_/g_ * (vp + vm);
-            const float B = 0.0f;
-            
-            // Reconstruct h = K/g + V - B
-            const float hp = Rp.z + V - B;
-            const float hm = Rm.z + V - B;
-            
+
+	    // Bottom in the cells on each side of the face:
+	    const float Bm_p = Bm[l][k+1];
+	    const float Bm_m = Bm[l][k  ];
+	    // B is RBx on the given face!
+	    const float B_face = RBx[j][i];
+
+	    const float h_bar_p = R[0][l+1][k+2];
+	    const float h_bar_m = R[0][l+1][k+1];
+
+	    // Qx[2] is really dx*Kx
+	    const float Kx_p = Qx[2][j][i+1];
+            const float Kx_m = Qx[2][j][i  ];
+	    
+            // Reconstruct h 
+            const float hp = h_bar_p + Bm_p - B_face - (Kx_p + dx_*f_*vp)/(2.0f*g_); 
+	    const float hm = h_bar_m + Bm_m - B_face + (Kx_m + dx_*f_*vm)/(2.0f*g_);
+	    
             // Our flux variables Q=(h, u, v)
             const float3 Qp = (float3)(hp, Rp.x, Rp.y);
             const float3 Qm = (float3)(hm, Rm.x, Rm.y);
@@ -337,26 +429,33 @@ __kernel void swe_2D(
         for (int i=tx; i<block_width; i+=get_local_size(0)) {
             const int k = i + 2; //Skip ghost cells
             // Q at interface from the right and left
-            const float4 Rp = (float4)(Q[0][l+1][k] - 0.5f*Qy[0][j+1][i],
-                                       Q[1][l+1][k] - 0.5f*Qy[1][j+1][i],
-                                       Q[2][l+1][k] - 0.5f*Qy[2][j+1][i],
-                                       Q[3][l+1][k] - 0.5f*Qy[3][j+1][i]);
-            const float4 Rm = (float4)(Q[0][l  ][k] + 0.5f*Qy[0][j  ][i],
-                                       Q[1][l  ][k] + 0.5f*Qy[1][j  ][i],
-                                       Q[2][l  ][k] + 0.5f*Qy[2][j  ][i],
-                                       Q[3][l  ][k] + 0.5f*Qy[3][j  ][i]);
+	    const float2 Rp = (float2)(Q[0][l+1][k] - 0.5f*Qy[0][j+1][i],
+                                       Q[1][l+1][k] - 0.5f*Qy[1][j+1][i]);
+	    const float2 Rm = (float2)(Q[0][l  ][k] + 0.5f*Qy[0][j  ][i],
+				       Q[1][l  ][k] + 0.5f*Qy[1][j  ][i]);
               
             // Variables to reconstruct h from u, v, K, L
             const float up = Q[0][l+1][k];
             const float um = Q[0][l  ][k];
-            const float U = 0.5f * f_/g_ * (up + um);
-            const float B = 0.0f;
+
+	    // Bottom in the cells on each side of the face:
+	    const float Bm_p = Bm[l+1][k];
+	    const float Bm_m = Bm[l  ][k];
+	    // B is RBx on the given face!
+	    const float B_face = RBy[j][i];
+
+	    const float h_bar_p = R[0][l+2][k+1];
+	    const float h_bar_m = R[0][l+1][k+1];
+
+	    // Qy[2] is really dy*Ly
+	    const float Ly_p = Qy[2][j+1][i];
+            const float Ly_m = Qy[2][j  ][i];
             
-            // Reconstruct h = L/g - U - B
-            const float hp = Rp.w - U - B;
-            const float hm = Rm.w - U - B;
-            
-            // Our flux variables Q=(h, v, u)
+            // Reconstruct h 
+	    const float hp = h_bar_p + Bm_p - B_face + (-Ly_p + dy_*f_*up)/(2.0f*g_); 
+	    const float hm = h_bar_m + Bm_m - B_face + ( Ly_m - dy_*f_*um)/(2.0f*g_); 
+
+	    // Our flux variables Q=(h, v, u)
             // Note that we swap u and v
             const float3 Qp = (float3)(hp, Rp.y, Rp.x);
             const float3 Qm = (float3)(hm, Rm.y, Rm.x);
@@ -369,7 +468,7 @@ __kernel void swe_2D(
             G[2][j][i] = flux.y;
         }
     }
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     
     
     
@@ -394,47 +493,131 @@ __kernel void swe_2D(
             x0_, y0_,
             u0_, v0_,
             t_);
-        
-        const float h1  = R[0][j][i] + (F[0][ty][tx] - F[0][ty  ][tx+1]) * dt_ / dx_ 
-                                     + (G[0][ty][tx] - G[0][ty+1][tx  ]) * dt_ / dy_;
-        const float hu1 = R[1][j][i] + (F[1][ty][tx] - F[1][ty  ][tx+1]) * dt_ / dx_ 
-                                     + (G[1][ty][tx] - G[1][ty+1][tx  ]) * dt_ / dy_
-                                     + dt_*X - dt_*f_*R[2][j][i];
-        const float hv1 = R[2][j][i] + (F[2][ty][tx] - F[2][ty  ][tx+1]) * dt_ / dx_ 
-                                     + (G[2][ty][tx] - G[2][ty+1][tx  ]) * dt_ / dy_
-                                     + dt_*Y + dt_*f_*R[1][j][i];
 
-        __global float* const h_row  = (__global float*) ((__global char*) h1_ptr_ + h1_pitch_*tj);
+	// Bottom topography source terms!
+	const float st1 = -g_*R[0][j][i]*(RBx[ty  ][tx+1] - RBx[ty][tx]);
+	const float st2 = -g_*R[0][j][i]*(RBy[ty+1][tx  ] - RBy[ty][tx]);
+
+
+        const float L1  = - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_ 
+	                  - (G[0][ty+1][tx  ] - G[0][ty][tx]) / dy_;
+        const float L2  = - (F[1][ty  ][tx+1] - F[1][ty][tx]) / dx_ 
+                          - (G[1][ty+1][tx  ] - G[1][ty][tx]) / dy_
+  	                  + (X + f_*R[2][j][i] + st1/dx_);
+        const float L3  = - (F[2][ty  ][tx+1] - F[2][ty][tx]) / dx_ 
+                          - (G[2][ty+1][tx  ] - G[2][ty][tx]) / dy_
+	                  + (Y - f_*R[1][j][i] + st2/dy_);
+	
+        
+	__global float* const h_row  = (__global float*) ((__global char*) h1_ptr_  + h1_pitch_*tj);
         __global float* const hu_row = (__global float*) ((__global char*) hu1_ptr_ + hu1_pitch_*tj);
         __global float* const hv_row = (__global float*) ((__global char*) hv1_ptr_ + hv1_pitch_*tj);
-        
-        const float C = 2.0f*r_*dt_/R[0][j][i];
-                    
-        if  (step_ == 0) {
-            //First step of RK2 ODE integrator
+
+	if (rk_order < 3) {
+         
+	    const float C = 2.0f*r_*dt_/R[0][j][i];
+                     
+	    if  (step_ == 0) {
+		//First step of RK2 ODE integrator
             
-            h_row[ti] = h1;
-            hu_row[ti] = hu1 / (1.0f + C);
-            hv_row[ti] = hv1 / (1.0f + C);
-        }
-        else if (step_ == 1) {
-            //Second step of RK2 ODE integrator
+		h_row[ti]  =  R[0][j][i] + dt_*L1;
+		hu_row[ti] = (R[1][j][i] + dt_*L2) / (1.0f + C);
+		hv_row[ti] = (R[2][j][i] + dt_*L3) / (1.0f + C);
+	    }
+	    else if (step_ == 1) {
+		//Second step of RK2 ODE integrator
             
-            //First read Q^n
-            const float h_a  = h_row[ti];
-            const float hu_a = hu_row[ti];
-            const float hv_a = hv_row[ti];
+		//First read Q^n
+		const float h_a  = h_row[ti];
+		const float hu_a = hu_row[ti];
+		const float hv_a = hv_row[ti];
             
-            //Compute Q^n+1
-            const float h_b  = 0.5f*(h_a + h1);
-            const float hu_b = 0.5f*(hu_a + hu1);
-            const float hv_b = 0.5f*(hv_a + hv1);
+		//Compute Q^n+1
+		const float h_b  = 0.5f*(h_a  + (R[0][j][i] + dt_*L1));
+		const float hu_b = 0.5f*(hu_a + (R[1][j][i] + dt_*L2));
+		const float hv_b = 0.5f*(hv_a + (R[2][j][i] + dt_*L3));
             
-            //Write to main memory
-            h_row[ti] = h_b;
-            hu_row[ti] = hu_b / (1.0f + 0.5f*C);
-            hv_row[ti] = hv_b / (1.0f + 0.5f*C);
-        }
+		//Write to main memory
+		h_row[ti] = h_b;
+		hu_row[ti] = hu_b / (1.0f + 0.5f*C);
+		hv_row[ti] = hv_b / (1.0f + 0.5f*C);
+		//hu_row[ti] = RBx[ty][tx];
+		//hv_row[ti] = RBy[ty][tx];
+
+	    }
+	}
+	
+	else if (rk_order == 3) {
+	    // Third order Runge Kutta - only valid if r_ = 0.0 (no friction)
+
+	    if (step_ == 0) {
+		//First step of RK3 ODE integrator
+		// q^(1) = q^n + dt*L(q^n)
+            
+		h_row[ti]  =  R[0][j][i] + dt_*L1;
+		hu_row[ti] = (R[1][j][i] + dt_*L2);
+		hv_row[ti] = (R[2][j][i] + dt_*L3);
+
+	    } else if (step_ == 1) {
+		// Second step of RK3 ODE integrator
+		// Q^(2) = 3/4 Q^n + 1/4 ( Q^(1) + dt*L(Q^(1)) )
+		// Q^n is here in h1, but will be used in next iteration as well --> write to h0
+
+		// First read Q^n:
+		const float h_a  = h_row[ti];
+		const float hu_a = hu_row[ti];
+		const float hv_a = hv_row[ti];
+
+		// Compute Q^(2):
+		const float h_b  = 0.75f*h_a  + 0.25f*(R[0][j][i] + dt_*L1);
+		const float hu_b = 0.75f*hu_a + 0.25f*(R[1][j][i] + dt_*L2);
+		const float hv_b = 0.75f*hv_a + 0.25f*(R[2][j][i] + dt_*L3);
+
+		// Write output to the input buffer:
+		__global float* const h_out_row  = (__global float*) ((__global char*) h0_ptr_  + h0_pitch_*tj);
+		__global float* const hu_out_row = (__global float*) ((__global char*) hu0_ptr_ + hu0_pitch_*tj);
+		__global float* const hv_out_row = (__global float*) ((__global char*) hv0_ptr_ + hv0_pitch_*tj);
+		h_out_row[ti] = h_b;
+		hu_out_row[ti] = hu_b;
+		hv_out_row[ti] = hv_b;
+		
+	    } else if (step_ == 2) {
+		// Third step of RK3 ODE integrator
+		// Q^n+1 = 1/3 Q^n + 2/3 (Q^(2) + dt*L(Q^(2))
+
+		// First read Q^n:
+		const float h_a  = h_row[ti];
+		const float hu_a = hu_row[ti];
+		const float hv_a = hv_row[ti];
+
+		// Compute Q^n+1:
+		const float h_b  = (h_a  + 2.0f*(R[0][j][i] + dt_*L1)) / 3.0f;
+		const float hu_b = (hu_a + 2.0f*(R[1][j][i] + dt_*L2)) / 3.0f;
+		const float hv_b = (hv_a + 2.0f*(R[2][j][i] + dt_*L3)) / 3.0f;
+
+		//Write to main memory
+		h_row[ti] = h_b;
+		hu_row[ti] = hu_b;
+		hv_row[ti] = hv_b;
+
+		__global float* const Kx_row = (__global float*) ((__global char*) Kx_ptr_ + Kx_pitch_*tj);	    
+		Kx_row[ti]    = 4;  // K_x
+	    }
+	}
+
+	// Write geostrophical equilibrium variables:
+	if (report_geostrophical_equilibrium) {
+
+	    __global float* const uxpvy_row  = (__global float*) ((__global char*) uxpvy_ptr_ + uxpvy_pitch_*tj);
+	    __global float* const Kx_row = (__global float*) ((__global char*) Kx_ptr_ + Kx_pitch_*tj);
+	    __global float* const Ly_row = (__global float*) ((__global char*) Ly_ptr_ + Ly_pitch_*tj);
+
+	    uxpvy_row[ti] = Qx[0][ty][tx+1] + Qy[1][ty+1][tx]; // u_x + v_y
+	    Kx_row[ti]    = Qx[2][ty][tx+1];  // K_x
+	    Ly_row[ti]    = Qy[2][ty+1][tx];  // L_y
+	}
     }
+
+	
     
 }

@@ -305,11 +305,10 @@ __kernel void computeUKernel(
     
     
     //Compute layer thickness of top layer
-    //FIXME: What is the actual depth of this top layer?
-    const float h1_p0 = H1_p0 + eta1_p0;// - eta2_p0;
-    const float h1_00 = H1_00 + eta1_00;// - eta2_00;
-    const float h1_bar_0m = H1_bar_0m + eta1_bar_0m;// - eta2_bar_0m;
-    const float h1_bar_00 = H1_bar_00 + eta1_bar_00;// - eta2_bar_00;
+    const float h1_p0 = H1_p0 + eta1_p0 - eta2_p0;
+    const float h1_00 = H1_00 + eta1_00 - eta2_00;
+    const float h1_bar_0m = H1_bar_0m + eta1_bar_0m - eta2_bar_0m;
+    const float h1_bar_00 = H1_bar_00 + eta1_bar_00 - eta2_bar_00;
     
     const float h2_p0 = H2_p0 + eta2_p0;
     const float h2_00 = H2_00 + eta2_00;
@@ -319,16 +318,23 @@ __kernel void computeUKernel(
     
     
     //Compute pressure components
-    //FIXME Are these the right pressure terms?
-    const float epsilon = (rho2_ - rho1_)/rho2_;
-    //const float P1_x = -0.5f*g_*(h1_p0 + h1_00) * (h1_p0 - h1_00 + H1_p0 - H1_00) * (1.0f - epsilon);
-    //const float P2_x = P1_x - 0.5f*g_*(h2_p0 + h2_00) * (h2_p0 - h2_00 + H2_p0 - H2_00);
-    //const float P1_x = -0.5f*g_*(h1_p0 + h1_00) * (eta1_p0 - eta1_00) * (1.0f - epsilon);
-    //const float P2_x = P1_x - 0.5f*g_*(h2_p0 + h2_00) * (eta2_p0 - eta2_00);
-    //const float P1_x = -0.5f*g_*(h1_p0 + h1_00) * (eta1_p0 - eta1_00 + H1_p0 - H1_00) * (1.0f - epsilon);
-    //const float P2_x = P1_x - 0.5f*g_*(h2_p0 + h2_00) * (eta2_p0 - eta2_00 + H2_p0 - H2_00);
-    const float P1_x = -0.5f*g_*(h1_p0 + h1_00) * (eta1_p0 - eta1_00 + h2_p0 - h2_00) * (1.0f - epsilon);
-    const float P2_x = -0.5f*g_*(h2_p0 + h2_00) * (eta2_p0 - eta2_00 + H2_p0 - H2_00);
+    const float h1_x = 0.5f*(h1_p0 + h1_00);
+    const float h2_x = 0.5f*(h2_p0 + h2_00);
+    
+    //const float epsilon = (rho2_ - rho1_)/rho2_;
+    //const float P1_x = -g_*h1_x * (eta1_p0 - eta1_00 + h2_p0 - h2_00) * (1.0f - epsilon);
+    //const float P2_x = -g_*h2_x * (eta2_p0 - eta2_00 + H2_p0 - H2_00);
+    
+    const float P1_x = - g_*h1_x*(eta1_p0 - eta1_00) - 0.5f*g_*(eta1_p0*eta1_p0 - eta1_00*eta1_00);
+    const float P2_x = - g_ * (rho1_/rho2_) * 
+                            ( //Pressure contribution from top layer
+                            h2_x*(eta1_p0 - eta1_00) + 0.5f*(eta1_p0*eta1_p0 - eta1_00*eta1_00) 
+                            )
+                       - g_ * ((rho2_ - rho1_)/rho2_) * 
+                            ( //Pressure contribution from bottom layer
+                            h2_x*(eta2_p0 - eta2_00) + 0.5f*(eta2_p0*eta2_p0 - eta2_00*eta2_00) 
+                            );
+    
 
     
     
@@ -342,8 +348,8 @@ __kernel void computeUKernel(
     
     //Calculate the bottom and/or inter-layer friction coefficient
     //FIXME: Should this be h instead of H?
-    const float C1 = 2.0f*r1_*dt_/H1_x;
-    const float C2 = 2.0f*r2_*dt_/H2_x;
+    const float C1 = r1_/H1_x;
+    const float C2 = r2_/H2_x;
 
     
     
@@ -387,8 +393,8 @@ __kernel void computeUKernel(
     
     
     //Compute U at the next timestep
-    float U1_2 = (U1_0 + 2.0f*dt_*(f_*V1_bar + (N1 + P1_x)/dx_ + X  + A_*E1) ) / (1.0f + C1 + D);
-    float U2_2 = (U2_0 + 2.0f*dt_*(f_*V2_bar + (N2 + P2_x)/dx_ + C1 + A_*E2) ) / (1.0f + C2 + D);
+    float U1_2 = (U1_0 + 2.0f*dt_*(f_*V1_bar + (N1 + P1_x)/dx_ + X + C1*U2_0 + A_*E1) ) / (1.0f + D);
+    float U2_2 = (U2_0 + 2.0f*dt_*(f_*V2_bar + (N2 + P2_x)/dx_     + C1*U1_0 + A_*E2) ) / (1.0f + 2.0f*dt_*C2 + D);
 
     
     
