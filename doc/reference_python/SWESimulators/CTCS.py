@@ -58,6 +58,8 @@ class CTCS:
     r: Bottom friction coefficient (2.4e-3 m/s)
     A: Eddy viscosity coefficient (O(dx))
     wind_stress: Wind stress parameters
+    boundary_conditions: Boundary condition object
+    write_netcdf: Write the results after each superstep to a netCDF file
     """
     def __init__(self, \
                  cl_ctx, \

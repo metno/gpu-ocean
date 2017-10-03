@@ -49,14 +49,19 @@ class CDKLM16:
     Bi: Bottom topography defined on cell corners, (nx+7)*(ny+7) corners
     nx: Number of cells along x-axis
     ny: Number of cells along y-axis
-    extra_ghosts_x: Number of extra ghost cells along x-axis
-    extra_ghosts_y: Number of extra ghost cells along y-axis
     dx: Grid cell spacing along x-axis (20 000 m)
     dy: Grid cell spacing along y-axis (20 000 m)
     dt: Size of each timestep (90 s)
     g: Gravitational accelleration (9.81 m/s^2)
     f: Coriolis parameter (1.2e-4 s^1)
     r: Bottom friction coefficient (2.4e-3 m/s)
+    theta: minmod reconstruction parameter
+    rk_order: Order of Runge Kutta method {1,2*,3}
+    wind_stress: Wind stress parameters
+    boundary_conditions: Boundary conditions object
+    h0AsWaterElevation: True if h0 is described by the surface elevation, and false if h0 is described by water depth
+    reportGeostrophicEquilibrium: Calculate the Geostrophic Equilibrium variables for each superstep
+    write_netcdf: Write the results after each superstep to a netCDF file
     """
     def __init__(self, \
                  cl_ctx, \
