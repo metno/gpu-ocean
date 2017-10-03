@@ -236,8 +236,7 @@ class SimNetCDFWriter:
             self.nc_eta[self.i, :] = eta
             self.nc_u[self.i, :] = hu
             self.nc_v[self.i, :] = hv
-            print("TIMESTEP WRITTEN!")
-            
+                       
         self.i += 1
 
             
