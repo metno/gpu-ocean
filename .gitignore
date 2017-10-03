@@ -2,5 +2,14 @@
 /.cproject
 /.project
 /.settings/
+/.pydevproject
 .ipynb_checkpoints/
 *.pyc
+
+/CMakeCache.txt
+/CMakeFiles/
+/DartConfiguration.tcl
+/Makefile
+/bin/
+/cmake_install.cmake
+/CTestTestfile.cmake

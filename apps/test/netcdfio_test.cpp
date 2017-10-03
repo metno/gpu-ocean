@@ -83,12 +83,12 @@ BOOST_AUTO_TEST_CASE(InitStateWrittenAndReadBack)
 
     // check other contents
     const InitCondPtr initCond = mgr.initConditions();
-    BOOST_CHECK_EQUAL(initCond->nx(), fileReader->nx());
-    BOOST_CHECK_EQUAL(initCond->ny(), fileReader->ny());
+    BOOST_CHECK_EQUAL(initCond->getNx(), fileReader->nx());
+    BOOST_CHECK_EQUAL(initCond->getNy(), fileReader->ny());
     BOOST_CHECK_EQUAL(initCond->width(), fileReader->width());
     BOOST_CHECK_EQUAL(initCond->height(), fileReader->height());
-    BOOST_CHECK_EQUAL(initCond->dx(), fileReader->dx());
-    BOOST_CHECK_EQUAL(initCond->dy(), fileReader->dy());
+    BOOST_CHECK_EQUAL(initCond->getDx(), fileReader->dx());
+    BOOST_CHECK_EQUAL(initCond->getDy(), fileReader->dy());
     CHECK_FIELDS_EQUAL(initCond->H(), fileReader->H());
     CHECK_FIELDS_EQUAL(initCond->eta(), mgr.eta()); // note this!
     CHECK_FIELDS_EQUAL(mgr.eta(), fileReader->eta());

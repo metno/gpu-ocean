@@ -2,6 +2,9 @@
 #define SIMULATOR_H
 
 #include "simbase.h"
+#include <memory>
+
+using namespace std;
 
 /**
  * @brief This class implements the real simulator.
@@ -20,17 +23,19 @@ public:
     virtual ~Simulator();
 
 private:
-    virtual bool _init();
-    virtual double _currTime() const;
-    virtual double _maxTime() const;
-    virtual float _deltaTime() const;
-    virtual void _execNextStep(ProfileInfo *);
-    virtual Field2D _U() const;
-    virtual Field2D _V() const;
-    virtual Field2D _eta() const;
-    virtual float _F() const;
-    virtual float _R() const;
-    virtual void _printStatus() const;
+    virtual bool init();
+    virtual void assertInitialized() const;
+    virtual double currTime() const;
+    virtual double maxTime() const;
+    virtual float deltaTime() const;
+    virtual bool execNextStep(ProfileInfo *);
+    virtual Field2D H() const;
+    virtual Field2D U() const;
+    virtual Field2D V() const;
+    virtual Field2D eta() const;
+    virtual float f() const;
+    virtual float r() const;
+    virtual void printStatus() const;
 
     struct SimulatorImpl;
     SimulatorImpl *pimpl;

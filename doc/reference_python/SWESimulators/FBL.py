@@ -84,7 +84,7 @@ class FBL:
         self.u_kernel = Common.get_kernel(self.cl_ctx, "FBL_U_kernel.opencl", block_width, block_height)
         self.v_kernel = Common.get_kernel(self.cl_ctx, "FBL_V_kernel.opencl", block_width, block_height)
         self.eta_kernel = Common.get_kernel(self.cl_ctx, "FBL_eta_kernel.opencl", block_width, block_height)
-                
+
         #Create data by uploading to device
         ghost_cells_x = 0
         ghost_cells_y = 0
