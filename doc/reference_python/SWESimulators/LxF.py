@@ -93,7 +93,11 @@ class LxF:
                       ) 
     
     
-    
+    """
+    Clean up function
+    """
+    def cleanUp(self):
+        self.cl_data.release()
     
     """
     Function which steps n timesteps
