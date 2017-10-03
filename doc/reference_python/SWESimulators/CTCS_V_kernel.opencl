@@ -33,6 +33,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 __kernel void computeVKernel(
         //Discretization parameters
         int nx_, int ny_,
+        int closed_boundary_,
         float dx_, float dy_, float dt_,
     
         //Physical parameters
@@ -68,7 +69,7 @@ __kernel void computeVKernel(
     
     //Start of block within domain
     const int bx = get_local_size(0) * get_group_id(0) + 1; //Skip global ghost cells
-    const int by = get_local_size(1) * get_group_id(1) + 1; //Skip global ghost cells
+    const int by = get_local_size(1) * get_group_id(1) + 1 + closed_boundary_; //Skip global ghost cells
 
     //Index of cell within domain
     const int ti = bx + tx;
@@ -79,41 +80,54 @@ __kernel void computeVKernel(
 
     //Read current V
     float V0 = 0.0f;
-    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
+    // if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
+    //if ( ti >= 1 && ti <= nx_ && tj >= 2 && tj <= ny_) {
+    if (ti >= 1 && ti <= nx_ && tj >= 1+closed_boundary_ && tj <= ny_+1-closed_boundary_) {        
         V0 = V0_row[ti];
     }
 
     //Read H and eta into shared memory: (nx+2)*(ny+1) cells
     for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
         // "fake" global ghost cells by clamping
-        const int l = clamp(by + j, 1, ny_);
+        // const int l = clamp(by + j, 1, ny_);
+        const int l = by + j - 1;
+        if (l >= 0 && l <= ny_+1) {
         
-        //Compute the pointer to current row in the H and eta arrays
-        __global float* const H_row = (__global float*) ((__global char*) H_ptr_ + H_pitch_*l);
-        __global float* const eta1_row = (__global float*) ((__global char*) eta1_ptr_ + eta1_pitch_*l);
-        
-        for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
-            // "fake" global ghost cells by clamping
-            const int k = clamp(bx + i - 1, 1, nx_);
-            
-            H_shared[j][i] = H_row[k];
-            eta1_shared[j][i] = eta1_row[k];
+            //Compute the pointer to current row in the H and eta arrays
+            __global float* const H_row = (__global float*) ((__global char*) H_ptr_ + H_pitch_*l);
+            __global float* const eta1_row = (__global float*) ((__global char*) eta1_ptr_ + eta1_pitch_*l);
+
+            for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
+                // "fake" global ghost cells by clamping
+                // const int k = clamp(bx + i - 1, 1, nx_);
+                const int k = bx + i - 1;
+                if (k >= 0 && k <= nx_+1) { 
+
+                    H_shared[j][i] = H_row[k];
+                    eta1_shared[j][i] = eta1_row[k];
+                }
+            }
         }
     }
 
     //Read U into shared memory: (nx+1)*(ny+1) cells
     for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
         // "fake" ghost cells by clamping
-        const int l = clamp(by + j, 1, ny_);
-        
-        //Compute the pointer to current row in the U array
-        __global float* const U1_row = (__global float*) ((__global char*) U1_ptr_ + U1_pitch_*l);
-        
-        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
-            // Prevent out-of-bounds
-            const int k = clamp(bx + i - 1, 0, nx_);
-            
-            U1_shared[j][i] = U1_row[k];
+        // const int l = clamp(by + j, 1, ny_);
+        const int l = by + j - 1;
+        if ( l >= 0 && l <= ny_+1) {
+
+            //Compute the pointer to current row in the U array
+            __global float* const U1_row = (__global float*) ((__global char*) U1_ptr_ + U1_pitch_*l);
+
+            for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+                // Prevent out-of-bounds
+                // const int k = clamp(bx + i - 1, 0, nx_);
+                const int k = bx + i;
+                if ( k >= 0 && k <= nx_+2) {                
+                    U1_shared[j][i] = U1_row[k];
+                }
+            }
         }
     }
     
@@ -121,16 +135,21 @@ __kernel void computeVKernel(
     //Read V into shared memory: (nx+2)*(ny+2) cells
     for (int j=ty; j<block_height+2; j+=get_local_size(1)) {
         // Prevent out-of-bounds
-        const int l = clamp(by + j - 1, 0, ny_);
-        
-        //Compute the pointer to current row in the U array
-        __global float* const V1_row = (__global float*) ((__global char*) V1_ptr_ + V1_pitch_*l);
-        
-        for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
-            // "fake" ghost cells by clamping
-            const int k = clamp(bx + i - 1, 1, nx_);
-            
-            V1_shared[j][i] = V1_row[k];
+        // const int l = clamp(by + j - 1, 0, ny_);
+        const int l = by + j - 1;
+        if (l >= 0 && l <= ny_+2) {
+
+            //Compute the pointer to current row in the U array
+            __global float* const V1_row = (__global float*) ((__global char*) V1_ptr_ + V1_pitch_*l);
+
+            for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
+                // "fake" ghost cells by clamping
+                // const int k = clamp(bx + i - 1, 1, nx_);
+                const int k = bx + i - 1;
+                if (k >= 0 && k <= nx_+1) {
+                    V1_shared[j][i] = V1_row[k];
+                }
+            }
         }
     }
 
@@ -187,14 +206,11 @@ __kernel void computeVKernel(
     const float C = 1.0 + 2*r_*dt_/H_y + 2*A_*dt_*(dx_*dx_ + dy_*dy_)/(dx_*dx_*dy_*dy_);
 
     //Calculate the pressure/gravitational effect
-    //const float P_y = -g_*H_y*(eta_0p - eta_00);
-    //const float P_y_hat = -0.5f*g_*(eta_0p*eta_0p - eta_00*eta_00);
-    
     const float h_0p = H_0p + eta_0p;
     const float h_00 = H_00 + eta_00;
-    const float P_y = -0.5f*g_*(h_0p + h_00) * (h_0p - h_00 + H_0p - H_00);
-    //const float P_y = -0.5f*g_*(h_0p*h_0p - h_00*h_00 - 2.0f*(h_0p+h_00)*(H_0p-H_00));
-    //const float P_y_hat = 0.0f;
+    const float h_y = 0.5*(h_00 + h_0p); //Could possibly use h for pressure terms instead of H
+    const float P_y_hat = -0.5f*g_*(eta_0p*eta_0p - eta_00*eta_00);
+    const float P_y = -g_*h_y*(eta_0p - eta_00) + P_y_hat;
     
     //Calculate nonlinear effects
     const float N_a = (V_0p + V_00)*(V_0p + V_00) / (H_0p + eta_0p);
@@ -219,7 +235,9 @@ __kernel void computeVKernel(
     float V2 = (V0 + 2.0f*dt_*(-f_*U_bar + (N + P_y)/dy_ + Y + A_*E) ) / C;
 
     //Write to main memory for internal cells
-    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
+    //if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
+    //if ( ti >= 1 && ti <= nx_ && tj >= 2 && tj <= ny_) {
+    if (ti >= 1 && ti <= nx_ && tj >= 1+closed_boundary_ && tj <= ny_+1-closed_boundary_) {        
         V0_row[ti] = V2;
     }
 }

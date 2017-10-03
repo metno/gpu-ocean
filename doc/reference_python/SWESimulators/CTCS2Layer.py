@@ -244,6 +244,7 @@ class CTCS2Layer:
     wind_v0: Translation speed along y for moving cyclone (-0.5*u0)
     """
     def __init__(self, \
+                 cl_ctx,\
                  h1_0, eta1_0, u1_0, v1_0, \
                  h2_0, eta2_0, u2_0, v2_0, \
                  nx, ny, \
@@ -254,14 +255,7 @@ class CTCS2Layer:
                  wind_tau0=0, wind_alpha=0, wind_xm=0, wind_Rc=0, \
                  wind_x0=0, wind_y0=0, \
                  wind_u0=0, wind_v0=0):
-        #Make sure we get compiler output from OpenCL
-        os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
-
-        #Set which CL device to use
-        os.environ["PYOPENCL_CTX"] = "1"
-
-        #Create OpenCL context
-        self.cl_ctx = cl.create_some_context()
+        self.cl_ctx = cl_ctx
         print "Using ", self.cl_ctx.devices[0].name
 
         #Create an OpenCL command queue

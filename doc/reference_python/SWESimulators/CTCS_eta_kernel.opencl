@@ -63,35 +63,46 @@ __kernel void computeEtaKernel(
 
     //Read current eta
     float eta0 = 0.0f;
-    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
+    // if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
+    if ( ti >= 1 && ti <= nx_ && tj >= 1 && tj <= ny_) {
         eta0 = eta0_row[ti];
     }
     
     //Read U into shared memory
     for (int j=ty; j<block_height; j+=get_local_size(1)) {
-        const int l = clamp(by + j, 1, ny_); // fake ghost cells
-        
-        //Compute the pointer to current row in the V array
-        __global float* const U1_row = (__global float*) ((__global char*) U1_ptr_ + U1_pitch_*l);
-        
-        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
-            const int k = clamp(bx + i - 1, 0, nx_); // prevent out of bounds
-            
-            U1_shared[j][i] = U1_row[k];
+        //const int l = clamp(by + j, 1, ny_); // fake ghost cells
+        const int l = by + j;
+        if (l >= 0 && l <= ny_+1) {
+
+            //Compute the pointer to current row in the V array
+            __global float* const U1_row = (__global float*) ((__global char*) U1_ptr_ + U1_pitch_*l);
+
+            for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+                //const int k = clamp(bx + i - 1, 0, nx_); // prevent out of bounds
+                const int k = bx + i;
+                if (k >= 0 && k <= nx_+2) {
+                    U1_shared[j][i] = U1_row[k];
+                }
+            }
         }
     }
     
     //Read V into shared memory
     for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
-        const int l = clamp(by + j - 1, 0, ny_); // prevent out of bounds
-        
-        //Compute the pointer to current row in the V array
-        __global float* const V1_row = (__global float*) ((__global char*) V1_ptr_ + V1_pitch_*l);
-        
-        for (int i=tx; i<block_width; i+=get_local_size(0)) {
-            const int k = clamp(bx + i, 1, nx_); // fake ghost cells
-            
-            V1_shared[j][i] = V1_row[k];
+        //const int l = clamp(by + j - 1, 0, ny_); // prevent out of bounds
+        const int l = by + j;
+        if (l >= 0 && l <= ny_+2) {
+
+            //Compute the pointer to current row in the V array
+            __global float* const V1_row = (__global float*) ((__global char*) V1_ptr_ + V1_pitch_*l);
+
+            for (int i=tx; i<block_width; i+=get_local_size(0)) {
+                //const int k = clamp(bx + i, 1, nx_); // fake ghost cells
+                const int k = bx + i;
+                if (k > 0 && k <= nx_+1) {
+                    V1_shared[j][i] = V1_row[k];
+                }
+            }
         }
     }
 
@@ -103,7 +114,8 @@ __kernel void computeEtaKernel(
                       - 2.0f*dt_/dy_ * (V1_shared[ty+1][tx] - V1_shared[ty][tx]);
     
     //Write to main memory
-    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
+    //if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
+    if ( ti >= 1 && ti <= nx_ && tj >= 1 && tj <= ny_ ) {
         eta0_row[ti] = eta2;
     }
 }

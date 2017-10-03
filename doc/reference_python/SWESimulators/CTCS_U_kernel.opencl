@@ -30,6 +30,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 __kernel void computeUKernel(
         //Discretization parameters
         int nx_, int ny_,
+        int closed_boundary_,
         float dx_, float dy_, float dt_,
     
         //Physical parameters
@@ -64,7 +65,7 @@ __kernel void computeUKernel(
     const int ty = get_local_id(1);
     
     //Start of block within domain
-    const int bx = get_local_size(0) * get_group_id(0) + 1; //Skip global ghost cells
+    const int bx = get_local_size(0) * get_group_id(0) + 1 + closed_boundary_; //Skip global ghost cells
     const int by = get_local_size(1) * get_group_id(1) + 1; //Skip global ghost cells
 
     //Index of cell within domain
@@ -76,41 +77,59 @@ __kernel void computeUKernel(
 
     //Read current U
     float U0 = 0.0f;
-    if (ti > 0 && ti < nx_ && tj > 0 && tj < ny_+1) {
+    //if (ti > 0 && ti < nx_ && tj > 0 && tj < ny_+1) {
+    //if (ti > halo_x_-1+1 && ti < nx_ + 2*halo_x_-1+1 && tj > halo_y_-1 && tj < ny_+halo_y_) {
+    //if (ti >= 2 && ti <= nx_ && tj >= 1 && tj <= ny_) {
+    if (ti >= closed_boundary_+1 && ti <= nx_+1-closed_boundary_ && tj >= 1 && tj <= ny_) {
         U0 = U0_row[ti];
     }
 
     //Read H and eta into shared memory: (nx+1)*(ny+2) cells
     for (int j=ty; j<block_height+2; j+=get_local_size(1)) {
         // "fake" global ghost cells by clamping
-        const int l = clamp(by + j - 1, 1, ny_);
+        // const int l = clamp(by + j - 1, 1, ny_);
         
-        //Compute the pointer to current row in the H and eta arrays
-        __global float* const H_row = (__global float*) ((__global char*) H_ptr_ + H_pitch_*l);
-        __global float* const eta1_row = (__global float*) ((__global char*) eta1_ptr_ + eta1_pitch_*l);
+        // H and eta are filled with proper ghost cell values
+        const int l = by + j - 1;
+        if (l >= 0 && l <= ny_+1) {
         
-        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
-            // "fake" global ghost cells by clamping
-            const int k = clamp(bx + i, 1, nx_);
-            
-            H_shared[j][i] = H_row[k];
-            eta1_shared[j][i] = eta1_row[k];
+            //Compute the pointer to current row in the H and eta arrays
+            __global float* const H_row = (__global float*) ((__global char*) H_ptr_ + H_pitch_*l);
+            __global float* const eta1_row = (__global float*) ((__global char*) eta1_ptr_ + eta1_pitch_*l);
+
+            for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+                // "fake" global ghost cells by clamping
+                //const int k = clamp(bx + i, 1, nx_);
+                
+                const int k = bx + i - 1;
+                if ( k >= 0 && k <= nx_+1) {
+                    H_shared[j][i] = H_row[k];
+                    eta1_shared[j][i] = eta1_row[k];
+                }
+            }
         }
     }
 
     //Read U into shared memory: (nx+2)*(ny+2) cells
     for (int j=ty; j<block_height+2; j+=get_local_size(1)) {
         // "fake" ghost cells by clamping
-        const int l = clamp(by + j - 1, 1, ny_);
+        // const int l = clamp(by + j - 1, 1, ny_);
         
-        //Compute the pointer to current row in the U array
-        __global float* const U1_row = (__global float*) ((__global char*) U1_ptr_ + U1_pitch_*l);
-        
-        for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
-            // Prevent out-of-bounds
-            const int k = clamp(bx + i - 1, 0, nx_);
-            
-            U1_shared[j][i] = U1_row[k];
+        const int l = by + j - 1;
+        if (l >= 0 && l <= ny_+1) {
+
+            //Compute the pointer to current row in the U array
+            __global float* const U1_row = (__global float*) ((__global char*) U1_ptr_ + U1_pitch_*l);
+
+            for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
+                // Prevent out-of-bounds
+                // const int k = clamp(bx + i - 1, halo_x_, nx_+halo_x_);
+                
+                const int k = bx + i - 1;
+                if ( k >= 0 && k <= nx_+2) {
+                    U1_shared[j][i] = U1_row[k];
+                }
+            }
         }
     }
     
@@ -118,16 +137,23 @@ __kernel void computeUKernel(
     //Read V into shared memory: (nx+1)*(ny+1) cells
     for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
         // Prevent out-of-bounds
-        const int l = clamp(by + j - 1, 0, ny_);
+        // const int l = clamp(by + j - 1, 0, ny_);
         
-        //Compute the pointer to current row in the U array
-        __global float* const V1_row = (__global float*) ((__global char*) V1_ptr_ + V1_pitch_*l);
-        
-        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
-            // "fake" ghost cells by clamping
-            const int k = clamp(bx + i, 1, nx_);
-            
-            V1_shared[j][i] = V1_row[k];
+        const int l = by + j;
+        if (l >= 0 && l <= ny_+2) {
+
+            //Compute the pointer to current row in the U array
+            __global float* const V1_row = (__global float*) ((__global char*) V1_ptr_ + V1_pitch_*l);
+
+            for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+                // "fake" ghost cells by clamping
+                // const int k = clamp(bx + i, halo_x_, nx_+halo_x_);
+
+                const int k = bx + i - 1;
+                if (k >= 0 && k <= nx_+1) {                
+                    V1_shared[j][i] = V1_row[k];
+                }
+            }
         }
     }
     
@@ -183,14 +209,11 @@ __kernel void computeUKernel(
     const float C = 1.0 + 2*r_*dt_/H_x + 2*A_*dt_*(dx_*dx_ + dy_*dy_)/(dx_*dx_*dy_*dy_);
 
     //Calculate the pressure/gravitational effect
-    //const float P_x = -g_*H_x*(eta_p0 - eta_00);
-    //const float P_x_hat = -0.5f*g_*(eta_p0*eta_p0 - eta_00*eta_00);
-    
     const float h_p0 = H_p0 + eta_p0;
     const float h_00 = H_00 + eta_00;
-    const float P_x = -0.5f*g_*(h_p0 + h_00) * (h_p0 - h_00 + H_p0 - H_00);
-    //const float P_x = -0.5f*g_*(h_p0*h_p0 - h_00*h_00 - 2.0f*(h_p0+h_00)*(H_p0-H_00));
-    //const float P_x_hat = 0.0f;
+    const float h_x = 0.5*(h_00 + h_p0); //Could possibly use h for pressure terms instead of H
+    const float P_x_hat = -0.5f*g_*(eta_p0*eta_p0 - eta_00*eta_00);
+    const float P_x = -g_*h_x*(eta_p0 - eta_00) + P_x_hat;
     
     //Calculate nonlinear effects
     const float N_a = (U_p0 + U_00)*(U_p0 + U_00) / (H_p0 + eta_p0);
@@ -215,7 +238,10 @@ __kernel void computeUKernel(
     float U2 = (U0 + 2.0f*dt_*(f_*V_bar + (N + P_x)/dx_ + X + A_*E) ) / C;
 
     //Write to main memory for internal cells
-    if (ti > 0 && ti < nx_ && tj > 0 && tj < ny_+1) {
+    // if (ti > 0 && ti < nx_ && tj > 0 && tj < ny_+1) {
+    //if (ti > halo_x_-1+1 && ti < nx_ + 2*halo_x_-1+1 && tj > halo_y_-1 && tj < ny_+halo_y_) {
+    // if (ti >= 2 && ti <= nx_ && tj >= 1 && tj <= ny_) {
+    if (ti >= closed_boundary_+1 && ti <= nx_+1-closed_boundary_ && tj >= 1 && tj <= ny_) {
         U0_row[ti] = U2;
     }
 }
