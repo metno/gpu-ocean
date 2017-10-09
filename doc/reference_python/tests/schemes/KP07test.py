@@ -45,7 +45,6 @@ class KP07test(unittest.TestCase):
         if self.sim != None:
             self.sim.cleanUp()
             self.sim = None
-            print "\nclean up! Yeah!"
         
 
     def allocData(self):
