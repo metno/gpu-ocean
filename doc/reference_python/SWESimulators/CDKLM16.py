@@ -26,7 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import pyopencl as cl #OpenCL in Python
 import Common, SimWriter
-
+import gc
 
 
 
@@ -172,6 +172,8 @@ class CDKLM16:
         self.geoEq_Ly.release()
         self.bathymetry.release()
         self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
+        gc.collect() # Force run garbage collection to free up memory
+        
     
     """
     Function which steps n timesteps
