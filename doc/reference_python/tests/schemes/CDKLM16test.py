@@ -326,3 +326,20 @@ class CDKLM16test(unittest.TestCase):
         self.checkResults(eta1, u1, v1, eta2, u2, v2)       
 
   
+    def test_coriolis_central(self):
+        self.setBoundaryConditions()
+        self.allocData()
+        self.f = 0.01
+        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                                   self.h0, self.u0, self.v0, self.Bi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        h1, u1, v1 = self.sim.download()
+        eta1 = h1 - self.waterHeight
+        eta2, u2, v2 = loadResults("CDKLM16", "coriolis", "central")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)

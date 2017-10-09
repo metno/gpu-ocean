@@ -244,3 +244,20 @@ class FBLtest(unittest.TestCase):
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
         
+    def test_coriolis_central(self):
+        self.setBoundaryConditions(1)
+        self.createHostData()
+        self.f = 0.01
+        makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy,
+                        self.ghosts)
+        self.sim = FBL.FBL(self.cl_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r)
+        
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("FBL", "coriolis", "central")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
