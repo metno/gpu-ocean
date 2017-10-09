@@ -39,7 +39,14 @@ class CDKLM16test(unittest.TestCase):
         self.boundaryConditions = None
 
         self.T = 50.0
+        self.sim = None
+        
+    def tearDown(self):
+        if self.sim != None:
+            self.sim.cleanUp()
+            self.sim = None
 
+            
     def allocData(self):
         dataShape = (self.ny + self.ghosts[0]+self.ghosts[2], 
                      self.nx + self.ghosts[1]+self.ghosts[3])
@@ -92,14 +99,14 @@ class CDKLM16test(unittest.TestCase):
         self.setBoundaryConditions()
         self.allocData()
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, self.Bi, \
-                    self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                                   self.h0, self.u0, self.v0, self.Bi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        h1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        h1, u1, v1 = self.sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "wallBC", "central")
 
@@ -111,14 +118,14 @@ class CDKLM16test(unittest.TestCase):
         self.setBoundaryConditions()
         self.allocData()
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, self.Bi, \
-                    self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                                   self.h0, self.u0, self.v0, self.Bi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        h1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        h1, u1, v1 = self.sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "wallBC", "corner")
 
@@ -128,14 +135,14 @@ class CDKLM16test(unittest.TestCase):
         self.setBoundaryConditions()
         self.allocData()
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, self.Bi, \
-                    self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                                   self.h0, self.u0, self.v0, self.Bi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        h1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        h1, u1, v1 = self.sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "wallBC", "upperCorner")
 
@@ -148,14 +155,14 @@ class CDKLM16test(unittest.TestCase):
         self.setBoundaryConditions(bcSettings=2)
         self.allocData()
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, self.Bi, \
-                    self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                                   self.h0, self.u0, self.v0, self.Bi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        h1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        h1, u1, v1 = self.sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "wallBC", "central")
         
@@ -166,14 +173,14 @@ class CDKLM16test(unittest.TestCase):
         self.setBoundaryConditions(bcSettings=2)
         self.allocData()
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, self.Bi, \
-                    self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                                   self.h0, self.u0, self.v0, self.Bi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        h1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        h1, u1, v1 = self.sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "periodic", "corner")
 
@@ -183,14 +190,14 @@ class CDKLM16test(unittest.TestCase):
         self.setBoundaryConditions(bcSettings=2)
         self.allocData()
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, self.Bi, \
-                    self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                                   self.h0, self.u0, self.v0, self.Bi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        h1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        h1, u1, v1 = self.sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "periodic", "upperCorner")
 
@@ -203,14 +210,14 @@ class CDKLM16test(unittest.TestCase):
         self.setBoundaryConditions(bcSettings=3)
         self.allocData()
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, self.Bi, \
-                    self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                                   self.h0, self.u0, self.v0, self.Bi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        h1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        h1, u1, v1 = self.sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "wallBC", "central")
         
@@ -221,14 +228,14 @@ class CDKLM16test(unittest.TestCase):
         self.setBoundaryConditions(bcSettings=3)
         self.allocData()
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, self.Bi, \
-                    self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                                   self.h0, self.u0, self.v0, self.Bi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        h1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        h1, u1, v1 = self.sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "periodicNS", "corner")
         
@@ -240,14 +247,14 @@ class CDKLM16test(unittest.TestCase):
         self.setBoundaryConditions(bcSettings=3)
         self.allocData()
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, self.Bi, \
-                    self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                                   self.h0, self.u0, self.v0, self.Bi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        h1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        h1, u1, v1 = self.sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "periodicNS", "upperCorner")
         
@@ -259,14 +266,14 @@ class CDKLM16test(unittest.TestCase):
         self.setBoundaryConditions(bcSettings=4)
         self.allocData()
         addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, self.Bi, \
-                    self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                                   self.h0, self.u0, self.v0, self.Bi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        h1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        h1, u1, v1 = self.sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "wallBC", "central")
         
@@ -277,14 +284,14 @@ class CDKLM16test(unittest.TestCase):
         self.setBoundaryConditions(bcSettings=4)
         self.allocData()
         addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, self.Bi, \
-                    self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                                   self.h0, self.u0, self.v0, self.Bi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        h1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        h1, u1, v1 = self.sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "periodicEW", "corner")
         
@@ -294,14 +301,14 @@ class CDKLM16test(unittest.TestCase):
         self.setBoundaryConditions(bcSettings=4)
         self.allocData()
         addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        sim = CDKLM16.CDKLM16(self.cl_ctx, \
-                    self.h0, self.u0, self.v0, self.Bi, \
-                    self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+                                   self.h0, self.u0, self.v0, self.Bi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        h1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        h1, u1, v1 = self.sim.download()
         eta1 = h1 - self.waterHeight
         eta2, u2, v2 = loadResults("CDKLM16", "periodicEW", "upperCorner")
         

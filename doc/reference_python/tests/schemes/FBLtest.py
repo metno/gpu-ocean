@@ -34,6 +34,13 @@ class FBLtest(unittest.TestCase):
         self.boundaryConditions = None #Common.BoundaryConditions()
         self.ghosts = None #[0, 0, 0, 0]
         self.arrayRange = None
+
+        self.sim = None
+        
+    def tearDown(self):
+        if self.sim != None:
+            self.sim.cleanUp()
+            self.sim = None
         
     def setBoundaryConditions(self, bcSettings=1):
         if (bcSettings == 1):
@@ -93,14 +100,14 @@ class FBLtest(unittest.TestCase):
         self.createHostData()
         makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy,
                         self.ghosts)
-        sim = FBL.FBL(self.cl_ctx, \
-                      self.h0, self.eta0, self.u0, self.v0, \
-                      self.nx, self.ny, \
-                      self.dx, self.dy, self.dt, \
-                      self.g, self.f, self.r)
+        self.sim = FBL.FBL(self.cl_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r)
         
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("FBL", "wallBC", "central")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -109,14 +116,14 @@ class FBLtest(unittest.TestCase):
         self.setBoundaryConditions(1)
         self.createHostData()
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = FBL.FBL(self.cl_ctx, \
-                      self.h0, self.eta0, self.u0, self.v0, \
-                      self.nx, self.ny, \
-                      self.dx, self.dy, self.dt, \
-                      self.g, self.f, self.r)
+        self.sim = FBL.FBL(self.cl_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r)
         
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("FBL", "wallBC", "corner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -126,15 +133,15 @@ class FBLtest(unittest.TestCase):
         self.setBoundaryConditions(2)
         self.createHostData()
         makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = FBL.FBL(self.cl_ctx, \
-                      self.h0, self.eta0, self.u0, self.v0, \
-                      self.nx, self.ny, \
-                      self.dx, self.dy, self.dt, \
-                      self.g, self.f, self.r, \
-                      boundary_conditions=self.boundaryConditions)
+        self.sim = FBL.FBL(self.cl_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r, \
+                           boundary_conditions=self.boundaryConditions)
         
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("FBL", "wallBC", "central")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -144,15 +151,15 @@ class FBLtest(unittest.TestCase):
         self.setBoundaryConditions(2)
         self.createHostData()
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = FBL.FBL(self.cl_ctx, \
-                      self.h0, self.eta0, self.u0, self.v0, \
-                      self.nx, self.ny, \
-                      self.dx, self.dy, self.dt, \
-                      self.g, self.f, self.r, \
-                      boundary_conditions=self.boundaryConditions)
+        self.sim = FBL.FBL(self.cl_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r, \
+                           boundary_conditions=self.boundaryConditions)
         
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("FBL", "periodicAll", "corner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
@@ -163,15 +170,15 @@ class FBLtest(unittest.TestCase):
         self.setBoundaryConditions(3)
         self.createHostData()
         makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = FBL.FBL(self.cl_ctx, \
-                      self.h0, self.eta0, self.u0, self.v0, \
-                      self.nx, self.ny, \
-                      self.dx, self.dy, self.dt, \
-                      self.g, self.f, self.r, \
-                      boundary_conditions=self.boundaryConditions)
+        self.sim = FBL.FBL(self.cl_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r, \
+                           boundary_conditions=self.boundaryConditions)
         
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("FBL", "wallBC", "central")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -181,15 +188,15 @@ class FBLtest(unittest.TestCase):
         self.setBoundaryConditions(3)
         self.createHostData()
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = FBL.FBL(self.cl_ctx, \
-                      self.h0, self.eta0, self.u0, self.v0, \
-                      self.nx, self.ny, \
-                      self.dx, self.dy, self.dt, \
-                      self.g, self.f, self.r, \
-                      boundary_conditions=self.boundaryConditions)
+        self.sim = FBL.FBL(self.cl_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r, \
+                           boundary_conditions=self.boundaryConditions)
         
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("FBL", "periodicNS", "corner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
@@ -199,15 +206,15 @@ class FBLtest(unittest.TestCase):
         self.setBoundaryConditions(4)
         self.createHostData()
         makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = FBL.FBL(self.cl_ctx, \
-                      self.h0, self.eta0, self.u0, self.v0, \
-                      self.nx, self.ny, \
-                      self.dx, self.dy, self.dt, \
-                      self.g, self.f, self.r, \
-                      boundary_conditions=self.boundaryConditions)
+        self.sim = FBL.FBL(self.cl_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r, \
+                           boundary_conditions=self.boundaryConditions)
         
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("FBL", "wallBC", "central")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -217,15 +224,15 @@ class FBLtest(unittest.TestCase):
         self.setBoundaryConditions(4)
         self.createHostData()
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = FBL.FBL(self.cl_ctx, \
-                      self.h0, self.eta0, self.u0, self.v0, \
-                      self.nx, self.ny, \
-                      self.dx, self.dy, self.dt, \
-                      self.g, self.f, self.r, \
-                      boundary_conditions=self.boundaryConditions)
+        self.sim = FBL.FBL(self.cl_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r, \
+                           boundary_conditions=self.boundaryConditions)
         
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("FBL", "periodicEW", "corner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
