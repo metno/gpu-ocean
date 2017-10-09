@@ -43,10 +43,10 @@ class CDKLM16:
 
     """
     Initialization routine
-    h0: Water depth incl ghost cells, (nx+6)*(ny+6) cells
-    u0: Initial momentum along x-axis incl ghost cells, (nx+6)*(ny+6) cells
-    v0: Initial momentum along y-axis incl ghost cells, (nx+6)*(ny+6) cells
-    Bi: Bottom topography defined on cell corners, (nx+7)*(ny+7) corners
+    h0: Water depth incl ghost cells, (nx+4)*(ny+4) cells
+    u0: Initial momentum along x-axis incl ghost cells, (nx+4)*(ny+4) cells
+    v0: Initial momentum along y-axis incl ghost cells, (nx+4)*(ny+4) cells
+    Bi: Bottom topography defined on cell corners, (nx+5)*(ny+5) corners
     nx: Number of cells along x-axis
     ny: Number of cells along y-axis
     dx: Grid cell spacing along x-axis (20 000 m)
@@ -86,15 +86,15 @@ class CDKLM16:
         self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
         
         #Create data by uploading to device
-        self.ghost_cells_x = 3
-        self.ghost_cells_y = 3
-        ghost_cells_x = 3
-        ghost_cells_y = 3
+        self.ghost_cells_x = 2
+        self.ghost_cells_y = 2
+        ghost_cells_x = 2
+        ghost_cells_y = 2
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, h0, hu0, hv0)
 
         ## Allocating memory for geostrophical equilibrium variables
         self.reportGeostrophicEquilibrium = np.int32(reportGeostrophicEquilibrium)
-        dummy_zero_array = np.zeros((ny+6, nx+6), dtype=np.float32, order='C') 
+        dummy_zero_array = np.zeros((ny+2*ghost_cells_y, nx+2*ghost_cells_x), dtype=np.float32, order='C') 
         self.geoEq_uxpvy = Common.OpenCLArray2D(cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
         self.geoEq_Kx = Common.OpenCLArray2D(cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
         self.geoEq_Ly = Common.OpenCLArray2D(cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
