@@ -14,7 +14,7 @@ from schemes.KP07test import KP07test
 
 def printSupportedSchemes():
     print ("Supported schemes:")
-    print ("1: FBL, 2: CTCS, 3: CDKLM16, 4: KP07")
+    print ("0: All, 1: FBL, 2: CTCS, 3: CDKLM16, 4: KP07")
     
 
 if (len(sys.argv) < 2):
@@ -36,7 +36,9 @@ if (jenkins):
 
 # Define the tests that will be part of our test suite:
 test_classes_to_run = None
-if scheme == 1:
+if scheme == 0:
+    test_classes_to_run = [FBLtest, CTCStest, CDKLM16test, KP07test]
+elif scheme == 1:
     test_classes_to_run = [FBLtest]
 elif scheme == 2:
     test_classes_to_run = [CTCStest]

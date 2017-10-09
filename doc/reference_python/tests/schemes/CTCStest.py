@@ -40,7 +40,14 @@ class CTCStest(unittest.TestCase):
         self.boundaryConditions = None
 
         self.T = 50.0
+        
+        self.sim = None
 
+    def tearDown(self):
+        if self.sim != None:
+            self.sim.cleanUp()
+            self.sim = None
+            print "\nCleaned up simulator :)"
 
     def setBoundaryConditions(self, bcSettings=1):
         if (bcSettings == 1):
@@ -80,14 +87,14 @@ class CTCStest(unittest.TestCase):
     def test_wall_central(self):
         self.setBoundaryConditions()
         makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = CTCS.CTCS(self.cl_ctx, \
-                        self.h0, self.eta0, self.u0, self.v0, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, self.dt, \
-                        self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+        self.sim = CTCS.CTCS(self.cl_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("CTCS", "wallBC", "central")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -96,14 +103,14 @@ class CTCStest(unittest.TestCase):
     def test_wall_corner(self):
         self.setBoundaryConditions()
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = CTCS.CTCS(self.cl_ctx, \
-                        self.h0, self.eta0, self.u0, self.v0, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, self.dt, \
-                        self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+        self.sim = CTCS.CTCS(self.cl_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
         
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("CTCS", "wallBC", "corner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -111,14 +118,14 @@ class CTCStest(unittest.TestCase):
     def test_wall_upperCorner(self):
         self.setBoundaryConditions()
         makeUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = CTCS.CTCS(self.cl_ctx, \
-                        self.h0, self.eta0, self.u0, self.v0, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, self.dt, \
-                        self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+        self.sim = CTCS.CTCS(self.cl_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
         
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("CTCS", "wallBC", "upperCorner")
         
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -129,14 +136,14 @@ class CTCStest(unittest.TestCase):
     def test_periodic_central(self):
         self.setBoundaryConditions(2)
         makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = CTCS.CTCS(self.cl_ctx, \
-                        self.h0, self.eta0, self.u0, self.v0, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, self.dt, \
-                        self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+        self.sim = CTCS.CTCS(self.cl_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("CTCS", "wallBC", "central")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -146,14 +153,14 @@ class CTCStest(unittest.TestCase):
     def test_periodic_corner(self):
         self.setBoundaryConditions(2)
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = CTCS.CTCS(self.cl_ctx, \
-                        self.h0, self.eta0, self.u0, self.v0, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, self.dt, \
-                        self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+        self.sim = CTCS.CTCS(self.cl_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("CTCS", "periodic", "corner")
 
         self.refEtaRange = self.etaRange
@@ -164,14 +171,14 @@ class CTCStest(unittest.TestCase):
     def test_periodic_upperCorner(self):
         self.setBoundaryConditions(2)
         makeUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = CTCS.CTCS(self.cl_ctx, \
-                        self.h0, self.eta0, self.u0, self.v0, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, self.dt, \
-                        self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+        self.sim = CTCS.CTCS(self.cl_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("CTCS", "periodic", "upperCorner")
 
         self.refEtaRange = self.etaRange
@@ -185,14 +192,14 @@ class CTCStest(unittest.TestCase):
     def test_periodicNS_central(self):
         self.setBoundaryConditions(3)
         makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = CTCS.CTCS(self.cl_ctx, \
-                        self.h0, self.eta0, self.u0, self.v0, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, self.dt, \
-                        self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+        self.sim = CTCS.CTCS(self.cl_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("CTCS", "wallBC", "central")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -200,14 +207,14 @@ class CTCStest(unittest.TestCase):
     def test_periodicNS_corner(self):
         self.setBoundaryConditions(3)
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = CTCS.CTCS(self.cl_ctx, \
-                        self.h0, self.eta0, self.u0, self.v0, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, self.dt, \
-                        self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+        self.sim = CTCS.CTCS(self.cl_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("CTCS", "periodicNS", "corner")
         self.refEtaRange = self.etaRange
         self.refURange = self.uRange
@@ -218,14 +225,14 @@ class CTCStest(unittest.TestCase):
     def test_periodicNS_upperCorner(self):
         self.setBoundaryConditions(3)
         makeUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = CTCS.CTCS(self.cl_ctx, \
-                        self.h0, self.eta0, self.u0, self.v0, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, self.dt, \
-                        self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+        self.sim = CTCS.CTCS(self.cl_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("CTCS", "periodicNS", "upperCorner")
         self.refEtaRange = self.etaRange
         self.refURange = self.uRange
@@ -239,14 +246,14 @@ class CTCStest(unittest.TestCase):
     def test_periodicEW_central(self):
         self.setBoundaryConditions(4)
         makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = CTCS.CTCS(self.cl_ctx, \
-                        self.h0, self.eta0, self.u0, self.v0, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, self.dt, \
-                        self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+        self.sim = CTCS.CTCS(self.cl_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("CTCS", "wallBC", "central")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -254,14 +261,14 @@ class CTCStest(unittest.TestCase):
     def test_periodicEW_corner(self):
         self.setBoundaryConditions(4)
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = CTCS.CTCS(self.cl_ctx, \
-                        self.h0, self.eta0, self.u0, self.v0, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, self.dt, \
-                        self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+        self.sim = CTCS.CTCS(self.cl_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("CTCS", "periodicEW", "corner")
         self.refEtaRange = self.etaRange
         self.refURange = self.uRange
@@ -272,14 +279,14 @@ class CTCStest(unittest.TestCase):
     def test_periodicEW_upperCorner(self):
         self.setBoundaryConditions(4)
         makeUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        sim = CTCS.CTCS(self.cl_ctx, \
-                        self.h0, self.eta0, self.u0, self.v0, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, self.dt, \
-                        self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+        self.sim = CTCS.CTCS(self.cl_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
 
-        t = sim.step(self.T)
-        eta1, u1, v1 = sim.download()
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
         eta2, u2, v2 = loadResults("CTCS", "periodicEW", "upperCorner")
         self.refEtaRange = self.etaRange
         self.refURange = self.uRange
