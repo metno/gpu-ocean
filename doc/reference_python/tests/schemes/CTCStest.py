@@ -47,7 +47,6 @@ class CTCStest(unittest.TestCase):
         if self.sim != None:
             self.sim.cleanUp()
             self.sim = None
-            print "\nCleaned up simulator :)"
 
     def setBoundaryConditions(self, bcSettings=1):
         if (bcSettings == 1):
