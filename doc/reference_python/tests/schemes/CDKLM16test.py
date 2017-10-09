@@ -34,10 +34,10 @@ class CDKLM16test(unittest.TestCase):
         self.v0 = None
         self.Bi = None
         
-        self.ghosts = [3,3,3,3] # north, east, south, west
-        self.validDomain = np.array([3,3,3,3])
+        self.ghosts = [2,2,2,2] # north, east, south, west
+        self.validDomain = np.array([2,2,2,2])
         self.refRange = [-3, -3, 3, 3]
-        self.dataRange = self.refRange
+        self.dataRange = [-2, -2, 2, 2]
         self.boundaryConditions = None
 
         self.T = 50.0
@@ -96,7 +96,7 @@ class CDKLM16test(unittest.TestCase):
                                   self.dataRange[3]:self.dataRange[1]] - 
                                vRef[ self.refRange[2]:self.refRange[0],
                                      self.refRange[3]:self.refRange[1]])
-        
+        #print("\ndiffEta: " + str(diffEta))
         self.assertAlmostEqual(diffEta, 0.0, places=6,
                                msg='Unexpected eta - L2 difference: ' + str(diffEta))
         self.assertAlmostEqual(diffU, 0.0, places=6,
@@ -251,7 +251,10 @@ class CDKLM16test(unittest.TestCase):
         eta2, u2, v2 = loadResults("CDKLM16", "periodicNS", "corner")
         
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
-
+        #print "\nHvorfor gaar dette bra???"
+        #print "self.refRange:  ", self.refRange
+        #print "self.dataRange: ", self.dataRange
+        
 
         
     def test_periodicNS_upperCorner(self):

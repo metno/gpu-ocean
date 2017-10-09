@@ -139,11 +139,11 @@ __kernel void swe_2D(
     const int by = get_local_size(1) * get_group_id(1);
 
     //Index of cell within domain
-    const int ti = get_global_id(0) + 3; //Skip global ghost cells, i.e., +3
-    const int tj = get_global_id(1) + 3;
+    const int ti = get_global_id(0) + 2; //Skip global ghost cells, i.e., +2
+    const int tj = get_global_id(1) + 2;
     
     // Our physical variables
-    __local float R[3][block_height+6][block_width+6];
+    __local float R[3][block_height+4][block_width+4];
     
     // Our reconstruction variables
     __local float Q[2][block_height+4][block_width+4];
@@ -165,16 +165,16 @@ __kernel void swe_2D(
     // theta_ = 1.5f;
     
     //Read into shared memory
-    for (int j=ty; j<block_height+6; j+=get_local_size(1)) {
-        const int l = clamp(by + j, 0, ny_+5); // Out of bounds
+    for (int j=ty; j<block_height+4; j+=get_local_size(1)) {
+        const int l = clamp(by + j, 0, ny_+3); // Out of bounds
         
         //Compute the pointer to current row in the arrays
         __global float* const h_row = (__global float*) ((__global char*) h0_ptr_ + h0_pitch_*l);
         __global float* const hu_row = (__global float*) ((__global char*) hu0_ptr_ + hu0_pitch_*l);
         __global float* const hv_row = (__global float*) ((__global char*) hv0_ptr_ + hv0_pitch_*l);
         
-        for (int i=tx; i<block_width+6; i+=get_local_size(0)) {
-            const int k = clamp(bx + i, 0, nx_+5); // Out of bounds
+        for (int i=tx; i<block_width+4; i+=get_local_size(0)) {
+            const int k = clamp(bx + i, 0, nx_+3); // Out of bounds
             
             R[0][j][i] = h_row[k];
             R[1][j][i] = hu_row[k];
@@ -188,10 +188,10 @@ __kernel void swe_2D(
     for (int j=ty; j < block_height+4; j+=get_local_size(1)) {
 	// Ensure that we read from correct domain
 	// We never read outermost halo of Bm
-	const int l = clamp(by+j+1, 1, ny_+4); 
+	const int l = clamp(by+j, 0, ny_+3); 
 	__global float* const Bm_row = (__global float*) ((__global char*) Bm_ptr_ + Bm_pitch_*l);
 	for(int i=tx; i < block_width+4; i+=get_local_size(0)) {
-	    const int k = clamp(bx+1+i, 1, nx_+4);
+	    const int k = clamp(bx+i, 0, nx_+3);
 
 	    Bm[j][i] = Bm_row[k];
 	}
@@ -201,10 +201,10 @@ __kernel void swe_2D(
     // Read intersections on all non-ghost cells
     for(int j=ty; j < block_height+1; j+=get_local_size(1)) {
 	// Skip ghost cells and 
-	const int l = clamp(by+j+3, 3, ny_+3);
+	const int l = clamp(by+j+2, 2, ny_+2);
 	__global float* const Bi_row = (__global float*) ((__global char*) Bi_ptr_ + Bi_pitch_*l);
 	for(int i=tx; i < block_width+1; i+=get_local_size(0)) {
-	    const int k = clamp(bx+i+3, 3, nx_+3);
+	    const int k = clamp(bx+i+2, 2, nx_+2);
 
 	    Bi[j][i] = Bi_row[k];
 	}
@@ -231,10 +231,10 @@ __kernel void swe_2D(
     {
         // These boundary conditions are dealt with inside shared memory
         
-        const int i = tx + 3; //Skip local ghost cells, i.e., +3
-        const int j = ty + 3;
+        const int i = tx + 2; //Skip local ghost cells, i.e., +2
+        const int j = ty + 2;
         
-        if (ti == 3 && boundary_conditions_type_ != 4) {
+        if (ti == 2 && boundary_conditions_type_ != 4) {
 	    // Wall boundary on east and west
 	    R[0][j][i-1] =  R[0][j][i];
             R[1][j][i-1] = -R[1][j][i];
@@ -243,12 +243,8 @@ __kernel void swe_2D(
             R[0][j][i-2] =  R[0][j][i+1];
             R[1][j][i-2] = -R[1][j][i+1];
             R[2][j][i-2] =  R[2][j][i+1];
-            
-            R[0][j][i-3] =  R[0][j][i+2];
-            R[1][j][i-3] = -R[1][j][i+2];
-            R[2][j][i-3] =  R[2][j][i+2];
-        }
-        if (ti == nx_+2 && boundary_conditions_type_ != 4) {
+	}
+        if (ti == nx_+1 && boundary_conditions_type_ != 4) {
 	    // Wall boundary on east and west
             R[0][j][i+1] =  R[0][j][i];
             R[1][j][i+1] = -R[1][j][i];
@@ -257,12 +253,8 @@ __kernel void swe_2D(
             R[0][j][i+2] =  R[0][j][i-1];
             R[1][j][i+2] = -R[1][j][i-1];
             R[2][j][i+2] =  R[2][j][i-1];
-            
-            R[0][j][i+3] =  R[0][j][i-2];
-            R[1][j][i+3] = -R[1][j][i-2];
-            R[2][j][i+3] =  R[2][j][i-2];
         }
-        if (tj == 3 && boundary_conditions_type_ != 3) {
+        if (tj == 2 && boundary_conditions_type_ != 3) {
 	    // Wall boundary on north and south
 	    R[0][j-1][i] =  R[0][j][i];
             R[1][j-1][i] =  R[1][j][i];
@@ -271,12 +263,8 @@ __kernel void swe_2D(
             R[0][j-2][i] =  R[0][j+1][i];
             R[1][j-2][i] =  R[1][j+1][i];
             R[2][j-2][i] = -R[2][j+1][i];
-            
-            R[0][j-3][i] =  R[0][j+2][i];
-            R[1][j-3][i] =  R[1][j+2][i];
-            R[2][j-3][i] = -R[2][j+2][i];
         }
-        if (tj == ny_+2 && boundary_conditions_type_ != 3) {
+        if (tj == ny_+1 && boundary_conditions_type_ != 3) {
 	    // Wall boundary on north and south
             R[0][j+1][i] =  R[0][j][i];
             R[1][j+1][i] =  R[1][j][i];
@@ -285,10 +273,6 @@ __kernel void swe_2D(
             R[0][j+2][i] =  R[0][j-1][i];
             R[1][j+2][i] =  R[1][j-1][i];
             R[2][j+2][i] = -R[2][j-1][i];
-            
-            R[0][j+3][i] =  R[0][j-2][i];
-            R[1][j+3][i] =  R[1][j-2][i];
-            R[2][j+3][i] = -R[2][j-2][i];
         }
     }
     
@@ -298,13 +282,11 @@ __kernel void swe_2D(
     //Create our "steady state" reconstruction variables (u, v)
     // K and L are never stored, but computed where needed.
     for (int j=ty; j<block_height+4; j+=get_local_size(1)) {
-        const int l = j + 1; //Skip one "ghost cell row" of Q, going from 6x6 to 4x4 "halo"
         for (int i=tx; i<block_width+4; i+=get_local_size(0)) {
-            const int k = i + 1;
             
-            const float h = R[0][l][k];
-            const float u = R[1][l][k] / h;
-            const float v = R[2][l][k] / h;
+            const float h = R[0][j][i];
+            const float u = R[1][j][i] / h;
+            const float v = R[2][j][i] / h;
 
             Q[0][j][i] = u;
             Q[1][j][i] = v;
@@ -326,9 +308,9 @@ __kernel void swe_2D(
                 Qx[p][j][i] = minmodSlope(Q[p][l][k-1], Q[p][l][k], Q[p][l][k+1], theta_);
             }
 	    // Qx[2] = Kx, which we need to find differently than ux and vx
-	    float left_w   = R[0][l+1][k  ] + Bm[l][k-1];
-	    float center_w = R[0][l+1][k+1] + Bm[l][k  ];
-	    float right_w  = R[0][l+1][k+2] + Bm[l][k+1];
+	    float left_w   = R[0][l][k-1] + Bm[l][k-1];
+	    float center_w = R[0][l][k  ] + Bm[l][k  ];
+	    float right_w  = R[0][l][k+1] + Bm[l][k+1];
 
 	    float left_v   = Q[1][l][k-1];
 	    float center_v = Q[1][l][k  ];
@@ -355,9 +337,9 @@ __kernel void swe_2D(
                 Qy[p][j][i] = minmodSlope(Q[p][l-1][k], Q[p][l][k], Q[p][l+1][k], theta_);
             }
 	    // Qy[2] = Ly, which we need to find differently than uy and vy
-	    float lower_w  = R[0][l  ][k+1] + Bm[l-1][k];
-	    float center_w = R[0][l+1][k+1] + Bm[l  ][k];
-	    float upper_w  = R[0][l+2][k+1] + Bm[l+1][k];
+	    float lower_w  = R[0][l-1][k] + Bm[l-1][k];
+	    float center_w = R[0][l  ][k] + Bm[l  ][k];
+	    float upper_w  = R[0][l+1][k] + Bm[l+1][k];
 
 	    float lower_u  = Q[0][l-1][k];
 	    float center_u = Q[0][l  ][k];
@@ -400,8 +382,8 @@ __kernel void swe_2D(
 	    // B is RBx on the given face!
 	    const float B_face = RBx[j][i];
 
-	    const float h_bar_p = R[0][l+1][k+2];
-	    const float h_bar_m = R[0][l+1][k+1];
+	    const float h_bar_p = R[0][l][k+1];
+	    const float h_bar_m = R[0][l][k  ];
 
 	    // Qx[2] is really dx*Kx
 	    const float Kx_p = Qx[2][j][i+1];
@@ -444,8 +426,8 @@ __kernel void swe_2D(
 	    // B is RBx on the given face!
 	    const float B_face = RBy[j][i];
 
-	    const float h_bar_p = R[0][l+2][k+1];
-	    const float h_bar_m = R[0][l+1][k+1];
+	    const float h_bar_p = R[0][l+1][k];
+	    const float h_bar_m = R[0][l  ][k];
 
 	    // Qy[2] is really dy*Ly
 	    const float Ly_p = Qy[2][j+1][i];
@@ -472,12 +454,11 @@ __kernel void swe_2D(
     
     
     
-    
-    
+        
     //Sum fluxes and advance in time for all internal cells
-    if (ti > 2 && ti < nx_+3 && tj > 2 && tj < ny_+3) {
-        const int i = tx + 3; //Skip local ghost cells, i.e., +2
-        const int j = ty + 3;
+    if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
+        const int i = tx + 2; //Skip local ghost cells, i.e., +2
+        const int j = ty + 2;
         
         const float X = windStressX(
             wind_stress_type_, 
@@ -601,7 +582,7 @@ __kernel void swe_2D(
 		hv_row[ti] = hv_b;
 
 		__global float* const Kx_row = (__global float*) ((__global char*) Kx_ptr_ + Kx_pitch_*tj);	    
-		Kx_row[ti]    = 4;  // K_x
+		//Kx_row[ti]    = 4;  // K_x
 	    }
 	}
 
