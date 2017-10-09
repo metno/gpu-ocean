@@ -1,12 +1,14 @@
 import unittest
 import time
 import numpy as np
+import sys
+import gc
 
 from testUtils import *
 
-import sys
 sys.path.insert(0, '../')
 from SWESimulators import Common, CDKLM16
+
 
 class CDKLM16test(unittest.TestCase):
 
@@ -45,6 +47,15 @@ class CDKLM16test(unittest.TestCase):
         if self.sim != None:
             self.sim.cleanUp()
             self.sim = None
+
+        self.h0 = None
+        self.u0 = None
+        self.v0 = None
+        self.Bi = None
+        self.cl_ctx = None
+        gc.collect() # Force run garbage collection to free up memory
+        
+
 
             
     def allocData(self):
