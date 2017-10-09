@@ -5,6 +5,7 @@
 /.pydevproject
 .ipynb_checkpoints/
 *.pyc
+*~
 
 /CMakeCache.txt
 /CMakeFiles/
