@@ -81,14 +81,25 @@ class CTCStest(unittest.TestCase):
                                   self.vRange[3]:self.vRange[1]] - 
                                vRef[ self.refVRange[2]:self.refVRange[0],
                                      self.refVRange[3]:self.refVRange[1]])
+        maxDiffEta = np.max(eta1[self.etaRange[2]:self.etaRange[0], 
+                                 self.etaRange[3]:self.etaRange[1]] - 
+                            etaRef[self.refEtaRange[2]:self.refEtaRange[0],
+                                   self.refEtaRange[3]:self.refEtaRange[1]])
+        maxDiffU = np.max(u1[self.uRange[2]:self.uRange[0],
+                             self.uRange[3]:self.uRange[1]] -
+                          uRef[self.refURange[2]:self.refURange[0],
+                               self.refURange[3]:self.refURange[1]])
+        maxDiffV = np.max(v1[self.vRange[2]:self.vRange[0],
+                             self.vRange[3]:self.vRange[1]] - 
+                          vRef[ self.refVRange[2]:self.refVRange[0],
+                                self.refVRange[3]:self.refVRange[1]])
         
-        self.assertAlmostEqual(diffEta, 0.0, places=6,
-                               msg='Unexpected eta - L2 difference: ' + str(diffEta))
-        self.assertAlmostEqual(diffU, 0.0, places=6,
-                               msg='Unexpected U - L2 difference: ' + str(diffU))
-        self.assertAlmostEqual(diffV, 0.0, places=6,
-                               msg='Unexpected V - L2 difference: ' + str(diffV))
-
+        self.assertAlmostEqual(maxDiffEta, 0.0,
+                               msg='Unexpected eta difference! Max diff: ' + str(maxDiffEta) + ', L2 diff: ' + str(diffEta))
+        self.assertAlmostEqual(maxDiffU, 0.0,
+                               msg='Unexpected U difference: ' + str(maxDiffU) + ', L2 diff: ' + str(diffU))
+        self.assertAlmostEqual(maxDiffV, 0.0,
+                               msg='Unexpected V difference: ' + str(maxDiffV) + ', L2 diff: ' + str(diffV))
     ## Wall boundary conditions
     
     def test_wall_central(self):

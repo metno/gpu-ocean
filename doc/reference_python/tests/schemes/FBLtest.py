@@ -82,9 +82,9 @@ class FBLtest(unittest.TestCase):
             diffEta = np.linalg.norm(eta1[self.arrayRange[2]:self.arrayRange[0], self.arrayRange[3]:self.arrayRange[1]] - etaRef)
             diffU = np.linalg.norm(u1[self.arrayRange[2]:self.arrayRange[0], :]-uRef)
             diffV = np.linalg.norm(v1[:, self.arrayRange[3]:self.arrayRange[1]]-vRef)
-            maxEtaDiff = np.max(eta1[self.arrayRange[2]:self.arrayRange[0], self.arrayRange[3]:self.arrayRange[1]] - etaRef)
-            maxUDiff = np.max(u1[self.arrayRange[2]:self.arrayRange[0], :]-uRef)
-            maxVDiff = np.max(v1[:, self.arrayRange[3]:self.arrayRange[1]]-vRef)
+            maxDiffEta = np.max(eta1[self.arrayRange[2]:self.arrayRange[0], self.arrayRange[3]:self.arrayRange[1]] - etaRef)
+            maxDiffU = np.max(u1[self.arrayRange[2]:self.arrayRange[0], :]-uRef)
+            maxDiffV = np.max(v1[:, self.arrayRange[3]:self.arrayRange[1]]-vRef)
             
         else:
             diffEta = np.linalg.norm(eta1[self.arrayRange[2]:self.arrayRange[0], 
@@ -95,22 +95,22 @@ class FBLtest(unittest.TestCase):
                                    uRef[refRange[2]:refRange[0], :])
             diffV = np.linalg.norm(v1[:, self.arrayRange[3]:self.arrayRange[1]] - 
                                    vRef[:, refRange[3]:refRange[1]])
-            maxEtaDiff = np.max(eta1[self.arrayRange[2]:self.arrayRange[0], 
+            maxDiffEta = np.max(eta1[self.arrayRange[2]:self.arrayRange[0], 
                                      self.arrayRange[3]:self.arrayRange[1]] - 
                                 etaRef[refRange[2]:refRange[0],
                                        refRange[3]:refRange[1]])
-            maxUDiff = np.max(u1[self.arrayRange[2]:self.arrayRange[0], :] -
+            maxDiffU = np.max(u1[self.arrayRange[2]:self.arrayRange[0], :] -
                               uRef[refRange[2]:refRange[0], :])
-            maxVDiff = np.max(v1[:, self.arrayRange[3]:self.arrayRange[1]] - 
+            maxDiffV = np.max(v1[:, self.arrayRange[3]:self.arrayRange[1]] - 
                               vRef[:, refRange[3]:refRange[1]])
             
         
-        self.assertAlmostEqual(maxEtaDiff, 0.0,
-                               msg='Unexpected eta difference! Max diff: ' + str(maxEtaDiff) + ', L2 diff: ' + str(diffEta))
-        self.assertAlmostEqual(maxUDiff, 0.0,
-                               msg='Unexpected U difference: ' + str(maxUDiff) + ', L2 diff: ' + str(diffU))
-        self.assertAlmostEqual(maxVDiff, 0.0,
-                               msg='Unexpected V difference: ' + str(maxVDiff) + ', L2 diff: ' + str(diffV))
+        self.assertAlmostEqual(maxDiffEta, 0.0,
+                               msg='Unexpected eta difference! Max diff: ' + str(maxDiffEta) + ', L2 diff: ' + str(diffEta))
+        self.assertAlmostEqual(maxDiffU, 0.0,
+                               msg='Unexpected U difference: ' + str(maxDiffU) + ', L2 diff: ' + str(diffU))
+        self.assertAlmostEqual(maxDiffV, 0.0,
+                               msg='Unexpected V difference: ' + str(maxDiffV) + ', L2 diff: ' + str(diffV))
         
 
 
