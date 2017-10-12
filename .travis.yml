@@ -8,7 +8,7 @@ before_install:
   - sudo apt-get install -qq lcov curl libboost-filesystem-dev libboost-system-dev libboost-thread-dev libboost-program-options-dev libboost-test-dev ocl-icd-opencl-dev opencl-headers libnetcdf-dev llvm-dev libclang-dev libhwloc-dev libltdl-dev pkg-config libedit-dev
   - wget http://portablecl.org/downloads/pocl-0.10.tar.gz
   - tar xzf pocl-0.10.tar.gz && cd pocl-0.10
-  - ./configure
+  - LLVM_CONFIG=/usr/bin/llvm-config ./configure
   - make -j2 && sudo make install
   - cd ..
 
