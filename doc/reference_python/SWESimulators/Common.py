@@ -316,6 +316,7 @@ class BoundaryConditionsArakawaA:
         self.halo_x = np.int32(halo_x)
         self.halo_y = np.int32(halo_y)
         #print("boundary nx and ny: ", self.nx, self.ny)
+        #print("boundary halo_x and halo_y: ", self.halo_x, self.halo_y)
 
         # Load kernel for periodic boundary
         self.boundaryKernels = get_kernel(self.cl_ctx,\
