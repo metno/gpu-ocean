@@ -103,7 +103,6 @@ void Manager::initSim()
 
 bool Manager::execNextStep(ProfileInfo *profInfo)
 {
-	cerr << "!!! 1!" << endl;
     // execute next step
     const bool status = pimpl->sim->execNextStep(profInfo);
 
