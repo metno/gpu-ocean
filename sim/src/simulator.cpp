@@ -386,21 +386,22 @@ float Simulator::deltaTime() const
 
 bool Simulator::execNextStep(ProfileInfo *profInfo)
 {
+	cerr << "!!! 2!" << endl;
 	assertInitialized();
-
+	cerr << "!!! 3!" << endl;
 	// check if a time-bounded simulation is exhausted
 	if ((options()->duration() >= 0) && (currTime() >= maxTime()))
 		return false;
-
+	cerr << "!!! 4!" << endl;
     // compute U
     pimpl->computeU(options(), initCond(), profInfo);
-
+    cerr << "!!! 5!" << endl;
     // compute V
     pimpl->computeV(options(), initCond(), profInfo);
-
+    cerr << "!!! 6!" << endl;
     // compute eta
     pimpl->computeEta(options(), initCond(), profInfo);
-
+    cerr << "!!! 7!" << endl;
     pimpl->currTime += pimpl->dt; // advance simulation time
 
     return true;

@@ -106,11 +106,10 @@ bool Manager::execNextStep(ProfileInfo *profInfo)
 	cerr << "!!! 1!" << endl;
     // execute next step
     const bool status = pimpl->sim->execNextStep(profInfo);
-    cerr << "!!! 2!" << endl;
+
     // append to output file (if requested)
 	#ifdef mgr_USE_NETCDF
     if (pimpl->fileWriter.get())
-    	cerr << "!!! 3!" << endl;
         pimpl->fileWriter->writeTimestep(
                     pimpl->sim->eta().getData()->data(),
                     pimpl->sim->U().getData()->data(),
