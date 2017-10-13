@@ -13,7 +13,7 @@
 
 using namespace std;
 
-static string outputFile("/tmp/out.nc");
+static string outputFile("./out.nc");
 
 // *** fixtures ***
 
@@ -108,25 +108,18 @@ BOOST_AUTO_TEST_CASE(TimeSeriesWrittenAndReadBack)
     // copy initial state of each time series (timestep 0)
     CHECK_FIELDS_EQUAL(mgr.initConditions()->eta(), mgr.eta()); // note this!
     eta.push_back(mgr.eta());
-    BOOST_TEST_PASSPOINT();
     U.push_back(mgr.U());
-    BOOST_TEST_PASSPOINT();
     V.push_back(mgr.V());
 
     // simulate a few steps
     const int nsteps = 10;
     for (int i = 0; i < nsteps; ++i) {
-    	BOOST_TEST_PASSPOINT();
         mgr.execNextStep();
-        BOOST_TEST_PASSPOINT();
         eta.push_back(mgr.eta());
-        BOOST_TEST_PASSPOINT();
         U.push_back(mgr.U());
-        BOOST_TEST_PASSPOINT();
         V.push_back(mgr.V());
     }
 
-    BOOST_TEST_PASSPOINT();
     NetCDFReaderPtr fileReader(new NetCDFReader(outputFile));
 
     // check that H hasn't changed from its original value
