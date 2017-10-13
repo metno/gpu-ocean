@@ -13,7 +13,7 @@
 
 using namespace std;
 
-static string outputFile("./out.nc");
+static string outputFile("/tmp/out.nc");
 
 // *** fixtures ***
 
