@@ -9,6 +9,7 @@ before_install:
   - wget http://portablecl.org/downloads/pocl-0.14.tar.gz
   - tar xzf pocl-0.14.tar.gz && cd pocl-0.14
   - cmake .
+  - make test
   - make -j2 && sudo make install
   - cd ..
 
