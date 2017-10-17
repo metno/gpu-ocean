@@ -12,9 +12,11 @@ def get_kernel(cl_ctx, kernel_filename, block_width, block_height):
     #print ("define_string:\n" + define_string)
 
     #Read the proper program
+    # Kernels reside in gpu-ocean/sim/src/kernels
     module_path = os.path.dirname(os.path.realpath(__file__))
-    fullpath = os.path.join(module_path, kernel_filename)
-    options = ['-I', module_path, '-I', "../../sim/src/kernels"]
+    fullpath = os.path.join(module_path, "../../sim/src/kernels", kernel_filename)
+    
+    options = ['-I', "../sim/src/kernels", '-I', "../../sim/src/kernels"]
     with open(fullpath, "r") as kernel_file:
         kernel_string = define_string + kernel_file.read()
         kernel = pyopencl.Program(cl_ctx, kernel_string).build(options)
