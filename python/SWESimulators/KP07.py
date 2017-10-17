@@ -27,8 +27,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
-import Common
-
+import Common, SimWriter
+import gc
 
 
 
@@ -74,8 +74,10 @@ class KP07:
                  theta=1.3, use_rk2=True,
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
+                 write_netcdf=False, \
                  block_width=16, block_height=16):
         self.cl_ctx = cl_ctx
+        self.A = "NA"  # Eddy viscocity coefficient
             
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
@@ -86,6 +88,8 @@ class KP07:
         #Create data by uploading to device
         ghost_cells_x = 2
         ghost_cells_y = 2
+        self.ghost_cells_x = ghost_cells_x
+        self.ghost_cells_y = ghost_cells_y
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, w0, hu0, hv0)
         
         #Bathymetry
@@ -104,13 +108,14 @@ class KP07:
         self.r = np.float32(r)
         self.theta = np.float32(theta)
         self.use_rk2 = use_rk2
+        self.rk_order = np.int32(use_rk2 + 1)
         self.wind_stress = wind_stress
         
         #Initialize time
         self.t = np.float32(0.0)
         
         #Boundary conditions
-        self.boundaryConditions = boundary_conditions
+        self.boundary_conditions = boundary_conditions
         self.boundaryType = np.int32(1)
         if (boundary_conditions.north == 2 and boundary_conditions.east == 2):
             self.boundaryType = np.int32(2)
@@ -130,14 +135,23 @@ class KP07:
                                                            self.ny, \
                                                            ghost_cells_x, \
                                                            ghost_cells_y, \
-                                                       self.boundaryConditions)
-    
+                                                           self.boundary_conditions)
+        self.write_netcdf = write_netcdf
+        self.sim_writer = None
+        if self.write_netcdf:
+            self.sim_writer = SimWriter.SimNetCDFWriter(self)
+
+
     """
     Clean up function
     """
     def cleanUp(self):
+        if self.write_netcdf:
+            self.sim_writer.__exit__(0,0,0)
+            self.write_netcdf = False
         self.cl_data.release()
         self.bathymetry.release()
+        gc.collect()
         
     """
     Function which steps n timesteps
@@ -235,7 +249,9 @@ class KP07:
                 
             self.t += local_dt
             
-        
+        if self.write_netcdf:
+            self.sim_writer.writeTimestep(self)
+            
         return self.t
     
     
