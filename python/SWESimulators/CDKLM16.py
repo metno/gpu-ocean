@@ -77,6 +77,7 @@ class CDKLM16:
                  reportGeostrophicEquilibrium=False, \
                  write_netcdf=False, \
                  block_width=16, block_height=16):
+        
         self.cl_ctx = cl_ctx
 
         #Create an OpenCL command queue
@@ -84,12 +85,31 @@ class CDKLM16:
 
         #Get kernels
         self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
-        
+
         #Create data by uploading to device
         self.ghost_cells_x = 2
         self.ghost_cells_y = 2
         ghost_cells_x = 2
         ghost_cells_y = 2
+        
+        # Boundary conditions
+        self.boundary_conditions = boundary_conditions
+        ## TODO: Change boundaryType with boundary_conditions.{north, east, south, west}
+        self.boundaryType = np.int32(1)
+        if (boundary_conditions.north == 2 and boundary_conditions.east == 2):
+            self.boundaryType = np.int32(2)
+        elif (boundary_conditions.north == 2):
+            self.boundaryType = np.int32(3)
+        elif (boundary_conditions.east == 2):
+            self.boundaryType = np.int32(4)
+        elif (boundary_conditions.isSponge()):
+            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
+            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
+        
+
+        print ("From simulator")
+        print ("(ny, nx): ", (ny, nx))
+            
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, h0, hu0, hv0)
 
         ## Allocating memory for geostrophical equilibrium variables
@@ -123,14 +143,7 @@ class CDKLM16:
         self.wind_stress = wind_stress
         self.h0AsWaterElevation = h0AsWaterElevation
 
-        self.boundary_conditions = boundary_conditions
-        self.boundaryType = np.int32(1)
-        if (boundary_conditions.north == 2 and boundary_conditions.east == 2):
-            self.boundaryType = np.int32(2)
-        elif (boundary_conditions.north == 2):
-            self.boundaryType = np.int32(3)
-        elif (boundary_conditions.east == 2):
-            self.boundaryType = np.int32(4)
+
         
         #Initialize time
         self.t = np.float32(0.0)
