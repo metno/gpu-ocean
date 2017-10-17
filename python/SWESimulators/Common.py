@@ -264,12 +264,14 @@ class BoundaryConditions:
     3 = Numerical Sponge
     """
     def __init__(self, \
-                 north=1, east=1, south=1, west=1):
-        self.north = north
-        self.east  = east
-        self.south = south
-        self.west  = west
-
+                 north=1, east=1, south=1, west=1, \
+                 spongeCells=[0,0,0,0]):
+        self.north = np.int32(north)
+        self.east  = np.int32(east)
+        self.south = np.int32(south)
+        self.west  = np.int32(west)
+        self.spongeCells = np.int32(spongeCells)
+            
         # Checking that periodic boundaries are periodic
         assert not ((self.north == 2 or self.south == 2) and  \
                     (self.north != self.south)), \
@@ -284,6 +286,12 @@ class BoundaryConditions:
                 self.south == 1 and \
                 self.east == 1)
 
+    def isSponge(self):
+        return (self.north == 3 or \
+                self.east == 3 or \
+                self.south == 3 or \
+                self.east == 3)
+    
     def _toString(self, cond):
         if cond == 1:
             return "Wall"
@@ -299,8 +307,9 @@ class BoundaryConditions:
               ", east: "  + self._toString(self.east)  + \
               ", south: " + self._toString(self.south) + \
               ", west: "  + self._toString(self.west)
+        msg = msg + ", spongeCells: " + str(self.spongeCells)
         return msg
-
+    
 """
 Class that checks boundary conditions and calls the required kernels for Arakawa A type grids.
 """
@@ -317,9 +326,10 @@ class BoundaryConditionsArakawaA:
         self.ny = np.int32(ny) 
         self.halo_x = np.int32(halo_x)
         self.halo_y = np.int32(halo_y)
-        #print("boundary nx and ny: ", self.nx, self.ny)
-        #print("boundary halo_x and halo_y: ", self.halo_x, self.halo_y)
-
+        print("boundary (ny, nx: ", (self.ny, self.nx))
+        print("boundary (halo_y, halo_x): ", (self.halo_y, self.halo_x))
+        print("numerical sponge cells (n,e,s,w): ", self.boundary_conditions.spongeCells)
+        
         # Load kernel for periodic boundary
         self.boundaryKernels = get_kernel(self.cl_ctx,\
             "boundary_kernels.opencl", block_width, block_height)
@@ -333,20 +343,21 @@ class BoundaryConditionsArakawaA:
 
         
     def boundaryCondition(self, cl_queue, h, u, v):
-        assert(self.boundary_conditions.north != 3 and \
-               self.boundary_conditions.east  != 3 and \
-               self.boundary_conditions.south != 3 and \
-               self.boundary_conditions.west  != 3), \
-               'Numerical sponge not yet supported'
-         
+                 
         if self.boundary_conditions.north == 2:
             self.periodic_boundary_NS(cl_queue, h, u, v)
+        elif self.boundary_conditions.north == 3 or \
+             self.boundary_conditions.south == 3:
+            self.numerical_sponge_NS(cl_queue, h, u, v)
+            
         if self.boundary_conditions.east == 2:
             self.periodic_boundary_EW(cl_queue, h, u, v)
-
+        elif self.boundary_conditions.east == 3 or \
+             self.boundary_conditions.west == 3:
+            self.numerical_sponge_EW(cl_queue, h, u, v)
+            
              
     def periodic_boundary_NS(self, cl_queue, h, u, v):
-      
         self.boundaryKernels.periodicBoundary_NS( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
@@ -357,7 +368,6 @@ class BoundaryConditionsArakawaA:
         
 
     def periodic_boundary_EW(self, cl_queue, h, v, u):
-
         self.boundaryKernels.periodicBoundary_EW( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
@@ -367,8 +377,28 @@ class BoundaryConditionsArakawaA:
             v.data, v.pitch)
 
 
+    def numerical_sponge_NS(self, cl_queue, h, u, v):
+        self.boundaryKernels.numericalSponge_NS( \
+            cl_queue, self.global_size, self.local_size, \
+            self.boundary_conditions.north, self.boundary_conditions.south, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, \
+            self.boundary_conditions.spongeCells[0], \
+            self.boundary_conditions.spongeCells[2], \
+            h.data, h.pitch, \
+            u.data, u.pitch, \
+            v.data, v.pitch)                                   
 
-
+    def numerical_sponge_EW(self, cl_queue, h, u, v):
+        self.boundaryKernels.numericalSponge_EW( \
+            cl_queue, self.global_size, self.local_size, \
+            self.boundary_conditions.east, self.boundary_conditions.west, \
+            self.nx, self.ny, \
+            self.boundary_conditions.spongeCells[1], \
+            self.boundary_conditions.spongeCells[3], \
+            h.data, h.pitch, \
+            u.data, u.pitch, \
+            v.data, v.pitch)
 
     
                  
