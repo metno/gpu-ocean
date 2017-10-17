@@ -82,6 +82,10 @@ class FBLtest(unittest.TestCase):
             diffEta = np.linalg.norm(eta1[self.arrayRange[2]:self.arrayRange[0], self.arrayRange[3]:self.arrayRange[1]] - etaRef)
             diffU = np.linalg.norm(u1[self.arrayRange[2]:self.arrayRange[0], :]-uRef)
             diffV = np.linalg.norm(v1[:, self.arrayRange[3]:self.arrayRange[1]]-vRef)
+            maxDiffEta = np.max(eta1[self.arrayRange[2]:self.arrayRange[0], self.arrayRange[3]:self.arrayRange[1]] - etaRef)
+            maxDiffU = np.max(u1[self.arrayRange[2]:self.arrayRange[0], :]-uRef)
+            maxDiffV = np.max(v1[:, self.arrayRange[3]:self.arrayRange[1]]-vRef)
+            
         else:
             diffEta = np.linalg.norm(eta1[self.arrayRange[2]:self.arrayRange[0], 
                                           self.arrayRange[3]:self.arrayRange[1]] - 
@@ -91,14 +95,22 @@ class FBLtest(unittest.TestCase):
                                    uRef[refRange[2]:refRange[0], :])
             diffV = np.linalg.norm(v1[:, self.arrayRange[3]:self.arrayRange[1]] - 
                                    vRef[:, refRange[3]:refRange[1]])
+            maxDiffEta = np.max(eta1[self.arrayRange[2]:self.arrayRange[0], 
+                                     self.arrayRange[3]:self.arrayRange[1]] - 
+                                etaRef[refRange[2]:refRange[0],
+                                       refRange[3]:refRange[1]])
+            maxDiffU = np.max(u1[self.arrayRange[2]:self.arrayRange[0], :] -
+                              uRef[refRange[2]:refRange[0], :])
+            maxDiffV = np.max(v1[:, self.arrayRange[3]:self.arrayRange[1]] - 
+                              vRef[:, refRange[3]:refRange[1]])
             
         
-        self.assertAlmostEqual(diffEta, 0.0,
-                               msg='Unexpected eta - L2 difference: ' + str(diffEta))
-        self.assertAlmostEqual(diffU, 0.0,
-                               msg='Unexpected U - L2 difference: ' + str(diffU))
-        self.assertAlmostEqual(diffV, 0.0,
-                               msg='Unexpected V - L2 difference: ' + str(diffV))
+        self.assertAlmostEqual(maxDiffEta, 0.0,
+                               msg='Unexpected eta difference! Max diff: ' + str(maxDiffEta) + ', L2 diff: ' + str(diffEta))
+        self.assertAlmostEqual(maxDiffU, 0.0,
+                               msg='Unexpected U difference: ' + str(maxDiffU) + ', L2 diff: ' + str(diffU))
+        self.assertAlmostEqual(maxDiffV, 0.0,
+                               msg='Unexpected V difference: ' + str(maxDiffV) + ', L2 diff: ' + str(diffV))
         
 
 
