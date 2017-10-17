@@ -81,7 +81,8 @@ class CDKLM16:
 
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
-
+        self.A = "NA"  # Eddy viscocity coefficient
+        
         #Get kernels
         self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
         
