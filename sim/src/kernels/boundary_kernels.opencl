@@ -259,8 +259,9 @@ __kernel void numericalSponge_NS(
 
     // Extrapolate on south side:
     // Keep outer edge as is!
-    if ((tj < sponge_cells_south_) && (tj > 0)
-	&& (ti > 0) && (ti < nx_ + 2*halo_x_-1) ) {
+    if ( (boundary_condition_south_ == 3)
+	 &&(tj < sponge_cells_south_) && (tj > 0) 
+	 && (ti > 0) && (ti < nx_ + 2*halo_x_-1) ) {
 
 	// Get base value
 	__global float* inner_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*sponge_cells_south_);
@@ -289,7 +290,45 @@ __kernel void numericalSponge_NS(
 	target_row_u[ti] = outer_value_u + ratio*(inner_value_u - outer_value_u);
 	target_row_v[ti] = outer_value_v + ratio*(inner_value_v - outer_value_v);
     }
-        
+
+    // Extrapolate on north side:
+    // Keep outer edge as is!
+    int inner_row = ny_ + 2*halo_y_ - 1 - sponge_cells_north_;
+    int outer_row = ny_ + 2*halo_y_ - 1;
+    if ( (boundary_condition_north_ == 3)
+	 &&(tj > ny_ + 2*halo_y_ - 1 - sponge_cells_north_) && (tj < ny_ + 2*halo_y_ -1) 
+	 && (ti > 0) && (ti < nx_ + 2*halo_x_-1) ) {
+
+	
+	
+	// Get base value
+	__global float* inner_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*inner_row);
+	__global float* inner_row_u = (__global float*) ((__global char*) u_ptr_ + u_pitch_*inner_row);
+	__global float* inner_row_v = (__global float*) ((__global char*) v_ptr_ + v_pitch_*inner_row);
+	float inner_value_h = inner_row_h[ti];
+	float inner_value_u = inner_row_u[ti];
+	float inner_value_v = inner_row_v[ti];
+
+	// Get target value
+	__global float* outer_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*outer_row);
+	__global float* outer_row_u = (__global float*) ((__global char*) u_ptr_ + u_pitch_*outer_row);
+	__global float* outer_row_v = (__global float*) ((__global char*) v_ptr_ + v_pitch_*outer_row);
+	float outer_value_h = outer_row_h[ti];
+	float outer_value_u = outer_row_u[ti];
+	float outer_value_v = outer_row_v[ti];
+	
+	// Find target cell
+	__global float* target_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
+	__global float* target_row_u = (__global float*) ((__global char*) u_ptr_ + u_pitch_*tj);
+	__global float* target_row_v = (__global float*) ((__global char*) v_ptr_ + v_pitch_*tj);
+	
+	// Interpolate:
+	float ratio = ((float)(tj - outer_row))/(inner_row - outer_row);
+	target_row_h[ti] = outer_value_h + ratio*(inner_value_h - outer_value_h);
+	target_row_u[ti] = outer_value_u + ratio*(inner_value_u - outer_value_u);
+	target_row_v[ti] = outer_value_v + ratio*(inner_value_v - outer_value_v);
+	
+    }
 }
 
     
