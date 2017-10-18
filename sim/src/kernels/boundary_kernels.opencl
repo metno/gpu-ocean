@@ -257,49 +257,21 @@ __kernel void numericalSponge_NS(
     const int ti = get_global_id(0);
     const int tj = get_global_id(1);
 
-    // Extrapolate on south side:
+    // Extrapolate on northern and southern boundary:
     // Keep outer edge as is!
-    if ( (boundary_condition_south_ == 3)
-	 &&(tj < sponge_cells_south_) && (tj > 0) 
-	 && (ti > 0) && (ti < nx_ + 2*halo_x_-1) ) {
+    if (( ((boundary_condition_south_ == 3)
+	   &&(tj < sponge_cells_south_) && (tj > 0)) ||
+	  ((boundary_condition_north_ == 3)
+	   &&(tj > ny_ + 2*halo_y_ - 1 - sponge_cells_north_) && (tj < ny_ + 2*halo_y_ -1)) )
+	&& (ti > 0) && (ti < nx_ + 2*halo_x_-1) ) {
 
-	// Get base value
-	__global float* inner_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*sponge_cells_south_);
-	__global float* inner_row_u = (__global float*) ((__global char*) u_ptr_ + u_pitch_*sponge_cells_south_);
-	__global float* inner_row_v = (__global float*) ((__global char*) v_ptr_ + v_pitch_*sponge_cells_south_);
-	float inner_value_h = inner_row_h[ti];
-	float inner_value_u = inner_row_u[ti];
-	float inner_value_v = inner_row_v[ti];
-
-	// Get target value
-	__global float* outer_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*0);
-	__global float* outer_row_u = (__global float*) ((__global char*) u_ptr_ + u_pitch_*0);
-	__global float* outer_row_v = (__global float*) ((__global char*) v_ptr_ + v_pitch_*0);
-	float outer_value_h = outer_row_h[ti];
-	float outer_value_u = outer_row_u[ti];
-	float outer_value_v = outer_row_v[ti];
-
-	// Find target cell
-	__global float* target_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
-	__global float* target_row_u = (__global float*) ((__global char*) u_ptr_ + u_pitch_*tj);
-	__global float* target_row_v = (__global float*) ((__global char*) v_ptr_ + v_pitch_*tj);
-	
-	// Interpolate:
-	float ratio = ((float)(tj - 0))/(sponge_cells_south_ - 0);
-	target_row_h[ti] = outer_value_h + ratio*(inner_value_h - outer_value_h);
-	target_row_u[ti] = outer_value_u + ratio*(inner_value_u - outer_value_u);
-	target_row_v[ti] = outer_value_v + ratio*(inner_value_v - outer_value_v);
-    }
-
-    // Extrapolate on north side:
-    // Keep outer edge as is!
-    int inner_row = ny_ + 2*halo_y_ - 1 - sponge_cells_north_;
-    int outer_row = ny_ + 2*halo_y_ - 1;
-    if ( (boundary_condition_north_ == 3)
-	 &&(tj > ny_ + 2*halo_y_ - 1 - sponge_cells_north_) && (tj < ny_ + 2*halo_y_ -1) 
-	 && (ti > 0) && (ti < nx_ + 2*halo_x_-1) ) {
-
-	
+	// Identify inner and outer row
+	int inner_row = sponge_cells_south_;
+	int outer_row = 0;
+	if (tj > sponge_cells_south_) {
+	    inner_row = ny_ + 2*halo_y_ - 1 - sponge_cells_north_;
+	    outer_row = ny_ + 2*halo_y_ - 1;
+	}
 	
 	// Get base value
 	__global float* inner_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*inner_row);
@@ -316,7 +288,7 @@ __kernel void numericalSponge_NS(
 	float outer_value_h = outer_row_h[ti];
 	float outer_value_u = outer_row_u[ti];
 	float outer_value_v = outer_row_v[ti];
-	
+
 	// Find target cell
 	__global float* target_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
 	__global float* target_row_u = (__global float*) ((__global char*) u_ptr_ + u_pitch_*tj);
@@ -327,13 +299,13 @@ __kernel void numericalSponge_NS(
 	target_row_h[ti] = outer_value_h + ratio*(inner_value_h - outer_value_h);
 	target_row_u[ti] = outer_value_u + ratio*(inner_value_u - outer_value_u);
 	target_row_v[ti] = outer_value_v + ratio*(inner_value_v - outer_value_v);
-	
     }
 }
 
     
 __kernel void numericalSponge_EW(
 	// Discretization parameters
+	int boundary_condition_west_, int boundary_condition_east_,
         int nx_, int ny_,
 	int halo_x_, int halo_y_,
 	int sponge_cells_west_,
@@ -343,5 +315,46 @@ __kernel void numericalSponge_EW(
         __global float* h_ptr_, int h_pitch_,
         __global float* u_ptr_, int u_pitch_,
 	__global float* v_ptr_, int v_pitch_) {
-    // Intentionally left emtpy
+    
+    // Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    // Extrapolate on northern and southern boundary:
+    // Keep outer edge as is!
+    if (( ((boundary_condition_west_ == 3)
+	   &&(ti < sponge_cells_west_) && (ti > 0)) ||
+	  ((boundary_condition_east_ == 3)
+	   &&(ti > nx_ + 2*halo_x_ - 1 - sponge_cells_east_) && (ti < nx_ + 2*halo_x_ -1)) )
+	&& (tj > 0) && (tj < ny_ + 2*halo_y_-1) ) {
+
+	// Identify inner and outer row
+	int inner_col = sponge_cells_west_;
+	int outer_col = 0;
+	if (ti > sponge_cells_west_) {
+	    inner_col = nx_ + 2*halo_x_ - 1 - sponge_cells_east_;
+	    outer_col = nx_ + 2*halo_x_ - 1;
+	}
+
+	// Get rows
+	__global float* h_row = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
+	__global float* u_row = (__global float*) ((__global char*) u_ptr_ + u_pitch_*tj);
+	__global float* v_row = (__global float*) ((__global char*) v_ptr_ + v_pitch_*tj);
+	
+	// Get inner value
+	float inner_value_h = h_row[inner_col];
+	float inner_value_u = u_row[inner_col];
+	float inner_value_v = v_row[inner_col];
+
+	// Get outer value
+	float outer_value_h = h_row[outer_col];
+	float outer_value_u = u_row[outer_col];
+	float outer_value_v = v_row[outer_col];
+
+	// Interpolate:
+	float ratio = ((float)(ti - outer_col))/(inner_col - outer_col);
+	h_row[ti] = outer_value_h + ratio*(inner_value_h - outer_value_h);
+	u_row[ti] = outer_value_u + ratio*(inner_value_u - outer_value_u);
+	v_row[ti] = outer_value_v + ratio*(inner_value_v - outer_value_v);
+    }
 }
