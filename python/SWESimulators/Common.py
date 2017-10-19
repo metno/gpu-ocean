@@ -370,7 +370,6 @@ class BoundaryConditionsArakawaA:
     def periodic_boundary_EW(self, cl_queue, h, v, u):
         self.boundaryKernels.periodicBoundary_EW( \
             cl_queue, self.global_size, self.local_size, \
-            self.boundary_conditions.west, self.boundary_conditions.east, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
             h.data, h.pitch, \
