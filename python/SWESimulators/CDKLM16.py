@@ -87,7 +87,6 @@ class CDKLM16:
         #Get kernels
         self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
 
-        #Create data by uploading to device
         self.ghost_cells_x = 2
         self.ghost_cells_y = 2
         ghost_cells_x = 2
@@ -99,6 +98,7 @@ class CDKLM16:
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
         
+        #Create data by uploading to device
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, h0, hu0, hv0)
 
         ## Allocating memory for geostrophical equilibrium variables

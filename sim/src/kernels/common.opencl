@@ -242,6 +242,72 @@ void noFlowBoundary1(__local float Q[3][block_height+2][block_width+2], const in
 
 
 
+/**
+  * No flow boundary conditions for the shallow water equations
+  * with two ghost cells in each direction
+  *
+  * BC values are defined as follows: 
+  * 1: Wall boundary condition
+  * 2: Periodic boundary condition
+  * 3: Open boundary (numerical sponge)
+  */
+void noFlowBoundary2Mix(__local float Q[3][block_height+4][block_width+4],
+			const int nx_, const int ny_,
+			const int bc_north_, const int bc_east_,
+			const int bc_south_, const int bc_west_) {
+    
+    //Global index
+    const int ti = get_global_id(0) + 2; //Skip global ghost cells, i.e., +2
+    const int tj = get_global_id(1) + 2;
+    
+    //Block-local indices
+    const int tx = get_local_id(0);
+    const int ty = get_local_id(1);
+    
+    const int i = tx + 2; //Skip local ghost cells, i.e., +2
+    const int j = ty + 2;
+    
+    if (ti == 2 && bc_west_ == 1) {
+	// Wall boundary on west
+	Q[0][j][i-1] =  Q[0][j][i];
+	Q[1][j][i-1] = -Q[1][j][i];
+	Q[2][j][i-1] =  Q[2][j][i];
+        
+	Q[0][j][i-2] =  Q[0][j][i+1];
+	Q[1][j][i-2] = -Q[1][j][i+1];
+	Q[2][j][i-2] =  Q[2][j][i+1];
+    }
+    if (ti == nx_+1 && bc_east_ == 1) {
+	// Wall boundary on east
+	Q[0][j][i+1] =  Q[0][j][i];
+	Q[1][j][i+1] = -Q[1][j][i];
+	Q[2][j][i+1] =  Q[2][j][i];
+        
+	Q[0][j][i+2] =  Q[0][j][i-1];
+	Q[1][j][i+2] = -Q[1][j][i-1];
+	Q[2][j][i+2] =  Q[2][j][i-1];
+    }
+    if (tj == 2 && bc_south_ == 1) {
+	// Wall boundary on south
+	Q[0][j-1][i] =  Q[0][j][i];
+	Q[1][j-1][i] =  Q[1][j][i];
+	Q[2][j-1][i] = -Q[2][j][i];
+        
+	Q[0][j-2][i] =  Q[0][j+1][i];
+	Q[1][j-2][i] =  Q[1][j+1][i];
+	Q[2][j-2][i] = -Q[2][j+1][i];
+    }
+    if (tj == ny_+1 && bc_north_ == 1) {
+	// Wall boundary on north
+	Q[0][j+1][i] =  Q[0][j][i];
+	Q[1][j+1][i] =  Q[1][j][i];
+	Q[2][j+1][i] = -Q[2][j][i];
+        
+	Q[0][j+2][i] =  Q[0][j-1][i];
+	Q[1][j+2][i] =  Q[1][j-1][i];
+	Q[2][j+2][i] = -Q[2][j-1][i];
+    }
+}
 
 
 /**
@@ -249,62 +315,24 @@ void noFlowBoundary1(__local float Q[3][block_height+2][block_width+2], const in
   * with two ghost cells in each direction
   */
 void noFlowBoundary2(__local float Q[3][block_height+4][block_width+4], const int nx_, const int ny_, const int boundary_conditions_type_) {
-
-    if (boundary_conditions_type_ != 2) {
-	//Global index
-	const int ti = get_global_id(0) + 2; //Skip global ghost cells, i.e., +2
-	const int tj = get_global_id(1) + 2;
-    
-	//Block-local indices
-	const int tx = get_local_id(0);
-	const int ty = get_local_id(1);
-    
-	const int i = tx + 2; //Skip local ghost cells, i.e., +2
-	const int j = ty + 2;
-    
-	if (ti == 2 && boundary_conditions_type_ != 4) {
-	    // Wall boundary on west
-	    Q[0][j][i-1] =  Q[0][j][i];
-	    Q[1][j][i-1] = -Q[1][j][i];
-	    Q[2][j][i-1] =  Q[2][j][i];
-        
-	    Q[0][j][i-2] =  Q[0][j][i+1];
-	    Q[1][j][i-2] = -Q[1][j][i+1];
-	    Q[2][j][i-2] =  Q[2][j][i+1];
-	}
-	if (ti == nx_+1 && boundary_conditions_type_ != 4) {
-	    // Wall boundary on east
-	    Q[0][j][i+1] =  Q[0][j][i];
-	    Q[1][j][i+1] = -Q[1][j][i];
-	    Q[2][j][i+1] =  Q[2][j][i];
-        
-	    Q[0][j][i+2] =  Q[0][j][i-1];
-	    Q[1][j][i+2] = -Q[1][j][i-1];
-	    Q[2][j][i+2] =  Q[2][j][i-1];
-	}
-	if (tj == 2 && boundary_conditions_type_ != 3) {
-	    // Wall boundary on south
-	    Q[0][j-1][i] =  Q[0][j][i];
-	    Q[1][j-1][i] =  Q[1][j][i];
-	    Q[2][j-1][i] = -Q[2][j][i];
-        
-	    Q[0][j-2][i] =  Q[0][j+1][i];
-	    Q[1][j-2][i] =  Q[1][j+1][i];
-	    Q[2][j-2][i] = -Q[2][j+1][i];
-	}
-	if (tj == ny_+1 && boundary_conditions_type_ != 3) {
-	    // Wall boundary on north
-	    Q[0][j+1][i] =  Q[0][j][i];
-	    Q[1][j+1][i] =  Q[1][j][i];
-	    Q[2][j+1][i] = -Q[2][j][i];
-        
-	    Q[0][j+2][i] =  Q[0][j-1][i];
-	    Q[1][j+2][i] =  Q[1][j-1][i];
-	    Q[2][j+2][i] = -Q[2][j-1][i];
-	}
+    if (boundary_conditions_type_ == 2) {
+	return;
     }
-}
+    int bc_north = 1;
+    int bc_east = 1;
+    int bc_south = 1;
+    int bc_west = 1;
+    if (boundary_conditions_type_ == 3) {
+	bc_north = 2;
+	bc_south = 2;
+    }
+    else if (boundary_conditions_type_ == 4) {
+	bc_east = 2;
+	bc_west = 2;
+    }
 
+    noFlowBoundary2Mix(Q, nx_, ny_, bc_north, bc_east, bc_south, bc_west);
+}
 
 
 
