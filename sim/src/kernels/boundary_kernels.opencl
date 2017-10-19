@@ -305,11 +305,11 @@ __kernel void numericalSponge_NS(
     
 __kernel void numericalSponge_EW(
 	// Discretization parameters
-	int boundary_condition_west_, int boundary_condition_east_,
+	int boundary_condition_east_, int boundary_condition_west_,
         int nx_, int ny_,
 	int halo_x_, int halo_y_,
-	int sponge_cells_west_,
 	int sponge_cells_east_,
+	int sponge_cells_west_,
 	
         // Data
         __global float* h_ptr_, int h_pitch_,

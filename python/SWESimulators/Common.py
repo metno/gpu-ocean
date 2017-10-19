@@ -290,7 +290,7 @@ class BoundaryConditions:
         return (self.north == 3 or \
                 self.east == 3 or \
                 self.south == 3 or \
-                self.east == 3)
+                self.west == 3)
     
     def _toString(self, cond):
         if cond == 1:
