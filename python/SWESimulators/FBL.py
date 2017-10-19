@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
-import Common
+import Common, SimWriter
         
         
         
@@ -72,10 +72,14 @@ class FBL:
                  g, f, r, \
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
+                 write_netcdf=False, \
                  block_width=16, block_height=16):
         reload(Common)
         self.cl_ctx = cl_ctx
         self.boundary_conditions = boundary_conditions
+        self.rk_order = 'NA'
+        self.theta = 'NA'
+        self.A = 'NA'
         
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
@@ -88,6 +92,8 @@ class FBL:
         #Create data by uploading to device
         ghost_cells_x = 0
         ghost_cells_y = 0
+        self.ghost_cells_x = ghost_cells_x
+        self.ghost_cells_y = ghost_cells_y
         self.asym_ghost_cells = [0, 0, 0, 0] # [N, E, S, W]
         if not self.boundary_conditions.isDefault():
             if self.boundary_conditions.north == 2:
@@ -134,11 +140,19 @@ class FBL:
         )
 
         self.totalNumIterations = 0
-
+        self.write_netcdf = write_netcdf
+        self.sim_writer = None
+        if self.write_netcdf:
+            self.sim_writer = SimWriter.SimNetCDFWriter(self, staggered_grid=True)
+    
+            
     """
     Clean up function
     """
     def cleanUp(self):
+        if self.write_netcdf:
+            self.sim_writer.__exit__(0,0,0)
+            self.write_netcdf = False
         self.cl_data.release()
         self.H.release()
     
@@ -214,7 +228,9 @@ class FBL:
             self.t += local_dt
             self.totalNumIterations += 1
             
-
+        if self.write_netcdf:
+            self.sim_writer.writeTimestep(self)
+            
         return self.t
     
     
