@@ -43,7 +43,12 @@ class SimNetCDFWriter:
         # Identification of solution
         self.timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
         self.timestamp_short = datetime.datetime.now().strftime("%Y_%m_%d")
-        self.git_hash = str.strip(subprocess.check_output(['git', 'rev-parse', 'HEAD']))
+        try:
+            self.git_hash = str.strip(subprocess.check_output(['git', 'rev-parse', 'HEAD']))
+        except:
+            self.git_hash = "git info missing..."
+
+        
         self.simulator_long = str(sim.__class__)
         self.simulator_short = (self.simulator_long.split("."))[-1]
 
@@ -66,6 +71,7 @@ class SimNetCDFWriter:
         self.minmod_theta = sim.theta
         self.coriolis_force = sim.f
         self.wind_stress = sim.wind_stress
+        self.eddy_viscosity_coefficient = sim.A
         g = sim.g
         nx = sim.nx
         ny = sim.ny
@@ -80,6 +86,28 @@ class SimNetCDFWriter:
             os.makedirs(self.dir_name)
         self.ncfile = Dataset(self.output_file_name,'w', clobber=True) 
 
+        # Write global attributes
+        self.ncfile.gitHash = self.git_hash
+        self.ncfile.ignore_ghostcells = str(self.ignore_ghostcells)
+        self.ncfile.num_layers = self.num_layers
+        self.ncfile.staggered_grid = str(self.staggered_grid)
+        self.ncfile.simulator_long = self.simulator_long
+        self.ncfile.simulator_short = self.simulator_short
+        self.ncfile.boundary_conditions = self.boundary_conditions
+        self.ncfile.time_integrator = self.time_integrator
+        self.ncfile.minmod_theta = self.minmod_theta
+        self.ncfile.coriolis_force = self.coriolis_force
+        self.ncfile.wind_stress_type = self.wind_stress.type
+        self.ncfile.eddy_viscosity_coefficient = self.eddy_viscosity_coefficient
+        self.ncfile.g = g  
+        self.ncfile.nx = nx
+        self.ncfile.ny = ny
+        self.ncfile.dx = dx
+        self.ncfile.dy = dy
+        self.ncfile.ghost_cells_x = self.ghost_cells_x
+        self.ncfile.ghost_cells_y = self.ghost_cells_y
+        self.ncfile.bottom_friction_r = self.bottom_friction_r
+        
         #Create dimensions 
         self.ncfile.createDimension('time', None) #Unlimited time dimension
         self.ncfile.createDimension('x', nx + 2*self.ghost_cells_x)
@@ -224,7 +252,7 @@ class SimNetCDFWriter:
         
         
     def __exit__(self, exc_type, exc_value, traceback):
-        print "Closing file..." # '" + self.ncfile.filepath() + "'"
+        print "Closing file " + self.output_file_name +" ..." 
         self.ncfile.close()
         
         
