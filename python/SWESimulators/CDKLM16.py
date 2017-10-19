@@ -96,15 +96,9 @@ class CDKLM16:
         # Boundary conditions
         self.boundary_conditions = boundary_conditions
         if (boundary_conditions.isSponge()):
-            print "BC is sponge!"
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
         
-
-        print ("From simulator")
-        print ("(ny, nx): ", (ny, nx))
-        print ("spongeCells: ", boundary_conditions.spongeCells)
-            
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, h0, hu0, hv0)
 
         ## Allocating memory for geostrophical equilibrium variables

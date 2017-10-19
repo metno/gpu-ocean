@@ -326,9 +326,9 @@ class BoundaryConditionsArakawaA:
         self.ny = np.int32(ny) 
         self.halo_x = np.int32(halo_x)
         self.halo_y = np.int32(halo_y)
-        print("boundary (ny, nx: ", (self.ny, self.nx))
-        print("boundary (halo_y, halo_x): ", (self.halo_y, self.halo_x))
-        print("numerical sponge cells (n,e,s,w): ", self.boundary_conditions.spongeCells)
+        #print("boundary (ny, nx: ", (self.ny, self.nx))
+        #print("boundary (halo_y, halo_x): ", (self.halo_y, self.halo_x))
+        #print("numerical sponge cells (n,e,s,w): ", self.boundary_conditions.spongeCells)
         
         # Load kernel for periodic boundary
         self.boundaryKernels = get_kernel(self.cl_ctx,\
