@@ -282,7 +282,7 @@ __kernel void numericalSponge_NS(
 	    outer_row = ny_ + 2*halo_y_ - 1;
 	}
 	
-	// Get base value
+	// Get inner value
 	__global float* inner_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*inner_row);
 	__global float* inner_row_u = (__global float*) ((__global char*) u_ptr_ + u_pitch_*inner_row);
 	__global float* inner_row_v = (__global float*) ((__global char*) v_ptr_ + v_pitch_*inner_row);
@@ -290,7 +290,7 @@ __kernel void numericalSponge_NS(
 	float inner_value_u = inner_row_u[ti];
 	float inner_value_v = inner_row_v[ti];
 
-	// Get target value
+	// Get outer value
 	__global float* outer_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*outer_row);
 	__global float* outer_row_u = (__global float*) ((__global char*) u_ptr_ + u_pitch_*outer_row);
 	__global float* outer_row_v = (__global float*) ((__global char*) v_ptr_ + v_pitch_*outer_row);
