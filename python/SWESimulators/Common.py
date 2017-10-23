@@ -262,6 +262,8 @@ class BoundaryConditions:
     1 = Wall
     2 = Periodic (requires same for opposite boundary as well)
     3 = Numerical Sponge
+    4 = Open linear interpolation
+    Options 3 and 4 are of sponge type (requiring extra computational domain)
     """
     def __init__(self, \
                  north=1, east=1, south=1, west=1, \
@@ -287,10 +289,10 @@ class BoundaryConditions:
                 self.east == 1)
 
     def isSponge(self):
-        return (self.north == 3 or \
-                self.east == 3 or \
-                self.south == 3 or \
-                self.west == 3)
+        return (self.north == 3 or self.north == 4 or \
+                self.east  == 3 or self.east  == 4 or \
+                self.south == 3 or self.south == 4 or \
+                self.west  == 3 or self.west  == 4)
     
     def _toString(self, cond):
         if cond == 1:
@@ -299,6 +301,8 @@ class BoundaryConditions:
             return "Periodic"
         elif cond == 3:
             return "Numerical Sponge"
+        elif cond == 4:
+            return "Open Linear Interpolation"
         else:
             return "Invalid :|"
         

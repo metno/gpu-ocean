@@ -73,7 +73,6 @@ class CTCS:
                  block_width=16, block_height=16):
         reload(Common)
         self.cl_ctx = cl_ctx
-        self.boundary_conditions = boundary_conditions
         self.rk_order = 'NA'
         self.theta = 'NA'
 
@@ -85,12 +84,21 @@ class CTCS:
         self.u_kernel = Common.get_kernel(self.cl_ctx, "CTCS_U_kernel.opencl", block_width, block_height)
         self.v_kernel = Common.get_kernel(self.cl_ctx, "CTCS_V_kernel.opencl", block_width, block_height)
         self.eta_kernel = Common.get_kernel(self.cl_ctx, "CTCS_eta_kernel.opencl", block_width, block_height)
+
+        
         
         #Create data by uploading to device
         halo_x = 1
         halo_y = 1
         self.ghost_cells_x = 1
         self.ghost_cells_y = 1
+        self.boundary_conditions = boundary_conditions
+        if boundary_conditions.isSponge():
+            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
+            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
+
+      
+        # TODO: Remove these variables
         closedBoundary_NS = 1
         closedBoundary_EA = 1
         if not self.boundary_conditions.isDefault():
@@ -98,7 +106,7 @@ class CTCS:
                 closedBoundary_NS = 0
             if self.boundary_conditions.east == 2:
                 closedBoundary_EA = 0
-        
+
         
         self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, halo_x, halo_y, H)
         self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, halo_x, halo_y, eta0, hu0, hv0)
@@ -254,8 +262,10 @@ class CTCS_boundary_condition:
         self.cl_ctx = cl_ctx
         self.boundary_conditions = boundary_conditions
 
-        self.periodic_NS = np.int32(boundary_conditions.north - 1)
-        self.periodic_EW = np.int32(boundary_conditions.east - 1)
+        self.bc_north = np.int32(boundary_conditions.north)
+        self.bc_east  = np.int32(boundary_conditions.east)
+        self.bc_south = np.int32(boundary_conditions.south)
+        self.bc_west  = np.int32(boundary_conditions.west)
         
         
         self.nx = np.int32(nx)
@@ -291,13 +301,15 @@ class CTCS_boundary_condition:
         self.boundaryKernels.boundaryUKernel_NS( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
-            self.halo_x, self.halo_y, self.periodic_NS, \
+            self.halo_x, self.halo_y,
+            self.bc_north, self.bc_south, \
             hu0.data, hu0.pitch)
 
         self.boundaryKernels.boundaryUKernel_EW( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
-            self.halo_x, self.halo_y, self.periodic_EW, \
+            self.halo_x, self.halo_y,
+            self.bc_east, self.bc_west, \
             hu0.data, hu0.pitch)
         
         
@@ -315,13 +327,15 @@ class CTCS_boundary_condition:
         self.boundaryKernels.boundaryVKernel_NS( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
-            self.halo_x, self.halo_y, self.periodic_NS, \
+            self.halo_x, self.halo_y, \
+            self.bc_north, self.bc_south, \
             hv0.data, hv0.pitch)
 
         self.boundaryKernels.boundaryVKernel_EW( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
-            self.halo_x, self.halo_y, self.periodic_EW, \
+            self.halo_x, self.halo_y,
+            self.bc_east, self.bc_west, \
             hv0.data, hv0.pitch)
 
 
@@ -338,13 +352,15 @@ class CTCS_boundary_condition:
         self.boundaryKernels.boundaryEtaKernel_NS( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
-            self.halo_x, self.halo_y, self.periodic_NS, \
+            self.halo_x, self.halo_y,
+            self.bc_north, self.bc_south, \
             eta0.data, eta0.pitch)
 
         self.boundaryKernels.boundaryEtaKernel_EW( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
-            self.halo_x, self.halo_y, self.periodic_EW, \
+            self.halo_x, self.halo_y,
+            self.bc_east, self.bc_west, \
             eta0.data, eta0.pitch)
 
               
