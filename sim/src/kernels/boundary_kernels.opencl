@@ -238,6 +238,15 @@ __kernel void closed_boundary_intersections_NS(
  *  These kernels implement numerical sponge.
  * 
  *  Assume that the outermost row has the desired values already
+ * 
+ *  The computational domain is (nx, ny), meaning that the data is defined on a 
+ *  domain (nx + 2*halo_x_, ny + 2*halo_y). The domain of interest is however smaller, and 
+ *  bounded by the sponge_cells.
+ *  With sponge in both south and norht, the sponge area is defined as follows:
+ *  In the south: (0, sponge_cells_south-1) 
+ *  In the north: (ny + 2*halo_x - sponge_cells_north, ny + 2*halo_y-1)
+ *
+ *  This is true regardless if the boundary on the opposite side is a sponge or not.
  */
 
 __kernel void numericalSponge_NS(
