@@ -225,3 +225,103 @@ __kernel void boundaryVKernel_EW(
 	}
     }
 }
+
+
+__kernel void boundary_linearInterpol_NS(
+	// Discretization parameters
+        int nx_, int ny_,
+        int nx_halo_, int ny_halo_,
+	int staggered_x_, int staggered_y_, // U->(1,0), V->(0,1), eta->(0,0)
+	
+	// Boundary condition parameters
+	int sponge_cells_north_, int sponge_cells_south_,
+	int bc_north_, int bc_south_,
+		
+        // Data
+        __global float* data_ptr_, int data_pitch_) {
+
+    // Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    if (( ((bc_south_ == 4) &&
+	   (tj < sponge_cells_south_) && (tj > 0)) ||
+	  ((bc_north_ == 4) &&
+	   (tj > ny_ + 2*ny_halo_ + staggered_y_ - sponge_cells_north_ - 1) &&
+	   (tj < ny_ + 2*ny_halo_ + staggered_y_ - 1)) ) &&
+	(ti > 0) && (ti < nx_ + 2*ny_halo_ + staggered_x_))
+	{
+	    // Identify inner and outer row
+	    int inner_row = sponge_cells_south_;
+	    int outer_row = 0;
+	    if (tj > sponge_cells_south_) {
+		inner_row = ny_ + 2*ny_halo_ + staggered_y_ - sponge_cells_north_ - 1;
+		outer_row = ny_ + 2*ny_halo_ + staggered_y_ - 1;
+	    }
+
+	    // Get outer value
+	    __global float* outer_row_ptr = (__global float*) ((__global char*) data_ptr_ + data_pitch_*outer_row);
+	    float outer_value = outer_row_ptr[ti];
+
+	    // Get inner value
+	    __global float* inner_row_ptr = (__global float*) ((__global char*) data_ptr_ + data_pitch_*inner_row);
+	    float inner_value = inner_row_ptr[ti];
+
+	    // Find target cell
+	    __global float* target_row_ptr = (__global float*) ((__global char*) data_ptr_ + data_pitch_*tj);
+
+	    // Interpolate:
+	    float ratio = ((float)(tj - outer_row))/(inner_row - outer_row);
+	    target_row_ptr[ti] = outer_value + ratio*(inner_value - outer_value);
+	}
+}
+
+
+
+__kernel void boundary_linearInterpol_EW(
+	// Discretization parameters
+        int nx_, int ny_,
+        int nx_halo_, int ny_halo_,
+	int staggered_x_, int staggered_y_, // U->(1,0), V->(0,1), eta->(0,0)
+	
+	// Boundary condition parameters
+	int sponge_cells_east_, int sponge_cells_west_,
+	int bc_east_, int bc_west_,
+		
+        // Data
+        __global float* data_ptr_, int data_pitch_) {
+
+    // Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    if (( ((bc_west_ == 4) &&
+	   (ti < sponge_cells_west_) && (ti > 0)) ||
+	  ((bc_east_ == 4) &&
+	   (ti > nx_ + 2*nx_halo_ + staggered_x_ - sponge_cells_east_ - 1) &&
+	   (ti < nx_ + 2*nx_halo_ + staggered_x_ - 1)) ) &&
+	(tj > 0) && (tj < ny_ + 2*ny_halo_ + staggered_y_))
+	{
+
+	    // Identify inner and outer row
+	    int inner_col = sponge_cells_west_;
+	    int outer_col = 0;
+	    if (ti > sponge_cells_west_) {
+		inner_col = nx_ + 2*nx_halo_ + staggered_x_ - sponge_cells_east_ - 1;
+		outer_col = nx_ + 2*nx_halo_ + staggered_x_ - 1;
+	    }
+
+	    // Get row:
+	    __global float* data_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*tj);
+
+	    // Get inner value
+	    float inner_value = data_row[inner_col];
+
+	    // Get outer value
+	    float outer_value = data_row[outer_col];
+
+	    // Interpolate:
+	    float ratio = ((float)(ti - outer_col))/(inner_col - outer_col);
+	    data_row[ti] = outer_value + ratio*(inner_value - outer_value);
+	}
+}
