@@ -97,6 +97,9 @@ class CTCS:
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
 
+        print "In CTCS.py: "
+        print "(ny, nx): ", (ny, nx)
+
       
         self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, halo_x, halo_y, H)
         self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, halo_x, halo_y, eta0, hu0, hv0)
@@ -292,6 +295,7 @@ class CTCS_boundary_condition:
                 self.halo_x, self.halo_y, \
                 self.bc_north, self.bc_south, \
                 hu0.data, hu0.pitch)
+        #self.callSpongeNS(cl_queue, hu0, 0, 0)
         self.callSpongeNS(cl_queue, hu0, 1, 0)
         
         if (self.bc_east < 3) or (self.bc_west < 3):
@@ -302,6 +306,7 @@ class CTCS_boundary_condition:
                 self.bc_east, self.bc_west, \
                 hu0.data, hu0.pitch)
         self.callSpongeEW(cl_queue, hu0, 1, 0)
+        #self.callSpongeEW(cl_queue, hu0, 0, 0)
         
         
         
@@ -324,7 +329,8 @@ class CTCS_boundary_condition:
                 self.bc_north, self.bc_south, \
                 hv0.data, hv0.pitch)
         self.callSpongeNS(cl_queue, hv0, 0, 1)
-            
+        #self.callSpongeNS(cl_queue, hv0, 0, 0)
+        
         if (self.bc_east < 3) or (self.bc_west < 3):
             self.boundaryKernels.boundaryVKernel_EW( \
                 cl_queue, self.global_size, self.local_size, \
@@ -333,7 +339,7 @@ class CTCS_boundary_condition:
                 self.bc_east, self.bc_west, \
                 hv0.data, hv0.pitch)
         self.callSpongeEW(cl_queue, hv0, 0, 1)
-        
+        #self.callSpongeEW(cl_queue, hv0, 0, 0)
 
     """
     Updates eta boundary conditions (ghost cells)
@@ -361,8 +367,6 @@ class CTCS_boundary_condition:
                 self.halo_x, self.halo_y, \
                 self.bc_east, self.bc_west, \
                 eta0.data, eta0.pitch)
-        print "Calling callSpongeEW with spongeCells:"
-        print self.boundary_conditions.spongeCells
         self.callSpongeEW(cl_queue, eta0, 0, 0)
             
               
