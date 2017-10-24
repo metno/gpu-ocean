@@ -415,7 +415,7 @@ __kernel void flowRelaxationScheme_NS(
 	    j = (ny_ + 2*halo_y_ -1) - tj;
 	}
 	//int current_col = ti;
-	float alpha = 1.0f - tanh((1.0f-j)/3.0f);
+	float alpha = 1.0f - tanh((j-1.0f)/3.0f);
 	
 	
 	// Get exterior value
@@ -472,7 +472,7 @@ __kernel void flowRelaxationScheme_EW(
 	    j = (nx_ + 2*halo_x_ -1) - ti;
 	}
 	//int current_col = ti;
-	float alpha = 1.0f - tanh((1.0f-j)/3.0f);
+	float alpha = 1.0f - tanh((j-1.0f)/3.0f);
 	
 	// Get rows
 	__global float* h_row = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
