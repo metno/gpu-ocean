@@ -325,3 +325,96 @@ __kernel void boundary_linearInterpol_EW(
 	    data_row[ti] = outer_value + ratio*(inner_value - outer_value);
 	}
 }
+
+
+
+
+__kernel void boundary_flowRelaxationScheme_NS(
+	// Discretization parameters
+        int nx_, int ny_,
+        int nx_halo_, int ny_halo_,
+	int staggered_x_, int staggered_y_, // U->(1,0), V->(0,1), eta->(0,0)
+	
+	// Boundary condition parameters
+	int sponge_cells_north_, int sponge_cells_south_,
+	int bc_north_, int bc_south_,
+		
+        // Data
+        __global float* data_ptr_, int data_pitch_) {
+
+    // Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    if (( ((bc_south_ == 3) &&
+	   (tj < sponge_cells_south_) && (tj > 0)) ||
+	  ((bc_north_ == 3) &&
+	   (tj > ny_ + 2*ny_halo_ + staggered_y_ - sponge_cells_north_ - 1) &&
+	   (tj < ny_ + 2*ny_halo_ + staggered_y_ - 1)) ) &&
+	(ti > 0) && (ti < nx_ + 2*ny_halo_ + staggered_x_-1))
+	{
+	    // Identify the exterior and current row
+	    int exterior_row = 0;
+	    int j = tj;
+	    if (tj > sponge_cells_south_) {
+		exterior_row = ny_ + 2*ny_halo_ + staggered_y_ - 1;
+		j = exterior_row - tj;
+	    }
+	    float alpha = 1.0f - tanh((j-1.0f)/2.0f);
+
+	    // Get exterior value
+	    __global float* exterior_row_ptr = (__global float*) ((__global char*) data_ptr_ + data_pitch_*exterior_row);
+	    float exterior_value = exterior_row_ptr[ti];
+
+	    // Find target cell
+	    __global float* target_row_ptr = (__global float*) ((__global char*) data_ptr_ + data_pitch_*tj);
+
+	    // Interpolate:
+	    target_row_ptr[ti] = (1.0f - alpha)*target_row_ptr[ti] + alpha*exterior_value;
+	}
+}
+
+
+__kernel void boundary_flowRelaxationScheme_EW(
+	// Discretization parameters
+        int nx_, int ny_,
+        int nx_halo_, int ny_halo_,
+	int staggered_x_, int staggered_y_, // U->(1,0), V->(0,1), eta->(0,0)
+	
+	// Boundary condition parameters
+	int sponge_cells_east_, int sponge_cells_west_,
+	int bc_east_, int bc_west_,
+		
+        // Data
+        __global float* data_ptr_, int data_pitch_) {
+
+    // Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    if (( ((bc_west_ == 3) &&
+	   (ti < sponge_cells_west_) && (ti > 0)) ||
+	  ((bc_east_ == 3) &&
+	   (ti > nx_ + 2*nx_halo_ + staggered_x_ - sponge_cells_east_ - 1) &&
+	   (ti < nx_ + 2*nx_halo_ + staggered_x_ - 1)) ) &&
+	(tj > 0) && (tj < ny_ + 2*ny_halo_ + staggered_y_-1))
+	{
+
+	    int exterior_col = 0;
+	    int j = ti;
+	    if (ti > sponge_cells_west_) {
+		exterior_col = nx_ + 2*nx_halo_ + staggered_x_ - 1;
+		j = exterior_col - ti;
+	    }
+	    float alpha = 1.0f - tanh((j-1.0f)/2.0f);
+
+	    // Get row:
+	    __global float* data_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*tj);
+
+	    // Get exterior value
+	    float exterior_value = data_row[exterior_col];
+
+	    // Interpolate:
+	    data_row[ti] = (1.0f - alpha)*data_row[ti] + alpha*exterior_value;
+	}
+}
