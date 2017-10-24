@@ -485,7 +485,6 @@ __kernel void flowRelaxationScheme_EW(
 	float exterior_value_v = v_row[exterior_col];
 
 	// Interpolate:
-	float ratio = ((float)(ti - outer_col))/(inner_col - outer_col);
 	h_row[ti] = (1.0f-alpha)*h_row[ti] + alpha*exterior_value_h;
 	u_row[ti] = (1.0f-alpha)*u_row[ti] + alpha*exterior_value_u;
 	v_row[ti] = (1.0f-alpha)*v_row[ti] + alpha*exterior_value_v;
