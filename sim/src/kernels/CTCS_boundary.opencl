@@ -249,7 +249,7 @@ __kernel void boundary_linearInterpol_NS(
 	  ((bc_north_ == 4) &&
 	   (tj > ny_ + 2*ny_halo_ + staggered_y_ - sponge_cells_north_ - 1) &&
 	   (tj < ny_ + 2*ny_halo_ + staggered_y_ - 1)) ) &&
-	(ti > 0) && (ti < nx_ + 2*ny_halo_ + staggered_x_))
+	(ti > 0) && (ti < nx_ + 2*ny_halo_ + staggered_x_ -1))
 	{
 	    // Identify inner and outer row
 	    int inner_row = sponge_cells_south_;
@@ -300,7 +300,7 @@ __kernel void boundary_linearInterpol_EW(
 	  ((bc_east_ == 4) &&
 	   (ti > nx_ + 2*nx_halo_ + staggered_x_ - sponge_cells_east_ - 1) &&
 	   (ti < nx_ + 2*nx_halo_ + staggered_x_ - 1)) ) &&
-	(tj > 0) && (tj < ny_ + 2*ny_halo_ + staggered_y_))
+	(tj > 0) && (tj < ny_ + 2*ny_halo_ + staggered_y_-1))
 	{
 
 	    // Identify inner and outer row

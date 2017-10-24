@@ -92,6 +92,9 @@ class KP07:
 
         # Boundary conditions
         self.boundary_conditions = boundary_conditions
+
+        # Extend the computational domain if the boundary conditions
+        # require it
         if (boundary_conditions.isSponge()):
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
