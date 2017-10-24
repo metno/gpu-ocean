@@ -158,10 +158,13 @@ class CTCS:
     def step(self, t_end=0.0):
         n = int(t_end / self.dt + 1)
 
-        # Just to be on the safe side, we ensure that these are sat:
+        # Just to be on the safe side, we ensure that boundary conditions are satisfied on both:
         self.bc_kernel.boundaryConditionEta(self.cl_queue, self.cl_data.h0)
         self.bc_kernel.boundaryConditionU(self.cl_queue, self.cl_data.hu0)
         self.bc_kernel.boundaryConditionV(self.cl_queue, self.cl_data.hv0)
+        self.bc_kernel.boundaryConditionEta(self.cl_queue, self.cl_data.h1)
+        self.bc_kernel.boundaryConditionU(self.cl_queue, self.cl_data.hu1)
+        self.bc_kernel.boundaryConditionV(self.cl_queue, self.cl_data.hv1)
         
         for i in range(0, n):
             #Notation: 
