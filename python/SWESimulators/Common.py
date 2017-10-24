@@ -414,11 +414,18 @@ class BoundaryConditionsArakawaA:
             v.data, v.pitch)
 
     def flow_relaxation_NS(self, cl_queue, h, u, v):
-        assert(False), "Flow Relaxation Scheme not implemented"
-        
+        self.boundaryKernels.flowRelaxationScheme_NS( \
+            cl_queue, self.global_size, self.local_size, \
+            self.boundary_conditions.north, self.boundary_conditions.south, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, \
+            self.boundary_conditions.spongeCells[0], \
+            self.boundary_conditions.spongeCells[2], \
+            h.data, h.pitch, \
+            u.data, u.pitch, \
+            v.data, v.pitch)   
 
     def flow_relaxation_EW(self, cl_queue, h, u, v):
-        assert(False), "Flow Relaxation Scheme not implemented"
         self.boundaryKernels.flowRelaxationScheme_EW( \
             cl_queue, self.global_size, self.local_size, \
             self.boundary_conditions.east, self.boundary_conditions.west, \
