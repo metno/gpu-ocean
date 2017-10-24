@@ -285,12 +285,6 @@ class CTCS_boundary_condition:
     """
     def boundaryConditionU(self, cl_queue, hu0):
        
-        assert(self.boundary_conditions.north != 3 and \
-               self.boundary_conditions.east  != 3 and \
-               self.boundary_conditions.south != 3 and \
-               self.boundary_conditions.west  != 3), \
-               'Numerical sponge not yet supported'
-
         if (self.bc_north < 3) or (self.bc_south < 3):
             self.boundaryKernels.boundaryUKernel_NS( \
                 cl_queue, self.global_size, self.local_size, \
@@ -318,12 +312,6 @@ class CTCS_boundary_condition:
     """
     def boundaryConditionV(self, cl_queue, hv0):
 
-        assert(self.boundary_conditions.north != 3 and \
-               self.boundary_conditions.east  != 3 and \
-               self.boundary_conditions.south != 3 and \
-               self.boundary_conditions.west  != 3), \
-               'Numerical sponge not yet supported'
-
         if (self.bc_north < 3) or (self.bc_south < 3):
             self.boundaryKernels.boundaryVKernel_NS( \
                 cl_queue, self.global_size, self.local_size, \
@@ -348,11 +336,6 @@ class CTCS_boundary_condition:
     Updates eta boundary conditions (ghost cells)
     """
     def boundaryConditionEta(self, cl_queue, eta0):
-        assert(self.boundary_conditions.north != 3 and \
-               self.boundary_conditions.east  != 3 and \
-               self.boundary_conditions.south != 3 and \
-               self.boundary_conditions.west  != 3), \
-               'Numerical sponge not yet supported'
 
         if (self.bc_north < 3) or (self.bc_south < 3):
             self.boundaryKernels.boundaryEtaKernel_NS( \
@@ -381,7 +364,16 @@ class CTCS_boundary_condition:
         staggered_y_int32 = np.int32(staggered_y)
 
         #print "callSpongeNS"
-        
+        if (self.bc_north == 3) or (self.bc_south == 3):
+            self.boundaryKernels.boundary_flowRelaxationScheme_NS( \
+                cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, \
+                self.halo_x, self.halo_y, \
+                staggered_x_int32, staggered_y_int32, \
+                self.boundary_conditions.spongeCells[0], \
+                self.boundary_conditions.spongeCells[2], \
+                self.bc_north, self.bc_south, \
+                data.data, data.pitch) 
         if (self.bc_north == 4 ) or (self.bc_south == 4):
             self.boundaryKernels.boundary_linearInterpol_NS( \
                 cl_queue, self.global_size, self.local_size, \
@@ -392,14 +384,23 @@ class CTCS_boundary_condition:
                 self.boundary_conditions.spongeCells[2], \
                 self.bc_north, self.bc_south, \
                 data.data, data.pitch)                                
-        
 
     def callSpongeEW(self, cl_queue, data, staggered_x, staggered_y):
         staggered_x_int32 = np.int32(staggered_x)
         staggered_y_int32 = np.int32(staggered_y)
 
         #print "CallSpongeEW"
-        
+        if (self.bc_east == 3) or (self.bc_west == 3):
+            self.boundaryKernels.boundary_flowRelaxationScheme_EW( \
+                cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, \
+                self.halo_x, self.halo_y, \
+                staggered_x_int32, staggered_y_int32, \
+                self.boundary_conditions.spongeCells[1], \
+                self.boundary_conditions.spongeCells[3], \
+                self.bc_east, self.bc_west, \
+                data.data, data.pitch)   
+
         if (self.bc_east == 4 ) or (self.bc_west == 4):
             self.boundaryKernels.boundary_linearInterpol_EW( \
                 cl_queue, self.global_size, self.local_size, \
