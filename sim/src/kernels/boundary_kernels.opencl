@@ -235,7 +235,7 @@ __kernel void closed_boundary_intersections_NS(
 
 
 /*
- *  These kernels implement numerical sponge.
+ *  These kernels implement open boundary conditions as linear interpolation.
  * 
  *  Assume that the outermost row has the desired values already
  * 
@@ -249,7 +249,7 @@ __kernel void closed_boundary_intersections_NS(
  *  This is true regardless if the boundary on the opposite side is a sponge or not.
  */
 
-__kernel void numericalSponge_NS(
+__kernel void linearInterpolation_NS(
 	// Discretization parameters
 	int boundary_condition_north_, int boundary_condition_south_,
 	int nx_, int ny_,
@@ -268,9 +268,9 @@ __kernel void numericalSponge_NS(
 
     // Extrapolate on northern and southern boundary:
     // Keep outer edge as is!
-    if (( ((boundary_condition_south_ == 3)
+    if (( ((boundary_condition_south_ == 4)
 	   &&(tj < sponge_cells_south_) && (tj > 0)) ||
-	  ((boundary_condition_north_ == 3)
+	  ((boundary_condition_north_ == 4)
 	   &&(tj > ny_ + 2*halo_y_ - 1 - sponge_cells_north_) && (tj < ny_ + 2*halo_y_ -1)) )
 	&& (ti > 0) && (ti < nx_ + 2*halo_x_-1) ) {
 
@@ -312,7 +312,7 @@ __kernel void numericalSponge_NS(
 }
 
     
-__kernel void numericalSponge_EW(
+__kernel void linearInterpolation_EW(
 	// Discretization parameters
 	int boundary_condition_east_, int boundary_condition_west_,
         int nx_, int ny_,
@@ -331,9 +331,9 @@ __kernel void numericalSponge_EW(
 
     // Extrapolate on northern and southern boundary:
     // Keep outer edge as is!
-    if (( ((boundary_condition_west_ == 3)
+    if (( ((boundary_condition_west_ == 4)
 	   &&(ti < sponge_cells_west_) && (ti > 0)) ||
-	  ((boundary_condition_east_ == 3)
+	  ((boundary_condition_east_ == 4)
 	   &&(ti > nx_ + 2*halo_x_ - 1 - sponge_cells_east_) && (ti < nx_ + 2*halo_x_ -1)) )
 	&& (tj > 0) && (tj < ny_ + 2*halo_y_-1) ) {
 
@@ -367,3 +367,5 @@ __kernel void numericalSponge_EW(
 	v_row[ti] = outer_value_v + ratio*(inner_value_v - outer_value_v);
     }
 }
+
+

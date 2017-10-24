@@ -261,7 +261,7 @@ class BoundaryConditions:
     Values can be set as follows:
     1 = Wall
     2 = Periodic (requires same for opposite boundary as well)
-    3 = Numerical Sponge
+    3 = Open Boundary with Flow Relaxation Scheme
     4 = Open linear interpolation
     Options 3 and 4 are of sponge type (requiring extra computational domain)
     """
@@ -300,7 +300,7 @@ class BoundaryConditions:
         elif cond == 2:
             return "Periodic"
         elif cond == 3:
-            return "Numerical Sponge"
+            return "Flow Relaxation Scheme"
         elif cond == 4:
             return "Open Linear Interpolation"
         else:
@@ -350,16 +350,24 @@ class BoundaryConditionsArakawaA:
                  
         if self.boundary_conditions.north == 2:
             self.periodic_boundary_NS(cl_queue, h, u, v)
-        elif self.boundary_conditions.north == 3 or \
-             self.boundary_conditions.south == 3:
-            self.numerical_sponge_NS(cl_queue, h, u, v)
+        else:
+            if (self.boundary_conditions.north == 3 or \
+                self.boundary_conditions.south == 3):
+                self.flow_relaxation_NS(cl_queue, h, u, v)
+            if (self.boundary_conditions.north == 4 or \
+                self.boundary_conditions.south == 4):
+                self.linear_interpolation_NS(cl_queue, h, u, v)
+            
             
         if self.boundary_conditions.east == 2:
             self.periodic_boundary_EW(cl_queue, h, u, v)
-        elif self.boundary_conditions.east == 3 or \
-             self.boundary_conditions.west == 3:
-            self.numerical_sponge_EW(cl_queue, h, u, v)
-            
+        else:
+            if (self.boundary_conditions.east == 3 or \
+                self.boundary_conditions.west == 3):
+                self.flow_relaxation_EW(cl_queue, h, u, v)
+            if (self.boundary_conditions.east == 4 or \
+                self.boundary_conditions.west == 4):
+                self.linear_interpolation_EW(cl_queue, h, u, v)
              
     def periodic_boundary_NS(self, cl_queue, h, u, v):
         self.boundaryKernels.periodicBoundary_NS( \
@@ -381,8 +389,8 @@ class BoundaryConditionsArakawaA:
             v.data, v.pitch)
 
 
-    def numerical_sponge_NS(self, cl_queue, h, u, v):
-        self.boundaryKernels.numericalSponge_NS( \
+    def linear_interpolation_NS(self, cl_queue, h, u, v):
+        self.boundaryKernels.linearInterpolation_NS( \
             cl_queue, self.global_size, self.local_size, \
             self.boundary_conditions.north, self.boundary_conditions.south, \
             self.nx, self.ny, \
@@ -393,8 +401,8 @@ class BoundaryConditionsArakawaA:
             u.data, u.pitch, \
             v.data, v.pitch)                                   
 
-    def numerical_sponge_EW(self, cl_queue, h, u, v):
-        self.boundaryKernels.numericalSponge_EW( \
+    def linear_interpolation_EW(self, cl_queue, h, u, v):
+        self.boundaryKernels.linearInterpolation_EW( \
             cl_queue, self.global_size, self.local_size, \
             self.boundary_conditions.east, self.boundary_conditions.west, \
             self.nx, self.ny, \
@@ -405,8 +413,25 @@ class BoundaryConditionsArakawaA:
             u.data, u.pitch, \
             v.data, v.pitch)
 
-    
-                 
+    def flow_relaxation_NS(self, cl_queue, h, u, v):
+        assert(False), "Flow Relaxation Scheme not implemented"
+        
+
+    def flow_relaxation_EW(self, cl_queue, h, u, v):
+        assert(False), "Flow Relaxation Scheme not implemented"
+        self.boundaryKernels.flowRelaxationScheme_EW( \
+            cl_queue, self.global_size, self.local_size, \
+            self.boundary_conditions.east, self.boundary_conditions.west, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, \
+            self.boundary_conditions.spongeCells[1], \
+            self.boundary_conditions.spongeCells[3], \
+            h.data, h.pitch, \
+            u.data, u.pitch, \
+            v.data, v.pitch)
+
+
+        
 """
 Class for holding bathymetry defined on cell intersections (cell corners) and reconstructed on 
 cell mid-points.
