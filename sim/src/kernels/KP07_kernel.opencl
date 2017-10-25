@@ -237,9 +237,8 @@ __kernel void swe_2D(
         float x0_, float y0_,
         float u0_, float v0_,
 
-	// Boundary condition flag
-	int boundary_conditions_type_, // < 1: wall, 2: periodic, 
-                                       //   3: periodicNS, 4: periodicEW
+	// Boundary conditions (1: wall, 2: periodic, 3: numerical sponge)
+        int bc_north_, int bc_east_, int bc_south_, int bc_west_,
 	
         float t_) {
         
@@ -297,9 +296,12 @@ __kernel void swe_2D(
 
     //Fix boundary conditions
     // TODO: Add if on boundary condition
-    noFlowBoundary2(Q, nx_, ny_, boundary_conditions_type_);
-    barrier(CLK_LOCAL_MEM_FENCE);
-    
+    if (bc_north_ == 1 || bc_east_ == 1 || bc_south_ == 1 || bc_west_ == 1)
+    {
+	noFlowBoundary2Mix(Q, nx_, ny_, bc_north_, bc_east_, bc_south_, bc_west_);
+	barrier(CLK_LOCAL_MEM_FENCE);
+	// Looks scary to have fence within if, but the bc parameters are static between threads.
+    }
     
     //Reconstruct slopes along x and axis
     minmodSlopeX(Q, Qx, theta_);

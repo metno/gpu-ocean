@@ -33,7 +33,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 __kernel void computeVKernel(
         //Discretization parameters
         int nx_, int ny_,
-        int closed_boundary_,
+        int bc_north_, int bc_south_,
         float dx_, float dy_, float dt_,
     
         //Physical parameters
@@ -66,10 +66,13 @@ __kernel void computeVKernel(
     //Index of thread within block
     const int tx = get_local_id(0);
     const int ty = get_local_id(1);
+
+    const int closed_boundary_cell_north = (int)(bc_north_ == 1);
+    const int closed_boundary_cell_south = (int)(bc_south_ == 1);
     
     //Start of block within domain
     const int bx = get_local_size(0) * get_group_id(0) + 1; //Skip global ghost cells
-    const int by = get_local_size(1) * get_group_id(1) + 1 + closed_boundary_; //Skip global ghost cells
+    const int by = get_local_size(1) * get_group_id(1) + 1 + closed_boundary_cell_south; //Skip global ghost cells
 
     //Index of cell within domain
     const int ti = bx + tx;
@@ -82,7 +85,7 @@ __kernel void computeVKernel(
     float V0 = 0.0f;
     // if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
     //if ( ti >= 1 && ti <= nx_ && tj >= 2 && tj <= ny_) {
-    if (ti >= 1 && ti <= nx_ && tj >= 1+closed_boundary_ && tj <= ny_+1-closed_boundary_) {        
+    if (ti >= 1 && ti <= nx_ && tj >= 1+closed_boundary_cell_south && tj <= ny_+1-closed_boundary_cell_north) {        
         V0 = V0_row[ti];
     }
 
@@ -237,7 +240,7 @@ __kernel void computeVKernel(
     //Write to main memory for internal cells
     //if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
     //if ( ti >= 1 && ti <= nx_ && tj >= 2 && tj <= ny_) {
-    if (ti >= 1 && ti <= nx_ && tj >= 1+closed_boundary_ && tj <= ny_+1-closed_boundary_) {        
+    if (ti >= 1 && ti <= nx_ && tj >= 1+closed_boundary_cell_south && tj <= ny_+1-closed_boundary_cell_north) {        
         V0_row[ti] = V2;
     }
 }
