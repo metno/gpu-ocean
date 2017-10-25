@@ -95,15 +95,17 @@ class FBL:
         self.ghost_cells_x = ghost_cells_x
         self.ghost_cells_y = ghost_cells_y
         self.asym_ghost_cells = [0, 0, 0, 0] # [N, E, S, W]
-        if not self.boundary_conditions.isDefault():
-            if self.boundary_conditions.north == 2:
-                self.asym_ghost_cells[0] = 1
-            if self.boundary_conditions.east == 2:
-                self.asym_ghost_cells[1] = 1
+        # Add asym ghost cell if periodic boundary condition:
+        if (self.boundary_conditions.north == 2) or \
+           (self.boundary_conditions.south == 2):
+            self.asym_ghost_cells[0] = 1
+        if (self.boundary_conditions.east == 2) or \
+           (self.boundary_conditions.west == 2):
+            self.asym_ghost_cells[1] = 1
+
         if boundary_conditions.isSponge():
-            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - self.asym_ghost_cells[1] - self.asym_ghost_cells[3]
-            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - self.asym_ghost_cells[0] - self.asym_ghost_cells[2]
-        print "From FBL class: (nx, ny, ghosts): ", (nx, ny, self.asym_ghost_cells)
+            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3]# - self.asym_ghost_cells[1] - self.asym_ghost_cells[3]
+            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2]# - self.asym_ghost_cells[0] - self.asym_ghost_cells[2]
                 
         self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, H, self.asym_ghost_cells)
         self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, self.asym_ghost_cells)
