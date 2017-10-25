@@ -117,9 +117,8 @@ __kernel void swe_2D(
         float u0_, float v0_,
         float t_, 
     
-        // Boundary conditions
-        int boundary_conditions_type_, // < 1: wall, 2: periodic, 
-                                       //   3: periodicNS, 4: periodicEW
+        // Boundary conditions (1: wall, 2: periodic, 3: numerical sponge)
+        int bc_north_, int bc_east_, int bc_south_, int bc_west_,
 
 	// Geostrophic Equilibrium memory buffers
 	// The buffers have the same size as input/output
@@ -227,15 +226,15 @@ __kernel void swe_2D(
     barrier(CLK_LOCAL_MEM_FENCE);
     
     //Fix boundary conditions
-    if (boundary_conditions_type_ != 2)
+    if (bc_north_ == 1 || bc_east_ == 1 || bc_south_ == 1 || bc_west_ == 1)
     {
         // These boundary conditions are dealt with inside shared memory
         
         const int i = tx + 2; //Skip local ghost cells, i.e., +2
         const int j = ty + 2;
         
-        if (ti == 2 && boundary_conditions_type_ != 4) {
-	    // Wall boundary on east and west
+        if (ti == 2 && bc_west_ == 1) {
+	    // Wall boundary on west
 	    R[0][j][i-1] =  R[0][j][i];
             R[1][j][i-1] = -R[1][j][i];
             R[2][j][i-1] =  R[2][j][i];
@@ -244,8 +243,8 @@ __kernel void swe_2D(
             R[1][j][i-2] = -R[1][j][i+1];
             R[2][j][i-2] =  R[2][j][i+1];
 	}
-        if (ti == nx_+1 && boundary_conditions_type_ != 4) {
-	    // Wall boundary on east and west
+        if (ti == nx_+1 && bc_east_ == 1) {
+	    // Wall boundary on east 
             R[0][j][i+1] =  R[0][j][i];
             R[1][j][i+1] = -R[1][j][i];
             R[2][j][i+1] =  R[2][j][i];
@@ -254,8 +253,8 @@ __kernel void swe_2D(
             R[1][j][i+2] = -R[1][j][i-1];
             R[2][j][i+2] =  R[2][j][i-1];
         }
-        if (tj == 2 && boundary_conditions_type_ != 3) {
-	    // Wall boundary on north and south
+        if (tj == 2 && bc_south_ == 1) {
+	    // Wall boundary on south
 	    R[0][j-1][i] =  R[0][j][i];
             R[1][j-1][i] =  R[1][j][i];
             R[2][j-1][i] = -R[2][j][i];
@@ -264,8 +263,8 @@ __kernel void swe_2D(
             R[1][j-2][i] =  R[1][j+1][i];
             R[2][j-2][i] = -R[2][j+1][i];
         }
-        if (tj == ny_+1 && boundary_conditions_type_ != 3) {
-	    // Wall boundary on north and south
+        if (tj == ny_+1 && bc_north_ == 1) {
+	    // Wall boundary on north
             R[0][j+1][i] =  R[0][j][i];
             R[1][j+1][i] =  R[1][j][i];
             R[2][j+1][i] = -R[2][j][i];

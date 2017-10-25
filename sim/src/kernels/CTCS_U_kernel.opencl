@@ -30,7 +30,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 __kernel void computeUKernel(
         //Discretization parameters
         int nx_, int ny_,
-        int closed_boundary_,
+        int bc_east_, int bc_west_,
         float dx_, float dy_, float dt_,
     
         //Physical parameters
@@ -63,9 +63,12 @@ __kernel void computeUKernel(
     //Index of thread within block
     const int tx = get_local_id(0);
     const int ty = get_local_id(1);
+
+    const int closed_boundary_cell_east = (int)(bc_east_ == 1);
+    const int closed_boundary_cell_west = (int)(bc_west_ == 1);
     
     //Start of block within domain
-    const int bx = get_local_size(0) * get_group_id(0) + 1 + closed_boundary_; //Skip global ghost cells
+    const int bx = get_local_size(0) * get_group_id(0) + 1 + closed_boundary_cell_west; //Skip global ghost cells
     const int by = get_local_size(1) * get_group_id(1) + 1; //Skip global ghost cells
 
     //Index of cell within domain
@@ -80,7 +83,7 @@ __kernel void computeUKernel(
     //if (ti > 0 && ti < nx_ && tj > 0 && tj < ny_+1) {
     //if (ti > halo_x_-1+1 && ti < nx_ + 2*halo_x_-1+1 && tj > halo_y_-1 && tj < ny_+halo_y_) {
     //if (ti >= 2 && ti <= nx_ && tj >= 1 && tj <= ny_) {
-    if (ti >= closed_boundary_+1 && ti <= nx_+1-closed_boundary_ && tj >= 1 && tj <= ny_) {
+    if (ti >= closed_boundary_cell_west+1 && ti <= nx_+1-closed_boundary_cell_east && tj >= 1 && tj <= ny_) {
         U0 = U0_row[ti];
     }
 
@@ -241,7 +244,7 @@ __kernel void computeUKernel(
     // if (ti > 0 && ti < nx_ && tj > 0 && tj < ny_+1) {
     //if (ti > halo_x_-1+1 && ti < nx_ + 2*halo_x_-1+1 && tj > halo_y_-1 && tj < ny_+halo_y_) {
     // if (ti >= 2 && ti <= nx_ && tj >= 1 && tj <= ny_) {
-    if (ti >= closed_boundary_+1 && ti <= nx_+1-closed_boundary_ && tj >= 1 && tj <= ny_) {
+    if (ti >= closed_boundary_cell_west+1 && ti <= nx_+1-closed_boundary_cell_east && tj >= 1 && tj <= ny_) {
         U0_row[ti] = U2;
     }
 }

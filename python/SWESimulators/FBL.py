@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
-import Common
+import Common, SimWriter
         
         
         
@@ -72,10 +72,14 @@ class FBL:
                  g, f, r, \
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
+                 write_netcdf=False, \
                  block_width=16, block_height=16):
         reload(Common)
         self.cl_ctx = cl_ctx
         self.boundary_conditions = boundary_conditions
+        self.rk_order = 'NA'
+        self.theta = 'NA'
+        self.A = 'NA'
         
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
@@ -88,13 +92,21 @@ class FBL:
         #Create data by uploading to device
         ghost_cells_x = 0
         ghost_cells_y = 0
+        self.ghost_cells_x = ghost_cells_x
+        self.ghost_cells_y = ghost_cells_y
         self.asym_ghost_cells = [0, 0, 0, 0] # [N, E, S, W]
-        if not self.boundary_conditions.isDefault():
-            if self.boundary_conditions.north == 2:
-                self.asym_ghost_cells[0] = 1
-            if self.boundary_conditions.east == 2:
-                self.asym_ghost_cells[1] = 1
-            
+        # Add asym ghost cell if periodic boundary condition:
+        if (self.boundary_conditions.north == 2) or \
+           (self.boundary_conditions.south == 2):
+            self.asym_ghost_cells[0] = 1
+        if (self.boundary_conditions.east == 2) or \
+           (self.boundary_conditions.west == 2):
+            self.asym_ghost_cells[1] = 1
+
+        if boundary_conditions.isSponge():
+            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3]# - self.asym_ghost_cells[1] - self.asym_ghost_cells[3]
+            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2]# - self.asym_ghost_cells[0] - self.asym_ghost_cells[2]
+                
         self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, H, self.asym_ghost_cells)
         self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, self.asym_ghost_cells)
         
@@ -134,11 +146,19 @@ class FBL:
         )
 
         self.totalNumIterations = 0
-
+        self.write_netcdf = write_netcdf
+        self.sim_writer = None
+        if self.write_netcdf:
+            self.sim_writer = SimWriter.SimNetCDFWriter(self, staggered_grid=True)
+    
+            
     """
     Clean up function
     """
     def cleanUp(self):
+        if self.write_netcdf:
+            self.sim_writer.__exit__(0,0,0)
+            self.write_netcdf = False
         self.cl_data.release()
         self.H.release()
     
@@ -214,7 +234,9 @@ class FBL:
             self.t += local_dt
             self.totalNumIterations += 1
             
-
+        if self.write_netcdf:
+            self.sim_writer.writeTimestep(self)
+            
         return self.t
     
     
@@ -239,8 +261,13 @@ class FBL_periodic_boundary:
         self.cl_ctx = cl_ctx
         self.boundary_conditions = boundary_conditions
         self.asym_ghost_cells = asym_ghost_cells
-        self.ghostsX = self.asym_ghost_cells[1] + self.asym_ghost_cells[3]
-        self.ghostsY = self.asym_ghost_cells[0] + self.asym_ghost_cells[2]
+        self.ghostsX = np.int32(self.asym_ghost_cells[1] + self.asym_ghost_cells[3])
+        self.ghostsY = np.int32(self.asym_ghost_cells[0] + self.asym_ghost_cells[2])
+
+        self.bc_north = np.int32(boundary_conditions.north)
+        self.bc_east  = np.int32(boundary_conditions.east)
+        self.bc_south = np.int32(boundary_conditions.south)
+        self.bc_west  = np.int32(boundary_conditions.west)
         
         self.nx = np.int32(nx)
         self.ny = np.int32(ny)
@@ -260,7 +287,11 @@ class FBL_periodic_boundary:
             = Common.get_kernel(self.cl_ctx,\
             "FBL_periodic_boundary.opencl", block_width, block_height)
 
-         #Compute kernel launch parameters
+        # Reuse CTCS kernels for Flow Relaxation Scheme
+        self.CTCSBoundaryKernels = Common.get_kernel(self.cl_ctx,\
+                     "CTCS_boundary.opencl", block_width, block_height)
+        
+        #Compute kernel launch parameters
         self.local_size = (block_width, block_height) # WARNING::: MUST MATCH defines of block_width/height in kernels!
         self.global_size = ( \
                 int(np.ceil(self.nx_halo+1 / float(self.local_size[0])) * self.local_size[0]), \
@@ -272,6 +303,10 @@ class FBL_periodic_boundary:
     Updates hu according periodic boundary conditions
     """
     def boundaryConditionU(self, cl_queue, hu0):
+
+        # Start with fixing the potential sponge
+        self.callSpongeNS(cl_queue, hu0, 1, 0)
+        
         if (self.boundary_conditions.east == 1 and \
             self.boundary_conditions.west == 1):
             if (self.nx_halo > self.nx):
@@ -298,9 +333,8 @@ class FBL_periodic_boundary:
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hu0.data, hu0.pitch)
-        else:
-            assert(False), 'Numerical sponge not yet supported'
-
+        
+        
         # Nonthereless: If there are ghost cells in north-south direction, update them!
         # TODO: Generalize to both ghost_north and ghost_south
         # Updating northern ghost cells
@@ -319,6 +353,10 @@ class FBL_periodic_boundary:
     Updates hv according to periodic boundary conditions
     """
     def boundaryConditionV(self, cl_queue, hv0):
+
+        # Start with fixing the potential sponge
+        self.callSpongeNS(cl_queue, hv0, 0, 1)
+        
         if (self.boundary_conditions.north == 1 and \
             self.boundary_conditions.south == 1):
             if (self.ny_halo > self.ny):
@@ -347,8 +385,7 @@ class FBL_periodic_boundary:
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hv0.data, hv0.pitch)
-        else:
-            assert(False), 'Numerical sponge not yet supported'
+        
 
         # Nonthereless: If there are ghost cells in east-west direction, update them!
         # TODO: Generalize to both ghost_east and ghost_west
@@ -368,7 +405,9 @@ class FBL_periodic_boundary:
     Updates eta boundary conditions (ghost cells)
     """
     def boundaryConditionEta(self, cl_queue, eta0):
-       
+        # Start with fixing the potential sponge
+        self.callSpongeNS(cl_queue, eta0, 0, 0)
+        
         if (self.boundary_conditions.north == 2 or
             self.boundary_conditions.east == 2):
             # Periodic
@@ -385,4 +424,30 @@ class FBL_periodic_boundary:
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         eta0.data, eta0.pitch)
+
         
+    def callSpongeNS(self, cl_queue, data, staggered_x, staggered_y):
+        staggered_x_int32 = np.int32(staggered_x)
+        staggered_y_int32 = np.int32(staggered_y)
+        
+        if (self.bc_north == 3) or (self.bc_south ==3):
+            self.CTCSBoundaryKernels.boundary_flowRelaxationScheme_NS( \
+                cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, \
+                self.ghostsX, self.ghostsY, \
+                staggered_x_int32, staggered_y_int32, \
+                self.boundary_conditions.spongeCells[0], \
+                self.boundary_conditions.spongeCells[2], \
+                self.bc_north, self.bc_south, \
+                data.data, data.pitch)
+
+        if (self.bc_east == 3) or (self.bc_west == 3):
+            self.CTCSBoundaryKernels.boundary_flowRelaxationScheme_EW( \
+                cl_queue, self.global_size, self.local_size, \
+                self.nx, self.ny, \
+                self.ghostsX, self.ghostsY, \
+                staggered_x_int32, staggered_y_int32, \
+                self.boundary_conditions.spongeCells[1], \
+                self.boundary_conditions.spongeCells[3], \
+                self.bc_east, self.bc_west, \
+                data.data, data.pitch)

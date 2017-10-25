@@ -77,19 +77,28 @@ class CDKLM16:
                  reportGeostrophicEquilibrium=False, \
                  write_netcdf=False, \
                  block_width=16, block_height=16):
+        
         self.cl_ctx = cl_ctx
 
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
-
+        self.A = "NA"  # Eddy viscocity coefficient
+        
         #Get kernels
         self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
-        
-        #Create data by uploading to device
+
         self.ghost_cells_x = 2
         self.ghost_cells_y = 2
         ghost_cells_x = 2
         ghost_cells_y = 2
+        
+        # Boundary conditions
+        self.boundary_conditions = boundary_conditions
+        if (boundary_conditions.isSponge()):
+            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
+            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
+        
+        #Create data by uploading to device
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, h0, hu0, hv0)
 
         ## Allocating memory for geostrophical equilibrium variables
@@ -123,14 +132,7 @@ class CDKLM16:
         self.wind_stress = wind_stress
         self.h0AsWaterElevation = h0AsWaterElevation
 
-        self.boundary_conditions = boundary_conditions
-        self.boundaryType = np.int32(1)
-        if (boundary_conditions.north == 2 and boundary_conditions.east == 2):
-            self.boundaryType = np.int32(2)
-        elif (boundary_conditions.north == 2):
-            self.boundaryType = np.int32(3)
-        elif (boundary_conditions.east == 2):
-            self.boundaryType = np.int32(4)
+
         
         #Initialize time
         self.t = np.float32(0.0)
@@ -217,7 +219,7 @@ class CDKLM16:
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
                         self.t, \
-                        self.boundaryType, \
+                        self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         np.int32(0), \
                         self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
                         self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
@@ -249,7 +251,7 @@ class CDKLM16:
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
                         self.t, \
-                        self.boundaryType, \
+                        self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         self.reportGeostrophicEquilibrium, \
                         self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
                         self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
@@ -281,7 +283,7 @@ class CDKLM16:
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
                         self.t, \
-                        self.boundaryType, \
+                        self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         self.reportGeostrophicEquilibrium, \
                         self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
                         self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
@@ -316,7 +318,7 @@ class CDKLM16:
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
                         self.t, \
-                        self.boundaryType, \
+                        self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         np.int32(0), \
                         self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
                         self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
@@ -348,7 +350,7 @@ class CDKLM16:
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
                         self.t, \
-                        self.boundaryType, \
+                        self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         self.reportGeostrophicEquilibrium, \
                         self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
                         self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
@@ -379,7 +381,7 @@ class CDKLM16:
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
                         self.t, \
-                        self.boundaryType, \
+                        self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         self.reportGeostrophicEquilibrium, \
                         self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
                         self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
