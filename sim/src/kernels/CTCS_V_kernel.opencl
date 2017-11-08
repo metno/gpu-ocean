@@ -25,6 +25,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "common.opencl"
 
+// Finds the coriolis term based on the linear Coriolis force
+// f = \tilde{f} + beta*y
+float linear_coriolis_term(const float f, const float beta,
+			   const float tj, const float dy,
+			   const float y_zero_reference) {
+    // y_zero_reference is the number of ghost cells
+    // and represent the tj so that y = 0.0
+    float y = (tj-y_zero_reference + 0)*dy;
+    return f + beta * y;
+}
 
 
 /**
@@ -39,6 +49,8 @@ __kernel void computeVKernel(
         //Physical parameters
         float g_, //< Gravitational constant
         float f_, //< Coriolis coefficient
+	float beta_, //< Coriolis force f_ + beta_*y
+	float y_zero_reference_, // the cell representing y = 0.5*dy
         float r_, //< Bottom friction coefficient
     
         //Numerical diffusion
@@ -233,9 +245,13 @@ __kernel void computeVKernel(
         x0_, y0_,
         u0_, v0_,
         t_);
+    
+    // Finding the contribution from Coriolis
+    float global_thread_y = get_global_id(1);
+    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_, y_zero_reference_);
 
     //Compute the V at the next timestep
-    float V2 = (V0 + 2.0f*dt_*(-f_*U_bar + (N + P_y)/dy_ + Y + A_*E) ) / C;
+    float V2 = (V0 + 2.0f*dt_*(-coriolis_f*U_bar + (N + P_y)/dy_ + Y + A_*E) ) / C;
 
     //Write to main memory for internal cells
     //if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
