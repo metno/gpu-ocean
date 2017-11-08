@@ -27,9 +27,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Finds the coriolis term based on the linear Coriolis force
 // f = \tilde{f} + beta*y
-float linear_coriolis_term(const float f, const float beta, const float tj, const float dy) {
-    // Assume two ghost cells, so at tj = 2 we get y = 0.5*y
-    float y = (tj-2 + 0.5)*dy;
+float linear_coriolis_term(const float f, const float beta,
+			   const float tj, const float dy,
+			   const float y_zero_reference) {
+    // y_zero_reference is the number of ghost cells
+    // and represent the tj so that y = 0.5*dy
+    float y = (tj-y_zero_reference + 0.5)*dy;
     return f + beta * y;
 }
 
@@ -100,6 +103,8 @@ __kernel void swe_2D(
         
         float f_, //< Coriolis coefficient
 	float beta_, //< Coriolis force f_ + beta_*y
+	float y_zero_reference_, // the cell row representing y = 0.5*dy
+	
         float r_, //< Bottom friction coefficient
 
 	int rk_order, // runge kutta order
@@ -325,7 +330,8 @@ __kernel void swe_2D(
 	    float right_v  = Q[1][l][k+1];
 
 	    float global_thread_y = by + j;
-	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_);
+	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+						    dy_, y_zero_reference_);
 	    float V_constant = dx_*coriolis_f/(2.0f*g_);
 
 	    float backward = theta_*g_*(center_w - left_w   - V_constant*(center_v + left_v ) );
@@ -356,7 +362,8 @@ __kernel void swe_2D(
 	    float upper_u  = Q[0][l+1][k];
 
 	    float global_thread_y = by + j;
-	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_);
+	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+						    dy_, y_zero_reference_);
 	    float U_constant = dy_*coriolis_f/(2.0f*g_);
 
 	    float backward = theta_*g_*(center_w - lower_w  + U_constant*(center_u + lower_u ) );
@@ -403,7 +410,8 @@ __kernel void swe_2D(
 
 	    // Coriolis parameter
 	    float global_thread_y = by + j;
-	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_);
+	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+						    dy_, y_zero_reference_);
 	    
             // Reconstruct h 
             const float hp = h_bar_p + Bm_p - B_face - (Kx_p + dx_*coriolis_f*vp)/(2.0f*g_); 
@@ -451,7 +459,8 @@ __kernel void swe_2D(
 
 	    // Coriolis parameter
 	    float global_thread_y = by + j;
-	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_);
+	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+						    dy_, y_zero_reference_);
 	    
             // Reconstruct h 
 	    const float hp = h_bar_p + Bm_p - B_face + (-Ly_p + dy_*coriolis_f*up)/(2.0f*g_); 
@@ -501,7 +510,8 @@ __kernel void swe_2D(
 
 	// Coriolis parameter
 	float global_thread_y = tj-2; // Global id including ghost cells
-	float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_);
+	float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+						dy_, y_zero_reference_);
 	
         const float L1  = - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_ 
 	                  - (G[0][ty+1][tx  ] - G[0][ty][tx]) / dy_;
