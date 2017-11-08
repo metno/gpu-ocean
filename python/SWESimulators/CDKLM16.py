@@ -53,10 +53,11 @@ class CDKLM16:
     dy: Grid cell spacing along y-axis (20 000 m)
     dt: Size of each timestep (90 s)
     g: Gravitational accelleration (9.81 m/s^2)
-    f: Coriolis parameter (1.2e-4 s^1)
+    f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
     r: Bottom friction coefficient (2.4e-3 m/s)
     theta: minmod reconstruction parameter
     rk_order: Order of Runge Kutta method {1,2*,3}
+    coriolis_beta: Coriolis linear factor -> f = f + beta*y
     wind_stress: Wind stress parameters
     boundary_conditions: Boundary conditions object
     h0AsWaterElevation: True if h0 is described by the surface elevation, and false if h0 is described by water depth
@@ -70,7 +71,7 @@ class CDKLM16:
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
-                 theta=1.3, rk_order=2, \
+                 theta=1.3, rk_order=2, coriolis_beta=0.0, \
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  h0AsWaterElevation=True, \
@@ -129,6 +130,7 @@ class CDKLM16:
         self.r = np.float32(r)
         self.theta = np.float32(theta)
         self.rk_order = np.int32(rk_order)
+        self.coriolis_beta = np.float32(coriolis_beta)
         self.wind_stress = wind_stress
         self.h0AsWaterElevation = h0AsWaterElevation
 
@@ -264,6 +266,7 @@ class CDKLM16:
                            self.g, \
                            self.theta, \
                            self.f, \
+                           self.coriolis_beta, \
                            self.r, \
                            self.rk_order, \
                            np.int32(rk_step), \

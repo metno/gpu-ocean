@@ -25,6 +25,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "common.opencl"
 
 
+// Finds the coriolis term based on the linear Coriolis force
+// f = \tilde{f} + beta*y
+float linear_coriolis_term(const float f, const float beta, const float tj, const float dy) {
+    // Assume two ghost cells, so at tj = 2 we get y = 0.5*y
+    float y = (tj-2 + 0.5)*dy;
+    return f + beta * y;
+}
+
 
 float3 CDKLM16_F_func(const float3 Q, const float g) {
     float3 F;
@@ -91,6 +99,7 @@ __kernel void swe_2D(
         float theta_,
         
         float f_, //< Coriolis coefficient
+	float beta_, //< Coriolis force f_ + beta_*y
         float r_, //< Bottom friction coefficient
 
 	int rk_order, // runge kutta order
@@ -315,7 +324,9 @@ __kernel void swe_2D(
 	    float center_v = Q[1][l][k  ];
 	    float right_v  = Q[1][l][k+1];
 
-	    float V_constant = dx_*f_/(2.0f*g_);
+	    float global_thread_y = by + j;
+	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_);
+	    float V_constant = dx_*coriolis_f/(2.0f*g_);
 
 	    float backward = theta_*g_*(center_w - left_w   - V_constant*(center_v + left_v ) );
 	    float central  =   0.5f*g_*(right_w  - left_w   - V_constant*(right_v + 2*center_v + left_v) ); 
@@ -344,7 +355,9 @@ __kernel void swe_2D(
 	    float center_u = Q[0][l  ][k];
 	    float upper_u  = Q[0][l+1][k];
 
-	    float U_constant = dy_*f_/(2.0f*g_);
+	    float global_thread_y = by + j;
+	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_);
+	    float U_constant = dy_*coriolis_f/(2.0f*g_);
 
 	    float backward = theta_*g_*(center_w - lower_w  + U_constant*(center_u + lower_u ) );
 	    float central  =   0.5f*g_*(upper_w  - lower_w  + U_constant*(upper_u + 2*center_u + lower_u) ); 
@@ -387,10 +400,14 @@ __kernel void swe_2D(
 	    // Qx[2] is really dx*Kx
 	    const float Kx_p = Qx[2][j][i+1];
             const float Kx_m = Qx[2][j][i  ];
+
+	    // Coriolis parameter
+	    float global_thread_y = by + j;
+	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_);
 	    
             // Reconstruct h 
-            const float hp = h_bar_p + Bm_p - B_face - (Kx_p + dx_*f_*vp)/(2.0f*g_); 
-	    const float hm = h_bar_m + Bm_m - B_face + (Kx_m + dx_*f_*vm)/(2.0f*g_);
+            const float hp = h_bar_p + Bm_p - B_face - (Kx_p + dx_*coriolis_f*vp)/(2.0f*g_); 
+	    const float hm = h_bar_m + Bm_m - B_face + (Kx_m + dx_*coriolis_f*vm)/(2.0f*g_);
 	    
             // Our flux variables Q=(h, u, v)
             const float3 Qp = (float3)(hp, Rp.x, Rp.y);
@@ -431,10 +448,14 @@ __kernel void swe_2D(
 	    // Qy[2] is really dy*Ly
 	    const float Ly_p = Qy[2][j+1][i];
             const float Ly_m = Qy[2][j  ][i];
-            
+
+	    // Coriolis parameter
+	    float global_thread_y = by + j;
+	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_);
+	    
             // Reconstruct h 
-	    const float hp = h_bar_p + Bm_p - B_face + (-Ly_p + dy_*f_*up)/(2.0f*g_); 
-	    const float hm = h_bar_m + Bm_m - B_face + ( Ly_m - dy_*f_*um)/(2.0f*g_); 
+	    const float hp = h_bar_p + Bm_p - B_face + (-Ly_p + dy_*coriolis_f*up)/(2.0f*g_); 
+	    const float hm = h_bar_m + Bm_m - B_face + ( Ly_m - dy_*coriolis_f*um)/(2.0f*g_); 
 
 	    // Our flux variables Q=(h, v, u)
             // Note that we swap u and v
@@ -478,15 +499,18 @@ __kernel void swe_2D(
 	const float st1 = -g_*R[0][j][i]*(RBx[ty  ][tx+1] - RBx[ty][tx]);
 	const float st2 = -g_*R[0][j][i]*(RBy[ty+1][tx  ] - RBy[ty][tx]);
 
-
+	// Coriolis parameter
+	float global_thread_y = tj-2; // Global id including ghost cells
+	float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_);
+	
         const float L1  = - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_ 
 	                  - (G[0][ty+1][tx  ] - G[0][ty][tx]) / dy_;
         const float L2  = - (F[1][ty  ][tx+1] - F[1][ty][tx]) / dx_ 
                           - (G[1][ty+1][tx  ] - G[1][ty][tx]) / dy_
-  	                  + (X + f_*R[2][j][i] + st1/dx_);
+  	                  + (X + coriolis_f*R[2][j][i] + st1/dx_);
         const float L3  = - (F[2][ty  ][tx+1] - F[2][ty][tx]) / dx_ 
                           - (G[2][ty+1][tx  ] - G[2][ty][tx]) / dy_
-	                  + (Y - f_*R[1][j][i] + st2/dy_);
+	                  + (Y - coriolis_f*R[1][j][i] + st2/dy_);
 	
         
 	__global float* const h_row  = (__global float*) ((__global char*) h1_ptr_  + h1_pitch_*tj);
@@ -516,7 +540,8 @@ __kernel void swe_2D(
 		const float h_b  = 0.5f*(h_a  + (R[0][j][i] + dt_*L1));
 		const float hu_b = 0.5f*(hu_a + (R[1][j][i] + dt_*L2));
 		const float hv_b = 0.5f*(hv_a + (R[2][j][i] + dt_*L3));
-            
+
+				
 		//Write to main memory
 		h_row[ti] = h_b;
 		hu_row[ti] = hu_b / (1.0f + 0.5f*C);
