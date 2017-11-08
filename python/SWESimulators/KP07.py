@@ -158,9 +158,10 @@ class KP07:
     """
     def step(self, t_end=0.0):
         n = int(t_end / self.dt + 1)
-                
-        self.bc_kernel.boundaryCondition(self.cl_queue, \
-                self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+
+        if self.t == 0:
+            self.bc_kernel.boundaryCondition(self.cl_queue, \
+                    self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
         
         for i in range(0, n):        
             local_dt = np.float32(min(self.dt, t_end-i*self.dt))

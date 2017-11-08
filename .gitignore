@@ -14,3 +14,5 @@
 /bin/
 /cmake_install.cmake
 /CTestTestfile.cmake
+/doc/reference_python/
+/python/images_*
