@@ -48,7 +48,7 @@ __kernel void computeUKernel(
         float g_, //< Gravitational constant
         float f_, //< Coriolis coefficient
 	float beta_, //< Coriolis force f_ + beta_*y
-	float y_zero_reference_, // the cell representing y = 0.5*dy
+	float y_zero_reference_, // the cell row representing y = 0.5*dy
         float r_, //< Bottom friction coefficient
     
         //Numerical diffusion

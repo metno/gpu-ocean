@@ -92,12 +92,14 @@ class CDKLM16:
         self.ghost_cells_y = 2
         ghost_cells_x = 2
         ghost_cells_y = 2
+        y_zero_reference = 2
         
         # Boundary conditions
         self.boundary_conditions = boundary_conditions
         if (boundary_conditions.isSponge()):
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
+            y_zero_reference = boundary_conditions.spongeCells[2]
         
         #Create data by uploading to device
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, h0, hu0, hv0)
@@ -131,6 +133,7 @@ class CDKLM16:
         self.theta = np.float32(theta)
         self.rk_order = np.int32(rk_order)
         self.coriolis_beta = np.float32(coriolis_beta)
+        self.y_zero_reference = np.int32(y_zero_reference)
         self.wind_stress = wind_stress
         self.h0AsWaterElevation = h0AsWaterElevation
 
@@ -268,6 +271,7 @@ class CDKLM16:
                            self.theta, \
                            self.f, \
                            self.coriolis_beta, \
+                           self.y_zero_reference, \
                            self.r, \
                            self.rk_order, \
                            np.int32(rk_step), \
