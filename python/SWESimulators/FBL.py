@@ -167,12 +167,13 @@ class FBL:
     """
     def step(self, t_end=0.0):
         n = int(t_end / self.dt + 1)
-        
+                
         ## Populate all ghost cells before we start
-        self.bc_kernel.boundaryConditionU(self.cl_queue, self.cl_data.hu0)
-        self.bc_kernel.boundaryConditionV(self.cl_queue, self.cl_data.hv0)
-        self.bc_kernel.boundaryConditionEta(self.cl_queue, self.cl_data.h0)
-
+        if self.t == 0:
+            self.bc_kernel.boundaryConditionU(self.cl_queue, self.cl_data.hu0)
+            self.bc_kernel.boundaryConditionV(self.cl_queue, self.cl_data.hv0)
+            self.bc_kernel.boundaryConditionEta(self.cl_queue, self.cl_data.h0)
+            
 
         for i in range(0, n):        
             local_dt = np.float32(min(self.dt, t_end-i*self.dt))
