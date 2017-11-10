@@ -85,11 +85,21 @@ class KP07:
         #Get kernels
         self.kp07_kernel = Common.get_kernel(self.cl_ctx, "KP07_kernel.opencl", block_width, block_height)
         
-        #Create data by uploading to device
         ghost_cells_x = 2
         ghost_cells_y = 2
         self.ghost_cells_x = ghost_cells_x
         self.ghost_cells_y = ghost_cells_y
+
+        # Boundary conditions
+        self.boundary_conditions = boundary_conditions
+
+        # Extend the computational domain if the boundary conditions
+        # require it
+        if (boundary_conditions.isSponge()):
+            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
+            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
+        
+        #Create data by uploading to device    
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, w0, hu0, hv0)
         
         #Bathymetry
@@ -114,16 +124,6 @@ class KP07:
         #Initialize time
         self.t = np.float32(0.0)
         
-        #Boundary conditions
-        self.boundary_conditions = boundary_conditions
-        self.boundaryType = np.int32(1)
-        if (boundary_conditions.north == 2 and boundary_conditions.east == 2):
-            self.boundaryType = np.int32(2)
-        elif (boundary_conditions.north == 2):
-            self.boundaryType = np.int32(3)
-        elif (boundary_conditions.east == 2):
-            self.boundaryType = np.int32(4)
-       
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height) 
         self.global_size = ( \
@@ -158,9 +158,10 @@ class KP07:
     """
     def step(self, t_end=0.0):
         n = int(t_end / self.dt + 1)
-                
-        self.bc_kernel.boundaryCondition(self.cl_queue, \
-                self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+
+        if self.t == 0:
+            self.bc_kernel.boundaryCondition(self.cl_queue, \
+                    self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
         
         for i in range(0, n):        
             local_dt = np.float32(min(self.dt, t_end-i*self.dt))
@@ -189,7 +190,7 @@ class KP07:
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
-                        self.boundaryType, \
+                        self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         self.t)
                 
                 self.bc_kernel.boundaryCondition(self.cl_queue, \
@@ -215,7 +216,7 @@ class KP07:
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
-                        self.boundaryType, \
+                        self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         self.t)
                 
                 self.bc_kernel.boundaryCondition(self.cl_queue, \
@@ -241,7 +242,7 @@ class KP07:
                         self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                         self.wind_stress.x0, self.wind_stress.y0, \
                         self.wind_stress.u0, self.wind_stress.v0, \
-                        self.boundaryType, \
+                        self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         self.t)
                 self.cl_data.swap()
                 self.bc_kernel.boundaryCondition(self.cl_queue, \

@@ -176,7 +176,11 @@ class SWEDataArakawaC:
             asymHaloU = [asymHalo[0], 0, asymHalo[2], 0]
             asymHaloV = [0, asymHalo[1], 0, asymHalo[3]]
 
-            
+        #print "SWEDataArakawaC"
+        #print "(h0.shape, (nx, ny), asymHalo,  (halo_x, halo_y)): ", (h0.shape, (nx, ny), asymHalo,  (halo_x, halo_y))
+        #print "(hu0.shape, (nx, ny), asymHalo, (halo_x, halo_y)): ", (hu0.shape, (nx+1, ny), asymHaloU,  (halo_x, halo_y))
+        #print "(hv0.shape, (nx, ny), asymHalo,  (halo_x, halo_y)): ", (hv0.shape, (nx, ny+1), asymHaloV, (halo_x, halo_y))
+
         self.h0   = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0, asymHalo)
         self.hu0  = OpenCLArray2D(cl_ctx, nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
         self.hv0  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
@@ -261,15 +265,19 @@ class BoundaryConditions:
     Values can be set as follows:
     1 = Wall
     2 = Periodic (requires same for opposite boundary as well)
-    3 = Numerical Sponge
+    3 = Open Boundary with Flow Relaxation Scheme
+    4 = Open linear interpolation
+    Options 3 and 4 are of sponge type (requiring extra computational domain)
     """
     def __init__(self, \
-                 north=1, east=1, south=1, west=1):
-        self.north = north
-        self.east  = east
-        self.south = south
-        self.west  = west
-
+                 north=1, east=1, south=1, west=1, \
+                 spongeCells=[0,0,0,0]):
+        self.north = np.int32(north)
+        self.east  = np.int32(east)
+        self.south = np.int32(south)
+        self.west  = np.int32(west)
+        self.spongeCells = np.int32(spongeCells)
+            
         # Checking that periodic boundaries are periodic
         assert not ((self.north == 2 or self.south == 2) and  \
                     (self.north != self.south)), \
@@ -284,13 +292,21 @@ class BoundaryConditions:
                 self.south == 1 and \
                 self.east == 1)
 
+    def isSponge(self):
+        return (self.north == 3 or self.north == 4 or \
+                self.east  == 3 or self.east  == 4 or \
+                self.south == 3 or self.south == 4 or \
+                self.west  == 3 or self.west  == 4)
+    
     def _toString(self, cond):
         if cond == 1:
             return "Wall"
         elif cond == 2:
             return "Periodic"
         elif cond == 3:
-            return "Numerical Sponge"
+            return "Flow Relaxation Scheme"
+        elif cond == 4:
+            return "Open Linear Interpolation"
         else:
             return "Invalid :|"
         
@@ -299,8 +315,9 @@ class BoundaryConditions:
               ", east: "  + self._toString(self.east)  + \
               ", south: " + self._toString(self.south) + \
               ", west: "  + self._toString(self.west)
+        msg = msg + ", spongeCells: " + str(self.spongeCells)
         return msg
-
+    
 """
 Class that checks boundary conditions and calls the required kernels for Arakawa A type grids.
 """
@@ -317,9 +334,10 @@ class BoundaryConditionsArakawaA:
         self.ny = np.int32(ny) 
         self.halo_x = np.int32(halo_x)
         self.halo_y = np.int32(halo_y)
-        #print("boundary nx and ny: ", self.nx, self.ny)
-        #print("boundary halo_x and halo_y: ", self.halo_x, self.halo_y)
-
+        #print("boundary (ny, nx: ", (self.ny, self.nx))
+        #print("boundary (halo_y, halo_x): ", (self.halo_y, self.halo_x))
+        #print("numerical sponge cells (n,e,s,w): ", self.boundary_conditions.spongeCells)
+        
         # Load kernel for periodic boundary
         self.boundaryKernels = get_kernel(self.cl_ctx,\
             "boundary_kernels.opencl", block_width, block_height)
@@ -333,20 +351,29 @@ class BoundaryConditionsArakawaA:
 
         
     def boundaryCondition(self, cl_queue, h, u, v):
-        assert(self.boundary_conditions.north != 3 and \
-               self.boundary_conditions.east  != 3 and \
-               self.boundary_conditions.south != 3 and \
-               self.boundary_conditions.west  != 3), \
-               'Numerical sponge not yet supported'
-         
+                 
         if self.boundary_conditions.north == 2:
             self.periodic_boundary_NS(cl_queue, h, u, v)
+        else:
+            if (self.boundary_conditions.north == 3 or \
+                self.boundary_conditions.south == 3):
+                self.flow_relaxation_NS(cl_queue, h, u, v)
+            if (self.boundary_conditions.north == 4 or \
+                self.boundary_conditions.south == 4):
+                self.linear_interpolation_NS(cl_queue, h, u, v)
+            
+            
         if self.boundary_conditions.east == 2:
             self.periodic_boundary_EW(cl_queue, h, u, v)
-
+        else:
+            if (self.boundary_conditions.east == 3 or \
+                self.boundary_conditions.west == 3):
+                self.flow_relaxation_EW(cl_queue, h, u, v)
+            if (self.boundary_conditions.east == 4 or \
+                self.boundary_conditions.west == 4):
+                self.linear_interpolation_EW(cl_queue, h, u, v)
              
     def periodic_boundary_NS(self, cl_queue, h, u, v):
-      
         self.boundaryKernels.periodicBoundary_NS( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
@@ -357,7 +384,6 @@ class BoundaryConditionsArakawaA:
         
 
     def periodic_boundary_EW(self, cl_queue, h, v, u):
-
         self.boundaryKernels.periodicBoundary_EW( \
             cl_queue, self.global_size, self.local_size, \
             self.nx, self.ny, \
@@ -367,11 +393,56 @@ class BoundaryConditionsArakawaA:
             v.data, v.pitch)
 
 
+    def linear_interpolation_NS(self, cl_queue, h, u, v):
+        self.boundaryKernels.linearInterpolation_NS( \
+            cl_queue, self.global_size, self.local_size, \
+            self.boundary_conditions.north, self.boundary_conditions.south, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, \
+            self.boundary_conditions.spongeCells[0], \
+            self.boundary_conditions.spongeCells[2], \
+            h.data, h.pitch, \
+            u.data, u.pitch, \
+            v.data, v.pitch)                                   
+
+    def linear_interpolation_EW(self, cl_queue, h, u, v):
+        self.boundaryKernels.linearInterpolation_EW( \
+            cl_queue, self.global_size, self.local_size, \
+            self.boundary_conditions.east, self.boundary_conditions.west, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, \
+            self.boundary_conditions.spongeCells[1], \
+            self.boundary_conditions.spongeCells[3], \
+            h.data, h.pitch, \
+            u.data, u.pitch, \
+            v.data, v.pitch)
+
+    def flow_relaxation_NS(self, cl_queue, h, u, v):
+        self.boundaryKernels.flowRelaxationScheme_NS( \
+            cl_queue, self.global_size, self.local_size, \
+            self.boundary_conditions.north, self.boundary_conditions.south, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, \
+            self.boundary_conditions.spongeCells[0], \
+            self.boundary_conditions.spongeCells[2], \
+            h.data, h.pitch, \
+            u.data, u.pitch, \
+            v.data, v.pitch)   
+
+    def flow_relaxation_EW(self, cl_queue, h, u, v):
+        self.boundaryKernels.flowRelaxationScheme_EW( \
+            cl_queue, self.global_size, self.local_size, \
+            self.boundary_conditions.east, self.boundary_conditions.west, \
+            self.nx, self.ny, \
+            self.halo_x, self.halo_y, \
+            self.boundary_conditions.spongeCells[1], \
+            self.boundary_conditions.spongeCells[3], \
+            h.data, h.pitch, \
+            u.data, u.pitch, \
+            v.data, v.pitch)
 
 
-
-    
-                 
+        
 """
 Class for holding bathymetry defined on cell intersections (cell corners) and reconstructed on 
 cell mid-points.
