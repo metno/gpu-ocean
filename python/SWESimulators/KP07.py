@@ -50,7 +50,7 @@ class KP07:
     dy: Grid cell spacing along y-axis (20 000 m)
     dt: Size of each timestep (90 s)
     g: Gravitational accelleration (9.81 m/s^2)
-    f: Coriolis parameter (1.2e-4 s^1)
+    f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
     r: Bottom friction coefficient (2.4e-3 m/s)
     theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
     wind_type: Type of wind stress, 0=Uniform along shore, 1=bell shaped along shore, 2=moving cyclone
@@ -71,7 +71,7 @@ class KP07:
                  nx, ny, \
                  dx, dy, dt, \
                  g, f=0.0, r=0.0, \
-                 theta=1.3, use_rk2=True,
+                 theta=1.3, use_rk2=True, coriolis_beta=0.0, \
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
@@ -89,7 +89,8 @@ class KP07:
         ghost_cells_y = 2
         self.ghost_cells_x = ghost_cells_x
         self.ghost_cells_y = ghost_cells_y
-
+        y_zero_reference = 2
+        
         # Boundary conditions
         self.boundary_conditions = boundary_conditions
 
@@ -98,6 +99,7 @@ class KP07:
         if (boundary_conditions.isSponge()):
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
+            y_zero_reference = boundary_conditions.spongeCells[2]
         
         #Create data by uploading to device    
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, w0, hu0, hv0)
@@ -118,6 +120,8 @@ class KP07:
         self.r = np.float32(r)
         self.theta = np.float32(theta)
         self.use_rk2 = use_rk2
+        self.coriolis_beta = np.float32(coriolis_beta)
+        self.y_zero_reference = np.int32(y_zero_reference)
         self.rk_order = np.int32(use_rk2 + 1)
         self.wind_stress = wind_stress
         
@@ -176,6 +180,8 @@ class KP07:
                         self.g, \
                         self.theta, \
                         self.f, \
+                        self.coriolis_beta, \
+                        self.y_zero_reference, \
                         self.r, \
                         np.int32(0), \
                         self.cl_data.h0.data,  self.cl_data.h0.pitch,  \
@@ -202,6 +208,8 @@ class KP07:
                         self.g, \
                         self.theta, \
                         self.f, \
+                        self.coriolis_beta, \
+                        self.y_zero_reference, \
                         self.r, \
                         np.int32(1), \
                         self.cl_data.h1.data,  self.cl_data.h1.pitch,  \
@@ -228,6 +236,8 @@ class KP07:
                         self.g, \
                         self.theta, \
                         self.f, \
+                        self.coriolis_beta, \
+                        self.y_zero_reference, \
                         self.r, \
                         np.int32(0), \
                         self.cl_data.h0.data,  self.cl_data.h0.pitch,  \
