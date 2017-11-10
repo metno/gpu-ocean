@@ -60,8 +60,9 @@ class FBL:
     dy: Grid cell spacing along y-axis (20 000 m)
     dt: Size of each timestep (90 s)
     g: Gravitational accelleration (9.81 m/s^2)
-    f: Coriolis parameter (1.2e-4 s^1)
+    f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
     r: Bottom friction coefficient (2.4e-3 m/s)
+    coriolis_beta: Coriolis linear factor -> f = f + beta*y
     wind_stress: Wind stress parameters
     """
     def __init__(self, \
@@ -69,7 +70,7 @@ class FBL:
                  H, eta0, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
-                 g, f, r, \
+                 g, f, r, coriolis_beta=0.0, \
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
@@ -94,6 +95,7 @@ class FBL:
         ghost_cells_y = 0
         self.ghost_cells_x = ghost_cells_x
         self.ghost_cells_y = ghost_cells_y
+        y_zero_reference = 0
         self.asym_ghost_cells = [0, 0, 0, 0] # [N, E, S, W]
         # Add asym ghost cell if periodic boundary condition:
         if (self.boundary_conditions.north == 2) or \
@@ -106,6 +108,7 @@ class FBL:
         if boundary_conditions.isSponge():
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3]# - self.asym_ghost_cells[1] - self.asym_ghost_cells[3]
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2]# - self.asym_ghost_cells[0] - self.asym_ghost_cells[2]
+            y_zero_reference = boundary_conditions.spongeCells[2]
                 
         self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, H, self.asym_ghost_cells)
         self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, self.asym_ghost_cells)
@@ -122,6 +125,8 @@ class FBL:
         self.dt = np.float32(dt)
         self.g = np.float32(g)
         self.f = np.float32(f)
+        self.coriolis_beta = np.float32(coriolis_beta)
+        self.y_zero_reference = np.int32(y_zero_reference)
         self.r = np.float32(r)
         self.wind_stress = wind_stress
         
@@ -190,7 +195,7 @@ class FBL:
             self.u_kernel.computeUKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx_halo, self.ny, \
                     self.dx, self.dy, local_dt, \
-                    self.g, self.f, self.r, \
+                    self.g, self.f, self.coriolis_beta, self.y_zero_reference, self.r, \
                     self.H.data, self.H.pitch, \
                     self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
                     self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
@@ -207,7 +212,7 @@ class FBL:
             self.v_kernel.computeVKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny_halo, \
                     self.dx, self.dy, local_dt, \
-                    self.g, self.f, self.r, \
+                    self.g, self.f, self.coriolis_beta, self.y_zero_reference, self.r, \
                     self.H.data, self.H.pitch, \
                     self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
                     self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
@@ -224,7 +229,7 @@ class FBL:
             self.eta_kernel.computeEtaKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
                     self.dx, self.dy, local_dt, \
-                    self.g, self.f, self.r, \
+                    self.g, self.f, self.coriolis_beta, self.y_zero_reference, self.r, \
                     self.H.data, self.H.pitch, \
                     self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
                     self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
