@@ -117,8 +117,7 @@ def addCentralBump(eta, nx, ny, dx, dy, halo):
             #size = (0.015* min(nx, ny)*min(dx, dy))**2
             if (np.sqrt(x**2 + y**2) < size):
                 eta[j+halo[2], i+halo[3]] += np.exp(-(x**2/size+y**2/size))
-                               
-                
+
 def addLowerLeftBump(eta, nx, ny, dx, dy, halo):
     print("addLowerLeftBump")
     print("halo", halo)

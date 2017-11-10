@@ -231,3 +231,262 @@ __kernel void closed_boundary_intersections_NS(
 	
     }
 }
+
+
+
+/*
+ *  These kernels implement open boundary conditions as linear interpolation.
+ * 
+ *  Assume that the outermost row has the desired values already
+ * 
+ *  The computational domain is (nx, ny), meaning that the data is defined on a 
+ *  domain (nx + 2*halo_x_, ny + 2*halo_y). The domain of interest is however smaller, and 
+ *  bounded by the sponge_cells.
+ *  With sponge in both south and norht, the sponge area is defined as follows:
+ *  In the south: (0, sponge_cells_south-1) 
+ *  In the north: (ny + 2*halo_x - sponge_cells_north, ny + 2*halo_y-1)
+ *
+ *  This is true regardless if the boundary on the opposite side is a sponge or not.
+ */
+
+__kernel void linearInterpolation_NS(
+	// Discretization parameters
+	int boundary_condition_north_, int boundary_condition_south_,
+	int nx_, int ny_,
+	int halo_x_, int halo_y_,
+	int sponge_cells_north_,
+	int sponge_cells_south_,
+	
+        // Data
+        __global float* h_ptr_, int h_pitch_,
+        __global float* u_ptr_, int u_pitch_,
+	__global float* v_ptr_, int v_pitch_) {
+
+    // Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    // Extrapolate on northern and southern boundary:
+    // Keep outer edge as is!
+    if (( ((boundary_condition_south_ == 4)
+	   &&(tj < sponge_cells_south_) && (tj > 0)) ||
+	  ((boundary_condition_north_ == 4)
+	   &&(tj > ny_ + 2*halo_y_ - 1 - sponge_cells_north_) && (tj < ny_ + 2*halo_y_ -1)) )
+	&& (ti > 0) && (ti < nx_ + 2*halo_x_-1) ) {
+
+	// Identify inner and outer row
+	int inner_row = sponge_cells_south_;
+	int outer_row = 0;
+	if (tj > sponge_cells_south_) {
+	    inner_row = ny_ + 2*halo_y_ - 1 - sponge_cells_north_;
+	    outer_row = ny_ + 2*halo_y_ - 1;
+	}
+	
+	// Get inner value
+	__global float* inner_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*inner_row);
+	__global float* inner_row_u = (__global float*) ((__global char*) u_ptr_ + u_pitch_*inner_row);
+	__global float* inner_row_v = (__global float*) ((__global char*) v_ptr_ + v_pitch_*inner_row);
+	float inner_value_h = inner_row_h[ti];
+	float inner_value_u = inner_row_u[ti];
+	float inner_value_v = inner_row_v[ti];
+
+	// Get outer value
+	__global float* outer_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*outer_row);
+	__global float* outer_row_u = (__global float*) ((__global char*) u_ptr_ + u_pitch_*outer_row);
+	__global float* outer_row_v = (__global float*) ((__global char*) v_ptr_ + v_pitch_*outer_row);
+	float outer_value_h = outer_row_h[ti];
+	float outer_value_u = outer_row_u[ti];
+	float outer_value_v = outer_row_v[ti];
+
+	// Find target cell
+	__global float* target_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
+	__global float* target_row_u = (__global float*) ((__global char*) u_ptr_ + u_pitch_*tj);
+	__global float* target_row_v = (__global float*) ((__global char*) v_ptr_ + v_pitch_*tj);
+	
+	// Interpolate:
+	float ratio = ((float)(tj - outer_row))/(inner_row - outer_row);
+	target_row_h[ti] = outer_value_h + ratio*(inner_value_h - outer_value_h);
+	target_row_u[ti] = outer_value_u + ratio*(inner_value_u - outer_value_u);
+	target_row_v[ti] = outer_value_v + ratio*(inner_value_v - outer_value_v);
+    }
+}
+
+    
+__kernel void linearInterpolation_EW(
+	// Discretization parameters
+	int boundary_condition_east_, int boundary_condition_west_,
+        int nx_, int ny_,
+	int halo_x_, int halo_y_,
+	int sponge_cells_east_,
+	int sponge_cells_west_,
+	
+        // Data
+        __global float* h_ptr_, int h_pitch_,
+        __global float* u_ptr_, int u_pitch_,
+	__global float* v_ptr_, int v_pitch_) {
+    
+    // Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    // Extrapolate on northern and southern boundary:
+    // Keep outer edge as is!
+    if (( ((boundary_condition_west_ == 4)
+	   &&(ti < sponge_cells_west_) && (ti > 0)) ||
+	  ((boundary_condition_east_ == 4)
+	   &&(ti > nx_ + 2*halo_x_ - 1 - sponge_cells_east_) && (ti < nx_ + 2*halo_x_ -1)) )
+	&& (tj > 0) && (tj < ny_ + 2*halo_y_-1) ) {
+
+	// Identify inner and outer row
+	int inner_col = sponge_cells_west_;
+	int outer_col = 0;
+	if (ti > sponge_cells_west_) {
+	    inner_col = nx_ + 2*halo_x_ - 1 - sponge_cells_east_;
+	    outer_col = nx_ + 2*halo_x_ - 1;
+	}
+
+	// Get rows
+	__global float* h_row = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
+	__global float* u_row = (__global float*) ((__global char*) u_ptr_ + u_pitch_*tj);
+	__global float* v_row = (__global float*) ((__global char*) v_ptr_ + v_pitch_*tj);
+	
+	// Get inner value
+	float inner_value_h = h_row[inner_col];
+	float inner_value_u = u_row[inner_col];
+	float inner_value_v = v_row[inner_col];
+
+	// Get outer value
+	float outer_value_h = h_row[outer_col];
+	float outer_value_u = u_row[outer_col];
+	float outer_value_v = v_row[outer_col];
+
+	// Interpolate:
+	float ratio = ((float)(ti - outer_col))/(inner_col - outer_col);
+	h_row[ti] = outer_value_h + ratio*(inner_value_h - outer_value_h);
+	u_row[ti] = outer_value_u + ratio*(inner_value_u - outer_value_u);
+	v_row[ti] = outer_value_v + ratio*(inner_value_v - outer_value_v);
+    }
+}
+
+
+/*
+ *  These kernels implement open boundary conditions using the Flow Relaxation Scheme
+ * 
+ *  Assume that the outermost row has the desired values representing the exterior solution.
+ * 
+ *  The computational domain is (nx, ny), meaning that the data is defined on a 
+ *  domain (nx + 2*halo_x_, ny + 2*halo_y). The domain of interest is however smaller, and 
+ *  bounded by the sponge_cells.
+ *  With sponge in both south and norht, the sponge area is defined as follows:
+ *  In the south: (0, sponge_cells_south-1) 
+ *  In the north: (ny + 2*halo_x - sponge_cells_north, ny + 2*halo_y-1)
+ *
+ *  This is true regardless if the boundary on the opposite side is a sponge or not.
+ */
+__kernel void flowRelaxationScheme_NS(
+	// Discretization parameters
+	int boundary_condition_north_, int boundary_condition_south_,
+	int nx_, int ny_,
+	int halo_x_, int halo_y_,
+	int sponge_cells_north_,
+	int sponge_cells_south_,
+	
+        // Data
+        __global float* h_ptr_, int h_pitch_,
+        __global float* u_ptr_, int u_pitch_,
+	__global float* v_ptr_, int v_pitch_) {
+
+    // Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    // Extrapolate on northern and southern boundary:
+    // Keep outer edge as is!
+    if (( ((boundary_condition_south_ == 3)
+	   &&(tj < sponge_cells_south_) && (tj > 0)) ||
+	  ((boundary_condition_north_ == 3)
+	   &&(tj > ny_ + 2*halo_y_ - 1 - sponge_cells_north_) && (tj < ny_ + 2*halo_y_ -1)) )
+	&& (ti > 0) && (ti < nx_ + 2*halo_x_-1) ) {
+
+	int exterior_row = 0;
+	int j = tj;
+	if (tj > sponge_cells_south_) {
+	    exterior_row = ny_ + 2*halo_y_ - 1;
+	    j = (ny_ + 2*halo_y_ -1) - tj;
+	}
+	//int current_col = ti;
+	float alpha = 1.0f - tanh((j-1.0f)/2.0f);
+	
+	
+	// Get exterior value
+	__global float* exterior_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*exterior_row);
+	__global float* exterior_row_u = (__global float*) ((__global char*) u_ptr_ + u_pitch_*exterior_row);
+	__global float* exterior_row_v = (__global float*) ((__global char*) v_ptr_ + v_pitch_*exterior_row);
+	float exterior_value_h = exterior_row_h[ti];
+	float exterior_value_u = exterior_row_u[ti];
+	float exterior_value_v = exterior_row_v[ti];
+
+	// Find target cell
+	__global float* target_row_h = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
+	__global float* target_row_u = (__global float*) ((__global char*) u_ptr_ + u_pitch_*tj);
+	__global float* target_row_v = (__global float*) ((__global char*) v_ptr_ + v_pitch_*tj);
+	
+	// Interpolate:
+	target_row_h[ti] = (1.0f-alpha)*target_row_h[ti] + alpha*exterior_value_h;
+	target_row_u[ti] = (1.0f-alpha)*target_row_u[ti] + alpha*exterior_value_u;	
+	target_row_v[ti] = (1.0f-alpha)*target_row_v[ti] + alpha*exterior_value_v;
+	
+    }
+}
+
+
+__kernel void flowRelaxationScheme_EW(
+	// Discretization parameters
+	int boundary_condition_east_, int boundary_condition_west_,
+        int nx_, int ny_,
+	int halo_x_, int halo_y_,
+	int sponge_cells_east_,
+	int sponge_cells_west_,
+	
+        // Data
+        __global float* h_ptr_, int h_pitch_,
+        __global float* u_ptr_, int u_pitch_,
+	__global float* v_ptr_, int v_pitch_) {
+    
+    // Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    // Extrapolate on northern and southern boundary:
+    // Keep outer edge as is!
+    if (( ((boundary_condition_west_ == 3)
+	   &&(ti < sponge_cells_west_) && (ti > 0)) ||
+	  ((boundary_condition_east_ == 3)
+	   &&(ti > nx_ + 2*halo_x_ - 1 - sponge_cells_east_) && (ti < nx_ + 2*halo_x_ -1)) )
+	&& (tj > 0) && (tj < ny_ + 2*halo_y_-1) ) {
+
+	int exterior_col = 0;
+	int j = ti;
+	if (ti > sponge_cells_west_) {
+	    exterior_col = nx_ + 2*halo_x_ - 1;
+	    j = (nx_ + 2*halo_x_ -1) - ti;
+	}
+	//int current_col = ti;
+	float alpha = 1.0f - tanh((j-1.0f)/2.0f);
+	
+	// Get rows
+	__global float* h_row = (__global float*) ((__global char*) h_ptr_ + h_pitch_*tj);
+	__global float* u_row = (__global float*) ((__global char*) u_ptr_ + u_pitch_*tj);
+	__global float* v_row = (__global float*) ((__global char*) v_ptr_ + v_pitch_*tj);
+
+	// Get exterior value
+	float exterior_value_h = h_row[exterior_col];
+	float exterior_value_u = u_row[exterior_col];
+	float exterior_value_v = v_row[exterior_col];
+
+	// Interpolate:
+	h_row[ti] = (1.0f-alpha)*h_row[ti] + alpha*exterior_value_h;
+	u_row[ti] = (1.0f-alpha)*u_row[ti] + alpha*exterior_value_u;
+	v_row[ti] = (1.0f-alpha)*v_row[ti] + alpha*exterior_value_v;
+    }
+}
