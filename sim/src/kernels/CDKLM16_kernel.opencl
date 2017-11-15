@@ -131,7 +131,7 @@ __kernel void swe_2D(
         float u0_, float v0_,
         float t_, 
     
-        // Boundary conditions (1: wall, 2: periodic, 3: numerical sponge)
+        // Boundary conditions (1: wall, 2: periodic, 3: open boundary (flow relaxation scheme))
         int bc_north_, int bc_east_, int bc_south_, int bc_west_,
 
 	// Geostrophic Equilibrium memory buffers
@@ -231,7 +231,7 @@ __kernel void swe_2D(
             RBx[j][i] = 0.5f*( Bi[j][i] + Bi[j+1][i] );
 	}
     }
-    // Evaluate piecewise bi-linear for RBx 
+    // Evaluate piecewise bi-linear for RBy
     for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
         for (int i=tx; i<block_width; i+=get_local_size(0)) {
             RBy[j][i] = 0.5f*( Bi[j][i] + Bi[j][i+1] );
@@ -357,18 +357,23 @@ __kernel void swe_2D(
 	    float center_w = R[0][l  ][k] + Bm[l  ][k];
 	    float upper_w  = R[0][l+1][k] + Bm[l+1][k];
 
-	    float lower_u  = Q[0][l-1][k];
-	    float center_u = Q[0][l  ][k];
-	    float upper_u  = Q[0][l+1][k];
-
 	    float global_thread_y = by + j;
-	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
-						    dy_, y_zero_reference_);
-	    float U_constant = dy_*coriolis_f/(2.0f*g_);
+	    float center_coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+							   dy_, y_zero_reference_);
+	    float lower_coriolis_f  = linear_coriolis_term(f_, beta_, global_thread_y - 1,
+							   dy_, y_zero_reference_);
+	    float upper_coriolis_f  = linear_coriolis_term(f_, beta_, global_thread_y + 1,
+							   dy_, y_zero_reference_);
+	   	    
+	    float lower_fu  = Q[0][l-1][k]*lower_coriolis_f;
+	    float center_fu = Q[0][l  ][k]*center_coriolis_f;
+	    float upper_fu  = Q[0][l+1][k]*upper_coriolis_f;
 
-	    float backward = theta_*g_*(center_w - lower_w  + U_constant*(center_u + lower_u ) );
-	    float central  =   0.5f*g_*(upper_w  - lower_w  + U_constant*(upper_u + 2*center_u + lower_u) ); 
-	    float forward  = theta_*g_*(upper_w  - center_w + U_constant*(center_u + upper_u) );
+	    float U_constant = dy_/(2.0f*g_);
+
+	    float backward = theta_*g_*(center_w - lower_w  + U_constant*(center_fu + lower_fu ) );
+	    float central  =   0.5f*g_*(upper_w  - lower_w  + U_constant*(upper_fu + 2*center_fu + lower_fu) ); 
+	    float forward  = theta_*g_*(upper_w  - center_w + U_constant*(center_fu + upper_fu) );
 
 	    // Qy[2] is really dy*Ly
 	    Qy[2][j][i] = minmodRaw(backward, central, forward); 
