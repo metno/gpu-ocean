@@ -390,7 +390,7 @@ __kernel void swe_2D(
         for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
             const int k = i + 1;
 
-            // R=(u, v, K, L) reconstructed at a cell interface from the right (p) and left (m)
+            // (u, v) reconstructed at a cell interface from the right (p) and left (m)
 	    const float2 Rp = (float2)(Q[0][l][k+1] - 0.5f*Qx[0][j][i+1],
                                        Q[1][l][k+1] - 0.5f*Qx[1][j][i+1]);
             const float2 Rm = (float2)(Q[0][l][k  ] + 0.5f*Qx[0][j][i  ],
@@ -464,12 +464,14 @@ __kernel void swe_2D(
 
 	    // Coriolis parameter
 	    float global_thread_y = by + j;
-	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+	    float coriolis_fm = linear_coriolis_term(f_, beta_, global_thread_y,
+						    dy_, y_zero_reference_);
+	    float coriolis_fp = linear_coriolis_term(f_, beta_, global_thread_y + 1, 
 						    dy_, y_zero_reference_);
 	    
             // Reconstruct h 
-	    const float hp = h_bar_p + Bm_p - B_face + (-Ly_p + dy_*coriolis_f*up)/(2.0f*g_); 
-	    const float hm = h_bar_m + Bm_m - B_face + ( Ly_m - dy_*coriolis_f*um)/(2.0f*g_); 
+	    const float hp = h_bar_p + Bm_p - B_face - ( Ly_p - dy_*coriolis_fp*up)/(2.0f*g_); 
+	    const float hm = h_bar_m + Bm_m - B_face + ( Ly_m - dy_*coriolis_fm*um)/(2.0f*g_); 
 
 	    // Our flux variables Q=(h, v, u)
             // Note that we swap u and v
