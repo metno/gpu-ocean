@@ -26,6 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import pyopencl as cl #OpenCL in Python
 import Common
+import gc
 
 
 
@@ -79,10 +80,28 @@ class RecursiveCDKLM16:
 
         #Get kernels
         self.kernel = Common.get_kernel(self.cl_ctx, "recursiveCDKLM16_kernel.opencl", block_width, block_height)
+
+        # Boundary Conditions
+        self.boundary_conditions = boundary_conditions
+        self.boundaryType = np.int32(1)
+        if (boundary_conditions.north == 2 and boundary_conditions.east == 2):
+            self.boundaryType = np.int32(2)
+        elif (boundary_conditions.north == 2):
+            self.boundaryType = np.int32(3)
+        elif (boundary_conditions.east == 2):
+            self.boundaryType = np.int32(4)
         
         #Create data by uploading to device
         ghost_cells_x = 3
         ghost_cells_y = 3
+        self.ghost_cells_x = 3
+        self.ghost_cells_y = 3
+        if (boundary_conditions.isSponge()):
+            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
+            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
+            y_zero_reference = boundary_conditions.spongeCells[2]
+            
+        #Create data by uploading to device
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, h0, hu0, hv0)
 
         #Bathymetry
@@ -104,14 +123,7 @@ class RecursiveCDKLM16:
         self.wind_stress = wind_stress
         self.h0AsWaterElevation = h0AsWaterElevation
 
-        self.boundary_conditions = boundary_conditions
-        self.boundaryType = np.int32(1)
-        if (boundary_conditions.north == 2 and boundary_conditions.east == 2):
-            self.boundaryType = np.int32(2)
-        elif (boundary_conditions.north == 2):
-            self.boundaryType = np.int32(3)
-        elif (boundary_conditions.east == 2):
-            self.boundaryType = np.int32(4)
+        
         
         #Initialize time
         self.t = np.float32(0.0)
@@ -134,7 +146,21 @@ class RecursiveCDKLM16:
         if self.h0AsWaterElevation:
             self.bathymetry.waterElevationToDepth(self.cl_data.h0)
             
-        
+
+
+    
+    """
+    Clean up function
+    """
+    def cleanUp(self):
+        #if self.write_netcdf:
+        #    self.sim_writer.__exit__(0,0,0)
+        #    self.write_netcdf = False
+        self.cl_data.release()
+        self.bathymetry.release()
+        self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
+        gc.collect() # Force run garbage collection to free up memory
+     
     
     """
     Function which steps n timesteps
