@@ -30,6 +30,8 @@ class CTCSNetCDFWriter:
         self.ncfile = Dataset(outfilename,'w', clobber=True) 
         self.ignore_ghostcells = ignore_ghostcells
         self.num_layers = num_layers
+
+	self.ncfile.Conventions = "CF-1.4"
         
         #Create dimensions 
         self.ncfile.createDimension('time', None) #Unlimited time dimension
@@ -60,6 +62,12 @@ class CTCSNetCDFWriter:
         #y_v = self.ncfile.createVariable('y_v', np.dtype('float32').char, 'y_v')
         x = self.ncfile.createVariable('x', np.dtype('float32').char, 'x')
         y = self.ncfile.createVariable('y', np.dtype('float32').char, 'y')
+
+        self.nc_time.long_name = "time since initialization"
+        self.nc_time.calendar = "gregorian"
+        self.nc_time.field = "time, scalar, series"
+        self.nc_time.axis = "T"
+        self.nc_time.standard_name = "time"
         
         x.standard_name = "projection_x_coordinate"
         y.standard_name = "projection_y_coordinate"
