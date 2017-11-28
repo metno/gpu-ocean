@@ -30,7 +30,7 @@ float linear_coriolis_term(const float f, const float beta,
 			   const float y_zero_reference) {
     // y_zero_reference is the number of ghost cells
     // and represent the tj so that y = 0.5*dy
-    float y = (tj-y_zero_reference + 0.5)*dy;
+    float y = (tj-y_zero_reference + 0.5f)*dy;
     return f + beta * y;
 }
 
@@ -136,17 +136,24 @@ __kernel void computeUKernel(
     //Reconstruct H at the U position
     float H_m = 0.5f*(H_shared[ty][tx] + H_shared[ty][tx+1]);
 
-    //Reconstruct V at the U position
-    float V_m = 0.0f;
+    // Coriolis forces at U position and V positions
+    float f_u =   linear_coriolis_term(f_, beta_, tj,      dy_, y_zero_reference_);
+    float f_v_p = linear_coriolis_term(f_, beta_, tj+0.5f, dy_, y_zero_reference_);
+    float f_v_m = linear_coriolis_term(f_, beta_, tj-0.5f, dy_, y_zero_reference_);
+    
+    //Reconstruct f*V at the U position
+    float fV_m = 0.0f;
     if (tj==0) {
-        V_m = 0.5f*(V_shared[ty+1][tx] + V_shared[ty+1][tx+1]);
+	// Using Coriolis at U position
+        fV_m = 0.5f*f_u*(V_shared[ty+1][tx] + V_shared[ty+1][tx+1]);
     }
     else if (tj==ny_-1) {
-        V_m = 0.5f*(V_shared[ty][tx] + V_shared[ty][tx+1]);
+	// Using Coriolis at U position
+        fV_m = 0.5f*f_u*(V_shared[ty][tx] + V_shared[ty][tx+1]);
     }
     else {
-        V_m = 0.25f*(V_shared[ty][tx] + V_shared[ty][tx+1]
-                + V_shared[ty+1][tx] + V_shared[ty+1][tx+1]);
+        fV_m = 0.25f*( f_v_m*(V_shared[ty  ][tx] + V_shared[ty  ][tx+1])
+		     + f_v_p*(V_shared[ty+1][tx] + V_shared[ty+1][tx+1]) );
     }
 
     //Calculate the friction coefficient
@@ -165,12 +172,8 @@ __kernel void computeUKernel(
         t_);
 
 
-    // Finding the contribution from Coriolis
-    float global_thread_y = get_global_id(1);
-    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_, y_zero_reference_);
-    
     //Compute the U at the next timestep
-    float U_next = B*(U_current + dt_*(coriolis_f*V_m + P + X) );
+    float U_next = B*(U_current + dt_*(fV_m + P + X) );
 
     //Write to main memory for internal cells
     if (ti > 0 && ti < nx_ && tj < ny_) {

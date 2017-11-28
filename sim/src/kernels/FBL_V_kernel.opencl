@@ -31,7 +31,7 @@ float linear_coriolis_term(const float f, const float beta,
 			   const float y_zero_reference) {
     // y_zero_reference is the number of ghost cells
     // and represent the tj so that y = 0.0
-    float y = (tj-y_zero_reference + 0)*dy;
+    float y = (tj-y_zero_reference + 0.0f)*dy;
     return f + beta * y;
 }
 
@@ -134,17 +134,24 @@ __kernel void computeVKernel(
     //Reconstruct H at the V position
     float H_m = 0.5f*(H_shared[ty][tx] + H_shared[ty+1][tx]);
 
-    //Reconstruct U at the V position
-    float U_m;
+    // Coriolis forces at V position and U positions
+    float f_v   = linear_coriolis_term(f_, beta_, tj,      dy_, y_zero_reference_);
+    float f_u_p = linear_coriolis_term(f_, beta_, tj+0.5f, dy_, y_zero_reference_);
+    float f_u_m = linear_coriolis_term(f_, beta_, tj-0.5f, dy_, y_zero_reference_); 
+    
+    //Reconstruct f*U at the V position
+    float fU_m;
     if (ti==0) {
-        U_m = 0.5f*(U_shared[ty][tx+1] + U_shared[ty+1][tx+1]);
+	// Using Coriolis at V postiion
+        fU_m = 0.5f*f_v*(U_shared[ty][tx+1] + U_shared[ty+1][tx+1]);
     }
     else if (ti==nx_-1) {
-        U_m = 0.5f*(U_shared[ty][tx] + U_shared[ty+1][tx]);
+	// Using Coriolis at V postiion
+        fU_m = 0.5f*f_v*(U_shared[ty][tx] + U_shared[ty+1][tx]);
     }
     else {
-        U_m = 0.25f*(U_shared[ty][tx] + U_shared[ty][tx+1]
-                + U_shared[ty+1][tx] + U_shared[ty+1][tx+1]);
+        fU_m = 0.25f*( f_u_m*(U_shared[ty  ][tx] + U_shared[ty  ][tx+1])
+		     + f_u_p*(U_shared[ty+1][tx] + U_shared[ty+1][tx+1]) );
     }
 
     //Calculate the friction coefficient
@@ -163,12 +170,8 @@ __kernel void computeVKernel(
         t_);
 
 
-    // Finding the contribution from Coriolis
-    float global_thread_y = get_global_id(1);
-    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_, y_zero_reference_);
-    
     //Compute the V at the next timestep
-    float V_next = B*(V_current + dt_*(-coriolis_f*U_m + P + Y) );
+    float V_next = B*(V_current + dt_*(-fU_m + P + Y) );
 
     //Write to main memory
     if (ti < nx_ && tj > 0 && tj < ny_ ) {
