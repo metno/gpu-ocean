@@ -26,6 +26,18 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "common.opencl"
 
+
+// Finds the coriolis term based on the linear Coriolis force
+// f = \tilde{f} + beta*y
+float linear_coriolis_term(const float f, const float beta,
+			   const float tj, const float dy,
+			   const float y_zero_reference) {
+    // y_zero_reference is the number of ghost cells
+    // and represent the tj so that y = 0.5*dy
+    float y = (tj-y_zero_reference + 0.5)*dy;
+    return f + beta * y;
+}
+
 void reconstructBx(__local float RBx[block_height+4][block_width+4],
 		   __local float  Bi[block_height+4][block_width+4],
 		   const int p,
@@ -213,6 +225,9 @@ __kernel void swe_2D(
         float theta_,
         
         float f_, //< Coriolis coefficient
+	float beta_, //< Coriolis force f_ + beta_*y
+	float y_zero_reference_, // the cell row representing y = 0.5*dy
+	
         float r_, //< Bottom friction coefficient
         
         int step_,
@@ -343,17 +358,23 @@ __kernel void swe_2D(
             u0_, v0_,
             t_);
 
+	
+	// Coriolis parameter
+	float global_thread_y = tj-2; // Global id including ghost cells
+	float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+						dy_, y_zero_reference_);
+	
 	const float R1 =
 	    - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_
 	    - (G[0][ty+1][tx  ] - G[0][ty][tx]) / dy_;
 	const float R2 =
 	    - (F[1][ty  ][tx+1] - F[1][ty][tx]) / dx_ 
 	    - (G[1][ty+1][tx  ] - G[1][ty][tx]) / dy_
-	    + (X + f_*Q[2][j][i] - ST2/dx_);
+	    + (X + coriolis_f*Q[2][j][i] - ST2/dx_);
 	const float R3 =
 	    - (F[2][ty  ][tx+1] - F[2][ty][tx]) / dx_
 	    - (G[2][ty+1][tx  ] - G[2][ty][tx]) / dy_
-	    + (Y - f_*Q[1][j][i] - ST3/dy_);
+	    + (Y - coriolis_f*Q[1][j][i] - ST3/dy_);
 						       
 	
 	__global float* const h_row  = (__global float*) ((__global char*) h1_ptr_ + h1_pitch_*tj);
@@ -383,7 +404,8 @@ __kernel void swe_2D(
             const float hv_b = 0.5f*(hv_a + (Q[2][j][i] + dt_*R3));
             
             //Write to main memory
-            h_row[ti] = h_b;
+            //h_row[ti] = 59.975 + coriolis_f;
+	    h_row[ti] = h_b;
             hu_row[ti] = hu_b / (1.0f + 0.5f*C);
             hv_row[ti] = hv_b / (1.0f + 0.5f*C);
         }

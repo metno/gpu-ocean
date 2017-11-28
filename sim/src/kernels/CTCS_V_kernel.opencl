@@ -25,6 +25,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "common.opencl"
 
+// Finds the coriolis term based on the linear Coriolis force
+// f = \tilde{f} + beta*y
+float linear_coriolis_term(const float f, const float beta,
+			   const float tj, const float dy,
+			   const float y_zero_reference) {
+    // y_zero_reference is the number of ghost cells
+    // and represent the tj so that y = 0.0
+    float y = (tj-y_zero_reference + 0.0f)*dy;
+    return f + beta * y;
+}
 
 
 /**
@@ -39,6 +49,8 @@ __kernel void computeVKernel(
         //Physical parameters
         float g_, //< Gravitational constant
         float f_, //< Coriolis coefficient
+	float beta_, //< Coriolis force f_ + beta_*y
+	float y_zero_reference_, // the cell representing y = 0.5*dy
         float r_, //< Bottom friction coefficient
     
         //Numerical diffusion
@@ -191,7 +203,11 @@ __kernel void computeVKernel(
     const float eta_mp = eta1_shared[ty+1][tx  ]; 
     const float eta_0p = eta1_shared[ty+1][tx+1]; 
     const float eta_pp = eta1_shared[ty+1][tx+2];
-    
+
+    // Coriolis at U positions:
+    const float glob_thread_y = get_global_id(1);
+    const float f_u_0 = linear_coriolis_term(f_, beta_, glob_thread_y-0.5f, dy_, y_zero_reference_);
+    const float f_u_p = linear_coriolis_term(f_, beta_, glob_thread_y+0.5f, dy_, y_zero_reference_);
 
     //Reconstruct H_bar and H_y (at the V position)
     const float H_bar_m0 = 0.25f*(H_m0 + H_mp + H_00 + H_0p);
@@ -202,8 +218,8 @@ __kernel void computeVKernel(
     const float eta_bar_m0 = 0.25f*(eta_m0 + eta_mp + eta_00 + eta_0p);
     const float eta_bar_00 = 0.25f*(eta_00 + eta_0p + eta_p0 + eta_pp);
 
-    //Reconstruct U at the V position
-    const float U_bar = 0.25f*(U_m0 + U_00 + U_mp + U_0p);
+    //Reconstruct fU at the V position
+    const float fU_bar = 0.25f*( f_u_0*(U_m0 + U_00) + f_u_p*(U_mp + U_0p) );
 
     //Calculate the friction coefficient
     const float C = 1.0 + 2*r_*dt_/H_y + 2*A_*dt_*(dx_*dx_ + dy_*dy_)/(dx_*dx_*dy_*dy_);
@@ -233,9 +249,13 @@ __kernel void computeVKernel(
         x0_, y0_,
         u0_, v0_,
         t_);
+    
+    // Finding the contribution from Coriolis
+    float global_thread_y = get_global_id(1);
+    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_, y_zero_reference_);
 
     //Compute the V at the next timestep
-    float V2 = (V0 + 2.0f*dt_*(-f_*U_bar + (N + P_y)/dy_ + Y + A_*E) ) / C;
+    float V2 = (V0 + 2.0f*dt_*(-fU_bar + (N + P_y)/dy_ + Y + A_*E) ) / C;
 
     //Write to main memory for internal cells
     //if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
