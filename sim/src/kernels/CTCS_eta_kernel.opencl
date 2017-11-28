@@ -22,7 +22,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-
+// Finds the coriolis term based on the linear Coriolis force
+// f = \tilde{f} + beta*y
+float linear_coriolis_term(const float f, const float beta,
+			   const float tj, const float dy,
+			   const float y_zero_reference) {
+    // y_zero_reference is the number of ghost cells
+    // and represent the tj so that y = 0.5*dy
+    float y = (tj-y_zero_reference + 0.5)*dy;
+    return f + beta * y;
+}
 
 /**
   * Kernel that evolves eta one step in time.
@@ -35,6 +44,8 @@ __kernel void computeEtaKernel(
         //Physical parameters
         float g_, //< Gravitational constant
         float f_, //< Coriolis coefficient
+	float beta_, //< Coriolis force f_ + beta_*y
+	float y_zero_reference_, // the cell representing y = 0.5*dy
         float r_, //< Bottom friction coefficient
     
         //Data
