@@ -262,9 +262,9 @@ class CTCS2Layer:
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
 
         #Get kernels
-        self.u_kernel = self.get_kernel("CTCS2Layer_U_kernel.opencl")
-        self.v_kernel = self.get_kernel("CTCS2Layer_V_kernel.opencl")
-        self.eta_kernel = self.get_kernel("CTCS2Layer_eta_kernel.opencl")
+        self.u_kernel = self.get_kernel("../../sim/src/kernels/CTCS2Layer_U_kernel.opencl")
+        self.v_kernel = self.get_kernel("../../sim/src/kernels/CTCS2Layer_V_kernel.opencl")
+        self.eta_kernel = self.get_kernel("../../sim/src/kernels/CTCS2Layer_eta_kernel.opencl")
         
         #Create data by uploading to device
         self.cl_data = CTCS2LayerDataCL(self.cl_ctx, h1_0, eta1_0, u1_0, v1_0, h2_0, eta2_0, u2_0, v2_0)
