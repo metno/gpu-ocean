@@ -64,9 +64,9 @@ class SimNetCDFWriter:
         
         self.dt = sim.dt
         if self.staggered_grid:
-            self.bathymetry = -sim.H.download(self.cl_queue)
+            self.H = sim.H.download(self.cl_queue)
         else:
-            self.bathymetry = sim.bathymetry.download(self.cl_queue)[1] # Bm
+            self.H = -sim.bathymetry.download(self.cl_queue)[1] # Bm
         self.time_integrator = sim.rk_order
         self.minmod_theta = sim.theta
         self.coriolis_force = sim.f
@@ -85,7 +85,8 @@ class SimNetCDFWriter:
         if not os.path.isdir(self.dir_name):
             os.makedirs(self.dir_name)
         self.ncfile = Dataset(self.output_file_name,'w', clobber=True) 
-
+        self.ncfile.Conventions = "CF-1.4"
+        
         # Write global attributes
         self.ncfile.gitHash = self.git_hash
         self.ncfile.ignore_ghostcells = str(self.ignore_ghostcells)
@@ -187,13 +188,13 @@ class SimNetCDFWriter:
         self.nc_land.units = '1'
         self.nc_land[:] = 0
 
-        # Create info about bathymetry
-        self.nc_bathymetry = self.ncfile.createVariable('bathymetry', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
-        self.nc_bathymetry.standard_name = 'bedrock_altitude'
-        self.nc_bathymetry.grid_mapping = 'projection_stere'
-        self.nc_bathymetry.coordinates = 'lon lat'
-        self.nc_bathymetry.units = 'meter'
-        self.nc_bathymetry[0, :] = self.bathymetry
+        # Create info about bathymetry / equilibrium depth
+        self.nc_H = self.ncfile.createVariable('H', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
+        self.nc_H.standard_name = 'write water_surface_reference_datum_altitude'
+        self.nc_H.grid_mapping = 'projection_stere'
+        self.nc_H.coordinates = 'lon lat'
+        self.nc_H.units = 'meter'
+        self.nc_H[0, :] = self.H
         
         
         self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
@@ -204,7 +205,7 @@ class SimNetCDFWriter:
             self.nc_u = self.ncfile.createVariable('u', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
             self.nc_v = self.ncfile.createVariable('v', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
             
-        self.nc_eta.standard_name = 'sea_water_elevation'
+        self.nc_eta.standard_name = 'water_surface_height_above_reference_datum'
         self.nc_u.standard_name = 'x_sea_water_velocity'
         self.nc_v.standard_name = 'y_sea_water_velocity'
         self.nc_eta.grid_mapping = 'projection_stere'
