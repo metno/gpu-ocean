@@ -77,10 +77,25 @@ class SimNetCDFWriter:
         ny = sim.ny
         dx = sim.dx
         dy = sim.dy
-        self.ghost_cells_x = sim.ghost_cells_x
-        self.ghost_cells_y = sim.ghost_cells_y
+        self.ghost_cells_east = sim.ghost_cells_x
+        self.ghost_cells_west = sim.ghost_cells_x
+        self.ghost_cells_north = sim.ghost_cells_y
+        self.ghost_cells_south = sim.ghost_cells_y
         self.bottom_friction_r = sim.r
 
+        # If the boundary conditions have required extra ghost cells, we have to change nx, ny, etc.
+        if sim.boundary_conditions.isSponge():
+            nx = nx + 2*sim.ghost_cells_x - sim.boundary_conditions.spongeCells[1] - sim.boundary_conditions.spongeCells[3]
+            ny = ny + 2*sim.ghost_cells_y - sim.boundary_conditions.spongeCells[0] - sim.boundary_conditions.spongeCells[2]
+
+            self.ghost_cells_north = sim.boundary_conditions.spongeCells[0]
+            self.ghost_cells_east  = sim.boundary_conditions.spongeCells[1]
+            self.ghost_cells_south = sim.boundary_conditions.spongeCells[2]
+            self.ghost_cells_west  = sim.boundary_conditions.spongeCells[3]
+        self.ghost_cells_tot_y = self.ghost_cells_north + self.ghost_cells_south
+        self.ghost_cells_tot_x = self.ghost_cells_east  + self.ghost_cells_west 
+            
+            
         # Organize directory and create file:
         if not os.path.isdir(self.dir_name):
             os.makedirs(self.dir_name)
@@ -105,19 +120,17 @@ class SimNetCDFWriter:
         self.ncfile.ny = ny
         self.ncfile.dx = dx
         self.ncfile.dy = dy
-        self.ncfile.ghost_cells_x = self.ghost_cells_x
-        self.ncfile.ghost_cells_y = self.ghost_cells_y
         self.ncfile.bottom_friction_r = self.bottom_friction_r
         
         #Create dimensions 
         self.ncfile.createDimension('time', None) #Unlimited time dimension
-        self.ncfile.createDimension('x', nx + 2*self.ghost_cells_x)
-        self.ncfile.createDimension('y', ny + 2*self.ghost_cells_y)
+        self.ncfile.createDimension('x', nx + self.ghost_cells_tot_x)
+        self.ncfile.createDimension('y', ny + self.ghost_cells_tot_y)
         if (not self.ignore_ghostcells) and (self.staggered_grid):
-            self.ncfile.createDimension('x_u',   nx + 2*self.ghost_cells_x + 1)
-            self.ncfile.createDimension('y_u',   ny + 2*self.ghost_cells_y)
-            self.ncfile.createDimension('x_v',   nx + 2*self.ghost_cells_x)
-            self.ncfile.createDimension('y_v',   ny + 2*self.ghost_cells_y + 1)
+            self.ncfile.createDimension('x_u',   nx + self.ghost_cells_tot_x + 1)
+            self.ncfile.createDimension('y_u',   ny + self.ghost_cells_tot_y)
+            self.ncfile.createDimension('x_v',   nx + self.ghost_cells_tot_x)
+            self.ncfile.createDimension('y_v',   ny + self.ghost_cells_tot_y + 1)
 
         #Create axis
         self.nc_time = self.ncfile.createVariable('time', np.dtype('float32').char, 'time')
@@ -152,25 +165,25 @@ class SimNetCDFWriter:
         self.nc_proj.earth_radius = 6371000.0
         self.nc_proj.proj4 = '+proj=stere +lat_0=90 +lon_0=70 +lat_ts=60 +units=m +a=6.371e+06 +e=0 +no_defs'
 
-        x[:] = np.linspace(-self.ghost_cells_x*dx + dx/2.0, \
-                           (nx + self.ghost_cells_x)*dx - dx/2.0, \
-                           nx + 2*self.ghost_cells_x)
-        y[:] = np.linspace(-self.ghost_cells_y*dy + dy/2.0, \
-                           (ny + self.ghost_cells_y)*dy - dy/2.0, \
-                           ny + 2*self.ghost_cells_y)
+        x[:] = np.linspace(-self.ghost_cells_west*dx + dx/2.0, \
+                           (nx + self.ghost_cells_east)*dx - dx/2.0, \
+                           nx + self.ghost_cells_tot_x)
+        y[:] = np.linspace(-self.ghost_cells_south*dy + dy/2.0, \
+                           (ny + self.ghost_cells_north)*dy - dy/2.0, \
+                           ny + self.ghost_cells_tot_y)
         if not self.ignore_ghostcells and self.staggered_grid:
-            x_u[:] = np.linspace(-self.ghost_cells_x*dx, \
-                                 (nx + 2*self.ghost_cells_x)*dx, \
-                                 nx + 2*self.ghost_cells_x + 1)
-            y_u[:] = np.linspace(-self.ghost_cells_y*dy + dy/2.0, \
-                               (ny + self.ghost_cells_y)*dy + dy/2.0, \
-                               ny + 2*self.ghost_cells_y)
-            x_v[:] = np.linspace(-self.ghost_cells_x*dx + dx/2.0, \
-                               (nx + self.ghost_cells_x)*dx + dx/2.0, \
-                               nx + 2*self.ghost_cells_x)
-            y_v[:] = np.linspace(-self.ghost_cells_y*dy, \
-                                 (ny + 2*self.ghost_cells_y)*dy, \
-                                 ny + 2*self.ghost_cells_y + 1)
+            x_u[:] = np.linspace(-self.ghost_cells_west*dx, \
+                                 (nx + self.ghost_cells_east)*dx, \
+                                 nx + self.ghost_cells_tot_x + 1)
+            y_u[:] = np.linspace(-self.ghost_cells_south*dy + dy/2.0, \
+                               (ny + self.ghost_cells_north)*dy + dy/2.0, \
+                               ny + self.ghost_cells_tot_y)
+            x_v[:] = np.linspace(-self.ghost_cells_west*dx + dx/2.0, \
+                               (nx + self.ghost_cells_east)*dx + dx/2.0, \
+                                nx + self.ghost_cells_tot_x)
+            y_v[:] = np.linspace(-self.ghost_cells_south*dy, \
+                                 (ny + self.ghost_cells_north)*dy, \
+                                 ny + self.ghost_cells_tot_y + 1)
             
         #Set units
         self.nc_time.units = 'seconds since 1970-01-01 00:00:00'
