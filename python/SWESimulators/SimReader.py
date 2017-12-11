@@ -35,7 +35,10 @@ class SimNetCDFReader:
         self.ignore_ghostcells = ignore_ghostcells
 
         self.ncfile = Dataset(filename, 'r')
+        print "Reading " + self.ncfile.getncattr('simulator_short')
+        print "Grid size: (" + str(self.ncfile.getncattr('nx')) + ", ", str(self.ncfile.getncattr('ny')) + ")"
 
+        #self.ghostCells = 
         
         
     def printVariables(self):
