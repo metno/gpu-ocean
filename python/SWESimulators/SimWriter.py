@@ -121,6 +121,11 @@ class SimNetCDFWriter:
         self.ncfile.dx = dx
         self.ncfile.dy = dy
         self.ncfile.bottom_friction_r = self.bottom_friction_r
+        self.ncfile.ghost_cells_north = self.ghost_cells_north
+        self.ncfile.ghost_cells_east  = self.ghost_cells_east
+        self.ncfile.ghost_cells_south = self.ghost_cells_south
+        self.ncfile.ghost_cells_west  = self.ghost_cells_west
+
         
         #Create dimensions 
         self.ncfile.createDimension('time', None) #Unlimited time dimension
