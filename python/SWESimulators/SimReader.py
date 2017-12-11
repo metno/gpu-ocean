@@ -64,13 +64,16 @@ class SimNetCDFReader:
     def getTimeStep(self, index):
         time = self.ncfile.variables['time']
         eta  = self.ncfile.variables['eta'][index, :, :]
-        u = self.ncfile.variables['u'][index, :, :]
-        v = self.ncfile.variables['v'][index, :, :]
+        hu = self.ncfile.variables['hu'][index, :, :]
+        hv = self.ncfile.variables['hv'][index, :, :]
         if self.ignore_ghostcells:
             eta = eta[self.ghostCells[2]:-self.ghostCells[0], \
                       self.ghostCells[3]:-self.ghostCells[1]]
-            u = u[self.ghostCells[2]:-self.ghostCells[0], \
+            hu = hu[self.ghostCells[2]:-self.ghostCells[0], \
                   self.ghostCells[3]:-self.ghostCells[1]]
-            v = v[self.ghostCells[2]:-self.ghostCells[0], \
+            hv = hv[self.ghostCells[2]:-self.ghostCells[0], \
                   self.ghostCells[3]:-self.ghostCells[1]]
-        return eta, u, v, time[index]
+        return eta, hu, hv, time[index]
+
+
+    
