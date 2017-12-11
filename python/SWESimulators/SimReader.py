@@ -25,6 +25,8 @@ import numpy as np
 import datetime
 from netCDF4 import Dataset
 import matplotlib.pyplot as plt
+from matplotlib import animation, rc
+import PlotHelper
 
 
 class SimNetCDFReader:
@@ -53,9 +55,8 @@ class SimNetCDFReader:
     
     def getNumTimeSteps(self):
         time = self.ncfile.variables['time']
-        for t in time:
-            print t
-
+        #for t in time:
+            #print t
         return time.size
 
     def getLastTimeStep(self):
@@ -75,5 +76,36 @@ class SimNetCDFReader:
                   self.ghostCells[3]:-self.ghostCells[1]]
         return eta, hu, hv, time[index]
 
+    def getWaterHeight(self):
+        if self.staggered_grid:
+            return 0.0
+        return 60.0
+    
+    def animate(self, i):
+        eta1, u1, v1, t = self.getTimeStep(i)
+        self.plotter.plot(eta1-self.getWaterHeight(), u1, v1)
+                
 
     
+    def makeAnimation(self):
+        nx = self.ncfile.getncattr('nx')
+        ny = self.ncfile.getncattr('ny')
+        dx = self.ncfile.getncattr('dx')
+        dy = self.ncfile.getncattr('dy')
+        #Calculate radius from center for plotting
+        x_center = dx*nx*0.5
+        y_center = dy*ny*0.5
+        y_coords, x_coords = np.mgrid[0:ny*dy:dy, 0:nx*dx:dx]
+        x_coords = np.subtract(x_coords, x_center)
+        y_coords = np.subtract(y_coords, y_center)
+        radius = np.sqrt(np.multiply(x_coords, x_coords) + np.multiply(y_coords, y_coords))
+
+        eta0, hu0, hv0, t0 = self.getTimeStep(0)
+        waterHeight = self.getWaterHeight()
+        fig = plt.figure()
+        self.plotter = PlotHelper.PlotHelper(fig, x_coords, y_coords, radius, \
+                                             eta0-waterHeight, hu0, hv0)
+
+        anim = animation.FuncAnimation(fig, self.animate, range(self.getNumTimeSteps()), interval=100)
+        plt.close(anim._fig)
+        return anim
