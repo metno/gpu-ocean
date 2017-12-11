@@ -33,17 +33,15 @@ class SimNetCDFReader:
         
         self.filename = filename
         self.ignore_ghostcells = ignore_ghostcells
-
+        
         self.ncfile = Dataset(filename, 'r')
-        print "Reading " + self.ncfile.getncattr('simulator_short')
-        print "Grid size: (" + str(self.ncfile.getncattr('nx')) + ", ", str(self.ncfile.getncattr('ny')) + ")"
-
+        
         self.ghostCells = [self.ncfile.getncattr('ghost_cells_north'), \
                            self.ncfile.getncattr('ghost_cells_east'), \
                            self.ncfile.getncattr('ghost_cells_south'), \
                            self.ncfile.getncattr('ghost_cells_west')]
-        print "ghost cells: ", self.ghostCells
-        
+        self.staggered_grid = str(self.ncfile.getncattr('staggered_grid')) == 'True'
+       
         
     def printVariables(self):
         for var in self.ncfile.variables:
@@ -61,8 +59,18 @@ class SimNetCDFReader:
         return time.size
 
     def getLastTimeStep(self):
+        return self.getTimeStep(-1)
+        
+    def getTimeStep(self, index):
         time = self.ncfile.variables['time']
-        eta  = self.ncfile.variables['eta'][-1, :, :]
-        u = self.ncfile.variables['u'][-1, :, :]
-        v = self.ncfile.variables['v'][-1, :, :]
-        return eta, u, v, time[-1]
+        eta  = self.ncfile.variables['eta'][index, :, :]
+        u = self.ncfile.variables['u'][index, :, :]
+        v = self.ncfile.variables['v'][index, :, :]
+        if self.ignore_ghostcells:
+            eta = eta[self.ghostCells[2]:-self.ghostCells[0], \
+                      self.ghostCells[3]:-self.ghostCells[1]]
+            u = u[self.ghostCells[2]:-self.ghostCells[0], \
+                  self.ghostCells[3]:-self.ghostCells[1]]
+            v = v[self.ghostCells[2]:-self.ghostCells[0], \
+                  self.ghostCells[3]:-self.ghostCells[1]]
+        return eta, u, v, time[index]
