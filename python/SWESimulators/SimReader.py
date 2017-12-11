@@ -35,6 +35,8 @@ class SimNetCDFReader:
         self.ignore_ghostcells = ignore_ghostcells
 
         self.ncfile = Dataset(filename, 'r')
+
+        
         
     def printVariables(self):
         for var in self.ncfile.variables:
@@ -43,3 +45,17 @@ class SimNetCDFReader:
     def printAttributes(self):
         for attr in self.ncfile.ncattrs():
             print attr, "\t--> ", self.ncfile.getncattr(attr)
+    
+    def getNumTimeSteps(self):
+        time = self.ncfile.variables['time']
+        for t in time:
+            print t
+
+        return time.size
+
+    def getLastTimeStep(self):
+        time = self.ncfile.variables['time']
+        eta  = self.ncfile.variables['eta'][-1, :, :]
+        u = self.ncfile.variables['u'][-1, :, :]
+        v = self.ncfile.variables['v'][-1, :, :]
+        return eta, u, v, time[-1]
