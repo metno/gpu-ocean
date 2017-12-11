@@ -38,7 +38,11 @@ class SimNetCDFReader:
         print "Reading " + self.ncfile.getncattr('simulator_short')
         print "Grid size: (" + str(self.ncfile.getncattr('nx')) + ", ", str(self.ncfile.getncattr('ny')) + ")"
 
-        #self.ghostCells = 
+        self.ghostCells = [self.ncfile.getncattr('ghost_cells_north'), \
+                           self.ncfile.getncattr('ghost_cells_east'), \
+                           self.ncfile.getncattr('ghost_cells_south'), \
+                           self.ncfile.getncattr('ghost_cells_west')]
+        print "ghost cells: ", self.ghostCells
         
         
     def printVariables(self):
