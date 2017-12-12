@@ -70,6 +70,7 @@ class SimNetCDFWriter:
         self.time_integrator = sim.rk_order
         self.minmod_theta = sim.theta
         self.coriolis_force = sim.f
+        self.coriolis_beta = sim.coriolis_beta
         self.wind_stress = sim.wind_stress
         self.eddy_viscosity_coefficient = sim.A
         g = sim.g
@@ -77,6 +78,8 @@ class SimNetCDFWriter:
         ny = sim.ny
         dx = sim.dx
         dy = sim.dy
+        dt = sim.dt
+        auto_dt = False
         self.ghost_cells_east = sim.ghost_cells_x
         self.ghost_cells_west = sim.ghost_cells_x
         self.ghost_cells_north = sim.ghost_cells_y
@@ -103,7 +106,7 @@ class SimNetCDFWriter:
         self.ncfile.Conventions = "CF-1.4"
         
         # Write global attributes
-        self.ncfile.gitHash = self.git_hash
+        self.ncfile.git_hash = self.git_hash
         self.ncfile.ignore_ghostcells = str(self.ignore_ghostcells)
         self.ncfile.num_layers = self.num_layers
         self.ncfile.staggered_grid = str(self.staggered_grid)
@@ -113,6 +116,7 @@ class SimNetCDFWriter:
         self.ncfile.time_integrator = self.time_integrator
         self.ncfile.minmod_theta = self.minmod_theta
         self.ncfile.coriolis_force = self.coriolis_force
+        self.ncfile.coriolis_beta = self.coriolis_beta
         self.ncfile.wind_stress_type = self.wind_stress.type
         self.ncfile.eddy_viscosity_coefficient = self.eddy_viscosity_coefficient
         self.ncfile.g = g  
@@ -120,6 +124,8 @@ class SimNetCDFWriter:
         self.ncfile.ny = ny
         self.ncfile.dx = dx
         self.ncfile.dy = dy
+        self.ncfile.dt = dt
+        self.ncfile.auto_dt = str(auto_dt)
         self.ncfile.bottom_friction_r = self.bottom_friction_r
         self.ncfile.ghost_cells_north = self.ghost_cells_north
         self.ncfile.ghost_cells_east  = self.ghost_cells_east
