@@ -40,8 +40,8 @@ class KP07:
 
     """
     Initialization routine
-    w0: Water elevation incl ghost cells, (nx+4)*(ny+4) cells
-    Bi: Bottom elevation defined on cell corners, (nx+5)*(ny+5) corners
+    eta0: Water elevation incl ghost cells, (nx+4)*(ny+4) cells
+    Hi: Depth from equilibrium defined on cell corners, (nx+5)*(ny+5) corners
     hu0: Initial momentum along x-axis incl ghost cells, (nx+4)*(ny+4) cells
     hv0: Initial momentum along y-axis incl ghost cells, (nx+4)*(ny+4) cells
     nx: Number of cells along x-axis
@@ -67,7 +67,7 @@ class KP07:
     """
     def __init__(self, \
                  cl_ctx, \
-                 w0, Bi, hu0, hv0, \
+                 eta0, Hi, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
                  g, f=0.0, r=0.0, \
@@ -102,10 +102,10 @@ class KP07:
             y_zero_reference = boundary_conditions.spongeCells[2]
             
         #Create data by uploading to device    
-        self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, w0, hu0, hv0)
+        self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
         
         #Bathymetry
-        self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Bi, boundary_conditions)
+        self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Hi, boundary_conditions)
         
         #Save input parameters
         #Notice that we need to specify them in the correct dataformat for the
