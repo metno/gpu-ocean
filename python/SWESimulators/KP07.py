@@ -82,6 +82,11 @@ class KP07:
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
 
+        ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
+        if ( np.sum(eta0 - Hi[:-1, :-1] > 0) > nx):
+            assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
+
+        
         #Get kernels
         self.kp07_kernel = Common.get_kernel(self.cl_ctx, "KP07_kernel.opencl", block_width, block_height)
         

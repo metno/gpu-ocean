@@ -84,6 +84,10 @@ class CDKLM16:
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
         self.A = "NA"  # Eddy viscocity coefficient
+
+        ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
+        if ( np.sum(eta0 - Hi[:-1, :-1] > 0) > nx):
+            assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
         
         #Get kernels
         self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
