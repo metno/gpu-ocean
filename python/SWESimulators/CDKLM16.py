@@ -74,7 +74,7 @@ class CDKLM16:
                  theta=1.3, rk_order=2, coriolis_beta=0.0, \
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
-                 h0AsWaterElevation=True, \
+                 h0AsWaterElevation=False, \
                  reportGeostrophicEquilibrium=False, \
                  write_netcdf=False, \
                  block_width=16, block_height=16):
