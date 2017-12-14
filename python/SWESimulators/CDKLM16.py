@@ -43,10 +43,10 @@ class CDKLM16:
 
     """
     Initialization routine
-    h0: Water depth incl ghost cells, (nx+4)*(ny+4) cells
+    eta0: Water level incl ghost cells, (nx+4)*(ny+4) cells
     u0: Initial momentum along x-axis incl ghost cells, (nx+4)*(ny+4) cells
     v0: Initial momentum along y-axis incl ghost cells, (nx+4)*(ny+4) cells
-    Bi: Bottom topography defined on cell corners, (nx+5)*(ny+5) corners
+    Hi: Equilibrium water depth defined on cell corners, (nx+5)*(ny+5) corners
     nx: Number of cells along x-axis
     ny: Number of cells along y-axis
     dx: Grid cell spacing along x-axis (20 000 m)
@@ -66,8 +66,8 @@ class CDKLM16:
     """
     def __init__(self, \
                  cl_ctx, \
-                 h0, hu0, hv0, \
-                 Bi, \
+                 eta0, hu0, hv0, \
+                 Hi, \
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
@@ -102,7 +102,7 @@ class CDKLM16:
             y_zero_reference = boundary_conditions.spongeCells[2]
         
         #Create data by uploading to device
-        self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, h0, hu0, hv0)
+        self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
 
         ## Allocating memory for geostrophical equilibrium variables
         self.reportGeostrophicEquilibrium = np.int32(reportGeostrophicEquilibrium)
@@ -112,7 +112,7 @@ class CDKLM16:
         self.geoEq_Ly = Common.OpenCLArray2D(cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
 
         #Bathymetry
-        self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Bi, boundary_conditions)
+        self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Hi, boundary_conditions)
 
         assert( rk_order < 4 or rk_order > 0 ), "Only 1st, 2nd and 3rd order Runge Kutta supported"
 
