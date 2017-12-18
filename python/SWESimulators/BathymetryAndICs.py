@@ -132,7 +132,18 @@ def addLowerLeftBump(eta, nx, ny, dx, dy, halo):
             size = 500.0*min(dx, dy)
             if (np.sqrt(x**2 + y**2) < size):
                 eta[j+halo[2], i+halo[3]] += np.exp(-(x**2/size+y**2/size))
-            
+
+def addBump(eta, nx, ny, dx, dy, relposx, relposy,widthfactor, halo):
+    x_center = dx*nx*relposx
+    y_center = dy*ny*relposy
+    for j in range(-halo[2], ny + halo[0]):
+        for i in range(-halo[3], nx + halo[1]):
+            x = dx*i - x_center
+            y = dy*j - y_center
+            size = widthfactor*500.0*min(dx, dy)
+            if (np.sqrt(x**2 + y**2) < size):
+                eta[j+halo[2], i+halo[3]] += np.exp(-(x**2/size+y**2/size))
+                
 # This bump is for debug purposes and will be modified without mercy :)
 def addDebugBump(eta, nx, ny, dx, dy, posx, posy, halo):
     x_center = dx*nx*posx
