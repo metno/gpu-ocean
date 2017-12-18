@@ -81,6 +81,10 @@ class SimNetCDFReader:
                   self.ghostCells[3]:-self.ghostCells[1]]
         return eta, hu, hv, time[index]
 
+    def getEtaXSlice(self, t, y):
+        y_index = int(y) + int(self.get('ghost_cells_south'))
+        return self.ncfile.variables['eta'][t, y_index, self.ghostCells[3]:-self.ghostCells[1] ]
+        
     def _getWaterHeight(self):
         if self.staggered_grid:
             return 0.0
