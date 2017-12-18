@@ -27,18 +27,18 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Finds the coriolis term based on the linear Coriolis force
 // f = \tilde{f} + beta*y
-float linear_coriolis_term(const float f, const float beta,
-			   const float tj, const float dy,
-			   const float y_zero_reference) {
+double linear_coriolis_term(const double f, const double beta,
+			   const double tj, const double dy,
+			   const double y_zero_reference) {
     // y_zero_reference is the number of ghost cells
     // and represent the tj so that y = 0.5*dy
-    float y = (tj-y_zero_reference + 0.5)*dy;
+    double y = (tj-y_zero_reference + 0.5)*dy;
     return f + beta * y;
 }
 
 
-float3 CDKLM16_F_func(const float3 Q, const float g) {
-    float3 F;
+double3 CDKLM16_F_func(const double3 Q, const double g) {
+    double3 F;
 
     F.x = Q.x*Q.y;                        //h*u
     F.y = Q.x*Q.y*Q.y + 0.5f*g*Q.x*Q.x;   //h*u*u + 0.5f*g*h*h;
@@ -57,19 +57,19 @@ float3 CDKLM16_F_func(const float3 Q, const float g) {
   * Note that the input vectors are (h, u, v), thus not the regular
   * (h, hu, hv)
   */
-float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
-    const float3 Fp = CDKLM16_F_func(Qp, g);
-    const float up = Qp.y;         // u
-    const float cp = sqrt(g*Qp.x); // sqrt(g*h)
+double3 CDKLM16_flux(const double3 Qm, double3 Qp, const double g) {
+    const double3 Fp = CDKLM16_F_func(Qp, g);
+    const double up = Qp.y;         // u
+    const double cp = sqrt(g*Qp.x); // sqrt(g*h)
 
-    const float3 Fm = CDKLM16_F_func(Qm, g);
-    const float um = Qm.y;         // u
-    const float cm = sqrt(g*Qm.x); // sqrt(g*h)
+    const double3 Fm = CDKLM16_F_func(Qm, g);
+    const double um = Qm.y;         // u
+    const double cm = sqrt(g*Qm.x); // sqrt(g*h)
     
-    const float am = min(min(um-cm, up-cp), 0.0f); // largest negative wave speed
-    const float ap = max(max(um+cm, up+cp), 0.0f); // largest positive wave speed
+    const double am = min(min(um-cm, up-cp), 0.0); // largest negative wave speed
+    const double ap = max(max(um+cm, up+cp), 0.0); // largest positive wave speed
     
-    float3 F;
+    double3 F;
     
     F.x = ((ap*Fm.x - am*Fp.x) + ap*am*(Qp.x-Qm.x))/(ap-am);
     F.y = ((ap*Fm.y - am*Fp.y) + ap*am*(Fp.x-Fm.x))/(ap-am);
@@ -78,15 +78,22 @@ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
     return F;
 }
 
+double minmodRawDouble(double backward, double central, double forward) {
 
+    return 0.25
+	*copysign(1.0, backward)
+	*(copysign(1.0, backward) + copysign(1.0, central))
+	*(copysign(1.0, central) + copysign(1.0, forward))
+	*min( min(fabs(backward), fabs(central)), fabs(forward) );
+}
 
+double minmodSlopeDouble(double left, double center, double right, double theta) {
+    const double backward = (center - left) * theta;
+    const double central = (right - left) * 0.5;
+    const double forward = (right - center) * theta;
 
-
-
-
-
-
-
+    return minmodRawDouble(backward, central, forward);
+}
 
 
 
@@ -156,16 +163,16 @@ __kernel void swe_2D(
     const int tj = get_global_id(1) + 2;
     
     // Our physical variables
-    __local float R[3][block_height+4][block_width+4];
+    __local double R[3][block_height+4][block_width+4];
     
     // Our reconstruction variables
-    __local float Q[2][block_height+4][block_width+4];
-    __local float Qx[3][block_height][block_width+2];
-    __local float Qy[3][block_height+2][block_width];
+    __local double Q[2][block_height+4][block_width+4];
+    __local double Qx[3][block_height][block_width+2];
+    __local double Qy[3][block_height+2][block_width];
     
     // Our fluxes
-    __local float F[3][block_height][block_width+1];
-    __local float G[3][block_height+1][block_width];
+    __local double F[3][block_height][block_width+1];
+    __local double G[3][block_height+1][block_width];
     
     
     // Bathymetry
@@ -298,9 +305,9 @@ __kernel void swe_2D(
     for (int j=ty; j<block_height+4; j+=get_local_size(1)) {
         for (int i=tx; i<block_width+4; i+=get_local_size(0)) {
             
-            const float h = R[0][j][i] + Hm[j][i]; // h = eta + H
-            const float u = R[1][j][i] / h;
-            const float v = R[2][j][i] / h;
+            const double h = R[0][j][i] + Hm[j][i]; // h = eta + H
+            const double u = R[1][j][i] / h;
+            const double v = R[2][j][i] / h;
 
             Q[0][j][i] = u;
             Q[1][j][i] = v;
@@ -319,28 +326,28 @@ __kernel void swe_2D(
         for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
             const int k = i + 1;
             for (int p=0; p<2; ++p) {
-                Qx[p][j][i] = minmodSlope(Q[p][l][k-1], Q[p][l][k], Q[p][l][k+1], theta_);
+                Qx[p][j][i] = minmodSlopeDouble(Q[p][l][k-1], Q[p][l][k], Q[p][l][k+1], theta_);
             }
 	    // Qx[2] = Kx, which we need to find differently than ux and vx
-	    float left_eta   = R[0][l][k-1];
-	    float center_eta = R[0][l][k  ];
-	    float right_eta  = R[0][l][k+1];
+	    double left_eta   = R[0][l][k-1];
+	    double center_eta = R[0][l][k  ];
+	    double right_eta  = R[0][l][k+1];
 
-	    float left_v   = Q[1][l][k-1];
-	    float center_v = Q[1][l][k  ];
-	    float right_v  = Q[1][l][k+1];
+	    double left_v   = Q[1][l][k-1];
+	    double center_v = Q[1][l][k  ];
+	    double right_v  = Q[1][l][k+1];
 
-	    float global_thread_y = by + j;
-	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+	    double global_thread_y = by + j;
+	    double coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
 						    dy_, y_zero_reference_);
-	    float V_constant = dx_*coriolis_f/(2.0f*g_);
+	    double V_constant = dx_*coriolis_f/(2.0*g_);
 
-	    float backward = theta_*g_*(center_eta - left_eta   - V_constant*(center_v + left_v ) );
-	    float central  =   0.5f*g_*(right_eta  - left_eta   - V_constant*(right_v + 2*center_v + left_v) ); 
-	    float forward  = theta_*g_*(right_eta  - center_eta - V_constant*(center_v + right_v) );
+	    double backward = theta_*g_*(center_eta - left_eta   - V_constant*(center_v + left_v ) );
+	    double central  =    0.5*g_*(right_eta  - left_eta   - V_constant*(right_v + 2*center_v + left_v) ); 
+	    double forward  = theta_*g_*(right_eta  - center_eta - V_constant*(center_v + right_v) );
 
 	    // Qx[2] is really dx*Kx
-	    Qx[2][j][i] = minmodRaw(backward, central, forward); 
+	    Qx[2][j][i] = minmodRawDouble(backward, central, forward); 
 	    
         }
     }
@@ -351,33 +358,33 @@ __kernel void swe_2D(
         for (int i=tx; i<block_width; i+=get_local_size(0)) {            
             const int k = i + 2; //Skip ghost cells
             for (int p=0; p<2; ++p) {
-                Qy[p][j][i] = minmodSlope(Q[p][l-1][k], Q[p][l][k], Q[p][l+1][k], theta_);
+                Qy[p][j][i] = minmodSlopeDouble(Q[p][l-1][k], Q[p][l][k], Q[p][l+1][k], theta_);
             }
 	    // Qy[2] = Ly, which we need to find differently than uy and vy
-	    float lower_eta  = R[0][l-1][k];
-	    float center_eta = R[0][l  ][k];
-	    float upper_eta  = R[0][l+1][k];
+	    double lower_eta  = R[0][l-1][k];
+	    double center_eta = R[0][l  ][k];
+	    double upper_eta  = R[0][l+1][k];
 
-	    float global_thread_y = by + j;
-	    float center_coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+	    double global_thread_y = by + j;
+	    double center_coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
 							   dy_, y_zero_reference_);
-	    float lower_coriolis_f  = linear_coriolis_term(f_, beta_, global_thread_y - 1,
+	    double lower_coriolis_f  = linear_coriolis_term(f_, beta_, global_thread_y - 1,
 							   dy_, y_zero_reference_);
-	    float upper_coriolis_f  = linear_coriolis_term(f_, beta_, global_thread_y + 1,
+	    double upper_coriolis_f  = linear_coriolis_term(f_, beta_, global_thread_y + 1,
 							   dy_, y_zero_reference_);
 	   	    
-	    float lower_fu  = Q[0][l-1][k]*lower_coriolis_f;
-	    float center_fu = Q[0][l  ][k]*center_coriolis_f;
-	    float upper_fu  = Q[0][l+1][k]*upper_coriolis_f;
+	    double lower_fu  = Q[0][l-1][k]*lower_coriolis_f;
+	    double center_fu = Q[0][l  ][k]*center_coriolis_f;
+	    double upper_fu  = Q[0][l+1][k]*upper_coriolis_f;
 
-	    float U_constant = dy_/(2.0f*g_);
+	    double U_constant = dy_/(2.0*g_);
 
-	    float backward = theta_*g_*(center_eta - lower_eta  + U_constant*(center_fu + lower_fu ) );
-	    float central  =   0.5f*g_*(upper_eta  - lower_eta  + U_constant*(upper_fu + 2*center_fu + lower_fu) ); 
-	    float forward  = theta_*g_*(upper_eta  - center_eta + U_constant*(center_fu + upper_fu) );
+	    double backward = theta_*g_*(center_eta - lower_eta  + U_constant*(center_fu + lower_fu ) );
+	    double central  =    0.5*g_*(upper_eta  - lower_eta  + U_constant*(upper_fu + 2*center_fu + lower_fu) ); 
+	    double forward  = theta_*g_*(upper_eta  - center_eta + U_constant*(center_fu + upper_fu) );
 
 	    // Qy[2] is really dy*Ly
-	    Qy[2][j][i] = minmodRaw(backward, central, forward); 
+	    Qy[2][j][i] = minmodRawDouble(backward, central, forward); 
         }
     }
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -392,43 +399,43 @@ __kernel void swe_2D(
             const int k = i + 1;
 
             // (u, v) reconstructed at a cell interface from the right (p) and left (m)
-	    const float2 Rp = (float2)(Q[0][l][k+1] - 0.5f*Qx[0][j][i+1],
-                                       Q[1][l][k+1] - 0.5f*Qx[1][j][i+1]);
-            const float2 Rm = (float2)(Q[0][l][k  ] + 0.5f*Qx[0][j][i  ],
-                                       Q[1][l][k  ] + 0.5f*Qx[1][j][i  ]);
+	    const double2 Rp = (double2)(Q[0][l][k+1] - 0.5*Qx[0][j][i+1],
+                                       Q[1][l][k+1] - 0.5*Qx[1][j][i+1]);
+            const double2 Rm = (double2)(Q[0][l][k  ] + 0.5*Qx[0][j][i  ],
+                                       Q[1][l][k  ] + 0.5*Qx[1][j][i  ]);
 
             // Variables to reconstruct h from u, v, K, L
-            const float vp = Q[1][l][k+1];
-            const float vm = Q[1][l][k  ];
+            const double vp = Q[1][l][k+1];
+            const double vm = Q[1][l][k  ];
 
 	    // Depth in the cells on each side of the face:
-	    const float Hm_p = Hm[l][k+1];
-	    const float Hm_m = Hm[l][k  ];
+	    const double Hm_p = Hm[l][k+1];
+	    const double Hm_m = Hm[l][k  ];
 	    // H is RHx on the given face!
-	    const float H_face = RHx[j][i];
+	    const double H_face = RHx[j][i];
 
-	    const float eta_bar_p = R[0][l][k+1];
-	    const float eta_bar_m = R[0][l][k  ];
+	    const double eta_bar_p = R[0][l][k+1];
+	    const double eta_bar_m = R[0][l][k  ];
 
 	    // Qx[2] is really dx*Kx
-	    const float Kx_p = Qx[2][j][i+1];
-            const float Kx_m = Qx[2][j][i  ];
+	    const double Kx_p = Qx[2][j][i+1];
+            const double Kx_m = Qx[2][j][i  ];
 
 	    // Coriolis parameter
-	    float global_thread_y = by + j;
-	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+	    double global_thread_y = by + j;
+	    double coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
 						    dy_, y_zero_reference_);
 	    
             // Reconstruct h 
-            const float hp = eta_bar_p + H_face - (Kx_p + dx_*coriolis_f*vp)/(2.0f*g_); 
-	    const float hm = eta_bar_m + H_face + (Kx_m + dx_*coriolis_f*vm)/(2.0f*g_);
+            const double hp = eta_bar_p + H_face - (Kx_p + dx_*coriolis_f*vp)/(2.0*g_); 
+	    const double hm = eta_bar_m + H_face + (Kx_m + dx_*coriolis_f*vm)/(2.0*g_);
 	    
             // Our flux variables Q=(h, u, v)
-            const float3 Qp = (float3)(hp, Rp.x, Rp.y);
-            const float3 Qm = (float3)(hm, Rm.x, Rm.y);
+            const double3 Qp = (double3)(hp, Rp.x, Rp.y);
+            const double3 Qm = (double3)(hm, Rm.x, Rm.y);
                                        
             // Computed flux
-            const float3 flux = CDKLM16_flux(Qm, Qp, g_);
+            const double3 flux = CDKLM16_flux(Qm, Qp, g_);
             F[0][j][i] = flux.x;
             F[1][j][i] = flux.y;
             F[2][j][i] = flux.z;
@@ -441,47 +448,47 @@ __kernel void swe_2D(
         for (int i=tx; i<block_width; i+=get_local_size(0)) {
             const int k = i + 2; //Skip ghost cells
             // Q at interface from the right and left
-	    const float2 Rp = (float2)(Q[0][l+1][k] - 0.5f*Qy[0][j+1][i],
-                                       Q[1][l+1][k] - 0.5f*Qy[1][j+1][i]);
-	    const float2 Rm = (float2)(Q[0][l  ][k] + 0.5f*Qy[0][j  ][i],
-				       Q[1][l  ][k] + 0.5f*Qy[1][j  ][i]);
+	    const double2 Rp = (double2)(Q[0][l+1][k] - 0.5*Qy[0][j+1][i],
+                                       Q[1][l+1][k] - 0.5*Qy[1][j+1][i]);
+	    const double2 Rm = (double2)(Q[0][l  ][k] + 0.5*Qy[0][j  ][i],
+				       Q[1][l  ][k] + 0.5*Qy[1][j  ][i]);
               
             // Variables to reconstruct h from u, v, K, L
-            const float up = Q[0][l+1][k];
-            const float um = Q[0][l  ][k];
+            const double up = Q[0][l+1][k];
+            const double um = Q[0][l  ][k];
 
 	    // Depth in the cells on each side of the face:
-	    const float Hm_p = Hm[l+1][k];
-	    const float Hm_m = Hm[l  ][k];
+	    const double Hm_p = Hm[l+1][k];
+	    const double Hm_m = Hm[l  ][k];
 	    // H is RHx on the given face!
-	    const float H_face = RHy[j][i];
+	    const double H_face = RHy[j][i];
 
-	    const float eta_bar_p = R[0][l+1][k];
-	    const float eta_bar_m = R[0][l  ][k];
+	    const double eta_bar_p = R[0][l+1][k];
+	    const double eta_bar_m = R[0][l  ][k];
 
 	    // Qy[2] is really dy*Ly
-	    const float Ly_p = Qy[2][j+1][i];
-            const float Ly_m = Qy[2][j  ][i];
+	    const double Ly_p = Qy[2][j+1][i];
+            const double Ly_m = Qy[2][j  ][i];
 
 	    // Coriolis parameter
-	    float global_thread_y = by + j;
-	    float coriolis_fm = linear_coriolis_term(f_, beta_, global_thread_y,
+	    double global_thread_y = by + j;
+	    double coriolis_fm = linear_coriolis_term(f_, beta_, global_thread_y,
 						    dy_, y_zero_reference_);
-	    float coriolis_fp = linear_coriolis_term(f_, beta_, global_thread_y + 1, 
+	    double coriolis_fp = linear_coriolis_term(f_, beta_, global_thread_y + 1, 
 						    dy_, y_zero_reference_);
 	    
             // Reconstruct h 
-	    const float hp = eta_bar_p + H_face - ( Ly_p - dy_*coriolis_fp*up)/(2.0f*g_); 
-	    const float hm = eta_bar_m + H_face + ( Ly_m - dy_*coriolis_fm*um)/(2.0f*g_); 
+	    const double hp = eta_bar_p + H_face - ( Ly_p - dy_*coriolis_fp*up)/(2.0*g_); 
+	    const double hm = eta_bar_m + H_face + ( Ly_m - dy_*coriolis_fm*um)/(2.0*g_); 
 
 	    // Our flux variables Q=(h, v, u)
             // Note that we swap u and v
-            const float3 Qp = (float3)(hp, Rp.y, Rp.x);
-            const float3 Qm = (float3)(hm, Rm.y, Rm.x);
+            const double3 Qp = (double3)(hp, Rp.y, Rp.x);
+            const double3 Qm = (double3)(hm, Rm.y, Rm.x);
             
             // Computed flux
             // Note that we swap back u and v
-            const float3 flux = CDKLM16_flux(Qm, Qp, g_);
+            const double3 flux = CDKLM16_flux(Qm, Qp, g_);
             G[0][j][i] = flux.x;
             G[1][j][i] = flux.z;
             G[2][j][i] = flux.y;
@@ -514,20 +521,20 @@ __kernel void swe_2D(
 
 	// Bottom topography source terms!
 	// -g*(eta + H)*(-1)*dH/dx   * dx
-	const float st1 = g_*(R[0][j][i] + Hm[j][i])*(RHx[ty  ][tx+1] - RHx[ty][tx]);
-	const float st2 = g_*(R[0][j][i] + Hm[j][i])*(RHy[ty+1][tx  ] - RHy[ty][tx]);
+	const double st1 = g_*(R[0][j][i] + Hm[j][i])*(RHx[ty  ][tx+1] - RHx[ty][tx]);
+	const double st2 = g_*(R[0][j][i] + Hm[j][i])*(RHy[ty+1][tx  ] - RHy[ty][tx]);
 
 	// Coriolis parameter
-	float global_thread_y = tj-2; // Global id including ghost cells
-	float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+	double global_thread_y = tj-2; // Global id including ghost cells
+	double coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
 						dy_, y_zero_reference_);
 	
-        const float L1  = - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_ 
+        const double L1  = - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_ 
 	                  - (G[0][ty+1][tx  ] - G[0][ty][tx]) / dy_;
-        const float L2  = - (F[1][ty  ][tx+1] - F[1][ty][tx]) / dx_ 
+        const double L2  = - (F[1][ty  ][tx+1] - F[1][ty][tx]) / dx_ 
                           - (G[1][ty+1][tx  ] - G[1][ty][tx]) / dy_
   	                  + (X + coriolis_f*R[2][j][i] + st1/dx_);
-        const float L3  = - (F[2][ty  ][tx+1] - F[2][ty][tx]) / dx_ 
+        const double L3  = - (F[2][ty  ][tx+1] - F[2][ty][tx]) / dx_ 
                           - (G[2][ty+1][tx  ] - G[2][ty][tx]) / dy_
 	                  + (Y - coriolis_f*R[1][j][i] + st2/dy_);
 	
@@ -538,33 +545,33 @@ __kernel void swe_2D(
 
 	if (rk_order < 3) {
          
-	    const float C = 2.0f*r_*dt_/(R[0][j][i] + Hm[j][i]);
+	    const double C = 2.0*r_*dt_/(R[0][j][i] + Hm[j][i]);
                      
 	    if  (step_ == 0) {
 		//First step of RK2 ODE integrator
             
-		eta_row[ti] =  R[0][j][i] + dt_*L1;
-		hu_row[ti]  = (R[1][j][i] + dt_*L2) / (1.0f + C);
-		hv_row[ti]  = (R[2][j][i] + dt_*L3) / (1.0f + C);
+		eta_row[ti] = (float)(  R[0][j][i] + dt_*L1 );
+		hu_row[ti]  = (float)( (R[1][j][i] + dt_*L2) / (1.0 + C) );
+		hv_row[ti]  = (float)( (R[2][j][i] + dt_*L3) / (1.0 + C) );
 	    }
 	    else if (step_ == 1) {
 		//Second step of RK2 ODE integrator
             
 		//First read Q^n
-		const float eta_a = eta_row[ti];
-		const float hu_a  =  hu_row[ti];
-		const float hv_a  =  hv_row[ti];
+		const double eta_a = eta_row[ti];
+		const double hu_a  =  hu_row[ti];
+		const double hv_a  =  hv_row[ti];
             
 		//Compute Q^n+1
-		const float eta_b = 0.5f*(eta_a + (R[0][j][i] + dt_*L1));
-		const float hu_b  = 0.5f*( hu_a + (R[1][j][i] + dt_*L2));
-		const float hv_b  = 0.5f*( hv_a + (R[2][j][i] + dt_*L3));
+		const double eta_b = 0.5*(eta_a + (R[0][j][i] + dt_*L1));
+		const double hu_b  = 0.5*( hu_a + (R[1][j][i] + dt_*L2));
+		const double hv_b  = 0.5*( hv_a + (R[2][j][i] + dt_*L3));
 
 				
 		//Write to main memory
-		eta_row[ti] = eta_b;
-		hu_row[ti]  =  hu_b / (1.0f + 0.5f*C);
-		hv_row[ti]  =  hv_b / (1.0f + 0.5f*C);
+		eta_row[ti] = (float)( eta_b );
+		hu_row[ti]  = (float)( hu_b / (1.0 + 0.5*C) );
+		hv_row[ti]  = (float)( hv_b / (1.0 + 0.5*C) );
 		//hu_row[ti] = RBx[ty][tx];
 		//hv_row[ti] = RBy[ty][tx];
 
@@ -579,9 +586,9 @@ __kernel void swe_2D(
 		//First step of RK3 ODE integrator
 		// q^(1) = q^n + dt*L(q^n)
             
-		eta_row[ti] =  R[0][j][i] + dt_*L1;
-		hu_row[ti]  = (R[1][j][i] + dt_*L2);
-		hv_row[ti]  = (R[2][j][i] + dt_*L3);
+		eta_row[ti] = (float)(  R[0][j][i] + dt_*L1);
+		hu_row[ti]  = (float)( (R[1][j][i] + dt_*L2));
+		hv_row[ti]  = (float)( (R[2][j][i] + dt_*L3));
 
 	    } else if (step_ == 1) {
 		// Second step of RK3 ODE integrator
@@ -589,42 +596,42 @@ __kernel void swe_2D(
 		// Q^n is here in h1, but will be used in next iteration as well --> write to h0
 
 		// First read Q^n:
-		const float eta_a = eta_row[ti];
-		const float hu_a  =  hu_row[ti];
-		const float hv_a  =  hv_row[ti];
+		const double eta_a = eta_row[ti];
+		const double hu_a  =  hu_row[ti];
+		const double hv_a  =  hv_row[ti];
 
 		// Compute Q^(2):
-		const float eta_b = 0.75f*eta_a + 0.25f*(R[0][j][i] + dt_*L1);
-		const float hu_b  = 0.75f* hu_a + 0.25f*(R[1][j][i] + dt_*L2);
-		const float hv_b  = 0.75f* hv_a + 0.25f*(R[2][j][i] + dt_*L3);
+		const double eta_b = 0.75*eta_a + 0.25*(R[0][j][i] + dt_*L1);
+		const double hu_b  = 0.75* hu_a + 0.25*(R[1][j][i] + dt_*L2);
+		const double hv_b  = 0.75* hv_a + 0.25*(R[2][j][i] + dt_*L3);
 
 		// Write output to the input buffer:
 		__global float* const eta_out_row = (__global float*) ((__global char*) eta0_ptr_ + eta0_pitch_*tj);
 		__global float* const hu_out_row  = (__global float*) ((__global char*)  hu0_ptr_ +  hu0_pitch_*tj);
 		__global float* const hv_out_row  = (__global float*) ((__global char*)  hv0_ptr_ +  hv0_pitch_*tj);
-		eta_out_row[ti] = eta_b;
-		hu_out_row[ti]  =  hu_b;
-		hv_out_row[ti]  =  hv_b;
+		eta_out_row[ti] = (float)( eta_b );
+		hu_out_row[ti]  = (float)(  hu_b );
+		hv_out_row[ti]  = (float)(  hv_b );
 		
 	    } else if (step_ == 2) {
 		// Third step of RK3 ODE integrator
 		// Q^n+1 = 1/3 Q^n + 2/3 (Q^(2) + dt*L(Q^(2))
 
 		// First read Q^n:
-		const float eta_a = eta_row[ti];
-		const float hu_a  =  hu_row[ti];
-		const float hv_a  =  hv_row[ti];
+		const double eta_a = eta_row[ti];
+		const double hu_a  =  hu_row[ti];
+		const double hv_a  =  hv_row[ti];
 
 		// Compute Q^n+1:
-		const float eta_b = (eta_a + 2.0f*(R[0][j][i] + dt_*L1)) / 3.0f;
-		const float hu_b  = ( hu_a + 2.0f*(R[1][j][i] + dt_*L2)) / 3.0f;
-		const float hv_b  = ( hv_a + 2.0f*(R[2][j][i] + dt_*L3)) / 3.0f;
+		const double eta_b = (eta_a + 2.0*(R[0][j][i] + dt_*L1)) / 3.0;
+		const double hu_b  = ( hu_a + 2.0*(R[1][j][i] + dt_*L2)) / 3.0;
+		const double hv_b  = ( hv_a + 2.0*(R[2][j][i] + dt_*L3)) / 3.0;
 
 		//Write to main memory
-		eta_row[ti] = eta_b;
-		hu_row[ti]  =  hu_b;
-		hv_row[ti]  =  hv_b;
-
+		eta_row[ti] = (float)( eta_b );
+		hu_row[ti]  = (float)(  hu_b );
+		hv_row[ti]  = (float)(  hv_b );
+		
 		__global float* const Kx_row = (__global float*) ((__global char*) Kx_ptr_ + Kx_pitch_*tj);	    
 		//Kx_row[ti]    = 4;  // K_x
 	    }
@@ -642,6 +649,18 @@ __kernel void swe_2D(
 	    Ly_row[ti]    = Qy[2][ty+1][tx];  // L_y
 	}
 
+	/*
+	float bigone = (float)(dx_*dy_*dy_);
+	float smalli = (float)(1.0)/(float)(dx_);
+	float float_perted_biggi = bigone + smalli;
+	double double_perted_biggi = (double)(bigone) + (double)(smalli);
+
+	float bad_one = float_perted_biggi - bigone;
+	double good_one = double_perted_biggi - (double)(bigone);
+	
+	hu_row[ti]  =  (float)(bad_one);
+	hv_row[ti]  =  (float)(good_one);
+	*/
     }
 
 	

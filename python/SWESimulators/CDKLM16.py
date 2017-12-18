@@ -77,6 +77,7 @@ class CDKLM16:
                  h0AsWaterElevation=False, \
                  reportGeostrophicEquilibrium=False, \
                  write_netcdf=False, \
+                 double_precision = False, \
                  block_width=16, block_height=16):
         
         self.cl_ctx = cl_ctx
@@ -90,7 +91,11 @@ class CDKLM16:
             assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
         
         #Get kernels
-        self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
+        self.kernel = None
+        if double_precision:
+            self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_double_kernel.opencl", block_width, block_height)
+        else:
+            self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
 
         self.ghost_cells_x = 2
         self.ghost_cells_y = 2
