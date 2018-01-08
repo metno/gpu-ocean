@@ -44,6 +44,8 @@ class SimNetCDFReader:
                            self.ncfile.getncattr('ghost_cells_west')]
         self.staggered_grid = str(self.ncfile.getncattr('staggered_grid')) == 'True'
 
+        self.text_font_size = 12
+        
     def get(self, attr):
         try:
             return self.ncfile.getncattr(attr)
@@ -81,6 +83,22 @@ class SimNetCDFReader:
                   self.ghostCells[3]:-self.ghostCells[1]]
         return eta, hu, hv, time[index]
 
+    def getEtaAtTimeStep(self, index):
+        time = self.ncfile.variables['time']
+        eta = self.ncfile.variables['eta'][index, :, :]
+        if self.ignore_ghostcells:
+            eta = eta[self.ghostCells[2]:-self.ghostCells[0], \
+                      self.ghostCells[3]:-self.ghostCells[1]]
+        return eta, time[index]
+
+    def getAxis(self):
+        x = self.ncfile.variables['x']
+        y = self.ncfile.variables['y']
+        if self.ignore_ghostcells:
+            x = x[self.ghostCells[2]:-self.ghostCells[0]]
+            y = y[self.ghostCells[3]:-self.ghostCells[1]]
+        return x, y
+    
     def getEtaXSlice(self, t, y):
         y_index = int(y) + int(self.get('ghost_cells_south'))
         return self.ncfile.variables['eta'][t, y_index, self.ghostCells[3]:-self.ghostCells[1] ]
@@ -124,18 +142,19 @@ class SimNetCDFReader:
         bp = 70 # breakpoint
         if len(msg) > bp:
             rest = '     ' + msg[bp:]
-            ax.text(0.1, self.textPos, msg[0:bp])
+            ax.text(0.1, self.textPos, msg[0:bp], fontsize=self.text_font_size)
             self.textPos -= 0.2
             self._addText(ax, rest)
         else:
-            ax.text(0.1, self.textPos, msg)
+            ax.text(0.1, self.textPos, msg, fontsize=self.text_font_size)
             #print len(msg)
             self.textPos -= 0.2
 
-    def makeInfoPlot(self, ax):
+    def makeInfoPlot(self, ax, text_font_size=8):
+        self.text_font_size = text_font_size
         self.textPos = 2.3
         # Ax is the subplot object
-        ax.text(1, 2.8, 'NetCDF INFO')
+        ax.text(1, 2.8, 'NetCDF INFO', fontsize=self.text_font_size)
         
         #self._addText(ax, 'working directory: ' + self.current_directory)
         self._addText(ax, 'filename: ' + self.filename)
