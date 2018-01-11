@@ -286,6 +286,12 @@ class BoundaryConditions:
                     (self.east != self.west)), \
                     'The given periodic boundary conditions are not periodically (east/west)'
 
+    def get(self):
+        return [self.north, self.east, self.south, self.west]
+    
+    def getSponge(self):
+        return self.spongeCells
+    
     def isDefault(self):
         return (self.north == 1 and \
                 self.east == 1 and \

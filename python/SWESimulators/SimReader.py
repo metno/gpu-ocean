@@ -63,6 +63,12 @@ class SimNetCDFReader:
         #for t in time:
             #print t
         return time.size
+    
+    def getBC(self):
+        return np.fromstring(self.get("boundary_conditions_mr")[1:-1], dtype=int, sep=',')
+    
+    def getBCSpongeCells(self):
+        return np.fromstring(self.get("boundary_conditions_sponge_mr")[1:-1], dtype=int, sep=' ')
 
     def getLastTimeStep(self):
         return self.getTimeStep(-1)
@@ -80,6 +86,10 @@ class SimNetCDFReader:
             hv = hv[self.ghostCells[2]:-self.ghostCells[0], \
                   self.ghostCells[3]:-self.ghostCells[1]]
         return eta, hu, hv, time[index]
+    
+    def getH(self):
+        H = self.ncfile.variables['H'][0, :, :]
+        return H
 
     def _getWaterHeight(self):
         if self.staggered_grid:
