@@ -22,10 +22,15 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
-
 #include "common.opencl"
+#include "../config.h"
 
+#ifndef __OPENCL_VERSION__
+#define __kernel
+#define __global
+#define __local
+#define CLK_LOCAL_MEM_FENCE
+#endif
 
 // Finds the coriolis term based on the linear Coriolis force
 // f = \tilde{f} + beta*y
