@@ -61,6 +61,9 @@ class SimNetCDFWriter:
         # Simulator info
         self.sim = sim
         self.boundary_conditions = str(sim.boundary_conditions)
+        # (machine readable BC)
+        self.boundary_conditions_mr = str(sim.boundary_conditions.get())
+        self.boundary_conditions_sponge_mr = str(sim.boundary_conditions.getSponge())
         
         self.dt = sim.dt
         if self.staggered_grid:
@@ -113,6 +116,8 @@ class SimNetCDFWriter:
         self.ncfile.simulator_long = self.simulator_long
         self.ncfile.simulator_short = self.simulator_short
         self.ncfile.boundary_conditions = self.boundary_conditions
+        self.ncfile.boundary_conditions_mr = self.boundary_conditions_mr
+        self.ncfile.boundary_conditions_sponge_mr = self.boundary_conditions_sponge_mr
         self.ncfile.time_integrator = self.time_integrator
         self.ncfile.minmod_theta = self.minmod_theta
         self.ncfile.coriolis_force = self.coriolis_force
