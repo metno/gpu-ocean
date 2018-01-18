@@ -20,8 +20,14 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "../config.h"
 
-
+#ifndef __OPENCL_VERSION__
+#define __kernel
+#define __global
+#define __local
+#define CLK_LOCAL_MEM_FENCE
+#endif
 
 /**
   * Kernel that evolves eta one step in time.

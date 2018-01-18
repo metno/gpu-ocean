@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
-import Common, SimWriter
+import Common, SimWriter, SimReader
 
 
 
@@ -69,6 +69,7 @@ class CTCS:
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, A, \
+                 t=0.0, \
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
                  wind_stress=Common.WindStressParams(), \
@@ -125,7 +126,7 @@ class CTCS:
         self.wind_stress = wind_stress
         
         #Initialize time
-        self.t = np.float32(0.0)
+        self.t = np.float32(t)
         
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height) 
@@ -145,6 +146,55 @@ class CTCS:
         self.sim_writer = None
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, staggered_grid=True)
+    
+    """
+    Initialize and hotstart simulation from nc-file.
+    cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
+    filename: Continue simulation based on parameters and last timestep in this file
+    """
+    @classmethod
+    def fromfilename(cls, cl_ctx, filename, cont_write_netcdf=True):
+        # open nc-file
+        sim_reader = SimReader.SimNetCDFReader(filename, ignore_ghostcells=False)
+
+        # read parameters
+        nx = sim_reader.get("nx")
+        ny = sim_reader.get("ny")
+
+        dx = sim_reader.get("dx")
+        dy = sim_reader.get("dy")
+
+        width = nx * dx
+        height = ny * dy
+
+        dt = sim_reader.get("dt")
+        g = sim_reader.get("g")
+        r = sim_reader.get("bottom_friction_r")
+        A = sim_reader.get("eddy_viscosity_coefficient")
+        f = sim_reader.get("coriolis_force")
+
+        wind_stress_type = sim_reader.get("wind_stress_type")
+        wind = Common.WindStressParams(type=wind_stress_type)
+
+        boundaryConditions = Common.BoundaryConditions( \
+            sim_reader.getBC()[0], sim_reader.getBC()[1], \
+            sim_reader.getBC()[2], sim_reader.getBC()[3], \
+            sim_reader.getBCSpongeCells())
+
+        h0 = sim_reader.getH();
+
+        # get last timestep (including simulation time of last timestep)
+        eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
+        
+        return cls(cl_ctx, \
+                h0, eta0, hu0, hv0, \
+                nx, ny, \
+                dx, dy, dt, \
+                g, f, r, A, \
+                t=time0, \
+                wind_stress=wind, \
+                boundary_conditions=boundaryConditions, \
+                write_netcdf=cont_write_netcdf)
 
     """
     Clean up function
