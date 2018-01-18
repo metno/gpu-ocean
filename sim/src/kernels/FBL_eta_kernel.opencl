@@ -20,7 +20,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "../config.h"
+//#include "../config.h"
 
 #ifndef __OPENCL_VERSION__
 #define __kernel
@@ -40,8 +40,8 @@ __kernel void computeEtaKernel(
         //Physical parameters
         float g_, //< Gravitational constant
         float f_, //< Coriolis coefficient
-	float beta_, //< Coriolis force f_ + beta_*y
-	float y_zero_reference_, // the cell representing y = 0.5*dy
+	float beta_, //< Coriolis force f_ + beta_*(y-y0)
+	float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
         float r_, //< Bottom friction coefficient
     
         //Data

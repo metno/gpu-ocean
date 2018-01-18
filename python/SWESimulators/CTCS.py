@@ -57,7 +57,8 @@ class CTCS:
     f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
     r: Bottom friction coefficient (2.4e-3 m/s)
     A: Eddy viscosity coefficient (O(dx))
-    coriolis_beta: Coriolis linear factor -> f = f + beta*y
+    coriolis_beta: Coriolis linear factor -> f = f + beta*(y-y_0)
+    y_zero_reference_cell: The cell representing y_0 in the above, defined as the lower face of the cell.
     wind_stress: Wind stress parameters
     boundary_conditions: Boundary condition object
     write_netcdf: Write the results after each superstep to a netCDF file
@@ -70,6 +71,7 @@ class CTCS:
                  g, f, r, A, \
                  t=0.0, \
                  coriolis_beta=0.0, \
+                 y_zero_reference_cell = 0, \
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
@@ -95,12 +97,12 @@ class CTCS:
         halo_y = 1
         self.ghost_cells_x = 1
         self.ghost_cells_y = 1
-        y_zero_reference = 1
+        self.y_zero_reference_cell = np.float32(y_zero_reference_cell + 1)
         self.boundary_conditions = boundary_conditions
         if boundary_conditions.isSponge():
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
-            y_zero_reference = boundary_conditions.spongeCells[2]
+            self.y_zero_reference_cell = np.float32(y_zero_reference_cell + boundary_conditions.spongeCells[2])
 
               
         self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, halo_x, halo_y, H)
@@ -119,7 +121,6 @@ class CTCS:
         self.g = np.float32(g)
         self.f = np.float32(f)
         self.coriolis_beta = np.float32(coriolis_beta)
-        self.y_zero_reference = np.int32(y_zero_reference)
         self.r = np.float32(r)
         self.A = np.float32(A)
         self.wind_stress = wind_stress
@@ -239,7 +240,7 @@ class CTCS:
             self.eta_kernel.computeEtaKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
                     self.dx, self.dy, local_dt, \
-                    self.g, self.f, self.coriolis_beta, self.y_zero_reference, self.r, \
+                    self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
                     self.cl_data.h0.data, self.cl_data.h0.pitch,     # eta^{n-1} => eta^{n+1} \
                     self.cl_data.hu1.data, self.cl_data.hu1.pitch,   # U^{n} \
                     self.cl_data.hv1.data, self.cl_data.hv1.pitch)   # V^{n}
@@ -250,7 +251,7 @@ class CTCS:
                     self.nx, self.ny, \
                     self.boundary_conditions.east, self.boundary_conditions.west, \
                     self.dx, self.dy, local_dt, \
-                    self.g, self.f, self.coriolis_beta, self.y_zero_reference, \
+                    self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, \
                     self.r, self.A,\
                     self.H.data, self.H.pitch, \
                     self.cl_data.h1.data, self.cl_data.h1.pitch,      # eta^{n} \
@@ -269,7 +270,7 @@ class CTCS:
                     self.nx, self.ny, \
                     self.boundary_conditions.north, self.boundary_conditions.south, \
                     self.dx, self.dy, local_dt, \
-                    self.g, self.f, self.coriolis_beta, self.y_zero_reference, \
+                    self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, \
                     self.r, self.A,\
                     self.H.data, self.H.pitch, \
                     self.cl_data.h1.data, self.cl_data.h1.pitch,     # eta^{n} \

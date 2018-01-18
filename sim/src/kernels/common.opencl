@@ -633,6 +633,7 @@ float3 F_func(const float3 Q, const float g) {
     return F;
 }
 
+
 /**
   * Central upwind flux function
   * Takes Q = [h, hu, hv] as input, not [w, hu, hv].
@@ -665,15 +666,15 @@ float3 F_func_bottom(const float3 Q, const float h, const float u, const float g
 
 /**
   * Central upwind flux function
-  * Takes Q = [h, hu, hv] as input, not [w, hu, hv].
+  * Takes Q = [eta, hu, hv] as input
   */
-float3 CentralUpwindFluxBottom(const float3 Qm, float3 Qp, const float b, const float g) {
-    const float hp = Qp.x - b;  // h = w - B
+float3 CentralUpwindFluxBottom(const float3 Qm, float3 Qp, const float H, const float g) {
+    const float hp = Qp.x + H;  // h = eta + H
     const float up = Qp.y / (float) hp; // hu/h
     const float3 Fp = F_func_bottom(Qp, hp, up, g);
     const float cp = sqrt(g*hp); // sqrt(g*h)
 
-    const float hm = Qm.x - b;
+    const float hm = Qm.x + H;
     const float um = Qm.y / (float) hm;   // hu / h
     const float3 Fm = F_func_bottom(Qm, hm, um, g);
     const float cm = sqrt(g*hm); // sqrt(g*h)
@@ -692,11 +693,11 @@ float3 CentralUpwindFluxBottom(const float3 Qm, float3 Qp, const float b, const 
 
 
 /**
-  *  Source terms related to bathymetry 
+  *  Source terms related to bathymetry  
   */
 float bottomSourceTerm2(__local float   Q[3][block_height+4][block_width+4],
 			__local float  Qx[3][block_height+2][block_width+2],
-			__local float RBx[block_height+4][block_width+4],
+			__local float RHx[block_height+4][block_width+4],
 			const float g, 
 			const int p, const int q) {
     // Compansating for the smaller shmem for Qx relative to Q:
@@ -705,12 +706,14 @@ float bottomSourceTerm2(__local float   Q[3][block_height+4][block_width+4],
     
     const float hp = Q[0][q][p] + Qx[0][qQx][pQx];
     const float hm = Q[0][q][p] - Qx[0][qQx][pQx];
-    return 0.5f*g*(RBx[q][p+1] - RBx[q][p])*(hp - RBx[q][p+1] + hm - RBx[q][p]);
+    // g (w - B)*B_x -> KP07 equations (3.15) and (3.16)
+    // With eta: g (eta + H)*(-H_x)
+    return -0.5f*g*(RHx[q][p+1] - RHx[q][p])*(hp + RHx[q][p+1] + hm + RHx[q][p]);
 }
 
 float bottomSourceTerm3(__local float   Q[3][block_height+4][block_width+4],
 			__local float  Qy[3][block_height+2][block_width+2],
-			__local float RBy[block_height+4][block_width+4],
+			__local float RHy[block_height+4][block_width+4],
 			const float g, 
 			const int p, const int q) {
     // Compansating for the smaller shmem for Qy relative to Q:
@@ -719,7 +722,7 @@ float bottomSourceTerm3(__local float   Q[3][block_height+4][block_width+4],
     
     const float hp = Q[0][q][p] + Qy[0][qQy][pQy];
     const float hm = Q[0][q][p] - Qy[0][qQy][pQy];
-    return 0.5f*g*(RBy[q+1][p] - RBy[q][p])*(hp - RBy[q+1][p] + hm - RBy[q][p]);
+    return -0.5f*g*(RHy[q+1][p] - RHy[q][p])*(hp + RHy[q+1][p] + hm + RHy[q][p]);
 }
 
 

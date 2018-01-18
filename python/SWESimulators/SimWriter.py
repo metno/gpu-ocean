@@ -74,6 +74,7 @@ class SimNetCDFWriter:
         self.minmod_theta = sim.theta
         self.coriolis_force = sim.f
         self.coriolis_beta = sim.coriolis_beta
+        self.y_zero_reference_cell = sim.y_zero_reference_cell
         self.wind_stress = sim.wind_stress
         self.eddy_viscosity_coefficient = sim.A
         g = sim.g
@@ -122,6 +123,7 @@ class SimNetCDFWriter:
         self.ncfile.minmod_theta = self.minmod_theta
         self.ncfile.coriolis_force = self.coriolis_force
         self.ncfile.coriolis_beta = self.coriolis_beta
+        self.ncfile.y_zero_reference_cell = self.y_zero_reference_cell
         self.ncfile.wind_stress_type = self.wind_stress.type
         self.ncfile.eddy_viscosity_coefficient = self.eddy_viscosity_coefficient
         self.ncfile.g = g  

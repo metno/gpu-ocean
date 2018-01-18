@@ -1,5 +1,5 @@
 #include "../reconstructH_types.h"
-#include "../config.h"
+//#include "../config.h"
 
 #ifndef __OPENCL_VERSION__
 #define __kernel

@@ -43,10 +43,10 @@ class CDKLM16:
 
     """
     Initialization routine
-    h0: Water depth incl ghost cells, (nx+4)*(ny+4) cells
+    eta0: Water level incl ghost cells, (nx+4)*(ny+4) cells
     u0: Initial momentum along x-axis incl ghost cells, (nx+4)*(ny+4) cells
     v0: Initial momentum along y-axis incl ghost cells, (nx+4)*(ny+4) cells
-    Bi: Bottom topography defined on cell corners, (nx+5)*(ny+5) corners
+    Hi: Equilibrium water depth defined on cell corners, (nx+5)*(ny+5) corners
     nx: Number of cells along x-axis
     ny: Number of cells along y-axis
     dx: Grid cell spacing along x-axis (20 000 m)
@@ -58,6 +58,7 @@ class CDKLM16:
     theta: minmod reconstruction parameter
     rk_order: Order of Runge Kutta method {1,2*,3}
     coriolis_beta: Coriolis linear factor -> f = f + beta*y
+    y_zero_reference_cell: The cell representing y_0 in the above, defined as the lower face of the cell.
     wind_stress: Wind stress parameters
     boundary_conditions: Boundary conditions object
     h0AsWaterElevation: True if h0 is described by the surface elevation, and false if h0 is described by water depth
@@ -66,17 +67,20 @@ class CDKLM16:
     """
     def __init__(self, \
                  cl_ctx, \
-                 h0, hu0, hv0, \
-                 Bi, \
+                 eta0, hu0, hv0, \
+                 Hi, \
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
-                 theta=1.3, rk_order=2, coriolis_beta=0.0, \
+                 theta=1.3, rk_order=2, \
+                 coriolis_beta=0.0, \
+                 y_zero_reference_cell = 0, \
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
-                 h0AsWaterElevation=True, \
+                 h0AsWaterElevation=False, \
                  reportGeostrophicEquilibrium=False, \
                  write_netcdf=False, \
+                 double_precision = False, \
                  block_width=16, block_height=16):
         
         self.cl_ctx = cl_ctx
@@ -84,25 +88,33 @@ class CDKLM16:
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
         self.A = "NA"  # Eddy viscocity coefficient
+
+        ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
+        if ( np.sum(eta0 - Hi[:-1, :-1] > 0) > nx):
+            assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
         
         #Get kernels
-        self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
+        self.kernel = None
+        if double_precision:
+            self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_double_kernel.opencl", block_width, block_height)
+        else:
+            self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
 
         self.ghost_cells_x = 2
         self.ghost_cells_y = 2
         ghost_cells_x = 2
         ghost_cells_y = 2
-        y_zero_reference = 2
+        self.y_zero_reference = np.float32(2 + y_zero_reference_cell)
         
         # Boundary conditions
         self.boundary_conditions = boundary_conditions
         if (boundary_conditions.isSponge()):
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
-            y_zero_reference = boundary_conditions.spongeCells[2]
+            self.y_zero_reference_cell = np.float32(boundary_conditions.spongeCells[2] + y_zero_reference_cell)
         
         #Create data by uploading to device
-        self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, h0, hu0, hv0)
+        self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
 
         ## Allocating memory for geostrophical equilibrium variables
         self.reportGeostrophicEquilibrium = np.int32(reportGeostrophicEquilibrium)
@@ -112,7 +124,7 @@ class CDKLM16:
         self.geoEq_Ly = Common.OpenCLArray2D(cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
 
         #Bathymetry
-        self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Bi, boundary_conditions)
+        self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Hi, boundary_conditions)
 
         assert( rk_order < 4 or rk_order > 0 ), "Only 1st, 2nd and 3rd order Runge Kutta supported"
 
@@ -133,7 +145,6 @@ class CDKLM16:
         self.theta = np.float32(theta)
         self.rk_order = np.int32(rk_order)
         self.coriolis_beta = np.float32(coriolis_beta)
-        self.y_zero_reference = np.int32(y_zero_reference)
         self.wind_stress = wind_stress
         self.h0AsWaterElevation = h0AsWaterElevation
 
@@ -271,7 +282,7 @@ class CDKLM16:
                            self.theta, \
                            self.f, \
                            self.coriolis_beta, \
-                           self.y_zero_reference, \
+                           self.y_zero_reference_cell, \
                            self.r, \
                            self.rk_order, \
                            np.int32(rk_step), \
