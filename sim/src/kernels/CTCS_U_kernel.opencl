@@ -25,13 +25,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 // Finds the coriolis term based on the linear Coriolis force
-// f = \tilde{f} + beta*y
+// f = \tilde{f} + beta*(y-y0)
 float linear_coriolis_term(const float f, const float beta,
 			   const float tj, const float dy,
-			   const float y_zero_reference) {
-    // y_zero_reference is the number of ghost cells
-    // and represent the tj so that y = 0.5*dy
-    float y = (tj-y_zero_reference + 0.5f)*dy;
+			   const float y_zero_reference_cell) {
+    // y_0 is at the southern face of the row y_zero_reference_cell.
+    float y = (tj-y_zero_reference_cell + 0.5f)*dy;
     return f + beta * y;
 }
 
@@ -47,8 +46,8 @@ __kernel void computeUKernel(
         //Physical parameters
         float g_, //< Gravitational constant
         float f_, //< Coriolis coefficient
-	float beta_, //< Coriolis force f_ + beta_*y
-	float y_zero_reference_, // the cell row representing y = 0.5*dy
+	float beta_, //< Coriolis force f_ + beta_*(y-y0)
+	float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
         float r_, //< Bottom friction coefficient
     
         //Numerical diffusion
@@ -211,8 +210,8 @@ __kernel void computeUKernel(
 
     // Coriolis at U positions:
     const float glob_thread_y = get_global_id(1);
-    float f_v_0 = linear_coriolis_term(f_, beta_, glob_thread_y+0.5f, dy_, y_zero_reference_);
-    float f_v_m = linear_coriolis_term(f_, beta_, glob_thread_y-0.5f, dy_, y_zero_reference_);
+    float f_v_0 = linear_coriolis_term(f_, beta_, glob_thread_y+0.5f, dy_, y_zero_reference_cell_);
+    float f_v_m = linear_coriolis_term(f_, beta_, glob_thread_y-0.5f, dy_, y_zero_reference_cell_);
     
     //Reconstruct H_bar and H_x (at the U position)
     const float H_bar_0m = 0.25f*(H_0m + H_pm + H_00 + H_p0);
@@ -257,7 +256,7 @@ __kernel void computeUKernel(
 
     // Finding the contribution from Coriolis
     float global_thread_y = get_global_id(1);
-    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_, y_zero_reference_);
+    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_, y_zero_reference_cell_);
     
     //Compute the V at the next timestep
     float U2 = (U0 + 2.0f*dt_*(fV_bar + (N + P_x)/dx_ + X + A_*E) ) / C;
