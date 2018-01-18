@@ -40,8 +40,8 @@ class KP07:
 
     """
     Initialization routine
-    w0: Water elevation incl ghost cells, (nx+4)*(ny+4) cells
-    Bi: Bottom elevation defined on cell corners, (nx+5)*(ny+5) corners
+    eta0: Water elevation incl ghost cells, (nx+4)*(ny+4) cells
+    Hi: Depth from equilibrium defined on cell corners, (nx+5)*(ny+5) corners
     hu0: Initial momentum along x-axis incl ghost cells, (nx+4)*(ny+4) cells
     hv0: Initial momentum along y-axis incl ghost cells, (nx+4)*(ny+4) cells
     nx: Number of cells along x-axis
@@ -53,6 +53,9 @@ class KP07:
     f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
     r: Bottom friction coefficient (2.4e-3 m/s)
     theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
+    use_rk2: Boolean if to use 2nd order Runge-Kutta (false -> 1st order forward Euler)
+    coriolis_beta: Coriolis linear factor -> f = f + beta*(y-y_0)
+    y_zero_reference_cell: The cell representing y_0 in the above, defined as the lower face of the cell.
     wind_type: Type of wind stress, 0=Uniform along shore, 1=bell shaped along shore, 2=moving cyclone
     wind_tau0: Amplitude of wind stress (Pa)
     wind_rho: Density of sea water (1025.0 kg / m^3)
@@ -67,11 +70,13 @@ class KP07:
     """
     def __init__(self, \
                  cl_ctx, \
-                 w0, Bi, hu0, hv0, \
+                 eta0, Hi, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
                  g, f=0.0, r=0.0, \
-                 theta=1.3, use_rk2=True, coriolis_beta=0.0, \
+                 theta=1.3, use_rk2=True,
+                 coriolis_beta=0.0, \
+                 y_zero_reference_cell = 0, \
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
@@ -82,6 +87,11 @@ class KP07:
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
 
+        ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
+        if ( np.sum(eta0 - Hi[:-1, :-1] > 0) > nx):
+            assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
+
+        
         #Get kernels
         self.kp07_kernel = Common.get_kernel(self.cl_ctx, "KP07_kernel.opencl", block_width, block_height)
         
@@ -89,7 +99,7 @@ class KP07:
         ghost_cells_y = 2
         self.ghost_cells_x = ghost_cells_x
         self.ghost_cells_y = ghost_cells_y
-        y_zero_reference = 2
+        self.y_zero_reference_cell = np.float32(2.0 + y_zero_reference_cell)
         
         # Boundary conditions
         self.boundary_conditions = boundary_conditions
@@ -99,13 +109,13 @@ class KP07:
         if (boundary_conditions.isSponge()):
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
-            y_zero_reference = boundary_conditions.spongeCells[2]
+            self.y_zero_reference_cell = np.float32(boundary_conditions.spongeCells[2] + y_zero_reference_cell)
             
         #Create data by uploading to device    
-        self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, w0, hu0, hv0)
+        self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
         
         #Bathymetry
-        self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Bi, boundary_conditions)
+        self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Hi, boundary_conditions)
         
         #Save input parameters
         #Notice that we need to specify them in the correct dataformat for the
@@ -121,7 +131,6 @@ class KP07:
         self.theta = np.float32(theta)
         self.use_rk2 = use_rk2
         self.coriolis_beta = np.float32(coriolis_beta)
-        self.y_zero_reference = np.int32(y_zero_reference)
         self.rk_order = np.int32(use_rk2 + 1)
         self.wind_stress = wind_stress
         
@@ -181,7 +190,7 @@ class KP07:
                         self.theta, \
                         self.f, \
                         self.coriolis_beta, \
-                        self.y_zero_reference, \
+                        self.y_zero_reference_cell, \
                         self.r, \
                         np.int32(0), \
                         self.cl_data.h0.data,  self.cl_data.h0.pitch,  \
@@ -209,7 +218,7 @@ class KP07:
                         self.theta, \
                         self.f, \
                         self.coriolis_beta, \
-                        self.y_zero_reference, \
+                        self.y_zero_reference_cell, \
                         self.r, \
                         np.int32(1), \
                         self.cl_data.h1.data,  self.cl_data.h1.pitch,  \
@@ -237,7 +246,7 @@ class KP07:
                         self.theta, \
                         self.f, \
                         self.coriolis_beta, \
-                        self.y_zero_reference, \
+                        self.y_zero_reference_cell, \
                         self.r, \
                         np.int32(0), \
                         self.cl_data.h0.data,  self.cl_data.h0.pitch,  \
