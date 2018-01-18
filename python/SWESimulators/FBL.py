@@ -99,7 +99,7 @@ class FBL:
         ghost_cells_x = 0
         ghost_cells_y = 0
         self.ghost_cells_x = ghost_cells_x
-        self.ghost_cells_y = ghost_cells_yy_zero_reference_cell
+        self.ghost_cells_y = ghost_cells_y
         self.y_zero_reference = np.float32(y_zero_reference_cell + 0)
         self.asym_ghost_cells = [0, 0, 0, 0] # [N, E, S, W]
         # Add asym ghost cell if periodic boundary condition:
