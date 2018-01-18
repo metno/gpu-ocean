@@ -58,6 +58,7 @@ class CDKLM16:
     theta: minmod reconstruction parameter
     rk_order: Order of Runge Kutta method {1,2*,3}
     coriolis_beta: Coriolis linear factor -> f = f + beta*y
+    y_zero_reference_cell: The cell representing y_0 in the above, defined as the lower face of the cell.
     wind_stress: Wind stress parameters
     boundary_conditions: Boundary conditions object
     h0AsWaterElevation: True if h0 is described by the surface elevation, and false if h0 is described by water depth
@@ -71,7 +72,9 @@ class CDKLM16:
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
-                 theta=1.3, rk_order=2, coriolis_beta=0.0, \
+                 theta=1.3, rk_order=2, \
+                 coriolis_beta=0.0, \
+                 y_zero_reference_cell = 0, \
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  h0AsWaterElevation=False, \
@@ -101,14 +104,14 @@ class CDKLM16:
         self.ghost_cells_y = 2
         ghost_cells_x = 2
         ghost_cells_y = 2
-        y_zero_reference = 2
+        self.y_zero_reference = np.float32(2 + y_zero_reference_cell)
         
         # Boundary conditions
         self.boundary_conditions = boundary_conditions
         if (boundary_conditions.isSponge()):
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
-            y_zero_reference = boundary_conditions.spongeCells[2]
+            self.y_zero_reference_cell = np.float32(boundary_conditions.spongeCells[2] + y_zero_reference_cell)
         
         #Create data by uploading to device
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
@@ -142,7 +145,6 @@ class CDKLM16:
         self.theta = np.float32(theta)
         self.rk_order = np.int32(rk_order)
         self.coriolis_beta = np.float32(coriolis_beta)
-        self.y_zero_reference = np.int32(y_zero_reference)
         self.wind_stress = wind_stress
         self.h0AsWaterElevation = h0AsWaterElevation
 
@@ -280,7 +282,7 @@ class CDKLM16:
                            self.theta, \
                            self.f, \
                            self.coriolis_beta, \
-                           self.y_zero_reference, \
+                           self.y_zero_reference_cell, \
                            self.r, \
                            self.rk_order, \
                            np.int32(rk_step), \

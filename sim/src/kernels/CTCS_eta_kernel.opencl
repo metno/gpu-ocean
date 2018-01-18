@@ -23,13 +23,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 // Finds the coriolis term based on the linear Coriolis force
-// f = \tilde{f} + beta*y
+// f = \tilde{f} + beta*(y-y0)
 float linear_coriolis_term(const float f, const float beta,
 			   const float tj, const float dy,
-			   const float y_zero_reference) {
-    // y_zero_reference is the number of ghost cells
-    // and represent the tj so that y = 0.5*dy
-    float y = (tj-y_zero_reference + 0.5)*dy;
+			   const float y_zero_reference_cell) {
+    // y_0 is at the southern face of the row y_zero_reference_cell.
+    float y = (tj-y_zero_reference_cell + 0.5)*dy;
     return f + beta * y;
 }
 
@@ -44,8 +43,8 @@ __kernel void computeEtaKernel(
         //Physical parameters
         float g_, //< Gravitational constant
         float f_, //< Coriolis coefficient
-	float beta_, //< Coriolis force f_ + beta_*y
-	float y_zero_reference_, // the cell representing y = 0.5*dy
+	float beta_, //< Coriolis force f_ + beta_*(y-y0)
+	float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
         float r_, //< Bottom friction coefficient
     
         //Data
