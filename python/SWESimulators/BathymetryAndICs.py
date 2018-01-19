@@ -168,6 +168,50 @@ def addWideDebugBump(eta, nx, ny, dx, dy, posx, posy, width_factor, halo):
             if (np.sqrt(x**2 + y**2) < size):
                 eta[j+halo[2], i+halo[3]] += np.exp(-(x**2/size+y**2/size))
 
+
+
+def eta_gauss_func(rel_x, rel_y, bump_height, bump_width):
+    return bump_height*np.exp(- ((rel_x)**2 + (rel_y)**2)/ bump_width)
+
+"""
+Defines a gaussian bump in the surface, which is balanced according to the 
+geostrophic balance by hu and hv.
+"""
+def initializeBalancedBumpOverPoint(eta, hu, hv, # allocated buffers to be filled with data (output)
+                                    nx, ny, dx, dy, ghosts, # grid data
+                                    rel_x0, rel_y0, # relative placement of bump center
+                                    bump_height, rel_bump_width, # bump information
+                                    f, H0, # parameters defined at the bump centre (coriolis force, water depth)
+                                    g # Other parameters (gravity)
+                                   ):
+    staggered = not (eta.shape == hu.shape)
+    staggered_increment = int(staggered)*1
+    staggered_x = int(staggered)*0.5*dx
+    staggered_y = int(staggered)*0.5*dy
+    #print "Staggered_{x,y,increment}: ", staggered_x, staggered_y, staggered_increment
+    # Find center of bump
+    x0 = nx*dx*rel_x0
+    y0 = ny*dy*rel_y0
+    bump_width = rel_bump_width*500*min(dx, dy)
+    
+    for j in range(-ghosts[2], ny+ghosts[0]):
+        #y = (j+0.5)*dy
+        y = (j)*dy
+        rel_y = y - y0
+        y_hv = y - staggered_y
+        rel_y_hv = y_hv - y0
+        for i in range(-ghosts[3], nx+ghosts[1]):
+            #x = (i+0.5)*dx
+            x = (i)*dx
+            rel_x = x - x0
+            x_hu = x - staggered_x
+            rel_x_hu = x_hu - x0
+            
+            eta[j+ghosts[2], i+ghosts[1]] = eta_gauss_func(rel_x, rel_y, bump_height, bump_width)
+            
+            hu[j+ghosts[2], i+ghosts[1]] =  (g*H0/f)*2*(rel_y/bump_width)*eta_gauss_func(rel_x_hu, rel_y, bump_height, bump_width)
+            
+            hv[j+ghosts[2], i+ghosts[1]] = -(g*H0/f)*2*(rel_x/bump_width)*eta_gauss_func(rel_x, rel_y_hv, bump_height, bump_width)
                 
 
 """
@@ -252,8 +296,7 @@ def linearBathymetryX(B, nx, ny, dx, dy, halo, low, high):
 """
 Generates a bathymetry with a constant slope along the y-axis.
 B(x,y) = low + y*(high-low)/(ny*dy)
-"""
-            
+"""           
 def linearBathymetryY(B, nx, ny, dx, dy, halo, low, high):
     length=dy*ny*1.0
     gradient = (high-low)/length
@@ -271,6 +314,19 @@ def diagonalWallBathymetry(B, nx, ny, dx, dy, halo, height):
             if ( i-j > -30 and i-j < 10):
                 factor = 1 - np.exp(-0.01*(abs(10 - j + i)**2))
             B[j+halo[2], i+halo[3]] = factor*height*np.exp(-0.006*(abs(100-j - i)**2))
+
+        
+"""
+Generates a bathymetry with an exponential slope along the y-axis.
+B(x,y) = low + y*(high-low)/(ny*dy)
+"""
+def exponentialBathymetryY(B, nx, ny, dx, dy, halo, low, high):
+    length=dy*ny*1.0
+    gradient = (high-low)/length
+    for j in range(0, ny+1):
+        for i in range(0, nx+1):
+            B[j+halo[2], i+halo[3]] = low + j*dy*gradient
+            
 
 """
 Generates initial conditions for a dam break, where the dam is diagonal in a 
