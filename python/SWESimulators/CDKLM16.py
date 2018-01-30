@@ -104,7 +104,7 @@ class CDKLM16:
         self.ghost_cells_y = 2
         ghost_cells_x = 2
         ghost_cells_y = 2
-        self.y_zero_reference = np.float32(2 + y_zero_reference_cell)
+        self.y_zero_reference_cell = np.float32(2 + y_zero_reference_cell)
         
         # Boundary conditions
         self.boundary_conditions = boundary_conditions
