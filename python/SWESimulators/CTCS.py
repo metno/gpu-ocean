@@ -90,6 +90,7 @@ class CTCS:
         self.v_kernel = Common.get_kernel(self.cl_ctx, "CTCS_V_kernel.opencl", block_width, block_height)
         self.eta_kernel = Common.get_kernel(self.cl_ctx, "CTCS_eta_kernel.opencl", block_width, block_height)
 
+        #self.u_kernel_exec = self.u_kernel.computeUKernel
         
         
         #Create data by uploading to device
@@ -248,6 +249,7 @@ class CTCS:
             self.bc_kernel.boundaryConditionEta(self.cl_queue, self.cl_data.h0)
             
             self.u_kernel.computeUKernel(self.cl_queue, self.global_size, self.local_size, \
+            #self.u_kernel_exec(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
                     self.boundary_conditions.east, self.boundary_conditions.west, \
                     self.dx, self.dy, local_dt, \
