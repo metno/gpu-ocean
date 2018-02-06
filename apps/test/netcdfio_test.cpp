@@ -49,7 +49,6 @@ struct MasterTestSuiteFixture {
         words.push_back("0");
         words.push_back("--outputFile");
         words.push_back(outputFile);
-        words.push_back("--cpu");
         pair<int, char **> args = createArgs(words);
         Manager::init(args.first, args.second);
     }
