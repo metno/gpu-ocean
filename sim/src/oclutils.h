@@ -119,6 +119,11 @@ public:
     static cl::Kernel *getKernel(const std::string &tag);
 
     /**
+	 * Returns the program object for the current device.
+	 */
+	static cl::Program *getProgram();
+
+    /**
      * Returns the command queue for the current device.
      */
     static cl::CommandQueue *getQueue();
@@ -146,7 +151,7 @@ private:
     static std::vector<cl::Device> devices;
     static cl_uint devIndex; // index of current device
     static std::shared_ptr<cl::Context> context;
-    static std::shared_ptr<cl::Program> program;
+    static cl::Program *program;
     static std::map<std::string, std::shared_ptr<cl::Kernel> > kernels; // tag-to-kernel mapping
     static std::shared_ptr<cl::CommandQueue> queue;
 };

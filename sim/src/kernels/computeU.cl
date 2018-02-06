@@ -1,6 +1,6 @@
 #include "../computeU_types.h"
 #include "../windStress_types.h"
-//#include "../config.h"
+#include "../config.h"
 #include "common.opencl"
 
 #ifndef __OPENCL_VERSION__

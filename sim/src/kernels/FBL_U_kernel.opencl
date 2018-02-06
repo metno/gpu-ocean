@@ -21,7 +21,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "common.opencl"
-//#include "../config.h"
+#include "../config.h"
 
 #ifndef __OPENCL_VERSION__
 #define __kernel
