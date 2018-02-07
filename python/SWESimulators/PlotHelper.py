@@ -163,6 +163,15 @@ class PlotHelper:
         time.sleep(0.001)
         
         
+    def showParticles(self, particlePositions, observationPosition=None):
+        self.fig.add_subplot(self.gs[0, 0])
+        plt.scatter(x=particlePositions[:,0], y=particlePositions[:,1], color='blue')
+        if observationPosition is not None:
+            plt.scatter(x=observationPosition[0], y=observationPosition[1], color='red')
+        
+        plt.show()
+        
+        
 
 """
 For easily creating a plot of values on a 2D domain
