@@ -166,7 +166,9 @@ class PlotHelper:
         
         
     def showParticles(self, particlePositions, observationPositions=None):
-        
+    # TODO: Change input to GlobalParticle object.
+    # Can then also plot ensemble mean, and perhaps visualize ensemble variance.
+       
         self.particles.set_offsets(particlePositions)
         if observationPositions is not None:
             self.observations.set_offsets(observationPositions)
