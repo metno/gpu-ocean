@@ -61,6 +61,7 @@ class PlotHelper:
         plt.colorbar()
         self.particles = plt.scatter(x=None, y=None, color='blue')
         self.observations = plt.scatter(x=None, y=None, color='red')
+        self.ensembleMean = plt.scatter(x=None, y=None, color='red', marker='+')
         
         ax = self.fig.add_subplot(self.gs[0, 1])
         self.sp_u = plt.imshow(u1, interpolation=interpolation_type, origin='bottom', vmin=-1.5, vmax=1.5, extent=domain_extent)
@@ -165,11 +166,12 @@ class PlotHelper:
         time.sleep(0.001)
         
         
-    def showParticles(self, particlePositions, observationPositions=None):
+    def showParticles(self, particlePositions, observationPositions=None, mean=None):
     # TODO: Change input to GlobalParticle object.
     # Can then also plot ensemble mean, and perhaps visualize ensemble variance.
        
         self.particles.set_offsets(particlePositions)
+        self.ensembleMean.set_offsets(mean)
         if observationPositions is not None:
             self.observations.set_offsets(observationPositions)
         
