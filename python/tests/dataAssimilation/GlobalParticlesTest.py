@@ -144,9 +144,42 @@ class GlobalParticlesTest(unittest.TestCase):
                                    [semiDiag, longLine, shortLine], 12,
                                    'distances with periodic boundaries in north-south')
 
+    def test_ensemble_mean(self):
+        periodicMean = [1-0.1/3, 1-0.1/3]
+        nonPeriodicMean = [(0.9 + 0.9 + 0.1)/3, (0.9 + 0.9 + 0.1)/3]
+        semiPeriodicMean = [nonPeriodicMean[0], periodicMean[1]]
+        
+        self.assertListAlmostEqual(self.smallParticleSet.getEnsembleMean().tolist(),
+                                   periodicMean, 12,
+                                   'periodic mean')
 
-    #def test_init(self):
-    #    largeParticleSet = GlobalParticles(1000)
-    #    largeParticleSet.init
-                                                
+        self.smallParticleSet.setBoundaryConditions(Common.BoundaryConditions(1,1,1,1))
+        self.assertListAlmostEqual(self.smallParticleSet.getEnsembleMean().tolist(),
+                                   nonPeriodicMean, 12,
+                                   'non-periodic mean')
 
+        self.smallParticleSet.setBoundaryConditions(Common.BoundaryConditions(2,1,2,1))
+        self.assertListAlmostEqual(self.smallParticleSet.getEnsembleMean().tolist(),
+                                   semiPeriodicMean, 12,
+                                   'north-south-periodic mean')
+        
+        
+    def test_init(self):
+        largeParticleSet = GlobalParticles(1000)
+        domain_x = 10.3
+        domain_y = 5.4
+        largeParticleSet.initializeParticles(domain_size_x = domain_x,
+                                             domain_size_y = domain_y)
+
+        self.assertEqual(largeParticleSet.getDomainSizeX(), domain_x)
+        self.assertEqual(largeParticleSet.getDomainSizeY(), domain_y)
+
+        p = largeParticleSet.getParticlePositions()
+        self.assertGreaterEqual(np.min(p[:,0]), 0.0)
+        self.assertLessEqual(np.max(p[:,0]), domain_x)
+        self.assertGreaterEqual(np.min(p[:,1]) , 0.0)
+        self.assertLessEqual(np.max(p[:,1]), domain_y)
+
+    #def test_copy(self):
+        
+        
