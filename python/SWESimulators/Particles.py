@@ -55,7 +55,7 @@ class GlobalParticles:
         
         # Boundary conditions are read from a BoundaryConditions object
         self.boundaryConditions = boundaryConditions
-        
+    
     """
     Makes an independent indentical copy of the current object
     """
@@ -87,6 +87,33 @@ class GlobalParticles:
         copyOfSelf.domain_size_y = self.domain_size_y
         
         return copyOfSelf
+        
+     ### GETs
+    def getNumParticles(self):
+        return self.numParticles
+    
+    def getObservationVariance(self):
+        return self.observation_variance
+    
+    def getParticlePositions(self):
+        return self.positions[:-1,:]
+    
+    def getObservationPosition(self):
+        return self.positions[-1, :]
+    
+    def getBoundaryConditions(self):
+        return self.boundaryConditions
+    
+    def getDomainSizeX(self):
+        return self.domain_size_x
+    
+    def getDomainSizeY(self):
+        return self.domain_size_y
+        
+        
+    ### SETs
+    def setBoundaryConditions(self, boundaryConditions):
+        self.boundaryConditions = boundaryConditions
         
     """
     Initialization of all particles (and observation) within a rectangle of given size.
@@ -144,11 +171,6 @@ class GlobalParticles:
                                     (closestPositions[i,1]-obs_y)**2)
         return distances
         
-    def getParticlePositions(self):
-        return self.positions[:-1,:]
-    
-    def getObservationPosition(self):
-        return self.positions[-1, :]
     
     def getGaussianWeight(self, distance=None, normalize=True):
         if distance is None:
@@ -255,3 +277,5 @@ class GlobalParticles:
 
         if title is not None:
             plt.suptitle(title, fontsize=16)
+            
+            
