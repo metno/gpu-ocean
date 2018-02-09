@@ -88,7 +88,7 @@ class GlobalParticles:
         
         return copyOfSelf
         
-     ### GETs
+    ### GETs
     def getNumParticles(self):
         return self.numParticles
     
@@ -120,7 +120,7 @@ class GlobalParticles:
     domain_size_x [default 1.0]: size of rectangle in x-direction 
     domain_size_y [default 1.0]: size of rectangle in y-direction
     """
-    def initializeInSquare(self, domain_size_x=1.0, domain_size_y=1.0):
+    def initializeParticles(self, domain_size_x=1.0, domain_size_y=1.0):
         
         # Initialize in unit square
         self.positions = np.random.rand(self.numParticles + 1, 2)
@@ -197,7 +197,22 @@ class GlobalParticles:
     
     def getEnsembleMean(self):
         closestPositions = self._getClosestPositions()
-        return np.mean(closestPositions[:-1, :], axis=0)
+        mean_x, mean_y = np.mean(closestPositions[:-1, :], axis=0)
+        mean_x, mean_y = self._enforceBoundaryConditionsOnPosition(mean_x, mean_y)
+        return np.array([mean_x, mean_y])
+    
+    def _enforceBoundaryConditionsOnPosition(self, x, y):
+        ### TODO: SWAP the if's with while's?
+        # Check what we assume is periodic boundary conditions
+        if x < 0:
+            x = self.domain_size_x + x
+        if y < 0:
+            y = self.domain_size_x + y
+        if x > self.domain_size_x:
+            x = x - self.domain_size_x
+        if y > self.domain_size_y:
+            y = y - self.domain_size_y
+        return x, y
     
     def enforceBoundaryConditions(self):
         
@@ -206,17 +221,7 @@ class GlobalParticles:
             for i in range(self.numParticles + 1):
                 x, y = self.positions[i,0], self.positions[i,1]
 
-                ### TODO: SWAP the if's with while's?
-                
-                # Check what we assume is periodic boundary conditions
-                if x < 0:
-                    x = self.domain_size_x + x
-                if y < 0:
-                    y = self.domain_size_x + y
-                if x > self.domain_size_x:
-                    x = x - self.domain_size_x
-                if y > self.domain_size_y:
-                    y = y - self.domain_size_y
+                x, y = self._enforceBoundaryConditionsOnPosition(x,y)
 
                 self.positions[i,0] = x
                 self.positions[i,1] = y
