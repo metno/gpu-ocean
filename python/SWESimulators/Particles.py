@@ -56,7 +56,9 @@ class GlobalParticles:
         # Boundary conditions are read from a BoundaryConditions object
         self.boundaryConditions = boundaryConditions
         
-    
+    """
+    Makes an independent indentical copy of the current object
+    """
     def copy(self):
         copyOfSelf = GlobalParticles(self.numParticles,
                                      observation_variance = self.observation_variance,
@@ -69,6 +71,10 @@ class GlobalParticles:
         
         return copyOfSelf
     
+    """
+    Creates a GlobalParticle object where all parameters are similar to the current object, but without copying the particle positions.
+    numParticles: The number of particles to be held by the new object, observation not included.
+    """
     def copyEnv(self, numParticles):
         copyOfSelf = GlobalParticles(numParticles,
                                      observation_variance = self.observation_variance,
@@ -82,6 +88,11 @@ class GlobalParticles:
         
         return copyOfSelf
         
+    """
+    Initialization of all particles (and observation) within a rectangle of given size.
+    domain_size_x [default 1.0]: size of rectangle in x-direction 
+    domain_size_y [default 1.0]: size of rectangle in y-direction
+    """
     def initializeInSquare(self, domain_size_x=1.0, domain_size_y=1.0):
         
         # Initialize in unit square
