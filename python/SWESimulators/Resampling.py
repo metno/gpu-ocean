@@ -75,6 +75,8 @@ Probabilistic resampling of the particles based on the attached observation.
 particles: A GlobalParticle object, which holds the ensemble of particles, the observation, and measures to compute the weight of particles based on this information.
 reinitialization_variance: The variance used for resampling of particles that are already resampled. These duplicates are sampled around the original particle.
 If reinitialization_variance is zero, exact duplications are generated.
+
+
 """
 def probabilisticResampling(particles, reinitialization_variance=0):
     # Obtain weights:
