@@ -45,8 +45,12 @@ __kernel void passiveDrifterKernel(
 	//__global float* H_ptr_, int H_pitch_,
 	float H_,
 
+	int periodic_north_south_,
+	int periodic_east_west_,
+	
 	int num_drifters_,
-	__global float* drifters_positions_, int drifters_pitch_) {
+	__global float* drifters_positions_, int drifters_pitch_,
+	float sensitivity_) {
     //Index of thread within block
     const int tx = get_local_id(0);
     const int ty = get_local_id(1); // Should be 0
@@ -58,22 +62,46 @@ __kernel void passiveDrifterKernel(
     //Index of cell within domain
     const int ti = get_global_id(0);
     const int tj = get_global_id(1); // Should be 0
-    
+
     if (ti < num_drifters_ + 1) {
 	// Obtain pointer to our particle:
 	__global float* drifter = (__global float*) ((__global char*) drifters_positions_ + drifters_pitch_*ti);
 	float drifter_pos_x = drifter[0];
 	float drifter_pos_y = drifter[1];
-	
-	if (ti == num_drifters_) {
-	    // Let it drift one grid cell north and one grid cell east:
-	    drifter_pos_x -= dx_;
-	    drifter_pos_y -= dy_;
-	} else {
-	    drifter_pos_x += dx_;
-	    drifter_pos_y += dy_;
+
+	// Find cell ID for the cell in which our particle is
+	int cell_id_x = (int)(ceil(drifter_pos_x/dx_) + x_zero_reference_cell_);
+	int cell_id_y = (int)(ceil(drifter_pos_y/dy_) + y_zero_reference_cell_);
+
+	// Read the water velocity from global memory
+	__global float* eta_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*cell_id_y);
+	float h = H_ + eta_row[cell_id_x];
+
+	__global float* hu_row = (__global float*) ((__global char*) hu_ptr_ + hu_pitch_*cell_id_y);
+	float u = hu_row[cell_id_x]/h;
+
+	__global float* hv_row = (__global float*) ((__global char*) hv_ptr_ + hv_pitch_*cell_id_y);
+	float v = hv_row[cell_id_x]/h;
+
+	// Move drifter
+	drifter_pos_x += sensitivity_*u*dt_;
+	drifter_pos_y += sensitivity_*v*dt_;
+
+	// Ensure boundary conditions
+	if (periodic_east_west_ && (drifter_pos_x < 0)) {
+	    drifter_pos_x += + nx_*dx_;
 	}
-	
+	if (periodic_east_west_ && (drifter_pos_x > nx_*dx_)) {
+	    drifter_pos_x -= nx_*dx_;
+	}
+	if (periodic_north_south_ && (drifter_pos_y < 0)) {
+	    drifter_pos_y += ny_*dy_;
+	}
+	if (periodic_north_south_ && (drifter_pos_y > nx_*dx_)) {
+	    drifter_pos_y -= ny_*dy_;
+	}
+
+	// Write to global memory
 	drifter[0] = drifter_pos_x;
 	drifter[1] = drifter_pos_y;
     }
