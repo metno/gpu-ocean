@@ -48,31 +48,31 @@ __kernel void passiveDrifterKernel(
 	int num_drifters_,
 	__global float* drifters_positions_, int drifters_pitch_) {
     //Index of thread within block
-    const int tx = get_local_id(0); // Should be 0
-    const int ty = get_local_id(1);
+    const int tx = get_local_id(0);
+    const int ty = get_local_id(1); // Should be 0
     
     //Index of block within domain
-    const int bx = get_local_size(0) * get_group_id(0); // Should be 0
-    const int by = get_local_size(1) * get_group_id(1);
+    const int bx = get_local_size(0) * get_group_id(0);
+    const int by = get_local_size(1) * get_group_id(1); // Should be 0
     
     //Index of cell within domain
-    const int ti = get_global_id(0); // Should be 0
-    const int tj = get_global_id(1);
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1); // Should be 0
     
-    if (tj < num_drifters_ + 1) {
+    if (ti < num_drifters_ + 1) {
 	// Obtain pointer to our particle:
-	__global float* drifter = (__global float*) ((__global char*) drifters_positions_ + drifters_pitch_*tj);
+	__global float* drifter = (__global float*) ((__global char*) drifters_positions_ + drifters_pitch_*ti);
 	float drifter_pos_x = drifter[0];
 	float drifter_pos_y = drifter[1];
 	
-	if (tj == num_drifters_) {
-	// Let it drift one grid cell north and one grid cell east:
-	drifter_pos_x -= dx_;
-	drifter_pos_y -= dy_;
-    } else {
-	drifter_pos_x += dx_;
-	drifter_pos_y += dy_;
-    }
+	if (ti == num_drifters_) {
+	    // Let it drift one grid cell north and one grid cell east:
+	    drifter_pos_x -= dx_;
+	    drifter_pos_y -= dy_;
+	} else {
+	    drifter_pos_x += dx_;
+	    drifter_pos_y += dy_;
+	}
 	
 	drifter[0] = drifter_pos_x;
 	drifter[1] = drifter_pos_y;
