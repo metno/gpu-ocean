@@ -1,0 +1,80 @@
+/*
+This OpenCL kernel implements a selection of drift trajectory algorithms.
+
+Copyright (C) 2018  SINTEF ICT
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+//#include "../config.h"
+
+#ifndef __OPENCL_VERSION__
+#define __kernel
+#define __global
+#define __local
+#define CLK_LOCAL_MEM_FENCE
+#endif
+
+/**
+  * Kernel that evolves eta one step in time.
+  */
+__kernel void passiveDrifterKernel(
+        //Discretization parameters
+        int nx_, int ny_,
+        float dx_, float dy_, float dt_,
+
+	float x_zero_reference_cell_, // the cell column representing x0 (x0 at western face)
+	float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
+	
+	// Data
+        __global float* eta_ptr_, int eta_pitch_,
+        __global float* hu_ptr_, int hu_pitch_,
+        __global float* hv_ptr_, int hv_pitch_,
+	// H should be read from buffer, but for now we use a constant value
+	//__global float* H_ptr_, int H_pitch_,
+	float H_,
+
+	int num_drifters_,
+	__global float* drifters_positions_, int drifters_pitch_) {
+    //Index of thread within block
+    const int tx = get_local_id(0); // Should be 0
+    const int ty = get_local_id(1);
+    
+    //Index of block within domain
+    const int bx = get_local_size(0) * get_group_id(0); // Should be 0
+    const int by = get_local_size(1) * get_group_id(1);
+    
+    //Index of cell within domain
+    const int ti = get_global_id(0); // Should be 0
+    const int tj = get_global_id(1);
+    
+    if (tj < num_drifters_ + 1) {
+	// Obtain pointer to our particle:
+	__global float* drifter = (__global float*) ((__global char*) drifters_positions_ + drifters_pitch_*tj);
+	float drifter_pos_x = drifter[0];
+	float drifter_pos_y = drifter[1];
+	
+	if (tj == num_drifters_) {
+	// Let it drift one grid cell north and one grid cell east:
+	drifter_pos_x -= dx_;
+	drifter_pos_y -= dy_;
+    } else {
+	drifter_pos_x += dx_;
+	drifter_pos_y += dy_;
+    }
+	
+	drifter[0] = drifter_pos_x;
+	drifter[1] = drifter_pos_y;
+    }
+}
