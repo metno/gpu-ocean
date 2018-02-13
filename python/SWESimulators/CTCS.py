@@ -157,7 +157,11 @@ class CTCS:
     def fromfilename(cls, cl_ctx, filename, cont_write_netcdf=True):
         # open nc-file
         sim_reader = SimReader.SimNetCDFReader(filename, ignore_ghostcells=False)
-
+        sim_name = str(sim_reader.get('simulator_short'))
+        assert sim_name == "CTCS", \
+               "Trying to initialize a CTCS simulator with netCDF file based on " \
+               + sim_name + " results."
+        
         # read parameters
         nx = sim_reader.get("nx")
         ny = sim_reader.get("ny")
