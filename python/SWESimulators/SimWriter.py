@@ -69,7 +69,7 @@ class SimNetCDFWriter:
         if self.staggered_grid:
             self.H = sim.H.download(self.cl_queue)
         else:
-            self.H = -sim.bathymetry.download(self.cl_queue)[1] # Bm
+            self.H = sim.bathymetry.download(self.cl_queue)[0] # Hi
         self.time_integrator = sim.rk_order
         self.minmod_theta = sim.theta
         self.coriolis_force = sim.f
@@ -153,7 +153,10 @@ class SimNetCDFWriter:
             self.ncfile.createDimension('y_hu',   ny + self.ghost_cells_tot_y)
             self.ncfile.createDimension('x_hv',   nx + self.ghost_cells_tot_x)
             self.ncfile.createDimension('y_hv',   ny + self.ghost_cells_tot_y + 1)
-
+        if not self.staggered_grid: 
+            self.ncfile.createDimension('x_Hi', nx + self.ghost_cells_tot_x + 1)
+            self.ncfile.createDimension('y_Hi', ny + self.ghost_cells_tot_y + 1)
+        
         #Create axis
         self.nc_time = self.ncfile.createVariable('time', np.dtype('float32').char, 'time')
         x = self.ncfile.createVariable('x', np.dtype('float32').char, 'x')
@@ -177,6 +180,14 @@ class SimNetCDFWriter:
             y_hv.standard_name = "projection_y_coordinate"
             x_hv.axis = "X"
             y_hv.axis = "Y"
+        
+        if not self.staggered_grid:
+            x_Hi = self.ncfile.createVariable('x_Hi', np.dtype('float32').char, 'x_Hi')
+            y_Hi = self.ncfile.createVariable('y_Hi', np.dtype('float32').char, 'y_Hi')
+            x_Hi.standard_name = "projection_x_coordinate"
+            y_Hi.standard_name = "projection_y_coordinate"
+            x_Hi.axis = "X"
+            y_Hi.axis = "Y"
             
         #Create bogus projection variable
         self.nc_proj = self.ncfile.createVariable('projection_stere', np.dtype('int32').char)
@@ -211,6 +222,14 @@ class SimNetCDFWriter:
             y_hv[:] = np.linspace(-self.ghost_cells_south*dy, \
                                   (ny + self.ghost_cells_north)*dy, \
                                    ny + self.ghost_cells_tot_y + 1)
+        
+        if not self.staggered_grid:
+            x_Hi[:] = np.linspace(-self.ghost_cells_west*dx, \
+                                  (nx + self.ghost_cells_east)*dx, \
+                                   nx + self.ghost_cells_tot_x + 1)
+            y_Hi[:] = np.linspace(-self.ghost_cells_south*dy, \
+                                  (ny + self.ghost_cells_north)*dy, \
+                                   ny + self.ghost_cells_tot_y + 1)
             
         #Set units
         self.nc_time.units = 'seconds since 1970-01-01 00:00:00'
@@ -222,6 +241,10 @@ class SimNetCDFWriter:
             x_hv.units = 'meter'
             y_hv.units = 'meter'
 
+        if not self.staggered_grid:
+            x_Hi.units = 'meter'
+            y_Hi.units = 'meter'
+            
         #Create a land mask (with no land)
         self.nc_land = self.ncfile.createVariable('land_binary_mask', np.dtype('float32').char, ('y', 'x'))
         self.nc_land.standard_name = 'land_binary_mask'
@@ -229,7 +252,10 @@ class SimNetCDFWriter:
         self.nc_land[:] = 0
 
         # Create info about bathymetry / equilibrium depth
-        self.nc_H = self.ncfile.createVariable('H', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
+        if self.staggered_grid:
+            self.nc_H = self.ncfile.createVariable('H', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
+        else:
+            self.nc_H = self.ncfile.createVariable('H', np.dtype('float32').char, ('time', 'y_Hi', 'x_Hi'), zlib=True)
         self.nc_H.standard_name = 'water_surface_reference_datum_altitude'
         self.nc_H.grid_mapping = 'projection_stere'
         self.nc_H.coordinates = 'y x'
