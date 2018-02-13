@@ -59,7 +59,7 @@ class GlobalParticlesTest(unittest.TestCase):
         i = 0
         for a,b in zip(list1, list2):
             self.assertAlmostEqual(a, b, tol,
-                                   msg = msg + "First dofferomg element " + str(i) + ":\n" + str(a) + "\n" + str(b) + outro)
+                                   msg = msg + "First differing element " + str(i) + ":\n" + str(a) + "\n" + str(b) + outro)
             i = i + 1
 
 
