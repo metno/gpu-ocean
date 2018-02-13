@@ -148,15 +148,17 @@ class GlobalParticles:
         considering possible periodic boundary conditions
         """
         if not (self.boundaryConditions.isPeriodicNorthSouth() or self.boundaryConditions.isPeriodicEastWest()):
-            return self.positions
+            #return self.positions 
+            return self.getParticlePositions()
         else:
-            periodicPositions = self.positions.copy()
-            obs_x, obs_y = periodicPositions[self.obs_index, :]
+            periodicPositions = self.getParticlePositions().copy()
+            obs_x, obs_y = self.getObservationPosition()
             if self.boundaryConditions.isPeriodicEastWest():
-                for i in range(self.numParticles):
+                for i in range(self.getNumParticles()):
                     x = periodicPositions[i,0]
                     
-                    pos_x = np.array([x - self.domain_size_x, x, x + self.domain_size_x])
+                    pos_x = np.array([x - self.getDomainSizeX(), x, \
+                                      x + self.getDomainSizeX()])
                     dist_x = np.abs(pos_x - obs_x)
                     periodicPositions[i,0] = pos_x[np.argmin(dist_x)]
 
@@ -164,7 +166,8 @@ class GlobalParticles:
                 for i in range(self.numParticles):
                     y = periodicPositions[i,1]
                     
-                    pos_y = np.array([y - self.domain_size_y, y, y + self.domain_size_y])
+                    pos_y = np.array([y - self.getDomainSizeY(), y, \
+                                      y + self.getDomainSizeY()])
                     dist_y = np.abs(pos_y - obs_y)
                     periodicPositions[i,1] = pos_y[np.argmin(dist_y)]
         return periodicPositions
@@ -174,10 +177,10 @@ class GlobalParticles:
         """
         Computes the distance between particles and observation. Possible periodic boundary conditions are taken care of.
         """
-        distances = np.zeros(self.numParticles)
+        distances = np.zeros(self.getNumParticles())
         closestPositions = self._getClosestPositions()
         obs_x, obs_y = self.getObservationPosition()
-        for i in range(self.numParticles):
+        for i in range(self.getNumParticles()):
             distances[i] = np.sqrt( (closestPositions[i,0]-obs_x)**2 +
                                     (closestPositions[i,1]-obs_y)**2)
         return distances
@@ -189,8 +192,8 @@ class GlobalParticles:
         """
         if distance is None:
             distance = self.getDistances()
-        weights = (1.0/np.sqrt(2*np.pi*self.observation_variance**2))* \
-            np.exp(- (distance**2/(2*self.observation_variance**2)))
+        weights = (1.0/np.sqrt(2*np.pi*self.getObservationVariance()**2))* \
+            np.exp(- (distance**2/(2*self.getObservationVariance()**2)))
         if normalize:
             return weights/np.sum(weights)
         return weights
@@ -217,7 +220,7 @@ class GlobalParticles:
         For cases with periodic boundary conditions, the every particle position is considered in the direction which minimize the distance to the observation.
         """
         closestPositions = self._getClosestPositions()
-        mean_x, mean_y = np.mean(closestPositions[:-1, :], axis=0)
+        mean_x, mean_y = np.mean(closestPositions, axis=0)
         mean_x, mean_y = self._enforceBoundaryConditionsOnPosition(mean_x, mean_y)
         return np.array([mean_x, mean_y])
     
@@ -273,17 +276,18 @@ class GlobalParticles:
         plt.plot(self.getObservationPosition()[0], \
                  self.getObservationPosition()[1], 'r.')
         ensembleMean = self.getEnsembleMean()
-        plt.plot(ensembleMean[0], ensembleMean[1], 'r+')
-        plt.xlim(0, self.domain_size_x)
+        if ensembleMean is not None:
+            plt.plot(ensembleMean[0], ensembleMean[1], 'r+')
+        plt.xlim(0, self.getDomainSizeX())
         plt.xlabel('x')
         plt.ylabel('y')
-        plt.ylim(0, self.domain_size_y)
+        plt.ylim(0, self.getDomainSizeY())
         plt.title("Particle positions")
         
         # PLOT DISCTRIBUTION OF PARTICLE DISTANCES AND THEORETIC OBSERVATION PDF
         ax0 = plt.subplot2grid((2,3), (0,1), colspan=2)
         distances = self.getDistances()
-        plt.hist(distances, bins=30, range=(0, max(min(self.domain_size_x, self.domain_size_y), np.max(distances))),\
+        plt.hist(distances, bins=30, range=(0, max(min(self.getDomainSizeX(), self.getDomainSizeY()), np.max(distances))),\
                  normed=True, label="particle distances")
         
         # With observation 
