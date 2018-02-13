@@ -304,6 +304,13 @@ class BoundaryConditions:
                 self.south == 3 or self.south == 4 or \
                 self.west  == 3 or self.west  == 4)
     
+    def isPeriodicNorthSouth(self):
+        return (self.north == 2 and self.south == 2)
+    
+    def isPeriodicEastWest(self):
+        return (self.east == 2 and self.west == 2)
+    
+    
     def _toString(self, cond):
         if cond == 1:
             return "Wall"
