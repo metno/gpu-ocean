@@ -287,7 +287,8 @@ class GlobalParticles:
         # PLOT DISCTRIBUTION OF PARTICLE DISTANCES AND THEORETIC OBSERVATION PDF
         ax0 = plt.subplot2grid((2,3), (0,1), colspan=2)
         distances = self.getDistances()
-        plt.hist(distances, bins=30, range=(0, max(min(self.getDomainSizeX(), self.getDomainSizeY()), np.max(distances))),\
+        plt.hist(distances, bins=30, \
+                 range=(0, max(min(self.getDomainSizeX(), self.getDomainSizeY()), np.max(distances))),\
                  normed=True, label="particle distances")
         
         # With observation 
