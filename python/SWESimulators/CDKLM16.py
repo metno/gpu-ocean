@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
-import Common, SimWriter
+import Common, SimWriter, SimReader
 import gc
 
 
@@ -72,6 +72,7 @@ class CDKLM16:
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
+                 t=0.0, \
                  theta=1.3, rk_order=2, \
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
@@ -175,8 +176,69 @@ class CDKLM16:
         self.sim_writer = None
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self)
-            
+           
+        
+    """
+    Initialize and hotstart simulation from nc-file.
+    cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
+    filename: Continue simulation based on parameters and last timestep in this file
+    """
+    @classmethod
+    def fromfilename(cls, cl_ctx, filename, cont_write_netcdf=True):
+        # open nc-file
+        sim_reader = SimReader.SimNetCDFReader(filename, ignore_ghostcells=False)
+        sim_name = str(sim_reader.get('simulator_short'))
+        assert sim_name == "CDKLM16", \
+               "Trying to initialize a CDKLM16 simulator with netCDF file based on " \
+               + sim_name + " results."
+        
+        # read parameters
+        nx = sim_reader.get("nx")
+        ny = sim_reader.get("ny")
 
+        dx = sim_reader.get("dx")
+        dy = sim_reader.get("dy")
+
+        width = nx * dx
+        height = ny * dy
+
+        dt = sim_reader.get("dt")
+        g = sim_reader.get("g")
+        r = sim_reader.get("bottom_friction_r")
+        f = sim_reader.get("coriolis_force")
+        beta = sim_reader.get("coriolis_beta")
+        
+        minmodTheta = sim_reader.get("minmod_theta")
+        timeIntegrator = sim_reader.get("time_integrator")
+        y_zero_reference_cell = sim_reader.get("y_zero_reference_cell")        
+        
+        wind_stress_type = sim_reader.get("wind_stress_type")
+        wind = Common.WindStressParams(type=wind_stress_type)
+
+        boundaryConditions = Common.BoundaryConditions( \
+            sim_reader.getBC()[0], sim_reader.getBC()[1], \
+            sim_reader.getBC()[2], sim_reader.getBC()[3], \
+            sim_reader.getBCSpongeCells())
+
+        Hi = sim_reader.getH();
+        
+        # get last timestep (including simulation time of last timestep)
+        eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
+        
+        return cls(cl_ctx, \
+                 eta0, hu0, hv0, \
+                 Hi, \
+                 nx, ny, \
+                 dx, dy, dt, \
+                 g, f, r, \
+                 t=time0, \
+                 theta=minmodTheta, rk_order=timeIntegrator, \
+                 coriolis_beta=beta, \
+                 y_zero_reference_cell = y_zero_reference_cell, \
+                 wind_stress=wind, \
+                 boundary_conditions=boundaryConditions, \
+                 write_netcdf=cont_write_netcdf)
+    
     """
     Clean up function
     """
