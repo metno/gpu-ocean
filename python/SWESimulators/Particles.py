@@ -27,19 +27,19 @@ import time
 
 import Common
 
-"""
-Class holding the global set of particles.
-"""
+
 class GlobalParticles:
-    
     """
-    Creates a GlobalParticles object for drift trajectory ensemble.
-    
-    numParticles: number of particles in the ensemble, not included the observation
-    observation_variance: uncertainty of observation position
-    boundaryConditions: BoundaryConditions object, relevant during re-initialization of particles.    
-    """
+    Class holding the global set of particles.
+    """ 
     def __init__(self, numParticles, observation_variance=0.1, boundaryConditions=Common.BoundaryConditions()):
+        """
+        Creates a GlobalParticles object for drift trajectory ensemble.
+
+        numParticles: number of particles in the ensemble, not included the observation
+        observation_variance: uncertainty of observation position
+        boundaryConditions: BoundaryConditions object, relevant during re-initialization of particles.    
+        """
         
         self.numParticles = numParticles
         
@@ -56,10 +56,11 @@ class GlobalParticles:
         # Boundary conditions are read from a BoundaryConditions object
         self.boundaryConditions = boundaryConditions
     
-    """
-    Makes an independent indentical copy of the current object
-    """
     def copy(self):
+        """
+        Makes an independent indentical copy of the current object
+        """
+    
         copyOfSelf = GlobalParticles(self.numParticles,
                                      observation_variance = self.observation_variance,
                                      boundaryConditions = self.boundaryConditions)
@@ -71,11 +72,12 @@ class GlobalParticles:
         
         return copyOfSelf
     
-    """
-    Creates a GlobalParticle object where all parameters are similar to the current object, but without copying the particle positions.
-    numParticles: The number of particles to be held by the new object, observation not included.
-    """
+    
     def copyEnv(self, numParticles):
+        """
+        Creates a GlobalParticle object where all parameters are similar to the current object, but without copying the particle positions.
+        numParticles: The number of particles to be held by the new object, observation not included.
+        """
         copyOfSelf = GlobalParticles(numParticles,
                                      observation_variance = self.observation_variance,
                                      boundaryConditions = self.boundaryConditions)
@@ -120,13 +122,14 @@ class GlobalParticles:
         self.domain_size_y = size_y
         
     
-    """
-    Initialization of all particles (and observation) within a rectangle of given size.
-    domain_size_x [default 1.0]: size of rectangle in x-direction 
-    domain_size_y [default 1.0]: size of rectangle in y-direction
-    """
+    
     def initializeParticles(self, domain_size_x=1.0, domain_size_y=1.0):
-        
+        """
+        Initialization of all particles (and observation) within a rectangle of given size.
+        domain_size_x [default 1.0]: size of rectangle in x-direction 
+        domain_size_y [default 1.0]: size of rectangle in y-direction
+        """
+
         # Initialize in unit square
         self.positions = np.random.rand(self.numParticles + 1, 2)
         # Ensure that the observation is in the middle 0.5x0.5 square:
@@ -139,11 +142,11 @@ class GlobalParticles:
         self.domain_size_x = domain_size_x
         self.domain_size_y = domain_size_y
         
-    """
-    Returns a set of coordinates corresponding to each particles closest position to the observation,
-    considering possible periodic boundary conditions
-    """
     def _getClosestPositions(self):
+        """
+        Returns a set of coordinates corresponding to each particles closest position to the observation,
+        considering possible periodic boundary conditions
+        """
         if not (self.boundaryConditions.isPeriodicNorthSouth() or self.boundaryConditions.isPeriodicEastWest()):
             return self.positions
         else:
@@ -166,22 +169,24 @@ class GlobalParticles:
                     periodicPositions[i,1] = pos_y[np.argmin(dist_y)]
         return periodicPositions
         
-    """
-    Computes the distance between particles and observation. Possible periodic boundary conditions are taken care of.
-    """
+    
     def getDistances(self):
+        """
+        Computes the distance between particles and observation. Possible periodic boundary conditions are taken care of.
+        """
         distances = np.zeros(self.numParticles)
         closestPositions = self._getClosestPositions()
-        obs_x, obs_y = self.positions[self.obs_index, :]
+        obs_x, obs_y = self.getObservationPosition()
         for i in range(self.numParticles):
             distances[i] = np.sqrt( (closestPositions[i,0]-obs_x)**2 +
                                     (closestPositions[i,1]-obs_y)**2)
         return distances
         
-    """
-    Calculates a weight associated to every particle, based on its distance from the observation, using Gaussian uncertainty of the position of the observation 
-    """
+    
     def getGaussianWeight(self, distance=None, normalize=True):
+        """
+        Calculates a weight associated to every particle, based on its distance from the observation, using Gaussian uncertainty of the position of the observation 
+        """
         if distance is None:
             distance = self.getDistances()
         weights = (1.0/np.sqrt(2*np.pi*self.observation_variance**2))* \
@@ -192,11 +197,12 @@ class GlobalParticles:
     
     
     
-    """
-    Calculates a weight associated to every particle, based on its distance from the observation, using Cauchy distribution based on the uncertainty of the position of the observation.
-    This distribution should be used if wider tails of the distribution is beneficial.
-    """
+    
     def getCauchyWeight(self, distance=None, normalize=True):
+        """
+        Calculates a weight associated to every particle, based on its distance from the observation, using Cauchy distribution based on the uncertainty of the position of the observation.
+        This distribution should be used if wider tails of the distribution is beneficial.
+        """
         if distance is None:
             distance = self.getDistances()
         weights = 1.0/(np.pi*self.observation_variance*(1 + (distance/self.observation_variance)**2))
@@ -204,20 +210,22 @@ class GlobalParticles:
             return weights/np.sum(weights)
         return weights
     
-    """
-    Calculates the mean position of all the particles in the ensemble.
-    For cases with periodic boundary conditions, the every particle position is considered in the direction which minimize the distance to the observation.
-    """
+    
     def getEnsembleMean(self):
+        """
+        Calculates the mean position of all the particles in the ensemble.
+        For cases with periodic boundary conditions, the every particle position is considered in the direction which minimize the distance to the observation.
+        """
         closestPositions = self._getClosestPositions()
         mean_x, mean_y = np.mean(closestPositions[:-1, :], axis=0)
         mean_x, mean_y = self._enforceBoundaryConditionsOnPosition(mean_x, mean_y)
         return np.array([mean_x, mean_y])
     
-    """
-    Maps the given coordinate to a coordinate within the domain. This function assumes that periodic boundary conditions are used, and should be considered as a private function.
-    """
+    
     def _enforceBoundaryConditionsOnPosition(self, x, y):
+        """
+        Maps the given coordinate to a coordinate within the domain. This function assumes that periodic boundary conditions are used, and should be considered as a private function.
+        """
         ### TODO: SWAP the if's with while's?
         # Check what we assume is periodic boundary conditions
         if x < 0:
@@ -230,11 +238,12 @@ class GlobalParticles:
             y = y - self.domain_size_y
         return x, y
     
-    """
-    Enforces boundary conditions on all particles in the ensemble, and the observation.
-    This function should be called whenever particles are moved, to enforce periodic boundary conditions for particles that have left the domain.
-    """
+    
     def enforceBoundaryConditions(self):
+        """
+        Enforces boundary conditions on all particles in the ensemble, and the observation.
+        This function should be called whenever particles are moved, to enforce periodic boundary conditions for particles that have left the domain.
+        """
         
         if (self.boundaryConditions.isPeriodicNorthSouth() and self.boundaryConditions.isPeriodicEastWest()):
             # Loop over particles
@@ -249,10 +258,11 @@ class GlobalParticles:
             print "WARNING [GlobalParticle.enforceBoundaryConditions]: Functionality not defined for non-periodic boundary conditions"
             print "\t\tDoing nothing and continuing..."
     
-    """
-    Utility function for generating informative plots of the ensemble relative to the observation
-    """    
+    
     def plotDistanceInfo(self, title=None):
+        """
+        Utility function for generating informative plots of the ensemble relative to the observation
+        """    
         fig = plt.figure(figsize=(10,6))
         gridspec.GridSpec(2, 3)
         
