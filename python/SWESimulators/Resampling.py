@@ -29,13 +29,15 @@ import Common
 from Particles import *
 
 
-"""
-Create a new GlobalParticles instance based on the given indices, where duplicates are resampled from a gaussian distribution.
-particles: The original ensemble before resampling
-newSampleIndices: particle indices selected for resampling
-reinitialization_variance: variance used when resampling duplicates
-"""
+
 def resampleParticles(particles, newSampleIndices, reinitialization_variance):
+    """
+    Create a new GlobalParticles instance based on the given indices, where duplicates are resampled from a gaussian distribution.
+    particles: The original ensemble before resampling
+    newSampleIndices: particle indices selected for resampling
+    reinitialization_variance: variance used when resampling duplicates
+    """
+    
     newParticles = particles.copyEnv(len(newSampleIndices))
     #newParticles = GlobalParticles(len(newSampleIndices), particles.observation_variance, particles.boundaryConditions)
     
@@ -70,17 +72,19 @@ def resampleParticles(particles, newSampleIndices, reinitialization_variance):
     return newParticles
     
 
-"""
-Probabilistic resampling of the particles based on the attached observation.
-Particles are sampled directly from the discrete distribution given by their weights.
 
-particles: A GlobalParticle object, which holds the ensemble of particles, the observation, and measures to compute the weight of particles based on this information.
-reinitialization_variance: The variance used for resampling of particles that are already resampled. These duplicates are sampled around the original particle.
-If reinitialization_variance is zero, exact duplications are generated.
-
-Implementation based on the description in van Leeuwen (2009) 'Particle Filtering in Geophysical Systems', Section 3a.1)
-"""
 def probabilisticResampling(particles, reinitialization_variance=0):
+    """
+    Probabilistic resampling of the particles based on the attached observation.
+    Particles are sampled directly from the discrete distribution given by their weights.
+
+    particles: A GlobalParticle object, which holds the ensemble of particles, the observation, and measures to compute the weight of particles based on this information.
+    reinitialization_variance: The variance used for resampling of particles that are already resampled. These duplicates are sampled around the original particle.
+    If reinitialization_variance is zero, exact duplications are generated.
+
+    Implementation based on the description in van Leeuwen (2009) 'Particle Filtering in Geophysical Systems', Section 3a.1)
+    """
+    
     # Obtain weights:
     weights = particles.getGaussianWeight()
     #weights = particles.getCauchyWeight()
@@ -94,17 +98,19 @@ def probabilisticResampling(particles, reinitialization_variance=0):
     # Return a new set of particles
     return resampleParticles(particles, newSampleIndices, reinitialization_variance)
 
-"""
-Residual resampling of particles based on the attached observation.
-Each particle is first resampled floor(N*w) times, which in total given M <= N particles. Afterwards, N-M particles are drawn from the discrete distribution given by weights N*w % 1.
 
-particles: A GlobalParticle object, which holds the ensemble of particles, the observation, and measures to compute the weight of particles based on this information.
-reinitialization_variance: The variance used for resampling of particles that are already resampled. These duplicates are sampled around the original particle.
-If reinitialization_variance is zero, exact duplications are generated.
-
-Implementation based on the description in van Leeuwen (2009) 'Particle Filtering in Geophysical Systems', Section 3a.2)
-"""
 def residualSampling(particles, reinitialization_variance=0, onlyDeterministic=False, onlyStochastic=False):
+    """
+    Residual resampling of particles based on the attached observation.
+    Each particle is first resampled floor(N*w) times, which in total given M <= N particles. Afterwards, N-M particles are drawn from the discrete distribution given by weights N*w % 1.
+
+    particles: A GlobalParticle object, which holds the ensemble of particles, the observation, and measures to compute the weight of particles based on this information.
+    reinitialization_variance: The variance used for resampling of particles that are already resampled. These duplicates are sampled around the original particle.
+    If reinitialization_variance is zero, exact duplications are generated.
+
+    Implementation based on the description in van Leeuwen (2009) 'Particle Filtering in Geophysical Systems', Section 3a.2)
+    """
+    
     # Obtain weights:
     #weights = particles.getCauchyWeight()
     weights = particles.getGaussianWeight()
@@ -135,17 +141,19 @@ def residualSampling(particles, reinitialization_variance=0, onlyDeterministic=F
                              reinitialization_variance)
     
 
-"""
-Stchastic resampling of particles based on the attached observation.
-Consider all weights as line lengths, so that all particles represent segments completely covering the line [0, 1]. Draw u ~ U[0,1/N], and resample all particles representing points u + i/N, i = 0,...,N-1 on the line.
 
-particles: A GlobalParticle object, which holds the ensemble of particles, the observation, and measures to compute the weight of particles based on this information.
-reinitialization_variance: The variance used for resampling of particles that are already resampled. These duplicates are sampled around the original particle.
-If reinitialization_variance is zero, exact duplications are generated.
-
-Implementation based on the description in van Leeuwen (2009) 'Particle Filtering in Geophysical Systems', Section 3a.3)
-"""   
 def stochasticUniversalSampling(particles, reinitialization_variance=0):
+    """
+    Stchastic resampling of particles based on the attached observation.
+    Consider all weights as line lengths, so that all particles represent segments completely covering the line [0, 1]. Draw u ~ U[0,1/N], and resample all particles representing points u + i/N, i = 0,...,N-1 on the line.
+
+    particles: A GlobalParticle object, which holds the ensemble of particles, the observation, and measures to compute the weight of particles based on this information.
+    reinitialization_variance: The variance used for resampling of particles that are already resampled. These duplicates are sampled around the original particle.
+    If reinitialization_variance is zero, exact duplications are generated.
+
+    Implementation based on the description in van Leeuwen (2009) 'Particle Filtering in Geophysical Systems', Section 3a.3)
+    """   
+    
     # Obtain weights:
     #weights = particles.getCauchyWeight()
     weights = particles.getGaussianWeight()
@@ -172,17 +180,19 @@ def stochasticUniversalSampling(particles, reinitialization_variance=0):
     # Return a new set of particles
     return resampleParticles(particles, newSampleIndices, reinitialization_variance)
 
-"""
-Resampling based on the Monte Carlo Metropolis-Hasting algorithm.
-The first particle, having weight w_1, is automatically resampled. The next particle, with weight w_2, is then resampled with the probability p = w_2/w_1, otherwise the first particle is sampled again. The latest resampled particle make the comparement basis for the next particle. 
 
-particles: A GlobalParticle object, which holds the ensemble of particles, the observation, and measures to compute the weight of particles based on this information.
-reinitialization_variance: The variance used for resampling of particles that are already resampled. These duplicates are sampled around the original particle.
-If reinitialization_variance is zero, exact duplications are generated.
-
-Implementation based on the description in van Leeuwen (2009) 'Particle Filtering in Geophysical Systems', Section 3a.4)
-"""
 def metropolisHastingSampling(particles,  reinitialization_variance=0):
+    """
+    Resampling based on the Monte Carlo Metropolis-Hasting algorithm.
+    The first particle, having weight w_1, is automatically resampled. The next particle, with weight w_2, is then resampled with the probability p = w_2/w_1, otherwise the first particle is sampled again. The latest resampled particle make the comparement basis for the next particle. 
+
+    particles: A GlobalParticle object, which holds the ensemble of particles, the observation, and measures to compute the weight of particles based on this information.
+    reinitialization_variance: The variance used for resampling of particles that are already resampled. These duplicates are sampled around the original particle.
+    If reinitialization_variance is zero, exact duplications are generated.
+
+    Implementation based on the description in van Leeuwen (2009) 'Particle Filtering in Geophysical Systems', Section 3a.4)
+    """
+    
     # Obtain weights:
     #weights = particles.getCauchyWeight()
     weights = particles.getGaussianWeight()
