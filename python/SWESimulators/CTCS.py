@@ -75,6 +75,8 @@ class CTCS:
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
+                 ignore_ghostcells=False, \
+                 offset_x=0, offset_y=0, \
                  block_width=16, block_height=16):
         reload(Common)
         self.cl_ctx = cl_ctx
@@ -144,9 +146,13 @@ class CTCS:
         )
 
         self.write_netcdf = write_netcdf
+        self.ignore_ghostcells = ignore_ghostcells
+        self.offset_x = offset_x
+        self.offset_y = offset_y
         self.sim_writer = None
         if self.write_netcdf:
-            self.sim_writer = SimWriter.SimNetCDFWriter(self, staggered_grid=True)
+            self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
+                                    staggered_grid=True, offset_x=self.offset_x, offset_y=self.offset_y)
     
     """
     Initialize and hotstart simulation from nc-file.
@@ -264,6 +270,7 @@ class CTCS:
                     self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                     self.wind_stress.x0, self.wind_stress.y0, \
                     self.wind_stress.u0, self.wind_stress.v0, \
+                    self.wind_stress.wind_speed, self.wind_stress.wind_direction, \
                     self.t)
 
             self.bc_kernel.boundaryConditionU(self.cl_queue, self.cl_data.hu0)
@@ -283,6 +290,7 @@ class CTCS:
                     self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                     self.wind_stress.x0, self.wind_stress.y0, \
                     self.wind_stress.u0, self.wind_stress.v0, \
+                    self.wind_stress.wind_speed, self.wind_stress.wind_direction, \
                     self.t)
 
             self.bc_kernel.boundaryConditionV(self.cl_queue, self.cl_data.hv0)

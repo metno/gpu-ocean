@@ -30,7 +30,7 @@ import os as os
 class SimNetCDFWriter:
     def __init__(self, sim, num_layers=1, staggered_grid=False, \
                  ignore_ghostcells=False, \
-                 width=1, height=1):
+                 offset_x=0, offset_y=0):
 
         # OpenCL queue:
         self.cl_queue = sim.cl_queue
@@ -142,8 +142,12 @@ class SimNetCDFWriter:
         
         #Create dimensions 
         self.ncfile.createDimension('time', None) #Unlimited time dimension
-        self.ncfile.createDimension('x', nx + self.ghost_cells_tot_x)
-        self.ncfile.createDimension('y', ny + self.ghost_cells_tot_y)
+        if(not self.ignore_ghostcells):
+            self.ncfile.createDimension('x', nx + self.ghost_cells_tot_x)
+            self.ncfile.createDimension('y', ny + self.ghost_cells_tot_y)
+        else:
+            self.ncfile.createDimension('x', nx)
+            self.ncfile.createDimension('y', ny)
         if (not self.ignore_ghostcells) and (self.staggered_grid):
             self.ncfile.createDimension('x_hu',   nx + self.ghost_cells_tot_x + 1)
             self.ncfile.createDimension('y_hu',   ny + self.ghost_cells_tot_y)
@@ -183,12 +187,17 @@ class SimNetCDFWriter:
         self.nc_proj.earth_radius = 6371000.0
         self.nc_proj.proj4 = '+proj=stere +lat_0=90 +lon_0=70 +lat_ts=60 +units=m +a=6.371e+06 +e=0 +no_defs'
 
-        x[:] = np.linspace(-self.ghost_cells_west*dx + dx/2.0, \
-                           (nx + self.ghost_cells_east)*dx - dx/2.0, \
-                           nx + self.ghost_cells_tot_x)
-        y[:] = np.linspace(-self.ghost_cells_south*dy + dy/2.0, \
-                           (ny + self.ghost_cells_north)*dy - dy/2.0, \
-                           ny + self.ghost_cells_tot_y)
+        if(not self.ignore_ghostcells):
+            x[:] = np.linspace(-self.ghost_cells_west*dx + dx/2.0, \
+                               (nx + self.ghost_cells_east)*dx - dx/2.0, \
+                               nx + self.ghost_cells_tot_x)
+            y[:] = np.linspace(-self.ghost_cells_south*dy + dy/2.0, \
+                               (ny + self.ghost_cells_north)*dy - dy/2.0, \
+                               ny + self.ghost_cells_tot_y)
+        else:
+            x[:] = np.linspace(offset_x, nx*dx, nx)
+            y[:] = np.linspace(offset_y, ny*dy, ny)
+            
         if not self.ignore_ghostcells and self.staggered_grid:
             x_hu[:] = np.linspace(-self.ghost_cells_west*dx, \
                                   (nx + self.ghost_cells_east)*dx, \
@@ -207,7 +216,7 @@ class SimNetCDFWriter:
         self.nc_time.units = 'seconds since 1970-01-01 00:00:00'
         x.units = 'meter'
         y.units = 'meter'
-        if self.staggered_grid:
+        if not self.ignore_ghostcells and self.staggered_grid:
             x_hu.units = 'meter'
             y_hu.units = 'meter'
             x_hv.units = 'meter'
@@ -221,15 +230,17 @@ class SimNetCDFWriter:
 
         # Create info about bathymetry / equilibrium depth
         self.nc_H = self.ncfile.createVariable('H', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
-        self.nc_H.standard_name = 'write water_surface_reference_datum_altitude'
+        self.nc_H.standard_name = 'water_surface_reference_datum_altitude'
         self.nc_H.grid_mapping = 'projection_stere'
-        self.nc_H.coordinates = 'lon lat'
+        self.nc_H.coordinates = 'y x'
         self.nc_H.units = 'meter'
-        self.nc_H[0, :] = self.H
-        
+        if not self.ignore_ghostcells:
+            self.nc_H[0, :] = self.H
+        else:
+            self.nc_H[0, :] = self.H[1:-1, 1:-1]
         
         self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
-        if self.staggered_grid:
+        if not self.ignore_ghostcells and self.staggered_grid:
             self.nc_hu = self.ncfile.createVariable('hu', np.dtype('float32').char, ('time', 'y_hu', 'x_hu'), zlib=True)
             self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'y_hv', 'x_hv'), zlib=True)
         else:
@@ -242,9 +253,9 @@ class SimNetCDFWriter:
         self.nc_eta.grid_mapping = 'projection_stere'
         self.nc_hu.grid_mapping = 'projection_stere'
         self.nc_hv.grid_mapping = 'projection_stere'
-        self.nc_eta.coordinates = 'lon lat'
-        self.nc_hu.coordinates = 'lon lat'
-        self.nc_hv.coordinates = 'lon lat'
+        self.nc_eta.coordinates = 'y x'
+        self.nc_hu.coordinates = 'y x'
+        self.nc_hv.coordinates = 'y x'
 
         #Set units
         self.nc_eta.units = 'meter'
@@ -291,7 +302,13 @@ class SimNetCDFWriter:
 
     def writeTimestep(self, sim):
         eta, hu, hv = sim.download()
-        if (not self.ignore_ghostcells):
+        if (self.ignore_ghostcells):
+            
+            self.nc_time[self.i] = sim.t
+            self.nc_eta[self.i, :] = eta[1:-1, 1:-1]
+            self.nc_hu[self.i, :] = hu[1:-1, 1:-2]
+            self.nc_hv[self.i, :] = hv[1:-2, 1:-1]
+        else:
             self.nc_time[self.i] = sim.t
             self.nc_eta[self.i, :] = eta
             self.nc_hu[self.i, :] = hu

@@ -65,6 +65,7 @@ __kernel void computeUKernel(
         float tau0_, float rho_, float alpha_, float xm_, float Rc_,
         float x0_, float y0_,
         float u0_, float v0_,
+		float wind_speed_, float wind_direction_,
         float t_) {
         
     __local float H_shared[block_height+2][block_width+1];
@@ -252,7 +253,8 @@ __kernel void computeUKernel(
         tau0_, rho_, alpha_, xm_, Rc_,
         x0_, y0_,
         u0_, v0_,
-        t_);
+		wind_speed_, wind_direction_,
+		t_);
 
     // Finding the contribution from Coriolis
     float global_thread_y = get_global_id(1);
