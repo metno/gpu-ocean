@@ -1,6 +1,9 @@
 #ifndef COMMON_CL
 #define COMMON_CL
 
+#define _180_OVER_PI 57.29578f
+#define PI_OVER_180 0.01745329f
+
 /*
 This OpenCL kernel implements the Kurganov-Petrova numerical scheme 
 for the shallow water equations, described in 
@@ -533,16 +536,52 @@ void minmodSlopeY(__local float  Q[3][block_height+4][block_width+4],
     }
 }
 
+/*
+ * Compute x-component of wind vector.
+ * @param wind_speed Wind speed in m/s.
+ * @param wind_direction The direction that the wind is coming from in degrees (0 is north).
+ */
+float wind_u(float wind_speed, float wind_direction) {
+	return -wind_speed * sin(wind_direction * PI_OVER_180);
+}
 
+/*
+ * Compute y-component of wind vector.
+ * @param wind_speed Wind speed in m/s.
+ * @param wind_direction The direction that the wind is coming from in degrees (0 is north).
+ */
+float wind_v(float wind_speed, float wind_direction) {
+	return -wind_speed * cos(wind_direction * PI_OVER_180);
+}
 
+/*
+ * Compute wind direction (the direction that the wind is coming from).
+ * @param x_wind x-component of wind vector.
+ * @param y_wind y-component of wind vector.
+ */
+float wind_dd(float x_wind, float y_wind) {
+    return fmod(270.0f - (atan2(y_wind, x_wind) * _180_OVER_PI), 360.0f);
+}
 
-
+/*
+ * Compute downwind direction (the direction in which the wind is blowing).
+ * @param x_wind x-component of wind vector.
+ * @param y_wind y-component of wind vector.
+ */
+float wind_downwind_direction(float x_wind, float y_wind) {
+    float val = wind_dd(x_wind, y_wind) - 180.0f;
+    if (val < 0) {
+        val += 360.0f;
+    }
+    return val;
+}
 
 float windStressX(int wind_stress_type_,
                 float dx_, float dy_, float dt_,
                 float tau0_, float rho_, float alpha_, float xm_, float Rc_,
                 float x0_, float y0_,
                 float u0_, float v0_,
+				float wind_speed_, float wind_direction_,
                 float t_) {
     
     float X = 0.0f;
@@ -578,6 +617,14 @@ float windStressX(int wind_stress_type_,
             X = -(tau0_/rho_) * (b/Rc_) * exp(-0.5f*xi);
         }
         break;
+    case 50: //UNIFORM_SPECIFIED
+		{
+			const float rho_air = 1.3f;
+			const float C_drag = (wind_speed_ < 11) ? 0.0012f : (0.49f + 0.065f)*wind_speed_;
+
+			X = rho_air * C_drag * wind_u(wind_speed_, wind_direction_);
+		}
+		break;
     }
 
     return X;
@@ -593,7 +640,8 @@ float windStressY(int wind_stress_type_,
                 float tau0_, float rho_, float alpha_, float xm_, float Rc_,
                 float x0_, float y0_,
                 float u0_, float v0_,
-                float t_) {
+				float wind_speed_, float wind_direction_,
+	            float t_) {
     float Y = 0.0f;
     
     switch (wind_stress_type_) {
@@ -612,6 +660,14 @@ float windStressY(int wind_stress_type_,
             Y = (tau0_/rho_) * (a/Rc_) * exp(-0.5f*xi);
         }
         break;
+    case 50: //UNIFORM_SPECIFIED
+		{
+			const float rho_air = 1.3f;
+			const float C_drag = (wind_speed_ < 11) ? 0.0012f : (0.49f + 0.065f)*wind_speed_;
+
+			Y = rho_air * C_drag * wind_v(wind_speed_, wind_direction_);
+		}
+		break;
     }
 
     return Y;
