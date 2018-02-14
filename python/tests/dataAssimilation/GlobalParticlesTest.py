@@ -9,6 +9,7 @@ from testUtils import *
 sys.path.insert(0, '../')
 from SWESimulators import Common
 from SWESimulators.Particles import *
+from SWESimulators import Resampling
 
 #reload(GlobalParticles)
 
@@ -27,43 +28,20 @@ class GlobalParticlesTest(unittest.TestCase):
         self.smallParticleSet.positions[1,:] = [0.9, 0.1]
         self.smallParticleSet.positions[2,:] = [0.1, 0.9]
         self.smallParticleSet.positions[3,:] = [0.1, 0.1]
-                                                  
 
+        self.resampleNumParticles = 6
+        self.resamplingParticleSet = GlobalParticles(self.resampleNumParticles)
+        for i in range(2):
+            self.resamplingParticleSet.positions[3*i+0, :] = [0.25, 0.35+i*0.3]
+            self.resamplingParticleSet.positions[3*i+1, :] = [0.4,  0.35+i*0.3]
+            self.resamplingParticleSet.positions[3*i+2, :] = [0.65, 0.35+i*0.3]
+        self.resamplingParticleSet.positions[6, :] = [0.25, 0.5]
+        
+        
     #def tearDown(self):
     # Intentionally empty
     
 
-    ### HANDY UTILS ###
-    
-    def assertListAlmostEqualToRemove(self, list1, list2, tol, testname):
-        l = max(len(list1), len(list2))
-        outro = ""
-        if l < 6:
-            outro = "\n\n- " + str(list1) + "\n+ " + str(list2)
-        
-        strList1 = str(list1)[:21]
-        if (len(strList1) > 20):
-            strList1 = strList1[:20] + "..."
-        strList2 = str(list2)[:21]
-        if (len(strList2) > 20):
-            strList2 = strList2[:20] + "..."
-            
-        msg = "test case \'" + testname + "\' - lists differs: " + strList1 + " != " + strList2 + "\n\n"
-        self.assertEqual(len(list1), len(list2),
-                         msg=msg + "Not same lengths:\nlen(list1) = " + str(len(list1)) + "\nlen(list2) = " + str(len(list2)) + outro)
-
-        l = len(list1)
-        outro = ""
-        if l < 6:
-            outro = "\n\n- " + str(list1) + "\n+ " + str(list2)
-        i = 0
-        for a,b in zip(list1, list2):
-            self.assertAlmostEqual(a, b, tol,
-                                   msg = msg + "First differing element " + str(i) + ":\n" + str(a) + "\n" + str(b) + outro)
-            i = i + 1
-
-
-            
     ### START TESTS ###
     
     def test_default_constructor(self):
@@ -259,4 +237,61 @@ class GlobalParticlesTest(unittest.TestCase):
 
         self.assertEqual(copy.getDomainSizeX(), size_x)
         self.assertEqual(copy.getDomainSizeY(), size_y)
+        
+    def test_gaussian_weights(self):
+        obtainedWeights = self.resamplingParticleSet.getGaussianWeight()
+        referenceWeights = [  3.77361928e-01,   1.22511481e-01,   1.26590824e-04,   3.77361928e-01, 1.22511481e-01,   1.26590824e-04]
+        assertListAlmostEqual(self, obtainedWeights.tolist(),
+                              referenceWeights, 9,
+                              'gaussian weights')
+
+    def test_cauchy_weights(self):
+        obtainedWeights = self.resamplingParticleSet.getCauchyWeight()
+        referenceWeights = [0.28413284,  0.16789668,  0.04797048,  0.28413284,  0.16789668,  0.04797048]
+        assertListAlmostEqual(self, obtainedWeights.tolist(),
+                              referenceWeights, 8,
+                              'cauchy weights')
+
+    def resample(self, indices_list):
+        newParticlePositions = []
+        for i in indices_list:
+            newParticlePositions.append(self.resamplingParticleSet.getParticlePositions()[i,:].tolist())
+        return newParticlePositions
+        
+    def test_resampling_predefined_indices(self):
+        indices_list = [2,2,2,4,5,5]
+        newParticlePositions = self.resample(indices_list)
+        newParticleSet = Resampling.resampleParticles(self.resamplingParticleSet, \
+                                                      indices_list, 0)
+        self.assertEqual(newParticleSet.getParticlePositions().tolist(), newParticlePositions)
+
+    def test_probabilistic_resampling(self):
+        setNpRandomSeed()
+        indices = [1,3,0,0,0,0]
+        solutions = self.resample(indices)
+        newParticleSet = Resampling.probabilisticResampling(self.resamplingParticleSet)
+        self.assertEqual(newParticleSet.getParticlePositions().tolist(), solutions)
+        
+
+            
+    def test_residual_sampling(self):
+        setNpRandomSeed()
+        indices = [0,0,3,3,1,4]
+        solutions = self.resample(indices)
+        newParticleSet = Resampling.residualSampling(self.resamplingParticleSet)
+        self.assertEqual(newParticleSet.getParticlePositions().tolist(), solutions)
+        
+    def test_stochastic_universal_sampling(self):
+        setNpRandomSeed()
+        indices = [0,0,1,3,3,4]
+        solutions = self.resample(indices)
+        newParticleSet = Resampling.stochasticUniversalSampling(self.resamplingParticleSet)
+        self.assertEqual(newParticleSet.getParticlePositions().tolist(), solutions)
+
+    def test_monte_carlo_metropolis_hasting_sampling(self):
+        setNpRandomSeed()
+        indices = [0,0,0,3,4,4]
+        solutions = self.resample(indices)
+        newParticleSet = Resampling.metropolisHastingSampling(self.resamplingParticleSet)
+        self.assertEqual(newParticleSet.getParticlePositions().tolist(), solutions)
         

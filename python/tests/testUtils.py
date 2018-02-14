@@ -173,3 +173,5 @@ def assertListAlmostEqual(theself, list1, list2, tol, testname):
                                msg = msg + "First differing element " + str(i) + ":\n" + str(a) + "\n" + str(b) + outro)
         i = i + 1
                                                                                         
+def setNpRandomSeed():
+    np.random.seed(1)
