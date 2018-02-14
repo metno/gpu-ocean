@@ -17,14 +17,8 @@ class OpenCLArray2DTest(unittest.TestCase):
     def setUp(self):
 
         #Set which CL device to use, and disable kernel caching
-        if (str.lower(sys.platform).startswith("linux")):
-            os.environ["PYOPENCL_CTX"] = "0"
-        else:
-            os.environ["PYOPENCL_CTX"] = "1"
-            os.environ["CUDA_CACHE_DISABLE"] = "1"
-            os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
-            os.environ["PYOPENCL_NO_CACHE"] = "1"
-            
+        self.cl_ctx = make_cl_ctx()
+                    
         # Make some host data which we can play with
         self.nx = 3
         self.ny = 5
@@ -43,7 +37,6 @@ class OpenCLArray2DTest(unittest.TestCase):
                 
         self.explicit_free = False
         
-        self.cl_ctx = pyopencl.create_some_context()
         self.device_name = self.cl_ctx.devices[0].name
         self.cl_queue = pyopencl.CommandQueue(self.cl_ctx)
         self.tests_failed = True
