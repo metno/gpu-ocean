@@ -29,7 +29,9 @@ import Common
 from Particles import *
 
 
-
+### THIS FUNCTION SHOULD GENERATE A COPY OF THE AVAILABLE PARTICLES, AND THEN
+### RESAMPLE FROM THE COPY INTO THE particles OBJECT, SO THAT REUSE OF EXISTING 
+### MEMORY IS DONE
 def resampleParticles(particles, newSampleIndices, reinitialization_variance):
     """
     Create a new GlobalParticles instance based on the given indices, where duplicates are resampled from a gaussian distribution.
