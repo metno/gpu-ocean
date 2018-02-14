@@ -87,10 +87,10 @@ def probabilisticResampling(particles, reinitialization_variance=0):
     #weights = particles.getCauchyWeight()
     
     # Create array of possible indices to resample:
-    allIndices = range(particles.numParticles)
+    allIndices = range(particles.getNumParticles())
     
     # Draw new indices based from discrete distribution based on weights
-    newSampleIndices = np.random.choice(allIndices, particles.numParticles, p=weights)
+    newSampleIndices = np.random.choice(allIndices, particles.getNumParticles(), p=weights)
         
     # Return a new set of particles
     resampleParticles(particles, newSampleIndices, reinitialization_variance)
@@ -113,10 +113,10 @@ def residualSampling(particles, reinitialization_variance=0, onlyDeterministic=F
     weights = particles.getGaussianWeight()
 
     # Create array of possible indices to resample:
-    allIndices = range(particles.numParticles)
+    allIndices = range(particles.getNumParticles())
 
     # Deterministic resampling based on the integer part of N*weights:
-    weightsTimesN = weights*particles.numParticles
+    weightsTimesN = weights*particles.getNumParticles()
     weightsTimesNInteger = np.int64(np.floor(weightsTimesN))
     deterministicResampleIndices = np.repeat(allIndices, weightsTimesNInteger)
     
@@ -124,7 +124,7 @@ def residualSampling(particles, reinitialization_variance=0, onlyDeterministic=F
     decimalWeights = np.mod(weightsTimesN, 1)
     decimalWeights = decimalWeights/np.sum(decimalWeights)
     stochasticResampleIndices = np.random.choice(allIndices, 
-                                                 particles.numParticles - len(deterministicResampleIndices), 
+                                                 particles.getNumParticles() - len(deterministicResampleIndices), 
                                                  p=decimalWeights)
     ### NOTE!
     # In numpy v >= 1.13, np.divmod can be used to get weightsTimesNInteger and decimalWeights from one function call.
@@ -156,14 +156,14 @@ def stochasticUniversalSampling(particles, reinitialization_variance=0):
     weights = particles.getGaussianWeight()
 
     # Create array of possible indices to resample:
-    allIndices = np.array(range(particles.numParticles))
+    allIndices = np.array(range(particles.getNumParticles()))
     
     # Create histogram buckets based on the cumulative weights
     cumulativeWeights = np.concatenate(([0.0], np.cumsum(weights)))
     
     # Find first starting position:
-    startPos = np.random.rand()/particles.numParticles
-    lengths = 1.0/particles.numParticles
+    startPos = np.random.rand()/particles.getNumParticles()
+    lengths = 1.0/particles.getNumParticles()
     #print startPos, lengths
     selectionValues = allIndices*lengths + startPos
     
@@ -201,7 +201,7 @@ def metropolisHastingSampling(particles,  reinitialization_variance=0):
     newSampleIndices[0] = 0
     
     # Iterate through all weights, and apply the Metropolis-Hasting algorithm
-    for i in range(1, particles.numParticles):
+    for i in range(1, particles.getNumParticles()):
         # Draw random number U[0,1]
         p = np.random.rand()
         if p < weights[i]/weights[newSampleIndices[i-1]]:
