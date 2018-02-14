@@ -93,7 +93,25 @@ class GlobalParticlesTest(unittest.TestCase):
         self.smallParticleSet.setBoundaryConditions(Common.BoundaryConditions(2,1,2,1))
         self.assertEqual(self.smallParticleSet.getBoundaryConditions().get(), [2,1,2,1])
 
+    def test_set_particle_positions(self):
+        pos1 = [0.2, 0.5]
+        pos2 = [0.8, 0.235]
+        pos3 = [0.01, 0.01]
+        newPositions = np.array([pos1, pos2, pos3])
 
+        self.smallParticleSet.setParticlePositions(newPositions)
+
+        positions = self.smallParticleSet.getParticlePositions()
+        self.assertEqual(positions.shape, ((self.numParticles, 2)))
+        self.assertEqual(positions[0,:].tolist(), pos1)
+        self.assertEqual(positions[1,:].tolist(), pos2)
+        self.assertEqual(positions[2,:].tolist(), pos3)
+
+        observation = self.smallParticleSet.getObservationPosition()
+        self.assertEqual(observation.shape, ((2,)))
+        self.assertEqual(observation.tolist(), [0.1, 0.1])
+        
+        
     def test_distances(self):
         longDiag = np.sqrt(2*0.8*0.8)
         longLine = 0.8

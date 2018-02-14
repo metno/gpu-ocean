@@ -121,6 +121,11 @@ class GlobalParticles:
         self.domain_size_x = size_x
         self.domain_size_y = size_y
         
+    def setParticlePositions(self, newParticlePositions):
+        # Include the observation:
+        newPositionsAll = np.concatenate((newParticlePositions, np.array([self.getObservationPosition()])), \
+                                         axis=0)
+        np.copyto(self.positions, newPositionsAll)
     
     
     def initializeParticles(self, domain_size_x=1.0, domain_size_y=1.0):
