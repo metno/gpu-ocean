@@ -296,16 +296,18 @@ class GlobalParticlesTest(unittest.TestCase):
     def test_resampling_predefined_indices(self):
         indices_list = [2,2,2,4,5,5]
         newParticlePositions = self.resample(indices_list)
-        newParticleSet = Resampling.resampleParticles(self.resamplingParticleSet, \
-                                                      indices_list, 0)
-        self.assertEqual(newParticleSet.getParticlePositions().tolist(), newParticlePositions)
+        Resampling.resampleParticles(self.resamplingParticleSet, \
+                                     indices_list, 0)
+        self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
+                         newParticlePositions)
 
     def test_probabilistic_resampling(self):
         setNpRandomSeed()
         indices = [1,3,0,0,0,0]
         solutions = self.resample(indices)
-        newParticleSet = Resampling.probabilisticResampling(self.resamplingParticleSet)
-        self.assertEqual(newParticleSet.getParticlePositions().tolist(), solutions)
+        Resampling.probabilisticResampling(self.resamplingParticleSet)
+        self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
+                         solutions)
         
 
             
@@ -313,20 +315,22 @@ class GlobalParticlesTest(unittest.TestCase):
         setNpRandomSeed()
         indices = [0,0,3,3,1,4]
         solutions = self.resample(indices)
-        newParticleSet = Resampling.residualSampling(self.resamplingParticleSet)
-        self.assertEqual(newParticleSet.getParticlePositions().tolist(), solutions)
+        Resampling.residualSampling(self.resamplingParticleSet)
+        self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
+                         solutions)
         
     def test_stochastic_universal_sampling(self):
         setNpRandomSeed()
         indices = [0,0,1,3,3,4]
         solutions = self.resample(indices)
-        newParticleSet = Resampling.stochasticUniversalSampling(self.resamplingParticleSet)
-        self.assertEqual(newParticleSet.getParticlePositions().tolist(), solutions)
+        Resampling.stochasticUniversalSampling(self.resamplingParticleSet)
+        self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
+                         solutions)
 
     def test_monte_carlo_metropolis_hasting_sampling(self):
         setNpRandomSeed()
         indices = [0,0,0,3,4,4]
         solutions = self.resample(indices)
-        newParticleSet = Resampling.metropolisHastingSampling(self.resamplingParticleSet)
-        self.assertEqual(newParticleSet.getParticlePositions().tolist(), solutions)
+        Resampling.metropolisHastingSampling(self.resamplingParticleSet)
+        self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), solutions)
         
