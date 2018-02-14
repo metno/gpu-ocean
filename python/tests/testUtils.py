@@ -172,6 +172,37 @@ def assertListAlmostEqual(theself, list1, list2, tol, testname):
         theself.assertAlmostEqual(a, b, tol,
                                msg = msg + "First differing element " + str(i) + ":\n" + str(a) + "\n" + str(b) + outro)
         i = i + 1
-                                                                                        
+
+def assert2DListAlmostEqual(theself, list1, list2, tol, testname):
+    l = max(len(list1), len(list2))
+    outro = ""
+    if l < 6:
+        outro = "\n\n- " + str(list1) + "\n+ " + str(list2)
+        
+    strList1 = str(list1)[:21]
+    if (len(strList1) > 20):
+        strList1 = strList1[:20] + "..."
+    strList2 = str(list2)[:21]
+    if (len(strList2) > 20):
+        strList2 = strList2[:20] + "..."
+        
+    msg = "test case \'" + testname + "\' - lists differs: " + strList1 + " != " + strList2 + "\n\n"
+    theself.assertEqual(len(list1), len(list2),
+                     msg=msg + "Not same lengths:\nlen(list1) = " + str(len(list1)) + "\nlen(list2) = " + str(len(list2)) + outro)
+    
+    l = len(list1)
+    outro = ""
+    if l < 6:
+        outro = "\n\n- " + str(list1) + "\n+ " + str(list2)
+    i = 0
+    for pos1, pos2 in zip(list1, list2):
+        j = 0
+        for a, b in zip(pos1, pos2):
+            theself.assertAlmostEqual(a, b, tol,
+                                      msg = msg + "First differing element " + str((i,j)) + ":\n" + str(a) + "\n" + str(b) + outro)
+            j = j + 1
+        i = i + 1
+
+        
 def setNpRandomSeed():
     np.random.seed(1)

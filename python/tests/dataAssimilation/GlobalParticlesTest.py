@@ -36,7 +36,7 @@ class GlobalParticlesTest(unittest.TestCase):
             self.resamplingParticleSet.positions[3*i+1, :] = [0.4,  0.35+i*0.3]
             self.resamplingParticleSet.positions[3*i+2, :] = [0.65, 0.35+i*0.3]
         self.resamplingParticleSet.positions[6, :] = [0.25, 0.5]
-        
+        self.resamplingVar = 1e-8
         
     #def tearDown(self):
     # Intentionally empty
@@ -301,17 +301,16 @@ class GlobalParticlesTest(unittest.TestCase):
         self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
                          newParticlePositions)
 
-    def test_probabilistic_resampling(self):
+    def test_probabilistic_resampling_with_duplicates(self):
         setNpRandomSeed()
         indices = [1,3,0,0,0,0]
         solutions = self.resample(indices)
         Resampling.probabilisticResampling(self.resamplingParticleSet)
         self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
                          solutions)
-        
 
             
-    def test_residual_sampling(self):
+    def test_residual_sampling_with_duplicates(self):
         setNpRandomSeed()
         indices = [0,0,3,3,1,4]
         solutions = self.resample(indices)
@@ -319,7 +318,7 @@ class GlobalParticlesTest(unittest.TestCase):
         self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
                          solutions)
         
-    def test_stochastic_universal_sampling(self):
+    def test_stochastic_universal_sampling_with_duplicates(self):
         setNpRandomSeed()
         indices = [0,0,1,3,3,4]
         solutions = self.resample(indices)
@@ -327,10 +326,42 @@ class GlobalParticlesTest(unittest.TestCase):
         self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
                          solutions)
 
-    def test_monte_carlo_metropolis_hasting_sampling(self):
+    def test_monte_carlo_metropolis_hasting_sampling_with_duplicates(self):
         setNpRandomSeed()
         indices = [0,0,0,3,4,4]
         solutions = self.resample(indices)
         Resampling.metropolisHastingSampling(self.resamplingParticleSet)
         self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), solutions)
+
+
+    def test_probabilistic_resampling(self):
+        setNpRandomSeed()
+        indices = [1,3,0,0,0,0]
+        solutions = self.resample(indices)
+        Resampling.probabilisticResampling(self.resamplingParticleSet, self.resamplingVar)
+        assert2DListAlmostEqual(self, self.resamplingParticleSet.getParticlePositions().tolist(), solutions, 2, "probabilistic resampling, probabilistic duplicates")
+
+            
+    def test_residual_sampling(self):
+        setNpRandomSeed()
+        indices = [0,0,3,3,1,4]
+        solutions = self.resample(indices)
+        Resampling.residualSampling(self.resamplingParticleSet, self.resamplingVar)
+        assert2DListAlmostEqual(self, self.resamplingParticleSet.getParticlePositions().tolist(), solutions, 2, "residual sampling, probabilistic duplicates")
+                
+    def test_stochastic_universal_sampling(self):
+        setNpRandomSeed()
+        indices = [0,0,1,3,3,4]
+        solutions = self.resample(indices)
+        Resampling.stochasticUniversalSampling(self.resamplingParticleSet, self.resamplingVar)
+        assert2DListAlmostEqual(self, self.resamplingParticleSet.getParticlePositions().tolist(), solutions, 2, "stochastic universal sampling, probabilistic duplicates")
+
+    def test_monte_carlo_metropolis_hasting_sampling(self):
+        setNpRandomSeed()
+        indices = [0,0,0,3,4,4]
+        solutions = self.resample(indices)
+        Resampling.metropolisHastingSampling(self.resamplingParticleSet, self.resamplingVar)
+        print self.resamplingParticleSet.getParticlePositions().tolist()
+        assert2DListAlmostEqual(self, self.resamplingParticleSet.getParticlePositions().tolist(), solutions, 2, "metropolis hasting sampling, probabilistic duplicates")
         
+
