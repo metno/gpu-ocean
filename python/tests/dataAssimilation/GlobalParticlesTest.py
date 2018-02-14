@@ -31,11 +31,11 @@ class GlobalParticlesTest(unittest.TestCase):
 
     #def tearDown(self):
     # Intentionally empty
-        
+    
 
     ### HANDY UTILS ###
     
-    def assertListAlmostEqual(self, list1, list2, tol, testname):
+    def assertListAlmostEqualToRemove(self, list1, list2, tol, testname):
         l = max(len(list1), len(list2))
         outro = ""
         if l < 6:
@@ -125,43 +125,43 @@ class GlobalParticlesTest(unittest.TestCase):
                            
         
         # smallParticleSet is initially with periodic boundary conditions
-        self.assertListAlmostEqual(self.smallParticleSet.getDistances().tolist(), \
-                                   [shortDiag, shortLine, shortLine], 12,
-                                   'distance with periodic boundaries')
+        assertListAlmostEqual(self, self.smallParticleSet.getDistances().tolist(), \
+                              [shortDiag, shortLine, shortLine], 12,
+                              'distance with periodic boundaries')
         
         self.smallParticleSet.setBoundaryConditions(Common.BoundaryConditions(1,1,1,1))
-        self.assertListAlmostEqual(self.smallParticleSet.getDistances().tolist(), \
-                                   [longDiag, longLine, longLine], 12,
-                                   'distances with non-periodic boundaries')
+        assertListAlmostEqual(self, self.smallParticleSet.getDistances().tolist(), \
+                              [longDiag, longLine, longLine], 12,
+                              'distances with non-periodic boundaries')
         
         self.smallParticleSet.setBoundaryConditions(Common.BoundaryConditions(1,2,1,2))
-        self.assertListAlmostEqual(self.smallParticleSet.getDistances().tolist(), \
-                                   [semiDiag, shortLine, longLine], 12,
-                                   'distances with periodic boundaries in east-west')
+        assertListAlmostEqual(self, self.smallParticleSet.getDistances().tolist(), \
+                              [semiDiag, shortLine, longLine], 12,
+                              'distances with periodic boundaries in east-west')
 
         self.smallParticleSet.setBoundaryConditions(Common.BoundaryConditions(2,1,2,1))
-        self.assertListAlmostEqual(self.smallParticleSet.getDistances().tolist(), \
-                                   [semiDiag, longLine, shortLine], 12,
-                                   'distances with periodic boundaries in north-south')
+        assertListAlmostEqual(self, self.smallParticleSet.getDistances().tolist(), \
+                              [semiDiag, longLine, shortLine], 12,
+                              'distances with periodic boundaries in north-south')
 
     def test_ensemble_mean(self):
         periodicMean = [1-0.1/3, 1-0.1/3]
         nonPeriodicMean = [(0.9 + 0.9 + 0.1)/3, (0.9 + 0.9 + 0.1)/3]
         semiPeriodicMean = [nonPeriodicMean[0], periodicMean[1]]
         
-        self.assertListAlmostEqual(self.smallParticleSet.getEnsembleMean().tolist(),
-                                   periodicMean, 12,
-                                   'periodic mean')
+        assertListAlmostEqual(self, self.smallParticleSet.getEnsembleMean().tolist(),
+                              periodicMean, 12,
+                              'periodic mean')
 
         self.smallParticleSet.setBoundaryConditions(Common.BoundaryConditions(1,1,1,1))
-        self.assertListAlmostEqual(self.smallParticleSet.getEnsembleMean().tolist(),
-                                   nonPeriodicMean, 12,
-                                   'non-periodic mean')
+        assertListAlmostEqual(self, self.smallParticleSet.getEnsembleMean().tolist(),
+                              nonPeriodicMean, 12,
+                              'non-periodic mean')
 
         self.smallParticleSet.setBoundaryConditions(Common.BoundaryConditions(2,1,2,1))
-        self.assertListAlmostEqual(self.smallParticleSet.getEnsembleMean().tolist(),
-                                   semiPeriodicMean, 12,
-                                   'north-south-periodic mean')
+        assertListAlmostEqual(self, self.smallParticleSet.getEnsembleMean().tolist(),
+                              semiPeriodicMean, 12,
+                              'north-south-periodic mean')
         
         
     def test_init(self):
@@ -191,9 +191,9 @@ class GlobalParticlesTest(unittest.TestCase):
         longDiag = np.sqrt(2*0.8*0.8)
         longLine = 0.8
         # Distance should now be the above, even with periodic boundary conditions
-        self.assertListAlmostEqual(self.smallParticleSet.getDistances().tolist(),
-                                   [longDiag, longLine, longLine], 12,
-                                   'getDistance() in big periodic domain')
+        assertListAlmostEqual(self, self.smallParticleSet.getDistances().tolist(),
+                              [longDiag, longLine, longLine], 12,
+                              'getDistance() in big periodic domain')
         
         
     def test_copy(self):
