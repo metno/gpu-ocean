@@ -110,6 +110,23 @@ class GlobalParticlesTest(unittest.TestCase):
         observation = self.smallParticleSet.getObservationPosition()
         self.assertEqual(observation.shape, ((2,)))
         self.assertEqual(observation.tolist(), [0.1, 0.1])
+
+    def test_set_observation_position(self):
+        pos = np.array([0.523, 0.999])
+        self.smallParticleSet.setObservationPosition(pos)
+        
+        positions = self.smallParticleSet.getParticlePositions()
+        self.assertEqual(positions.shape, ((self.numParticles, 2)))
+        self.assertEqual(positions[0,:].tolist(), [0.9, 0.9])
+        self.assertEqual(positions[1,:].tolist(), [0.9, 0.1])
+        self.assertEqual(positions[2,:].tolist(), [0.1, 0.9])
+
+        observation = self.smallParticleSet.getObservationPosition()
+        self.assertEqual(observation.shape, ((2,)))
+        self.assertEqual(observation.tolist(), pos.tolist())
+        
+        self.assertEqual(self.smallParticleSet.getBoundaryConditions().get(), [2,2,2,2])
+        
         
         
     def test_distances(self):

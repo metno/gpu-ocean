@@ -123,10 +123,12 @@ class GlobalParticles:
         
     def setParticlePositions(self, newParticlePositions):
         # Include the observation:
-        newPositionsAll = np.concatenate((newParticlePositions, np.array([self.getObservationPosition()])), \
-                                         axis=0)
-        np.copyto(self.positions, newPositionsAll)
+        #newPositionsAll = np.concatenate((newParticlePositions, np.array([self.getObservationPosition()])), \
+        #                                 axis=0)
+        np.copyto(self.positions[:-1,:], newParticlePositions) # np.copyto(dst, src)
     
+    def setObservationPosition(self, newObservationPosition):
+        np.copyto(self.positions[-1,:], newObservationPosition)
     
     def initializeParticles(self, domain_size_x=1.0, domain_size_y=1.0):
         """
@@ -136,7 +138,7 @@ class GlobalParticles:
         """
 
         # Initialize in unit square
-        self.positions = np.random.rand(self.numParticles + 1, 2)
+        np.copyto(self.positions, np.random.rand(self.numParticles + 1, 2))
         # Ensure that the observation is in the middle 0.5x0.5 square:
         self.positions[self.obs_index, :] = self.positions[self.obs_index]*0.5 + 0.25
         
