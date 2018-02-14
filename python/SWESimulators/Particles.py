@@ -258,9 +258,10 @@ class GlobalParticles:
                 self.positions[i,0] = x
                 self.positions[i,1] = y
         else:
-            print "WARNING [GlobalParticle.enforceBoundaryConditions]: Functionality not defined for non-periodic boundary conditions"
-            print "\t\tDoing nothing and continuing..."
-    
+            # TODO: what does this mean in a non-periodic boundary condition world?
+            #print "WARNING [GlobalParticle.enforceBoundaryConditions]: Functionality not defined for non-periodic boundary conditions"
+            #print "\t\tDoing nothing and continuing..."
+            pass
     
     def plotDistanceInfo(self, title=None):
         """
