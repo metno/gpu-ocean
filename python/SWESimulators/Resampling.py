@@ -44,7 +44,7 @@ def resampleParticles(particles, newSampleIndices, reinitialization_variance):
     
     if particles.getNumParticles() != newNumberOfParticles:
         raise RuntimeError("ERROR: The size of the new ensemble differs from the old size!\n" + \
-                           "(old size, new size): ", (particles.getNumParticles(), newNumberOfParticles) + \
+                           "(old size, new size): " + str((particles.getNumParticles(), newNumberOfParticles)) + \
                            "\nWe can fix this in the future by requiring a function resizeEnsemble")
         
     # We really do not the if. The random number with zero variance returns exactly the mean
@@ -60,7 +60,7 @@ def resampleParticles(particles, newSampleIndices, reinitialization_variance):
             if resampledOnce[index]:
                 newParticlePositions[i,:] = np.random.multivariate_normal(oldParticlePositions[index,:], var)
             else:
-                newParticlesPositions[i,:] = oldParticlePositions[index,:]
+                newParticlePositions[i,:] = oldParticlePositions[index,:]
                 resampledOnce[index] = True
     
     # Set particle positions to the ensemble:            
