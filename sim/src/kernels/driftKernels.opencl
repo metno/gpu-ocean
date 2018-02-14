@@ -26,8 +26,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define CLK_LOCAL_MEM_FENCE
 #endif
 
+
 /**
-  * Kernel that evolves eta one step in time.
+  * Kernel that evolves drifter positions along u and v.
   */
 __kernel void passiveDrifterKernel(
         //Discretization parameters
@@ -106,3 +107,45 @@ __kernel void passiveDrifterKernel(
 	drifter[1] = drifter_pos_y;
     }
 }
+
+
+__kernel void enforceBoundaryConditions(
+        //domain parameters
+	float domain_size_x_, float domain_size_y_,
+
+	int periodic_north_south_,
+	int periodic_east_west_,
+	
+	int num_drifters_,
+	__global float* drifters_positions_, int drifters_pitch_) {
+    
+    //Index of drifter
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1); // Should be 0
+
+    if (ti < num_drifters_ + 1) {
+	// Obtain pointer to our particle:
+	__global float* drifter = (__global float*) ((__global char*) drifters_positions_ + drifters_pitch_*ti);
+	float drifter_pos_x = drifter[0];
+	float drifter_pos_y = drifter[1];
+
+	// Ensure boundary conditions
+	if (periodic_east_west_ && (drifter_pos_x < 0)) {
+	    drifter_pos_x += + domain_size_x_;
+	}
+	if (periodic_east_west_ && (drifter_pos_x > domain_size_x_)) {
+	    drifter_pos_x -= domain_size_x_;
+	}
+	if (periodic_north_south_ && (drifter_pos_y < 0)) {
+	    drifter_pos_y += domain_size_y_;
+	}
+	if (periodic_north_south_ && (drifter_pos_y > domain_size_y_)) {
+	    drifter_pos_y -= domain_size_y_;
+	}
+
+	// Write to global memory
+	drifter[0] = drifter_pos_x;
+	drifter[1] = drifter_pos_y;
+    }
+}
+
