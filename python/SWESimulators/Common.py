@@ -251,7 +251,7 @@ Class which represents different wind stresses
 class WindStressParams:
 
     """
-    wind_type: TYpe of wind stress, 0=Uniform along shore, 1=bell shaped along shore, 2=moving cyclone
+    wind_type: TYpe of wind stress, 0=Uniform along shore, 1=bell shaped along shore, 2=moving cyclone, 50=Uniform specified by direction and speed
     wind_tau0: Amplitude of wind stress (Pa)
     wind_rho: Density of sea water (1025.0 kg / m^3)
     wind_alpha: Offshore e-folding length (1/(10*dx) = 5e-6 m^-1)
@@ -261,12 +261,15 @@ class WindStressParams:
     wind_y0: Initial y position of moving cyclone (dy*(ny/2) - v0*3600.0*48.0)
     wind_u0: Translation speed along x for moving cyclone (30.0/sqrt(5.0))
     wind_v0: Translation speed along y for moving cyclone (-0.5*u0)
+    wind_speed: Wind speed in m/s
+    wind_direction: Wind direction in degrees (clockwise, 0 being wind blowing from north towards south)
     """
     def __init__(self, 
                  type=99, # "no wind" \
                  tau0=0, rho=0, alpha=0, xm=0, Rc=0, \
                  x0=0, y0=0, \
-                 u0=0, v0=0):
+                 u0=0, v0=0, \
+                 wind_speed=0, wind_direction=0):
         self.type = np.int32(type)
         self.tau0 = np.float32(tau0)
         self.rho = np.float32(rho)
@@ -277,6 +280,8 @@ class WindStressParams:
         self.y0 = np.float32(y0)
         self.u0 = np.float32(u0)
         self.v0 = np.float32(v0)
+        self.wind_speed = np.float32(wind_speed)
+        self.wind_direction = np.float32(wind_direction)
                  
 
 """
