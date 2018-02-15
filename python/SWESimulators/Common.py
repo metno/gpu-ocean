@@ -239,7 +239,7 @@ class WindStressParams:
     wind_u0: Translation speed along x for moving cyclone (30.0/sqrt(5.0))
     wind_v0: Translation speed along y for moving cyclone (-0.5*u0)
     wind_speed: Wind speed in m/s
-    wind_direction: Wind direction in degrees (clockwise, 0 being north)
+    wind_direction: Wind direction in degrees (clockwise, 0 being wind blowing from north towards south)
     """
     def __init__(self, 
                  type=99, # "no wind" \

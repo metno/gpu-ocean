@@ -28,6 +28,17 @@ import matplotlib.pyplot as plt
 import os as os
 
 class SimNetCDFWriter:
+    """Write simulator output to file in netCDF-format, following the CF convention.
+
+    Args:
+        sim: Simulator that will be generating netCDF output.
+        num_layers: Number of layers in sim.
+        staggerede_grid: Is simulator grid staggered.
+        ignore_ghostcells: Ghost cells will not be written to file if set to True.
+        offset_x: Offset simulator origo with offset_x*dx in x-dimension, before writing to netCDF. 
+        offset_y: Offset simulator origo with offset_y*dy in y-dimension, before writing to netCDF.
+
+    """
     def __init__(self, sim, num_layers=1, staggered_grid=False, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0):
