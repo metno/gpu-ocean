@@ -8,6 +8,7 @@ import xmlrunner
 
 #import testUtils
 from dataAssimilation.GlobalParticlesTest import GlobalParticlesTest
+from dataAssimilation.SingleGPUPassiveDrifterEnsembleTest import SingleGPUPassiveDrifterEnsembleTest
 
 if (len(sys.argv) < 1):
     print ("Usage:")
@@ -26,7 +27,7 @@ if (jenkins):
 
 # Define the tests that will be part of our test suite:
 test_classes_to_run = None
-test_classes_to_run = [GlobalParticlesTest]
+test_classes_to_run = [GlobalParticlesTest, SingleGPUPassiveDrifterEnsembleTest]
 
 
 loader = unittest.TestLoader()

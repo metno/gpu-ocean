@@ -57,7 +57,9 @@ class SingleGPUPassiveDrifterEnsemble(Particles.GlobalParticles):
         self.boundaryConditions = boundaryConditions
         
         self.particlesHost = np.zeros((self.numParticles + 1, 2)).astype(np.float32, order='C')
-        self.particlesDevice = None # TODO: Change to allocate
+        self.particlesDevice = Common.OpenCLArray2D(self.cl_ctx, \
+                                                    2, self.numParticles+1, 0, 0, \
+                                                    self.particlesHost)
         
         self.driftKernels = Common.get_kernel(self.cl_ctx,\
             "driftKernels.opencl", self.block_width, self.block_height)
@@ -86,14 +88,8 @@ class SingleGPUPassiveDrifterEnsemble(Particles.GlobalParticles):
         self.domain_size_y = domain_size_y
         self.particlesHost = self.particlesHost.astype(np.float32, order='C')
         
-        if self.particlesDevice is not None:
-            self.particlesDevice.release()
+        self.particlesDevice.upload(self.cl_queue, self.particlesHost)
         
-        # TODO: Change to upload
-        self.particlesDevice = Common.OpenCLArray2D(self.cl_ctx, \
-                                                    2, self.numParticles+1, 0, 0, \
-                                                    self.particlesHost)
-
     def setParticlePositions(self, newParticlePositions):
         ### Need to attache the observation to the newParticlePositions, and then upload
         # to the GPU
