@@ -539,7 +539,7 @@ void minmodSlopeY(__local float  Q[3][block_height+4][block_width+4],
 /*
  * Compute x-component of wind vector.
  * @param wind_speed Wind speed in m/s.
- * @param wind_direction The direction that the wind is coming from in degrees (0 is north).
+ * @param wind_direction Wind direction in degrees (clockwise, 0 being wind blowing from north towards south).
  */
 float wind_u(float wind_speed, float wind_direction) {
 	return -wind_speed * sin(wind_direction * PI_OVER_180);
@@ -548,32 +548,10 @@ float wind_u(float wind_speed, float wind_direction) {
 /*
  * Compute y-component of wind vector.
  * @param wind_speed Wind speed in m/s.
- * @param wind_direction The direction that the wind is coming from in degrees (0 is north).
+ * @param wind_direction Wind direction in degrees (clockwise, 0 being wind blowing from north towards south).
  */
 float wind_v(float wind_speed, float wind_direction) {
 	return -wind_speed * cos(wind_direction * PI_OVER_180);
-}
-
-/*
- * Compute wind direction (the direction that the wind is coming from).
- * @param x_wind x-component of wind vector.
- * @param y_wind y-component of wind vector.
- */
-float wind_dd(float x_wind, float y_wind) {
-    return fmod(270.0f - (atan2(y_wind, x_wind) * _180_OVER_PI), 360.0f);
-}
-
-/*
- * Compute downwind direction (the direction in which the wind is blowing).
- * @param x_wind x-component of wind vector.
- * @param y_wind y-component of wind vector.
- */
-float wind_downwind_direction(float x_wind, float y_wind) {
-    float val = wind_dd(x_wind, y_wind) - 180.0f;
-    if (val < 0) {
-        val += 360.0f;
-    }
-    return val;
 }
 
 float windStressX(int wind_stress_type_,
@@ -620,6 +598,13 @@ float windStressX(int wind_stress_type_,
     case 50: //UNIFORM_SPECIFIED
 		{
 			const float rho_air = 1.3f;
+
+			/*
+			 * C_drag as defined by Engedahl (1995)
+			 *
+			 * (See "Documentation of simple ocean models for use in ensemble predictions. Part II: Benchmark cases"
+			 * at https://www.met.no/publikasjoner/met-report/met-report-2012 for details.)
+			 */
 			const float C_drag = (wind_speed_ < 11) ? 0.0012f : (0.49f + 0.065f)*wind_speed_;
 
 			X = rho_air * C_drag * wind_u(wind_speed_, wind_direction_);
@@ -663,6 +648,13 @@ float windStressY(int wind_stress_type_,
     case 50: //UNIFORM_SPECIFIED
 		{
 			const float rho_air = 1.3f;
+
+			/*
+			 * C_drag as defined by Engedahl (1995)
+			 *
+			 * (See "Documentation of simple ocean models for use in ensemble predictions. Part II: Benchmark cases"
+			 * at https://www.met.no/publikasjoner/met-report/met-report-2012 for details.)
+			 */
 			const float C_drag = (wind_speed_ < 11) ? 0.0012f : (0.49f + 0.065f)*wind_speed_;
 
 			Y = rho_air * C_drag * wind_v(wind_speed_, wind_direction_);
