@@ -361,7 +361,6 @@ class GlobalParticlesTest(unittest.TestCase):
         indices = [0,0,0,3,4,4]
         solutions = self.resample(indices)
         Resampling.metropolisHastingSampling(self.resamplingParticleSet, self.resamplingVar)
-        print self.resamplingParticleSet.getParticlePositions().tolist()
         assert2DListAlmostEqual(self, self.resamplingParticleSet.getParticlePositions().tolist(), solutions, 2, "metropolis hasting sampling, probabilistic duplicates")
         
 
