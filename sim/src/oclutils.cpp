@@ -180,14 +180,14 @@ void OpenCLUtils::init(const vector<pair<string, string> > &sources, cl_device_t
         const string srcFile = it->second;
         srcFiles.push_back(srcFile);
     }
-    program.reset(new cl::Program(*context, loadKernels(srcFiles), &error));
+    program = new cl::Program(*context, loadKernels(srcFiles), &error);
     CL_CHECK(error);
 
     // compile program
     error = program->build(devices, buildOptions.empty() ? 0 : buildOptions.c_str(), 0, 0);
     if (error == CL_BUILD_PROGRAM_FAILURE) {
         cerr << "program build failure detected:\n";
-        printProgramBuildLog(program.get(), devices);
+        printProgramBuildLog(program, devices);
     }
     CL_CHECK(error);
 
@@ -219,7 +219,13 @@ cl_uint OpenCLUtils::pfmIndex = 0;
 vector<cl::Device> OpenCLUtils::devices;
 cl_uint OpenCLUtils::devIndex = 0;
 shared_ptr<cl::Context> OpenCLUtils::context;
-shared_ptr<cl::Program> OpenCLUtils::program;
+
+//////////////////// NOTE ! ! ! ////////////////////
+//XXX: should also be a shared_ptr - must figure out how to destruct properly!
+// (triggers segfault in clReleaseProgram if shared_ptr)
+cl::Program *OpenCLUtils::program;
+//////////////////// NOTE ! ! ! ////////////////////
+
 map<string, shared_ptr<cl::Kernel> > OpenCLUtils::kernels;
 shared_ptr<cl::CommandQueue> OpenCLUtils::queue;
 
@@ -234,6 +240,14 @@ cl::Kernel *OpenCLUtils::getKernel(const string &tag)
         throw runtime_error("OpenCL structures not initialized");
 
     return kernels[tag].get();
+}
+
+cl::Program *OpenCLUtils::getProgram()
+{
+	if (!isInit)
+		throw runtime_error("OpenCL structures not initialized");
+
+	return program;
 }
 
 cl::CommandQueue *OpenCLUtils::getQueue()
