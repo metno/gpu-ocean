@@ -554,7 +554,7 @@ float wind_v(float wind_speed, float wind_direction) {
 	return -wind_speed * cos(wind_direction * PI_OVER_180);
 }
 
-float windStressX(int wind_stress_type_,
+float __attribute__((overloadable)) windStressX(int wind_stress_type_,
                 float dx_, float dy_, float dt_,
                 float tau0_, float rho_, float alpha_, float xm_, float Rc_,
                 float x0_, float y0_,
@@ -615,12 +615,30 @@ float windStressX(int wind_stress_type_,
     return X;
 }
 
+/*
+ * Temporary overload.
+ * TODO: Implement wind parameters as struct.
+ */
+float __attribute__((overloadable)) windStressX(int wind_stress_type_,
+                float dx_, float dy_, float dt_,
+                float tau0_, float rho_, float alpha_, float xm_, float Rc_,
+                float x0_, float y0_,
+                float u0_, float v0_,
+                float t_) {
+	return windStressX(wind_stress_type_,
+	                dx_, dy_, dt_,
+	                tau0_, rho_, alpha_, xm_, Rc_,
+	                x0_, y0_,
+	                u0_, v0_,
+					0.f, 0.f,
+	                t_);
+}
 
 
 
 
 
-float windStressY(int wind_stress_type_,
+float __attribute__((overloadable)) windStressY(int wind_stress_type_,
                 float dx_, float dy_, float dt_,
                 float tau0_, float rho_, float alpha_, float xm_, float Rc_,
                 float x0_, float y0_,
@@ -665,6 +683,24 @@ float windStressY(int wind_stress_type_,
     return Y;
 }
 
+/*
+ * Temporary overload.
+ * TODO: Implement wind parameters as struct.
+ */
+float __attribute__((overloadable)) windStressY(int wind_stress_type_,
+                float dx_, float dy_, float dt_,
+                float tau0_, float rho_, float alpha_, float xm_, float Rc_,
+                float x0_, float y0_,
+                float u0_, float v0_,
+                float t_) {
+	return windStressY(wind_stress_type_,
+	                dx_, dy_, dt_,
+	                tau0_, rho_, alpha_, xm_, Rc_,
+	                x0_, y0_,
+	                u0_, v0_,
+					0.f, 0.f,
+	                t_);
+}
 
 
 
