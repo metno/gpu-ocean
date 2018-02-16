@@ -73,7 +73,26 @@ class GPUDrifter(Drifter.Drifter):
         #print "numParticles + obs: ", self.numParticles + 1
         # remember: shape = (y, x)
         
+    def copy(self):
+        """
+        Makes an independent indentical copy of the current object
+        """
+    
+        copyOfSelf = GPUDrifter(self.cl_ctx,
+                                self.numParticles,
+                                observation_variance = self.observation_variance,
+                                boundaryConditions = self.boundaryConditions,
+                                domain_size_x = self.domain_size_x, 
+                                domain_size_y = self.domain_size_y,
+                                cl_queue = self.cl_queue,
+                                block_width = self.block_width)
         
+        copyOfSelf.setParticlePositions(self.getParticlePositions())
+        copyOfSelf.setObservationPosition(self.getObservationPosition())
+        
+        return copyOfSelf
+    
+    
     # To be removed
     def initializeParticles(self, domain_size_x = 1.0, domain_size_y = 1.0):
         

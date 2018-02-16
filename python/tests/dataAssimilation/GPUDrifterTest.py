@@ -229,7 +229,7 @@ class GPUDrifterTest(unittest.TestCase):
                               'getDistance() in big periodic domain')
         
         
-    def nontest_copy(self):
+    def test_copy(self):
         size_x = 10.3
         size_y = 5.4
         self.smallParticleSet.setDomainSize(size_x, size_y)
@@ -242,13 +242,17 @@ class GPUDrifterTest(unittest.TestCase):
         
         positions = copy.getParticlePositions()
         self.assertEqual(positions.shape, ((self.numParticles, 2)))
-        self.assertEqual(positions[0,:].tolist(), [0.9, 0.9])
-        self.assertEqual(positions[1,:].tolist(), [0.9, 0.1])
-        self.assertEqual(positions[2,:].tolist(), [0.1, 0.9])
+        assertListAlmostEqual(self, positions[0,:].tolist(), [0.9, 0.9], 6,
+                              'copy GPUDrifter, position particle 0')
+        assertListAlmostEqual(self, positions[1,:].tolist(), [0.9, 0.1], 6,
+                              'copy GPUDrifter, position particle 1')
+        assertListAlmostEqual(self, positions[2,:].tolist(), [0.1, 0.9], 6,
+                              'copy GPUDrifter, position particle 2')
         
         observation = copy.getObservationPosition()
         self.assertEqual(observation.shape, ((2,)))
-        self.assertEqual(observation.tolist(), [0.1, 0.1])
+        assertListAlmostEqual(self, observation.tolist(), [0.1, 0.1], 6,
+                              'copy GPUDrifter, position observation')
         
         self.assertEqual(copy.getBoundaryConditions().get(), [2,2,2,2])
 
@@ -257,12 +261,14 @@ class GPUDrifterTest(unittest.TestCase):
                                                            
         # Move a particle in the original dataset and check that it is still the same in
         # the copy
-
-        self.smallParticleSet.positions[1,0] = 0.5
-        self.smallParticleSet.positions[1,1] = 0.5
-
-        positions = copy.getParticlePositions()
-        self.assertEqual(positions[1,:].tolist(), [0.9, 0.1])
+        positions[1,0] = 0.5
+        positions[1,1] = 0.5
+        self.smallParticleSet.setParticlePositions(positions)
+        
+        positions2 = copy.getParticlePositions()
+        assertListAlmostEqual(self, positions2[1,:].tolist(), [0.9, 0.1], 6,
+                              'copy GPUDrifter, position particle 1 after changing original')
+        
 
 
         
