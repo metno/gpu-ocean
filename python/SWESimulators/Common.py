@@ -32,17 +32,19 @@ def get_kernel(cl_ctx, kernel_filename, block_width, block_height):
         
         
 
-"""
-Class that holds data 
-"""
+
 class OpenCLArray2D:
     """
-    Uploads initial data to the CL device
+    Class that holds data 
     """
+    
     def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, data, \
                  asymHalo=None):
+        """
+        Uploads initial data to the CL device
+        """
         host_data = self.convert_to_float32(data)
-
+        
         self.nx = nx
         self.ny = ny
         self.nx_halo = nx + 2*halo_x
@@ -67,12 +69,31 @@ class OpenCLArray2D:
         self.pitch = np.int32((self.nx_halo)*self.bytes_per_float)
         
         
-    """
-    Enables downloading data from CL device to Python
-    """
-    def download(self, cl_queue):
+    def upload(self, cl_queue, data):
+        """
+        Filling the allocated buffer with new data
+        """
         if not self.holds_data:
-            print "Throwing exception!!!!!"
+            raise RuntimeError('The buffer has been freed before upload is called')
+        
+        # Make sure that the input is of correct size:
+        host_data = self.convert_to_float32(data)
+        assert(host_data.shape[1] == self.nx_halo), str(host_data.shape[1]) + " vs " + str(self.nx_halo)
+        assert(host_data.shape[0] == self.ny_halo), str(host_data.shape[0]) + " vs " + str(self.ny_halo)
+        assert(host_data.shape == (self.ny_halo, self.nx_halo))
+        
+        assert(host_data.itemsize == self.bytes_per_float), "Host data itemsize is " + str(host_data.itemsize) + ", but should have been " + str(self.bytes_per_float)
+        
+        # Okay, everything is fine, now upload:
+        total_num_bytes = self.bytes_per_float*self.nx_halo*self.ny_halo
+        pyopencl.enqueue_copy(cl_queue, self.data, host_data)
+        
+        
+    def download(self, cl_queue):
+        """
+        Enables downloading data from CL device to Python
+        """
+        if not self.holds_data:
             raise RuntimeError('OpenCL buffer has been freed')
         
         #Allocate data on the host for result
@@ -84,21 +105,23 @@ class OpenCLArray2D:
         #Return
         return host_data
 
-    """
-    Frees the allocated memory buffers on the GPU 
-    """
+    
     def release(self):
+        """
+        Frees the allocated memory buffers on the GPU 
+        """
         if self.holds_data:
             self.data.release()
             self.holds_data = False
 
-    """
-    Converts to C-style float 32 array suitable for the GPU/OpenCL
-    """
+    
     @staticmethod
     def convert_to_float32(data):
+        """
+        Converts to C-style float 32 array suitable for the GPU/OpenCL
+        """
         if (not np.issubdtype(data.dtype, np.float32) or np.isfortran(data)):
-            print "Converting H0"
+            #print "Converting H0"
             return data.astype(np.float32, order='C')
         else:
             return data
