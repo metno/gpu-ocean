@@ -26,9 +26,9 @@ import numpy as np
 import time
 
 import Common
+import Drifter
 
-
-class CPUDrifter:
+class CPUDrifter(Drifter.Drifter):
     """
     Class holding the global set of particles.
     """ 
@@ -74,13 +74,9 @@ class CPUDrifter:
         
         return copyOfSelf
     
-        
-    ### GETs
-    def getNumParticles(self):
-        return self.numParticles
     
-    def getObservationVariance(self):
-        return self.observation_variance
+    
+    ### Implementation of abstract GETs
     
     def getParticlePositions(self):
         return self.positions[:-1,:]
@@ -88,24 +84,10 @@ class CPUDrifter:
     def getObservationPosition(self):
         return self.positions[-1, :]
     
-    def getBoundaryConditions(self):
-        return self.boundaryConditions
     
-    def getDomainSizeX(self):
-        return self.domain_size_x
     
-    def getDomainSizeY(self):
-        return self.domain_size_y
-        
-        
-    ### SETs
-    def setBoundaryConditions(self, boundaryConditions):
-        self.boundaryConditions = boundaryConditions
-        
-    def setDomainSize(self, size_x, size_y):
-        self.domain_size_x = size_x
-        self.domain_size_y = size_y
-        
+    ### Implementation of abstract GETs
+    
     def setParticlePositions(self, newParticlePositions):
         # Include the observation:
         #newPositionsAll = np.concatenate((newParticlePositions, np.array([self.getObservationPosition()])), \
@@ -114,108 +96,8 @@ class CPUDrifter:
     
     def setObservationPosition(self, newObservationPosition):
         np.copyto(self.positions[-1,:], newObservationPosition)
-    
-    def initializeParticles(self, domain_size_x=1.0, domain_size_y=1.0):
-        """
-        Initialization of all particles (and observation) within a rectangle of given size.
-        domain_size_x [default 1.0]: size of rectangle in x-direction 
-        domain_size_y [default 1.0]: size of rectangle in y-direction
-        """
-
-        # Initialize in unit square
-        np.copyto(self.positions, np.random.rand(self.numParticles + 1, 2))
-        # Ensure that the observation is in the middle 0.5x0.5 square:
-        self.positions[self.obs_index, :] = self.positions[self.obs_index]*0.5 + 0.25
         
-        # Map to given square
-        self.positions[:,0] = self.positions[:,0]*domain_size_x
-        self.positions[:,1] = self.positions[:,1]*domain_size_y
-        
-        self.domain_size_x = domain_size_x
-        self.domain_size_y = domain_size_y
-        
-    def _getClosestPositions(self):
-        """
-        Returns a set of coordinates corresponding to each particles closest position to the observation,
-        considering possible periodic boundary conditions
-        """
-        if not (self.boundaryConditions.isPeriodicNorthSouth() or self.boundaryConditions.isPeriodicEastWest()):
-            #return self.positions 
-            return self.getParticlePositions()
-        else:
-            periodicPositions = self.getParticlePositions().copy()
-            obs_x, obs_y = self.getObservationPosition()
-            if self.boundaryConditions.isPeriodicEastWest():
-                for i in range(self.getNumParticles()):
-                    x = periodicPositions[i,0]
-                    
-                    pos_x = np.array([x - self.getDomainSizeX(), x, \
-                                      x + self.getDomainSizeX()])
-                    dist_x = np.abs(pos_x - obs_x)
-                    periodicPositions[i,0] = pos_x[np.argmin(dist_x)]
-
-            if self.boundaryConditions.isPeriodicNorthSouth():
-                for i in range(self.numParticles):
-                    y = periodicPositions[i,1]
-                    
-                    pos_y = np.array([y - self.getDomainSizeY(), y, \
-                                      y + self.getDomainSizeY()])
-                    dist_y = np.abs(pos_y - obs_y)
-                    periodicPositions[i,1] = pos_y[np.argmin(dist_y)]
-        return periodicPositions
-        
-    
-    def getDistances(self):
-        """
-        Computes the distance between particles and observation. Possible periodic boundary conditions are taken care of.
-        """
-        distances = np.zeros(self.getNumParticles())
-        closestPositions = self._getClosestPositions()
-        obs_x, obs_y = self.getObservationPosition()
-        for i in range(self.getNumParticles()):
-            distances[i] = np.sqrt( (closestPositions[i,0]-obs_x)**2 +
-                                    (closestPositions[i,1]-obs_y)**2)
-        return distances
-        
-    
-    def getGaussianWeight(self, distance=None, normalize=True):
-        """
-        Calculates a weight associated to every particle, based on its distance from the observation, using Gaussian uncertainty of the position of the observation 
-        """
-        if distance is None:
-            distance = self.getDistances()
-        weights = (1.0/np.sqrt(2*np.pi*self.getObservationVariance()**2))* \
-            np.exp(- (distance**2/(2*self.getObservationVariance()**2)))
-        if normalize:
-            return weights/np.sum(weights)
-        return weights
-    
-    
-    
-    
-    def getCauchyWeight(self, distance=None, normalize=True):
-        """
-        Calculates a weight associated to every particle, based on its distance from the observation, using Cauchy distribution based on the uncertainty of the position of the observation.
-        This distribution should be used if wider tails of the distribution is beneficial.
-        """
-        if distance is None:
-            distance = self.getDistances()
-        weights = 1.0/(np.pi*self.observation_variance*(1 + (distance/self.observation_variance)**2))
-        if normalize:
-            return weights/np.sum(weights)
-        return weights
-    
-    
-    def getEnsembleMean(self):
-        """
-        Calculates the mean position of all the particles in the ensemble.
-        For cases with periodic boundary conditions, the every particle position is considered in the direction which minimize the distance to the observation.
-        """
-        closestPositions = self._getClosestPositions()
-        mean_x, mean_y = np.mean(closestPositions, axis=0)
-        mean_x, mean_y = self._enforceBoundaryConditionsOnPosition(mean_x, mean_y)
-        return np.array([mean_x, mean_y])
-    
+    ### Implementation of other abstract functions
     
     def _enforceBoundaryConditionsOnPosition(self, x, y):
         """
@@ -255,63 +137,6 @@ class CPUDrifter:
             #print "\t\tDoing nothing and continuing..."
             pass
     
-    def plotDistanceInfo(self, title=None):
-        """
-        Utility function for generating informative plots of the ensemble relative to the observation
-        """    
-        fig = plt.figure(figsize=(10,6))
-        gridspec.GridSpec(2, 3)
-        
-        # PLOT POSITIONS OF PARTICLES AND OBSERVATIONS
-        ax0 = plt.subplot2grid((2,3), (0,0))
-        plt.plot(self.getParticlePositions()[:,0], \
-                 self.getParticlePositions()[:,1], 'b.')
-        plt.plot(self.getObservationPosition()[0], \
-                 self.getObservationPosition()[1], 'r.')
-        ensembleMean = self.getEnsembleMean()
-        if ensembleMean is not None:
-            plt.plot(ensembleMean[0], ensembleMean[1], 'r+')
-        plt.xlim(0, self.getDomainSizeX())
-        plt.xlabel('x')
-        plt.ylabel('y')
-        plt.ylim(0, self.getDomainSizeY())
-        plt.title("Particle positions")
-        
-        # PLOT DISCTRIBUTION OF PARTICLE DISTANCES AND THEORETIC OBSERVATION PDF
-        ax0 = plt.subplot2grid((2,3), (0,1), colspan=2)
-        distances = self.getDistances()
-        plt.hist(distances, bins=30, \
-                 range=(0, max(min(self.getDomainSizeX(), self.getDomainSizeY()), np.max(distances))),\
-                 normed=True, label="particle distances")
-        
-        # With observation 
-        x = np.linspace(0, max(self.domain_size_x, self.domain_size_y), num=100)
-        cauchy_pdf = self.getCauchyWeight(x, normalize=False)
-        gauss_pdf = self.getGaussianWeight(x, normalize=False)
-        plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
-        plt.plot(x, gauss_pdf, 'g', label="obs Gauss pdf")
-        plt.legend()
-        plt.title("Distribution of particle distances from observation")
-        
-        # PLOT SORTED DISTANCES FROM OBSERVATION
-        ax0 = plt.subplot2grid((2,3), (1,0), colspan=3)
-        cauchyWeights = self.getCauchyWeight(distances)
-        gaussWeights = self.getGaussianWeight(distances)
-        indices_sorted_by_observation = distances.argsort()
-        ax0.plot(cauchyWeights[indices_sorted_by_observation]/np.max(cauchyWeights), 'r', label="Cauchy weight")
-        ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Gauss weight")
-        ax0.set_ylabel('Relative weight')
-        ax0.grid()
-        ax0.set_ylim(0,1.4)
-        plt.legend(loc=7)
-        
-        ax1 = ax0.twinx()
-        ax1.plot(distances[indices_sorted_by_observation], label="distance")
-        ax1.set_ylabel('Distance from observation', color='b')
-        
-        plt.title("Sorted distances from observation")
-
-        if title is not None:
-            plt.suptitle(title, fontsize=16)
-            
-            
+    
+    
+  

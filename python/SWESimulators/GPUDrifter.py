@@ -27,9 +27,9 @@ import time
 import pyopencl
 
 import Common
-import CPUDrifter
+import Drifter
 
-class GPUDrifter(CPUDrifter.CPUDrifter):
+class GPUDrifter(Drifter.Drifter):
     def __init__(self, cl_ctx, numParticles, \
                  observation_variance=0.1, \
                  boundaryConditions=Common.BoundaryConditions(), \
@@ -74,6 +74,7 @@ class GPUDrifter(CPUDrifter.CPUDrifter):
         # remember: shape = (y, x)
         
         
+    # To be removed
     def initializeParticles(self, domain_size_x = 1.0, domain_size_y = 1.0):
         
          # Initialize in unit square
