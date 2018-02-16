@@ -8,21 +8,21 @@ from testUtils import *
 
 sys.path.insert(0, '../')
 from SWESimulators import Common
-from SWESimulators.Particles import *
+from SWESimulators.CPUDrifter import *
 from SWESimulators import Resampling
 
 #reload(GlobalParticles)
 
-class GlobalParticlesTest(unittest.TestCase):
+class CPUDrifterTest(unittest.TestCase):
 
     def setUp(self):
 
         self.numParticles = 3
         self.observationVariance = 0.5
         self.boundaryCondition = Common.BoundaryConditions(2,2,2,2)
-        self.smallParticleSet = GlobalParticles(self.numParticles,
-                                                self.observationVariance,
-                                                self.boundaryCondition)
+        self.smallParticleSet = CPUDrifter(self.numParticles,
+                                           self.observationVariance,
+                                           self.boundaryCondition)
 
         self.smallParticleSet.positions[0,:] = [0.9, 0.9]
         self.smallParticleSet.positions[1,:] = [0.9, 0.1]
@@ -30,7 +30,7 @@ class GlobalParticlesTest(unittest.TestCase):
         self.smallParticleSet.positions[3,:] = [0.1, 0.1]
 
         self.resampleNumParticles = 6
-        self.resamplingParticleSet = GlobalParticles(self.resampleNumParticles)
+        self.resamplingParticleSet = CPUDrifter(self.resampleNumParticles)
         for i in range(2):
             self.resamplingParticleSet.positions[3*i+0, :] = [0.25, 0.35+i*0.3]
             self.resamplingParticleSet.positions[3*i+1, :] = [0.4,  0.35+i*0.3]
@@ -45,7 +45,7 @@ class GlobalParticlesTest(unittest.TestCase):
     ### START TESTS ###
     
     def test_default_constructor(self):
-        defaultParticleSet = GlobalParticles(self.numParticles)
+        defaultParticleSet = CPUDrifter(self.numParticles)
 
         self.assertEqual(defaultParticleSet.getNumParticles(), self.numParticles)
         self.assertEqual(defaultParticleSet.getObservationVariance(), 0.1)
@@ -178,7 +178,7 @@ class GlobalParticlesTest(unittest.TestCase):
         
         
     def test_init(self):
-        largeParticleSet = GlobalParticles(1000)
+        largeParticleSet = CPUDrifter(1000)
         domain_x = 10.3
         domain_y = 5.4
         largeParticleSet.initializeParticles(domain_size_x = domain_x,
