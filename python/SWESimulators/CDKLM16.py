@@ -149,7 +149,8 @@ class CDKLM16:
         self.wind_stress = wind_stress
         self.h0AsWaterElevation = h0AsWaterElevation
 
-
+        self.hasDrifters = False
+        self.drifters = None
         
         #Initialize time
         self.t = np.float32(0.0)
@@ -254,6 +255,15 @@ class CDKLM16:
         self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
         gc.collect() # Force run garbage collection to free up memory
         
+        
+    def attachDrifters(self, drifters):
+        ### Do the following type of checking here:
+        #assert isinstance(drifters, SingleGPUPassiveDrifterEnsemble)
+        #assert drifters.isInitialized()
+        
+        self.drifters = drifters
+        self.hasDrifters = True
+        self.drifters.setCLQueue(self.cl_queue)
     
     """
     Function which steps n timesteps
@@ -324,6 +334,15 @@ class CDKLM16:
                 
                 self.bc_kernel.boundaryCondition(self.cl_queue, \
                         self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+                
+                
+            if self.hasDrifters:
+                self.drifters.drift(self.cl_data.h0, self.cl_data.hu0, \
+                                    self.cl_data.hv0, np.float32(10), \
+                                    self.nx, self.ny, self.dx, self.dy, \
+                                    local_dt, \
+                                    np.int32(2), np.int32(2))
+
                 
             self.t += local_dt
             

@@ -9,6 +9,7 @@ from testUtils import *
 sys.path.insert(0, '../')
 from SWESimulators import Common
 from SWESimulators.Particles import *
+from SWESimulators import Resampling
 
 #reload(GlobalParticles)
 
@@ -27,43 +28,20 @@ class GlobalParticlesTest(unittest.TestCase):
         self.smallParticleSet.positions[1,:] = [0.9, 0.1]
         self.smallParticleSet.positions[2,:] = [0.1, 0.9]
         self.smallParticleSet.positions[3,:] = [0.1, 0.1]
-                                                  
 
+        self.resampleNumParticles = 6
+        self.resamplingParticleSet = GlobalParticles(self.resampleNumParticles)
+        for i in range(2):
+            self.resamplingParticleSet.positions[3*i+0, :] = [0.25, 0.35+i*0.3]
+            self.resamplingParticleSet.positions[3*i+1, :] = [0.4,  0.35+i*0.3]
+            self.resamplingParticleSet.positions[3*i+2, :] = [0.65, 0.35+i*0.3]
+        self.resamplingParticleSet.positions[6, :] = [0.25, 0.5]
+        self.resamplingVar = 1e-8
+        
     #def tearDown(self):
     # Intentionally empty
-        
-
-    ### HANDY UTILS ###
     
-    def assertListAlmostEqual(self, list1, list2, tol, testname):
-        l = max(len(list1), len(list2))
-        outro = ""
-        if l < 6:
-            outro = "\n\n- " + str(list1) + "\n+ " + str(list2)
-        
-        strList1 = str(list1)[:21]
-        if (len(strList1) > 20):
-            strList1 = strList1[:20] + "..."
-        strList2 = str(list2)[:21]
-        if (len(strList2) > 20):
-            strList2 = strList2[:20] + "..."
-            
-        msg = "test case \'" + testname + "\' - lists differs: " + strList1 + " != " + strList2 + "\n\n"
-        self.assertEqual(len(list1), len(list2),
-                         msg=msg + "Not same lengths:\nlen(list1) = " + str(len(list1)) + "\nlen(list2) = " + str(len(list2)) + outro)
 
-        l = len(list1)
-        outro = ""
-        if l < 6:
-            outro = "\n\n- " + str(list1) + "\n+ " + str(list2)
-        i = 0
-        for a,b in zip(list1, list2):
-            self.assertAlmostEqual(a, b, tol,
-                                   msg = msg + "First dofferomg element " + str(i) + ":\n" + str(a) + "\n" + str(b) + outro)
-            i = i + 1
-
-
-            
     ### START TESTS ###
     
     def test_default_constructor(self):
@@ -115,7 +93,42 @@ class GlobalParticlesTest(unittest.TestCase):
         self.smallParticleSet.setBoundaryConditions(Common.BoundaryConditions(2,1,2,1))
         self.assertEqual(self.smallParticleSet.getBoundaryConditions().get(), [2,1,2,1])
 
+    def test_set_particle_positions(self):
+        pos1 = [0.2, 0.5]
+        pos2 = [0.8, 0.235]
+        pos3 = [0.01, 0.01]
+        newPositions = np.array([pos1, pos2, pos3])
 
+        self.smallParticleSet.setParticlePositions(newPositions)
+
+        positions = self.smallParticleSet.getParticlePositions()
+        self.assertEqual(positions.shape, ((self.numParticles, 2)))
+        self.assertEqual(positions[0,:].tolist(), pos1)
+        self.assertEqual(positions[1,:].tolist(), pos2)
+        self.assertEqual(positions[2,:].tolist(), pos3)
+
+        observation = self.smallParticleSet.getObservationPosition()
+        self.assertEqual(observation.shape, ((2,)))
+        self.assertEqual(observation.tolist(), [0.1, 0.1])
+
+    def test_set_observation_position(self):
+        pos = np.array([0.523, 0.999])
+        self.smallParticleSet.setObservationPosition(pos)
+        
+        positions = self.smallParticleSet.getParticlePositions()
+        self.assertEqual(positions.shape, ((self.numParticles, 2)))
+        self.assertEqual(positions[0,:].tolist(), [0.9, 0.9])
+        self.assertEqual(positions[1,:].tolist(), [0.9, 0.1])
+        self.assertEqual(positions[2,:].tolist(), [0.1, 0.9])
+
+        observation = self.smallParticleSet.getObservationPosition()
+        self.assertEqual(observation.shape, ((2,)))
+        self.assertEqual(observation.tolist(), pos.tolist())
+        
+        self.assertEqual(self.smallParticleSet.getBoundaryConditions().get(), [2,2,2,2])
+        
+        
+        
     def test_distances(self):
         longDiag = np.sqrt(2*0.8*0.8)
         longLine = 0.8
@@ -125,43 +138,43 @@ class GlobalParticlesTest(unittest.TestCase):
                            
         
         # smallParticleSet is initially with periodic boundary conditions
-        self.assertListAlmostEqual(self.smallParticleSet.getDistances().tolist(), \
-                                   [shortDiag, shortLine, shortLine], 12,
-                                   'distance with periodic boundaries')
+        assertListAlmostEqual(self, self.smallParticleSet.getDistances().tolist(), \
+                              [shortDiag, shortLine, shortLine], 12,
+                              'distance with periodic boundaries')
         
         self.smallParticleSet.setBoundaryConditions(Common.BoundaryConditions(1,1,1,1))
-        self.assertListAlmostEqual(self.smallParticleSet.getDistances().tolist(), \
-                                   [longDiag, longLine, longLine], 12,
-                                   'distances with non-periodic boundaries')
+        assertListAlmostEqual(self, self.smallParticleSet.getDistances().tolist(), \
+                              [longDiag, longLine, longLine], 12,
+                              'distances with non-periodic boundaries')
         
         self.smallParticleSet.setBoundaryConditions(Common.BoundaryConditions(1,2,1,2))
-        self.assertListAlmostEqual(self.smallParticleSet.getDistances().tolist(), \
-                                   [semiDiag, shortLine, longLine], 12,
-                                   'distances with periodic boundaries in east-west')
+        assertListAlmostEqual(self, self.smallParticleSet.getDistances().tolist(), \
+                              [semiDiag, shortLine, longLine], 12,
+                              'distances with periodic boundaries in east-west')
 
         self.smallParticleSet.setBoundaryConditions(Common.BoundaryConditions(2,1,2,1))
-        self.assertListAlmostEqual(self.smallParticleSet.getDistances().tolist(), \
-                                   [semiDiag, longLine, shortLine], 12,
-                                   'distances with periodic boundaries in north-south')
+        assertListAlmostEqual(self, self.smallParticleSet.getDistances().tolist(), \
+                              [semiDiag, longLine, shortLine], 12,
+                              'distances with periodic boundaries in north-south')
 
     def test_ensemble_mean(self):
         periodicMean = [1-0.1/3, 1-0.1/3]
         nonPeriodicMean = [(0.9 + 0.9 + 0.1)/3, (0.9 + 0.9 + 0.1)/3]
         semiPeriodicMean = [nonPeriodicMean[0], periodicMean[1]]
         
-        self.assertListAlmostEqual(self.smallParticleSet.getEnsembleMean().tolist(),
-                                   periodicMean, 12,
-                                   'periodic mean')
+        assertListAlmostEqual(self, self.smallParticleSet.getEnsembleMean().tolist(),
+                              periodicMean, 12,
+                              'periodic mean')
 
         self.smallParticleSet.setBoundaryConditions(Common.BoundaryConditions(1,1,1,1))
-        self.assertListAlmostEqual(self.smallParticleSet.getEnsembleMean().tolist(),
-                                   nonPeriodicMean, 12,
-                                   'non-periodic mean')
+        assertListAlmostEqual(self, self.smallParticleSet.getEnsembleMean().tolist(),
+                              nonPeriodicMean, 12,
+                              'non-periodic mean')
 
         self.smallParticleSet.setBoundaryConditions(Common.BoundaryConditions(2,1,2,1))
-        self.assertListAlmostEqual(self.smallParticleSet.getEnsembleMean().tolist(),
-                                   semiPeriodicMean, 12,
-                                   'north-south-periodic mean')
+        assertListAlmostEqual(self, self.smallParticleSet.getEnsembleMean().tolist(),
+                              semiPeriodicMean, 12,
+                              'north-south-periodic mean')
         
         
     def test_init(self):
@@ -191,9 +204,9 @@ class GlobalParticlesTest(unittest.TestCase):
         longDiag = np.sqrt(2*0.8*0.8)
         longLine = 0.8
         # Distance should now be the above, even with periodic boundary conditions
-        self.assertListAlmostEqual(self.smallParticleSet.getDistances().tolist(),
-                                   [longDiag, longLine, longLine], 12,
-                                   'getDistance() in big periodic domain')
+        assertListAlmostEqual(self, self.smallParticleSet.getDistances().tolist(),
+                              [longDiag, longLine, longLine], 12,
+                              'getDistance() in big periodic domain')
         
         
     def test_copy(self):
@@ -260,3 +273,94 @@ class GlobalParticlesTest(unittest.TestCase):
         self.assertEqual(copy.getDomainSizeX(), size_x)
         self.assertEqual(copy.getDomainSizeY(), size_y)
         
+    def test_gaussian_weights(self):
+        obtainedWeights = self.resamplingParticleSet.getGaussianWeight()
+        referenceWeights = [  3.77361928e-01,   1.22511481e-01,   1.26590824e-04,   3.77361928e-01, 1.22511481e-01,   1.26590824e-04]
+        assertListAlmostEqual(self, obtainedWeights.tolist(),
+                              referenceWeights, 9,
+                              'gaussian weights')
+
+    def test_cauchy_weights(self):
+        obtainedWeights = self.resamplingParticleSet.getCauchyWeight()
+        referenceWeights = [0.28413284,  0.16789668,  0.04797048,  0.28413284,  0.16789668,  0.04797048]
+        assertListAlmostEqual(self, obtainedWeights.tolist(),
+                              referenceWeights, 8,
+                              'cauchy weights')
+
+    def resample(self, indices_list):
+        newParticlePositions = []
+        for i in indices_list:
+            newParticlePositions.append(self.resamplingParticleSet.getParticlePositions()[i,:].tolist())
+        return newParticlePositions
+        
+    def test_resampling_predefined_indices(self):
+        indices_list = [2,2,2,4,5,5]
+        newParticlePositions = self.resample(indices_list)
+        Resampling.resampleParticles(self.resamplingParticleSet, \
+                                     indices_list, 0)
+        self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
+                         newParticlePositions)
+
+    def test_probabilistic_resampling_with_duplicates(self):
+        setNpRandomSeed()
+        indices = [1,3,0,0,0,0]
+        solutions = self.resample(indices)
+        Resampling.probabilisticResampling(self.resamplingParticleSet)
+        self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
+                         solutions)
+
+            
+    def test_residual_sampling_with_duplicates(self):
+        setNpRandomSeed()
+        indices = [0,0,3,3,1,4]
+        solutions = self.resample(indices)
+        Resampling.residualSampling(self.resamplingParticleSet)
+        self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
+                         solutions)
+        
+    def test_stochastic_universal_sampling_with_duplicates(self):
+        setNpRandomSeed()
+        indices = [0,0,1,3,3,4]
+        solutions = self.resample(indices)
+        Resampling.stochasticUniversalSampling(self.resamplingParticleSet)
+        self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
+                         solutions)
+
+    def test_monte_carlo_metropolis_hasting_sampling_with_duplicates(self):
+        setNpRandomSeed()
+        indices = [0,0,0,3,4,4]
+        solutions = self.resample(indices)
+        Resampling.metropolisHastingSampling(self.resamplingParticleSet)
+        self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), solutions)
+
+
+    def test_probabilistic_resampling(self):
+        setNpRandomSeed()
+        indices = [1,3,0,0,0,0]
+        solutions = self.resample(indices)
+        Resampling.probabilisticResampling(self.resamplingParticleSet, self.resamplingVar)
+        assert2DListAlmostEqual(self, self.resamplingParticleSet.getParticlePositions().tolist(), solutions, 2, "probabilistic resampling, probabilistic duplicates")
+
+            
+    def test_residual_sampling(self):
+        setNpRandomSeed()
+        indices = [0,0,3,3,1,4]
+        solutions = self.resample(indices)
+        Resampling.residualSampling(self.resamplingParticleSet, self.resamplingVar)
+        assert2DListAlmostEqual(self, self.resamplingParticleSet.getParticlePositions().tolist(), solutions, 2, "residual sampling, probabilistic duplicates")
+                
+    def test_stochastic_universal_sampling(self):
+        setNpRandomSeed()
+        indices = [0,0,1,3,3,4]
+        solutions = self.resample(indices)
+        Resampling.stochasticUniversalSampling(self.resamplingParticleSet, self.resamplingVar)
+        assert2DListAlmostEqual(self, self.resamplingParticleSet.getParticlePositions().tolist(), solutions, 2, "stochastic universal sampling, probabilistic duplicates")
+
+    def test_monte_carlo_metropolis_hasting_sampling(self):
+        setNpRandomSeed()
+        indices = [0,0,0,3,4,4]
+        solutions = self.resample(indices)
+        Resampling.metropolisHastingSampling(self.resamplingParticleSet, self.resamplingVar)
+        assert2DListAlmostEqual(self, self.resamplingParticleSet.getParticlePositions().tolist(), solutions, 2, "metropolis hasting sampling, probabilistic duplicates")
+        
+
