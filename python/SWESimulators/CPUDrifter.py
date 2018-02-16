@@ -65,12 +65,10 @@ class CPUDrifter(Drifter.Drifter):
     
         copyOfSelf = CPUDrifter(self.numParticles,
                                 observation_variance = self.observation_variance,
-                                boundaryConditions = self.boundaryConditions)
-        
+                                boundaryConditions = self.boundaryConditions,
+                                domain_size_x = self.domain_size_x, 
+                                domain_size_y = self.domain_size_y)
         copyOfSelf.positions = self.positions.copy()
-        
-        copyOfSelf.domain_size_x = self.domain_size_x
-        copyOfSelf.domain_size_y = self.domain_size_y
         
         return copyOfSelf
     
