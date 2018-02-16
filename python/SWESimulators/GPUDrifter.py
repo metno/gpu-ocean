@@ -33,6 +33,7 @@ class GPUDrifter(CPUDrifter.CPUDrifter):
     def __init__(self, cl_ctx, numParticles, \
                  observation_variance=0.1, \
                  boundaryConditions=Common.BoundaryConditions(), \
+                 domain_size_x=1.0, domain_size_y=1.0, \
                  cl_queue=None, \
                  block_width = 64):
         # Define OpenCL environment:
@@ -52,8 +53,8 @@ class GPUDrifter(CPUDrifter.CPUDrifter):
         self.observation_variance = observation_variance
         self.sensitivity = 1.0
         
-        self.domain_size_x = 1.0
-        self.domain_size_y = 1.0
+        self.domain_size_x = domain_size_x
+        self.domain_size_y = domain_size_y
         self.boundaryConditions = boundaryConditions
         
         self.particlesHost = np.zeros((self.numParticles + 1, 2)).astype(np.float32, order='C')

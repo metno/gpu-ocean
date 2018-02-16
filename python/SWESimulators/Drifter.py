@@ -28,13 +28,11 @@ import time
 import Common
 
 
-class CPUDrifter:
+class GlobalParticles:
     """
     Class holding the global set of particles.
     """ 
-    def __init__(self, numParticles, observation_variance=0.1,
-                 boundaryConditions=Common.BoundaryConditions(), 
-                 domain_size_x=1.0, domain_size_y=1.0):
+    def __init__(self, numParticles, observation_variance=0.1, boundaryConditions=Common.BoundaryConditions()):
         """
         Creates a GlobalParticles object for drift trajectory ensemble.
 
@@ -52,8 +50,8 @@ class CPUDrifter:
         # One position for every particle plus observation
         self.positions = np.zeros((self.numParticles + 1, 2))
         
-        self.domain_size_x = domain_size_x
-        self.domain_size_y = domain_size_y
+        self.domain_size_x = 1.0
+        self.domain_size_y = 1.0
         
         # Boundary conditions are read from a BoundaryConditions object
         self.boundaryConditions = boundaryConditions
@@ -63,9 +61,9 @@ class CPUDrifter:
         Makes an independent indentical copy of the current object
         """
     
-        copyOfSelf = CPUDrifter(self.numParticles,
-                                observation_variance = self.observation_variance,
-                                boundaryConditions = self.boundaryConditions)
+        copyOfSelf = GlobalParticles(self.numParticles,
+                                     observation_variance = self.observation_variance,
+                                     boundaryConditions = self.boundaryConditions)
         
         copyOfSelf.positions = self.positions.copy()
         
@@ -74,6 +72,23 @@ class CPUDrifter:
         
         return copyOfSelf
     
+    
+    def copyEnv(self, numParticles):
+        """
+        Creates a GlobalParticle object where all parameters are similar to the current object, but without copying the particle positions.
+        numParticles: The number of particles to be held by the new object, observation not included.
+        """
+        copyOfSelf = GlobalParticles(numParticles,
+                                     observation_variance = self.observation_variance,
+                                     boundaryConditions = self.boundaryConditions)
+        
+        # Copy observation
+        copyOfSelf.positions[copyOfSelf.obs_index, :] = self.positions[self.obs_index,:]
+        
+        copyOfSelf.domain_size_x = self.domain_size_x
+        copyOfSelf.domain_size_y = self.domain_size_y
+        
+        return copyOfSelf
         
     ### GETs
     def getNumParticles(self):
