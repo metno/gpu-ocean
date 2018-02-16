@@ -27,9 +27,9 @@ import time
 import pyopencl
 
 import Common
-import Particles
+import CPUDrifter
 
-class SingleGPUPassiveDrifterEnsemble(Particles.GlobalParticles):
+class GPUDrifter(CPUDrifter.CPUDrifter):
     def __init__(self, cl_ctx, numParticles, \
                  observation_variance=0.1, \
                  boundaryConditions=Common.BoundaryConditions(), \

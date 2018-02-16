@@ -28,7 +28,7 @@ import time
 import Common
 
 
-class GlobalParticles:
+class CPUDrifter:
     """
     Class holding the global set of particles.
     """ 
@@ -61,9 +61,9 @@ class GlobalParticles:
         Makes an independent indentical copy of the current object
         """
     
-        copyOfSelf = GlobalParticles(self.numParticles,
-                                     observation_variance = self.observation_variance,
-                                     boundaryConditions = self.boundaryConditions)
+        copyOfSelf = CPUDrifter(self.numParticles,
+                                observation_variance = self.observation_variance,
+                                boundaryConditions = self.boundaryConditions)
         
         copyOfSelf.positions = self.positions.copy()
         
@@ -78,9 +78,9 @@ class GlobalParticles:
         Creates a GlobalParticle object where all parameters are similar to the current object, but without copying the particle positions.
         numParticles: The number of particles to be held by the new object, observation not included.
         """
-        copyOfSelf = GlobalParticles(numParticles,
-                                     observation_variance = self.observation_variance,
-                                     boundaryConditions = self.boundaryConditions)
+        copyOfSelf = CPUDrifter(numParticles,
+                                observation_variance = self.observation_variance,
+                                boundaryConditions = self.boundaryConditions)
         
         # Copy observation
         copyOfSelf.positions[copyOfSelf.obs_index, :] = self.positions[self.obs_index,:]

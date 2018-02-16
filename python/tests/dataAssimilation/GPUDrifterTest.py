@@ -9,14 +9,12 @@ from testUtils import *
 
 sys.path.insert(0, '../')
 from SWESimulators import Common
-from SWESimulators.Particles import *
-from SWESimulators.SingleGPUPassiveDrifterEnsemble import *
+from SWESimulators.GPUDrifter import *
 from SWESimulators import Resampling
 
 
-#reload(GlobalParticles)
 
-class SingleGPUPassiveDrifterEnsembleTest(unittest.TestCase):
+class GPUDrifterTest(unittest.TestCase):
 
     def setUp(self):
         self.cl_ctx = make_cl_ctx()
@@ -24,10 +22,10 @@ class SingleGPUPassiveDrifterEnsembleTest(unittest.TestCase):
         self.numParticles = 3
         self.observationVariance = 0.5
         self.boundaryCondition = Common.BoundaryConditions(2,2,2,2)
-        self.smallParticleSet = SingleGPUPassiveDrifterEnsemble(self.cl_ctx,
-                                                                self.numParticles,
-                                                                self.observationVariance,
-                                                                self.boundaryCondition)
+        self.smallParticleSet = GPUDrifter(self.cl_ctx,
+                                           self.numParticles,
+                                           self.observationVariance,
+                                           self.boundaryCondition)
         self.smallPositionSetHost = np.array( [[0.9, 0.9], [0.9, 0.1],
                                                [0.1, 0.9], [0.1, 0.1]])
         self.smallParticleSet.setParticlePositions(self.smallPositionSetHost[:-1, :])
@@ -41,8 +39,8 @@ class SingleGPUPassiveDrifterEnsembleTest(unittest.TestCase):
             self.resamplingParticleArray[3*i+1, :] = [0.4,  0.35+i*0.3]
             self.resamplingParticleArray[3*i+2, :] = [0.65, 0.35+i*0.3]
         self.resamplingParticleArray[6, :] = [0.25, 0.5]
-        self.resamplingParticleSet = SingleGPUPassiveDrifterEnsemble(self.cl_ctx,
-                                                                    self.resampleNumParticles)
+        self.resamplingParticleSet = GPUDrifter(self.cl_ctx,
+                                                self.resampleNumParticles)
         self.resamplingParticleSet.setParticlePositions(self.resamplingParticleArray[:-1,:])
         self.resamplingParticleSet.setObservationPosition(self.resamplingParticleArray[-1,:])
         self.resamplingVar = 1e-8
@@ -55,7 +53,7 @@ class SingleGPUPassiveDrifterEnsembleTest(unittest.TestCase):
     ### START TESTS ###
     
     def test_default_constructor(self):
-        defaultParticleSet = SingleGPUPassiveDrifterEnsemble(self.cl_ctx, self.numParticles)
+        defaultParticleSet = GPUDrifter(self.cl_ctx, self.numParticles)
 
         self.assertEqual(defaultParticleSet.getNumParticles(), self.numParticles)
         self.assertEqual(defaultParticleSet.getObservationVariance(), 0.1)
@@ -200,7 +198,7 @@ class SingleGPUPassiveDrifterEnsembleTest(unittest.TestCase):
         
         
     def test_init(self):
-        largeParticleSet = GlobalParticles(1000)
+        largeParticleSet = GPUDrifter(self.cl_ctx, 1000)
         domain_x = 10.3
         domain_y = 5.4
         largeParticleSet.initializeParticles(domain_size_x = domain_x,
