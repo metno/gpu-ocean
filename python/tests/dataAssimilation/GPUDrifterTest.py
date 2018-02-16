@@ -265,33 +265,6 @@ class GPUDrifterTest(unittest.TestCase):
         self.assertEqual(positions[1,:].tolist(), [0.9, 0.1])
 
 
-    def nontest_copy_env(self):
-        size_x = 10.3
-        size_y = 5.4
-        self.smallParticleSet.setDomainSize(size_x, size_y)
-                        
-        # Give non-standard domain_size before
-        newNumParticles = 4
-        copy = self.smallParticleSet.copyEnv(newNumParticles)
-        
-        self.assertEqual(copy.getNumParticles(), newNumParticles)
-        self.assertEqual(copy.getObservationVariance(), self.observationVariance)
-        
-        positions = copy.getParticlePositions()
-        self.assertEqual(positions.shape, ((newNumParticles, 2)))
-        self.assertEqual(positions[0,:].tolist(), [0.0, 0.0])
-        self.assertEqual(positions[1,:].tolist(), [0.0, 0.0])
-        self.assertEqual(positions[2,:].tolist(), [0.0, 0.0])
-        self.assertEqual(positions[3,:].tolist(), [0.0, 0.0])
-        
-        observation = copy.getObservationPosition()
-        self.assertEqual(observation.shape, ((2,)))
-        self.assertEqual(observation.tolist(), [0.1, 0.1])
-        
-        self.assertEqual(copy.getBoundaryConditions().get(), [2,2,2,2])
-
-        self.assertEqual(copy.getDomainSizeX(), size_x)
-        self.assertEqual(copy.getDomainSizeY(), size_y)
         
     def test_gaussian_weights(self):
         obtainedWeights = self.resamplingParticleSet.getGaussianWeight()
