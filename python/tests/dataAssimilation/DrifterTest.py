@@ -5,6 +5,8 @@ import sys
 import gc
 import pyopencl
 
+import abc
+
 from testUtils import *
 
 sys.path.insert(0, '../')
@@ -14,7 +16,8 @@ from SWESimulators import Resampling
 
 
 class DrifterTest(unittest.TestCase):
-
+    __metaclass__ = abc.ABCMeta
+    
     def setUp(self):
         self.numParticles = 3
         self.observationVariance = 0.5
@@ -53,6 +56,22 @@ class DrifterTest(unittest.TestCase):
         self.resamplingParticleSet.setParticlePositions(self.resamplingParticleArray[:-1,:])
         self.resamplingParticleSet.setObservationPosition(self.resamplingParticleArray[-1,:])
 
+
+    ### Define required functions as abstract ###
+
+    @abc.abstractmethod
+    def create_small_particle_set(self):
+        pass
+
+    @abc.abstractmethod
+    def create_resampling_particle_set(self):
+        pass
+
+    @abc.abstractmethod
+    def create_large_particle_set(self, size):
+        pass
+
+        
         
     ### START TESTS ###
     
