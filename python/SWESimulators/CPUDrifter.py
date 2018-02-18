@@ -77,10 +77,10 @@ class CPUDrifter(Drifter.Drifter):
     ### Implementation of abstract GETs
     
     def getParticlePositions(self):
-        return self.positions[:-1,:]
+        return self.positions[:-1,:].copy()
     
     def getObservationPosition(self):
-        return self.positions[-1, :]
+        return self.positions[-1, :].copy()
     
     
     
