@@ -24,15 +24,20 @@ from matplotlib import pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
 import time
+import abc
 
 import Common
 
 
-class GlobalParticles:
+class Drifter(object):
+    __metaclass__ = abc.ABCMeta
+    
     """
     Class holding the global set of particles.
     """ 
-    def __init__(self, numParticles, observation_variance=0.1, boundaryConditions=Common.BoundaryConditions()):
+    def __init__(self, numParticles, observation_variance=0.1, \
+                 boundaryConditions=Common.BoundaryConditions(), \
+                 domain_size_x=1.0, domain_size_y=1.0):
         """
         Creates a GlobalParticles object for drift trajectory ensemble.
 
@@ -47,61 +52,50 @@ class GlobalParticles:
         self.obs_index = self.numParticles 
         self.observation_variance = observation_variance
         
-        # One position for every particle plus observation
-        self.positions = np.zeros((self.numParticles + 1, 2))
+        self.positions = None # Needs to be allocated in the child class
+        # Should represent all particles plus observation
         
-        self.domain_size_x = 1.0
-        self.domain_size_y = 1.0
+        self.domain_size_x = domain_size_x
+        self.domain_size_y = domain_size_y
         
         # Boundary conditions are read from a BoundaryConditions object
         self.boundaryConditions = boundaryConditions
+    
     
     def copy(self):
         """
         Makes an independent indentical copy of the current object
         """
+        pass
+            
     
-        copyOfSelf = GlobalParticles(self.numParticles,
-                                     observation_variance = self.observation_variance,
-                                     boundaryConditions = self.boundaryConditions)
-        
-        copyOfSelf.positions = self.positions.copy()
-        
-        copyOfSelf.domain_size_x = self.domain_size_x
-        copyOfSelf.domain_size_y = self.domain_size_y
-        
-        return copyOfSelf
+    ### Abstract GETs
+    @abc.abstractmethod
+    def getParticlePositions(self):
+        pass
+    
+    @abc.abstractmethod
+    def getObservationPosition(self):
+        pass
+    
+    ### Abstract SETs
+    @abc.abstractmethod
+    def setParticlePositions(self, newParticlePositions):
+        pass
+    
+    @abc.abstractmethod
+    def setObservationPosition(self, newObservationPosition):
+        pass
     
     
-    def copyEnv(self, numParticles):
-        """
-        Creates a GlobalParticle object where all parameters are similar to the current object, but without copying the particle positions.
-        numParticles: The number of particles to be held by the new object, observation not included.
-        """
-        copyOfSelf = GlobalParticles(numParticles,
-                                     observation_variance = self.observation_variance,
-                                     boundaryConditions = self.boundaryConditions)
-        
-        # Copy observation
-        copyOfSelf.positions[copyOfSelf.obs_index, :] = self.positions[self.obs_index,:]
-        
-        copyOfSelf.domain_size_x = self.domain_size_x
-        copyOfSelf.domain_size_y = self.domain_size_y
-        
-        return copyOfSelf
-        
+    
     ### GETs
     def getNumParticles(self):
+        #print "\n\nUsing Drifter::getNumParticles()\n"
         return self.numParticles
     
     def getObservationVariance(self):
         return self.observation_variance
-    
-    def getParticlePositions(self):
-        return self.positions[:-1,:]
-    
-    def getObservationPosition(self):
-        return self.positions[-1, :]
     
     def getBoundaryConditions(self):
         return self.boundaryConditions
@@ -121,34 +115,19 @@ class GlobalParticles:
         self.domain_size_x = size_x
         self.domain_size_y = size_y
         
-    def setParticlePositions(self, newParticlePositions):
-        # Include the observation:
-        #newPositionsAll = np.concatenate((newParticlePositions, np.array([self.getObservationPosition()])), \
-        #                                 axis=0)
-        np.copyto(self.positions[:-1,:], newParticlePositions) # np.copyto(dst, src)
     
-    def setObservationPosition(self, newObservationPosition):
-        np.copyto(self.positions[-1,:], newObservationPosition)
+    ### Other abstract methods
+    @abc.abstractmethod
+    def enforceBoundaryConditions(self):
+        """
+        Enforces boundary conditions on all particles in the ensemble, and the observation.
+        This function should be called whenever particles are moved, to enforce periodic boundary conditions for particles that have left the domain.
+        """
+        pass
+        
+        
+    ### METHODS UNIQUELY DEFINED FOR ALL CHILD CLASSES
     
-    def initializeParticles(self, domain_size_x=1.0, domain_size_y=1.0):
-        """
-        Initialization of all particles (and observation) within a rectangle of given size.
-        domain_size_x [default 1.0]: size of rectangle in x-direction 
-        domain_size_y [default 1.0]: size of rectangle in y-direction
-        """
-
-        # Initialize in unit square
-        np.copyto(self.positions, np.random.rand(self.numParticles + 1, 2))
-        # Ensure that the observation is in the middle 0.5x0.5 square:
-        self.positions[self.obs_index, :] = self.positions[self.obs_index]*0.5 + 0.25
-        
-        # Map to given square
-        self.positions[:,0] = self.positions[:,0]*domain_size_x
-        self.positions[:,1] = self.positions[:,1]*domain_size_y
-        
-        self.domain_size_x = domain_size_x
-        self.domain_size_y = domain_size_y
-        
     def _getClosestPositions(self):
         """
         Returns a set of coordinates corresponding to each particles closest position to the observation,
@@ -193,6 +172,23 @@ class GlobalParticles:
         return distances
         
     
+    def _enforceBoundaryConditionsOnPosition(self, x, y):
+        """
+        Maps the given coordinate to a coordinate within the domain. This function assumes that periodic boundary conditions are used, and should be considered as a private function.
+        """
+        ### TODO: SWAP the if's with while's?
+        # Check what we assume is periodic boundary conditions
+        if x < 0:
+            x = self.domain_size_x + x
+        if y < 0:
+            y = self.domain_size_x + y
+        if x > self.domain_size_x:
+            x = x - self.domain_size_x
+        if y > self.domain_size_y:
+            y = y - self.domain_size_y
+        return x, y
+    
+    
     def getGaussianWeight(self, distance=None, normalize=True):
         """
         Calculates a weight associated to every particle, based on its distance from the observation, using Gaussian uncertainty of the position of the observation 
@@ -204,8 +200,6 @@ class GlobalParticles:
         if normalize:
             return weights/np.sum(weights)
         return weights
-    
-    
     
     
     def getCauchyWeight(self, distance=None, normalize=True):
@@ -231,44 +225,25 @@ class GlobalParticles:
         mean_x, mean_y = self._enforceBoundaryConditionsOnPosition(mean_x, mean_y)
         return np.array([mean_x, mean_y])
     
-    
-    def _enforceBoundaryConditionsOnPosition(self, x, y):
+    def initializeParticles(self, domain_size_x=1.0, domain_size_y=1.0):
         """
-        Maps the given coordinate to a coordinate within the domain. This function assumes that periodic boundary conditions are used, and should be considered as a private function.
+        Initialization of all particles (and observation) within a rectangle of given size.
+        domain_size_x [default 1.0]: size of rectangle in x-direction 
+        domain_size_y [default 1.0]: size of rectangle in y-direction
         """
-        ### TODO: SWAP the if's with while's?
-        # Check what we assume is periodic boundary conditions
-        if x < 0:
-            x = self.domain_size_x + x
-        if y < 0:
-            y = self.domain_size_x + y
-        if x > self.domain_size_x:
-            x = x - self.domain_size_x
-        if y > self.domain_size_y:
-            y = y - self.domain_size_y
-        return x, y
-    
-    
-    def enforceBoundaryConditions(self):
-        """
-        Enforces boundary conditions on all particles in the ensemble, and the observation.
-        This function should be called whenever particles are moved, to enforce periodic boundary conditions for particles that have left the domain.
-        """
+
+        # Initialize in unit square
+        np.copyto(self.positions, np.random.rand(self.numParticles + 1, 2))
+        # Ensure that the observation is in the middle 0.5x0.5 square:
+        self.positions[self.obs_index, :] = self.positions[self.obs_index]*0.5 + 0.25
         
-        if (self.boundaryConditions.isPeriodicNorthSouth() and self.boundaryConditions.isPeriodicEastWest()):
-            # Loop over particles
-            for i in range(self.numParticles + 1):
-                x, y = self.positions[i,0], self.positions[i,1]
-
-                x, y = self._enforceBoundaryConditionsOnPosition(x,y)
-
-                self.positions[i,0] = x
-                self.positions[i,1] = y
-        else:
-            # TODO: what does this mean in a non-periodic boundary condition world?
-            #print "WARNING [GlobalParticle.enforceBoundaryConditions]: Functionality not defined for non-periodic boundary conditions"
-            #print "\t\tDoing nothing and continuing..."
-            pass
+        # Map to given square
+        self.positions[:,0] = self.positions[:,0]*domain_size_x
+        self.positions[:,1] = self.positions[:,1]*domain_size_y
+        
+        self.domain_size_x = domain_size_x
+        self.domain_size_y = domain_size_y
+        
     
     def plotDistanceInfo(self, title=None):
         """
