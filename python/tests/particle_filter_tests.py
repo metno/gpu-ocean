@@ -7,8 +7,8 @@ import xmlrunner
 # $ sudo easy_install unittest-xml-reporting
 
 #import testUtils
-from dataAssimilation.GlobalParticlesTest import GlobalParticlesTest
-from dataAssimilation.SingleGPUPassiveDrifterEnsembleTest import SingleGPUPassiveDrifterEnsembleTest
+from dataAssimilation.CPUDrifterTest import CPUDrifterTest
+from dataAssimilation.GPUDrifterTest import GPUDrifterTest
 
 if (len(sys.argv) < 1):
     print ("Usage:")
@@ -27,7 +27,7 @@ if (jenkins):
 
 # Define the tests that will be part of our test suite:
 test_classes_to_run = None
-test_classes_to_run = [GlobalParticlesTest, SingleGPUPassiveDrifterEnsembleTest]
+test_classes_to_run = [CPUDrifterTest, GPUDrifterTest]
 
 
 loader = unittest.TestLoader()
