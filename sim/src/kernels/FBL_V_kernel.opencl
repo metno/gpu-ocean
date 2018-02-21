@@ -104,7 +104,7 @@ __kernel void computeVKernel(
         
         for (int i=tx; i<block_width; i+=get_local_size(0)) {
             const int k = bx + i;
-            if (k < nx_ && l >= 0 && l < ny_+1) {
+            if (k < nx_ && l >= 0 && l < ny_) {
                 H_shared[j][i] = H_row[k];
                 eta_shared[j][i] = eta_row[k];
             }
