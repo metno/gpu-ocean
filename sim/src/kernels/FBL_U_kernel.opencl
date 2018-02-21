@@ -106,7 +106,7 @@ __kernel void computeUKernel(
         for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
             const int k = bx + i - 1;
             
-            if (k >= 0 && k < nx_ && l < ny_+1) {
+            if (k >= 0 && k < nx_ && l < ny_) {
                 H_shared[j][i] = H_row[k];
                 eta_shared[j][i] = eta_row[k];
             }
