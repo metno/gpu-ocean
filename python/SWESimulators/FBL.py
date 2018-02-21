@@ -304,8 +304,8 @@ class FBL_periodic_boundary:
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height) # WARNING::: MUST MATCH defines of block_width/height in kernels!
         self.global_size = ( \
-                int(np.ceil(self.nx_halo+1 / float(self.local_size[0])) * self.local_size[0]), \
-                int(np.ceil(self.ny_halo+1 / float(self.local_size[1])) * self.local_size[1]) )
+                int(np.ceil((self.nx_halo+1) / float(self.local_size[0])) * self.local_size[0]), \
+                int(np.ceil((self.ny_halo+1) / float(self.local_size[1])) * self.local_size[1]) )
 
     
 
