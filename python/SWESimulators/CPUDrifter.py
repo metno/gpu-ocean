@@ -43,21 +43,16 @@ class CPUDrifter(Drifter.Drifter):
         boundaryConditions: BoundaryConditions object, relevant during re-initialization of particles.    
         """
         
-        self.numParticles = numParticles
-        
-        # Observation index is the last particle
-        self.obs_index = self.numParticles 
-        self.observation_variance = observation_variance
+        # Call parent constructor
+        super(CPUDrifter, self).__init__(numParticles,
+                                         observation_variance=observation_variance,
+                                         boundaryConditions=boundaryConditions,
+                                         domain_size_x=domain_size_x, 
+                                         domain_size_y=domain_size_y)
         
         # One position for every particle plus observation
         self.positions = np.zeros((self.numParticles + 1, 2))
         
-        self.domain_size_x = domain_size_x
-        self.domain_size_y = domain_size_y
-        
-        # Boundary conditions are read from a BoundaryConditions object
-        self.boundaryConditions = boundaryConditions
-    
     def copy(self):
         """
         Makes an independent indentical copy of the current object
