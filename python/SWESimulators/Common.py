@@ -38,14 +38,9 @@ class OpenCLArray2D:
     """
     Class that holds data 
     """
-    
-    def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, data, \
+    def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, data=None, \
                  asymHalo=None):
-        """
-        Uploads initial data to the CL device
-        """
-        host_data = self.convert_to_float32(data)
-        
+
         self.nx = nx
         self.ny = ny
         self.nx_halo = nx + 2*halo_x
@@ -55,18 +50,26 @@ class OpenCLArray2D:
             self.nx_halo = nx + asymHalo[1] + asymHalo[3]
             self.ny_halo = ny + asymHalo[0] + asymHalo[2]
             
-        assert(host_data.shape[1] == self.nx_halo), str(host_data.shape[1]) + " vs " + str(self.nx_halo)
-        assert(host_data.shape[0] == self.ny_halo), str(host_data.shape[0]) + " vs " + str(self.ny_halo)
         
-        assert(data.shape == (self.ny_halo, self.nx_halo))
 
         #Upload data to the device
         mf = pyopencl.mem_flags
-        self.data = pyopencl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=host_data)
+        if (data != None):
+            host_data = self.convert_to_float32(data)
+            self.bytes_per_float = host_data.itemsize
+            self.data = pyopencl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=host_data)
+            
+            assert(host_data.shape[1] == self.nx_halo), str(host_data.shape[1]) + " vs " + str(self.nx_halo)
+            assert(host_data.shape[0] == self.ny_halo), str(host_data.shape[0]) + " vs " + str(self.ny_halo)
+            assert(self.bytes_per_float == 4)
+            assert(data.shape == (self.ny_halo, self.nx_halo))
+            
+        else:
+            self.bytes_per_float = 4
+            self.data = pyopencl.Buffer(cl_ctx, mf.READ_WRITE, self.nx_halo*self.ny_halo*self.bytes_per_float)
+            
         self.holds_data = True
         
-        self.bytes_per_float = host_data.itemsize
-        assert(self.bytes_per_float == 4)
         self.pitch = np.int32((self.nx_halo)*self.bytes_per_float)
         
         
