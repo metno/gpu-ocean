@@ -6,6 +6,7 @@
 .ipynb_checkpoints/
 *.pyc
 *~
+*.nc
 
 /CMakeCache.txt
 /CMakeFiles/
