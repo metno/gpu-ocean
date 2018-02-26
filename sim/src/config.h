@@ -8,11 +8,15 @@
 
 #define PROFILE ""
 
+#ifndef WGNX || WGNY
 #define WGNX 16
 #define WGNY 16
-
+#endif
+ 
+#ifndef block_width || block_height
 #define block_width WGNX
 #define block_height WGNY
+#endif
 
 #define OPENCL_VERSION_MAJOR 2
 
