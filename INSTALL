@@ -49,4 +49,17 @@ an old cmake installation, copy these to "<project root dir>/cmake/Modules".)
 for "Unix Makefiles".
 6. Run "ctest" for testing.
 7. Binaries are found in the "bin" directory in the chosen build directory.
----
+
+
+Downloading datafiles (netCDF)
+------------------------------
+
+If you need the project datafiles, these can be downloaded from gpu-ocean.met.no:
+
+> cd <project root directory>
+> wget -m -nH -R "index.html*" gpu-ocean.met.no:9000
+
+The commands above will download all datafiles (~5 GB). It is also possible to
+download specific files. Visit http://gpu-ocean.met.no:9000/ to browse available
+datafiles.
+

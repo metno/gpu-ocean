@@ -2,7 +2,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/metno/gpu-ocean/badge.svg?branch=master)](https://coveralls.io/github/metno/gpu-ocean?branch=master)
 
 # gpu-ocean
-GPU Ocean codebase.
+GPU Ocean codebase. See INSTALL for installation instructions.
 
 apps/
 
