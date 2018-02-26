@@ -379,6 +379,7 @@ class CDKLM16:
                            self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                            self.wind_stress.x0, self.wind_stress.y0, \
                            self.wind_stress.u0, self.wind_stress.v0, \
+                           self.wind_stress.wind_speed, self.wind_stress.wind_direction, \
                            self.t, \
                            self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                            self.reportGeostrophicEquilibrium, \
