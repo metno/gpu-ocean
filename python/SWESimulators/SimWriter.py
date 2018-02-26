@@ -81,7 +81,15 @@ class SimNetCDFWriter:
             self.H = sim.H.download(self.cl_queue)
         else:
             self.H = sim.bathymetry.download(self.cl_queue)[0] # Hi
-        self.time_integrator = sim.rk_order
+        
+        if (sim.__class__.__name__ == KP07):
+            if (sim.use_rk2):
+                self.time_integrator = 2
+            else:
+                self.time_integrator = 1
+        else:
+            self.time_integrator = sim.rk_order
+        
         self.minmod_theta = sim.theta
         self.coriolis_force = sim.f
         self.coriolis_beta = sim.coriolis_beta

@@ -28,59 +28,52 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import pyopencl as cl #OpenCL in Python
 import Common, SimWriter
-import gc
+import Simulator
 
-
-
-
-"""
-Class that solves the SW equations using the Forward-Backward linear scheme
-"""
-class KP07:
-
+class KP07(Simulator.Simulator):
     """
-    Initialization routine
-    eta0: Water elevation incl ghost cells, (nx+4)*(ny+4) cells
-    Hi: Depth from equilibrium defined on cell corners, (nx+5)*(ny+5) corners
-    hu0: Initial momentum along x-axis incl ghost cells, (nx+4)*(ny+4) cells
-    hv0: Initial momentum along y-axis incl ghost cells, (nx+4)*(ny+4) cells
-    nx: Number of cells along x-axis
-    ny: Number of cells along y-axis
-    dx: Grid cell spacing along x-axis (20 000 m)
-    dy: Grid cell spacing along y-axis (20 000 m)
-    dt: Size of each timestep (90 s)
-    g: Gravitational accelleration (9.81 m/s^2)
-    f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
-    r: Bottom friction coefficient (2.4e-3 m/s)
-    theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
-    use_rk2: Boolean if to use 2nd order Runge-Kutta (false -> 1st order forward Euler)
-    coriolis_beta: Coriolis linear factor -> f = f + beta*(y-y_0)
-    y_zero_reference_cell: The cell representing y_0 in the above, defined as the lower face of the cell.
-    wind_type: Type of wind stress, 0=Uniform along shore, 1=bell shaped along shore, 2=moving cyclone
-    wind_tau0: Amplitude of wind stress (Pa)
-    wind_rho: Density of sea water (1025.0 kg / m^3)
-    wind_alpha: Offshore e-folding length (1/(10*dx) = 5e-6 m^-1)
-    wind_xm: Maximum wind stress for bell shaped wind stress
-    wind_Rc: Distance to max wind stress from center of cyclone (10dx = 200 000 m)
-    wind_x0: Initial x position of moving cyclone (dx*(nx/2) - u0*3600.0*48.0)
-    wind_y0: Initial y position of moving cyclone (dy*(ny/2) - v0*3600.0*48.0)
-    wind_u0: Translation speed along x for moving cyclone (30.0/sqrt(5.0))
-    wind_v0: Translation speed along y for moving cyclone (-0.5*u0)
-    boundary_conditions: A BoundaryConditions object
+    Class that solves the SW equations using the Forward-Backward linear scheme
     """
+
     def __init__(self, \
                  cl_ctx, \
                  eta0, Hi, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
                  g, f=0.0, r=0.0, \
+                 t=0.0, \
                  theta=1.3, use_rk2=True,
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
                  wind_stress=Common.WindStressParams(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
+                 ignore_ghostcells=False, \
+                 offset_x=0, offset_y=0, \
                  block_width=16, block_height=16):
+        """
+        Initialization routine
+        eta0: Initial deviation from mean sea level incl ghost cells, (nx+2)*(ny+2) cells
+        hu0: Initial momentum along x-axis incl ghost cells, (nx+1)*(ny+2) cells
+        hv0: Initial momentum along y-axis incl ghost cells, (nx+2)*(ny+1) cells
+        Hi: Depth from equilibrium defined on cell corners, (nx+5)*(ny+5) corners
+        nx: Number of cells along x-axis
+        ny: Number of cells along y-axis
+        dx: Grid cell spacing along x-axis (20 000 m)
+        dy: Grid cell spacing along y-axis (20 000 m)
+        dt: Size of each timestep (90 s)
+        g: Gravitational accelleration (9.81 m/s^2)
+        f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
+        r: Bottom friction coefficient (2.4e-3 m/s)
+        t: Start simulation at time t
+        theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
+        use_rk2: Boolean if to use 2nd order Runge-Kutta (false -> 1st order forward Euler)
+        coriolis_beta: Coriolis linear factor -> f = f + beta*(y-y_0)
+        y_zero_reference_cell: The cell representing y_0 in the above, defined as the lower face of the cell .
+        wind_stress: Wind stress parameters
+        boundary_conditions: Boundary condition object
+        write_netcdf: Write the results after each superstep to a netCDF file
+        """
         self.cl_ctx = cl_ctx
         self.A = "NA"  # Eddy viscocity coefficient
             
@@ -135,7 +128,7 @@ class KP07:
         self.wind_stress = wind_stress
         
         #Initialize time
-        self.t = np.float32(0.0)
+        self.t = np.float32(t)
         
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height) 
@@ -150,26 +143,90 @@ class KP07:
                                                            ghost_cells_y, \
                                                            self.boundary_conditions)
         self.write_netcdf = write_netcdf
+        self.ignore_ghostcells = ignore_ghostcells
+        self.offset_x = offset_x
+        self.offset_y = offset_y
         self.sim_writer = None
         if self.write_netcdf:
-            self.sim_writer = SimWriter.SimNetCDFWriter(self)
-
-
-    """
-    Clean up function
-    """
-    def cleanUp(self):
-        if self.write_netcdf:
-            self.sim_writer.__exit__(0,0,0)
-            self.write_netcdf = False
-        self.cl_data.release()
-        self.bathymetry.release()
-        gc.collect()
+            self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
+                                    offset_x=self.offset_x, offset_y=self.offset_y)
+            
+    @classmethod
+    def fromfilename(cls, cl_ctx, filename, cont_write_netcdf=True):
+        """
+        Initialize and hotstart simulation from nc-file.
+        cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
+        filename: Continue simulation based on parameters and last timestep in this file
+        """
+        # open nc-file
+        sim_reader = SimReader.SimNetCDFReader(filename, ignore_ghostcells=False)
+        sim_name = str(sim_reader.get('simulator_short'))
+        assert sim_name == self.__class__.__name__, \
+               "Trying to initialize a " + \
+               self.__class__.__name__ + " simulator with netCDF file based on " \
+               + sim_name + " results."
         
-    """
-    Function which steps n timesteps
-    """
+        # read parameters
+        nx = sim_reader.get("nx")
+        ny = sim_reader.get("ny")
+
+        dx = sim_reader.get("dx")
+        dy = sim_reader.get("dy")
+
+        width = nx * dx
+        height = ny * dy
+
+        dt = sim_reader.get("dt")
+        g = sim_reader.get("g")
+        r = sim_reader.get("bottom_friction_r")
+        f = sim_reader.get("coriolis_force")
+        beta = sim_reader.get("coriolis_beta")
+        
+        minmodTheta = sim_reader.get("minmod_theta")
+        timeIntegrator = sim_reader.get("time_integrator")
+        if (timeIntegrator == 2):
+            using_rk2 = True
+        else:
+            using_rk2 = False 
+        y_zero_reference_cell = sim_reader.get("y_zero_reference_cell")        
+        
+        wind_stress_type = sim_reader.get("wind_stress_type")
+        wind = Common.WindStressParams(type=wind_stress_type)
+
+        boundaryConditions = Common.BoundaryConditions( \
+            sim_reader.getBC()[0], sim_reader.getBC()[1], \
+            sim_reader.getBC()[2], sim_reader.getBC()[3], \
+            sim_reader.getBCSpongeCells())
+
+        Hi = sim_reader.getH();
+        
+        # get last timestep (including simulation time of last timestep)
+        eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
+        
+        return cls(cl_ctx, \
+                 eta0, Hi, hu0, hv0, \
+                 nx, ny, \
+                 dx, dy, dt, \
+                 g, f, r, \
+                 t=time0, \
+                 theta=minmodTheta, use_rk2=using_rk2, \
+                 coriolis_beta=beta, \
+                 y_zero_reference_cell = y_zero_reference_cell, \
+                 wind_stress=wind, \
+                 boundary_conditions=boundaryConditions, \
+                 write_netcdf=cont_write_netcdf)
+
+    def cleanUp(self):
+        """
+        Clean up function
+        """
+        self.bathymetry.release()
+        super(KP07, self).cleanUp()
+        
     def step(self, t_end=0.0):
+        """
+        Function which steps n timesteps
+        """
         n = int(t_end / self.dt + 1)
 
         if self.t == 0:
@@ -276,10 +333,7 @@ class KP07:
     
     
     
-    
-    def download(self):
-        return self.cl_data.download(self.cl_queue)
-    
+
     def downloadBathymetry(self):
         return self.bathymetry.download(self.cl_queue)
 
