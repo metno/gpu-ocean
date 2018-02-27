@@ -251,7 +251,7 @@ class Drifter(object):
                  normed=True, label="particle distances")
         
         # With observation 
-        x = np.linspace(0, max(self.domain_size_x, self.domain_size_y), num=100)
+        x = np.linspace(0, max(self.getDomainSizeX(), self.getDomainSizeY()), num=100)
         cauchy_pdf = dautils.getCauchyWeight(x, obs_var, normalize=False)
         gauss_pdf = dautils.getGaussianWeight(x, obs_var, normalize=False)
         plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
