@@ -26,7 +26,7 @@ import numpy as np
 import time
 
 import Common
-from Particles import *
+#from Particles import *
 
 
 def resampleParticles(particles, newSampleIndices, reinitialization_variance):
