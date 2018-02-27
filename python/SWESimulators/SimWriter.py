@@ -59,9 +59,7 @@ class SimNetCDFWriter:
         except:
             self.git_hash = "git info missing..."
 
-        
-        self.simulator_long = str(sim.__class__)
-        self.simulator_short = (self.simulator_long.split("."))[-1]
+        self.simulator_short = str(sim.__class__.__name__)
 
         self.dir_name = "netcdf_" + self.timestamp_short + "/"
         self.output_file_name = self.dir_name + self.simulator_short + "_" + self.timestamp + ".nc"
@@ -82,7 +80,7 @@ class SimNetCDFWriter:
         else:
             self.H = sim.bathymetry.download(self.cl_queue)[0] # Hi
         
-        if (sim.__class__.__name__ == KP07):
+        if (sim.__class__.__name__ == "KP07"):
             if (sim.use_rk2):
                 self.time_integrator = 2
             else:
@@ -133,7 +131,6 @@ class SimNetCDFWriter:
         self.ncfile.ignore_ghostcells = str(self.ignore_ghostcells)
         self.ncfile.num_layers = self.num_layers
         self.ncfile.staggered_grid = str(self.staggered_grid)
-        self.ncfile.simulator_long = self.simulator_long
         self.ncfile.simulator_short = self.simulator_short
         self.ncfile.boundary_conditions = self.boundary_conditions
         self.ncfile.boundary_conditions_mr = self.boundary_conditions_mr

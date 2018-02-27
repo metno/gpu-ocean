@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
-import Common, SimWriter
+import Common, SimWriter, SimReader
 import Simulator
 
 class KP07(Simulator.Simulator):
@@ -161,9 +161,9 @@ class KP07(Simulator.Simulator):
         # open nc-file
         sim_reader = SimReader.SimNetCDFReader(filename, ignore_ghostcells=False)
         sim_name = str(sim_reader.get('simulator_short'))
-        assert sim_name == self.__class__.__name__, \
+        assert sim_name == cls.__name__, \
                "Trying to initialize a " + \
-               self.__class__.__name__ + " simulator with netCDF file based on " \
+               cls.__name__ + " simulator with netCDF file based on " \
                + sim_name + " results."
         
         # read parameters

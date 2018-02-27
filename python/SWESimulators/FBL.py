@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
-import Common, SimWriter
+import Common, SimWriter, SimReader
 import Simulator
    
 reload(Common)
@@ -164,9 +164,9 @@ class FBL(Simulator.Simulator):
         # open nc-file
         sim_reader = SimReader.SimNetCDFReader(filename, ignore_ghostcells=False)
         sim_name = str(sim_reader.get('simulator_short'))
-        assert sim_name == self.__class__.__name__, \
+        assert sim_name == cls.__name__, \
                "Trying to initialize a " + \
-               self.__class__.__name__ + " simulator with netCDF file based on " \
+               cls.__name__ + " simulator with netCDF file based on " \
                + sim_name + " results."
         
         # read parameters
@@ -207,7 +207,7 @@ class FBL(Simulator.Simulator):
                 h0, eta0, hu0, hv0, \
                 nx, ny, \
                 dx, dy, dt, \
-                g, f, r, A, \
+                g, f, r, \
                 t=time0, \
                 wind_stress=wind, \
                 boundary_conditions=boundaryConditions, \

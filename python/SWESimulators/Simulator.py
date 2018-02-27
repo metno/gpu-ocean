@@ -31,12 +31,6 @@ class Simulator(object):
     Baseclass for different numerical schemes, all 'solving' the SW equations.
     """
     __metaclass__ = ABCMeta
-
-    def __init__(self):
-        """
-    #    Initialization routine
-        """
-        pass
     
     @abstractmethod
     def step(self, t_end=0.0):
