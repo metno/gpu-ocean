@@ -128,7 +128,7 @@ class Drifter(object):
         
     ### METHODS UNIQUELY DEFINED FOR ALL CHILD CLASSES
     
-    def _getClosestPositions(self):
+    def _getClosestPositions(self, obs=None):
         """
         Returns a set of coordinates corresponding to each particles closest position to the observation,
         considering possible periodic boundary conditions
@@ -139,6 +139,9 @@ class Drifter(object):
         else:
             periodicPositions = self.getParticlePositions().copy()
             obs_x, obs_y = self.getObservationPosition()
+            if obs is not None:
+                obs_x = obs[0]
+                obs_y = obs[1]
             if self.boundaryConditions.isPeriodicEastWest():
                 for i in range(self.getNumParticles()):
                     x = periodicPositions[i,0]
@@ -164,9 +167,11 @@ class Drifter(object):
         Computes the distance between particles and observation. Possible periodic boundary conditions are taken care of.
         """
         distances = np.zeros(self.getNumParticles())
-        closestPositions = self._getClosestPositions()
         if obs is None:
             obs = self.getObservationPosition()
+            closestPositions = self._getClosestPositions()
+        else:
+            closestPositions = self._getClosestPositions(obs)
         for i in range(self.getNumParticles()):
             distances[i] = np.sqrt( (closestPositions[i,0]-obs[0])**2 +
                                     (closestPositions[i,1]-obs[1])**2)
