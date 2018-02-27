@@ -26,8 +26,32 @@ import numpy as np
 import time
 
 import Common
-#from Particles import *
 
+
+def getGaussianWeight(distance, observationVariance, normalize=True):
+    """
+    Calculates a weight associated to every particle, based on its distance from the observation, using Gaussian uncertainty of the position of the observation 
+    """
+    
+    weights = (1.0/np.sqrt(2*np.pi*observationVariance**2))* \
+            np.exp(- (distance**2/(2*observationVariance**2)))
+    if normalize:
+        return weights/np.sum(weights)
+    return weights
+
+    
+def getCauchyWeight(distance, observationVariance, normalize=True):
+    """
+    Calculates a weight associated to every particle, based on its distance from the observation, using Cauchy distribution based on the uncertainty of the position of the observation.
+    This distribution should be used if wider tails of the distribution is beneficial.
+    """
+    
+    weights = 1.0/(np.pi*observationVariance*(1 + (distance/observationVariance)**2))
+    if normalize:
+        return weights/np.sum(weights)
+    return weights
+    
+    
 
 def resampleParticles(particles, newSampleIndices, reinitialization_variance):
     """
@@ -83,8 +107,10 @@ def probabilisticResampling(particles, reinitialization_variance=0):
     """
     
     # Obtain weights:
-    weights = particles.getGaussianWeight()
-    #weights = particles.getCauchyWeight()
+    weights = getGaussianWeight(particles.getDistances(), \
+                                particles.getObservationVariance())
+    #weights = getCauchyWeight(particles.getDistances(), \
+    #                          particles.getObservationVariance())
     
     # Create array of possible indices to resample:
     allIndices = range(particles.getNumParticles())
@@ -109,8 +135,10 @@ def residualSampling(particles, reinitialization_variance=0, onlyDeterministic=F
     """
     
     # Obtain weights:
-    #weights = particles.getCauchyWeight()
-    weights = particles.getGaussianWeight()
+    #weights = getCauchyWeight(particles.getDistances(), \
+    #                          particles.getObservationVariance())
+    weights = getGaussianWeight(particles.getDistances(), \
+                                particles.getObservationVariance())
 
     # Create array of possible indices to resample:
     allIndices = range(particles.getNumParticles())
@@ -152,8 +180,10 @@ def stochasticUniversalSampling(particles, reinitialization_variance=0):
     """   
     
     # Obtain weights:
-    #weights = particles.getCauchyWeight()
-    weights = particles.getGaussianWeight()
+    #weights = getCauchyWeight(particles.getDistances(), \
+    #                          particles.getObservationVariance())
+    weights = getGaussianWeight(particles.getDistances(), \
+                                particles.getObservationVariance())
 
     # Create array of possible indices to resample:
     allIndices = np.array(range(particles.getNumParticles()))
@@ -191,8 +221,10 @@ def metropolisHastingSampling(particles,  reinitialization_variance=0):
     """
     
     # Obtain weights:
-    #weights = particles.getCauchyWeight()
-    weights = particles.getGaussianWeight()
+    #weights = getCauchyWeight(particles.getDistances(), \
+    #                          particles.getObservationVariance())
+    weights = getGaussianWeight(particles.getDistances(), \
+                                particles.getObservationVariance())
     
     # Create buffer for indices which should be in the new ensemble:
     newSampleIndices = np.zeros_like(weights, dtype=int)

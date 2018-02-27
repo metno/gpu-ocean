@@ -27,7 +27,7 @@ import time
 import abc
 
 import Common
-
+import DataAssimilationUtils as dautils
 
 class Drifter(object):
     __metaclass__ = abc.ABCMeta
@@ -190,32 +190,6 @@ class Drifter(object):
         return x, y
     
     
-    def getGaussianWeight(self, distance=None, normalize=True):
-        """
-        Calculates a weight associated to every particle, based on its distance from the observation, using Gaussian uncertainty of the position of the observation 
-        """
-        if distance is None:
-            distance = self.getDistances()
-        weights = (1.0/np.sqrt(2*np.pi*self.getObservationVariance()**2))* \
-            np.exp(- (distance**2/(2*self.getObservationVariance()**2)))
-        if normalize:
-            return weights/np.sum(weights)
-        return weights
-    
-    
-    def getCauchyWeight(self, distance=None, normalize=True):
-        """
-        Calculates a weight associated to every particle, based on its distance from the observation, using Cauchy distribution based on the uncertainty of the position of the observation.
-        This distribution should be used if wider tails of the distribution is beneficial.
-        """
-        if distance is None:
-            distance = self.getDistances()
-        weights = 1.0/(np.pi*self.observation_variance*(1 + (distance/self.observation_variance)**2))
-        if normalize:
-            return weights/np.sum(weights)
-        return weights
-    
-    
     def getEnsembleMean(self):
         """
         Calculates the mean position of all the particles in the ensemble.
@@ -271,14 +245,15 @@ class Drifter(object):
         # PLOT DISCTRIBUTION OF PARTICLE DISTANCES AND THEORETIC OBSERVATION PDF
         ax0 = plt.subplot2grid((2,3), (0,1), colspan=2)
         distances = self.getDistances()
+        obs_var = self.getObservationVariance()
         plt.hist(distances, bins=30, \
                  range=(0, max(min(self.getDomainSizeX(), self.getDomainSizeY()), np.max(distances))),\
                  normed=True, label="particle distances")
         
         # With observation 
         x = np.linspace(0, max(self.domain_size_x, self.domain_size_y), num=100)
-        cauchy_pdf = self.getCauchyWeight(x, normalize=False)
-        gauss_pdf = self.getGaussianWeight(x, normalize=False)
+        cauchy_pdf = dautils.getCauchyWeight(x, obs_var, normalize=False)
+        gauss_pdf = dautils.getGaussianWeight(x, obs_var, normalize=False)
         plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
         plt.plot(x, gauss_pdf, 'g', label="obs Gauss pdf")
         plt.legend()
@@ -286,8 +261,8 @@ class Drifter(object):
         
         # PLOT SORTED DISTANCES FROM OBSERVATION
         ax0 = plt.subplot2grid((2,3), (1,0), colspan=3)
-        cauchyWeights = self.getCauchyWeight(distances)
-        gaussWeights = self.getGaussianWeight(distances)
+        cauchyWeights = dautils.getCauchyWeight(distances, obs_var)
+        gaussWeights = dautils.getGaussianWeight(distances, obs_var)
         indices_sorted_by_observation = distances.argsort()
         ax0.plot(cauchyWeights[indices_sorted_by_observation]/np.max(cauchyWeights), 'r', label="Cauchy weight")
         ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Gauss weight")
