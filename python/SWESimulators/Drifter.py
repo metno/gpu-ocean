@@ -159,16 +159,17 @@ class Drifter(object):
         return periodicPositions
         
     
-    def getDistances(self):
+    def getDistances(self, obs=None):
         """
         Computes the distance between particles and observation. Possible periodic boundary conditions are taken care of.
         """
         distances = np.zeros(self.getNumParticles())
         closestPositions = self._getClosestPositions()
-        obs_x, obs_y = self.getObservationPosition()
+        if obs is None:
+            obs = self.getObservationPosition()
         for i in range(self.getNumParticles()):
-            distances[i] = np.sqrt( (closestPositions[i,0]-obs_x)**2 +
-                                    (closestPositions[i,1]-obs_y)**2)
+            distances[i] = np.sqrt( (closestPositions[i,0]-obs[0])**2 +
+                                    (closestPositions[i,1]-obs[1])**2)
         return distances
         
     
