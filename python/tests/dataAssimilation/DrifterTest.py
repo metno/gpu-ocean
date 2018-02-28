@@ -359,8 +359,7 @@ class DrifterTest(unittest.TestCase):
         self.set_positions_resampling_set()
         indices_list = [2,2,2,4,5,5]
         newParticlePositions = self.resample(indices_list)
-        dautils.resampleParticles(self.resamplingParticleSet, \
-                                  indices_list, 0)
+        self.resamplingParticleSet.resample(indices_list, 0)
         self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
                          newParticlePositions)
 

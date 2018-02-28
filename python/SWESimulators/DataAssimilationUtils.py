@@ -30,7 +30,10 @@ import Common
 
 def getGaussianWeight(distance, observationVariance, normalize=True):
     """
-    Calculates a weight associated to every particle, based on its distance from the observation, using Gaussian uncertainty of the position of the observation 
+    Calculates a weight associated to every particle, based on its distance from the observation, using Gaussian uncertainty of the position of the observation.
+    
+    distances: An numpy array with the distance of each particle from the observation.
+    observationVariance: the variance in the observation.
     """
     
     weights = (1.0/np.sqrt(2*np.pi*observationVariance**2))* \
@@ -44,6 +47,9 @@ def getCauchyWeight(distance, observationVariance, normalize=True):
     """
     Calculates a weight associated to every particle, based on its distance from the observation, using Cauchy distribution based on the uncertainty of the position of the observation.
     This distribution should be used if wider tails of the distribution is beneficial.
+    
+    distances: An numpy array with the distance of each particle from the observation.
+    observationVariance: the variance in the observation.
     """
     
     weights = 1.0/(np.pi*observationVariance*(1 + (distance/observationVariance)**2))
@@ -53,46 +59,6 @@ def getCauchyWeight(distance, observationVariance, normalize=True):
     
     
 
-def resampleParticles(particles, newSampleIndices, reinitialization_variance):
-    """
-    Resamples the particle positions at the given indices. Duplicates are resampled from a gaussian distribution.
-    
-    particles: The ensemble to be resampled
-    newSampleIndices: particle indices selected for resampling
-    reinitialization_variance: variance used when resampling duplicates
-    """
-    
-    oldParticlePositions = particles.getParticlePositions().copy()
-    newNumberOfParticles = len(newSampleIndices)
-    newParticlePositions = np.zeros((newNumberOfParticles, 2))
-    
-    if particles.getNumParticles() != newNumberOfParticles:
-        raise RuntimeError("ERROR: The size of the new ensemble differs from the old size!\n" + \
-                           "(old size, new size): " + str((particles.getNumParticles(), newNumberOfParticles)) + \
-                           "\nWe can fix this in the future by requiring a function resizeEnsemble")
-        
-    # We really do not the if. The random number with zero variance returns exactly the mean
-    if reinitialization_variance == 0:
-        # Simply copy the given positions
-        newParticlePositions[:,:] = oldParticlePositions[newSampleIndices, :]
-    else:
-        # Make sure to make a clean copy of first resampled particle, and add a disturbance of the next ones.
-        resampledOnce = np.full(particles.numParticles, False, dtype=bool)
-        var = np.eye(2)*reinitialization_variance
-        for i in range(len(newSampleIndices)):
-            index = newSampleIndices[i]
-            if resampledOnce[index]:
-                newParticlePositions[i,:] = np.random.multivariate_normal(oldParticlePositions[index,:], var)
-            else:
-                newParticlePositions[i,:] = oldParticlePositions[index,:]
-                resampledOnce[index] = True
-    
-    # Set particle positions to the ensemble:            
-    particles.setParticlePositions(newParticlePositions)
-    
-    # Enforce boundary conditions
-    particles.enforceBoundaryConditions()
-    
     
 def probabilisticResampling(particles, reinitialization_variance=0):
     """
@@ -119,7 +85,7 @@ def probabilisticResampling(particles, reinitialization_variance=0):
     newSampleIndices = np.random.choice(allIndices, particles.getNumParticles(), p=weights)
         
     # Return a new set of particles
-    resampleParticles(particles, newSampleIndices, reinitialization_variance)
+    particles.resample(newSampleIndices, reinitialization_variance)
 
 
 def residualSampling(particles, reinitialization_variance=0, onlyDeterministic=False, onlyStochastic=False):
@@ -158,11 +124,11 @@ def residualSampling(particles, reinitialization_variance=0, onlyDeterministic=F
     # In numpy v >= 1.13, np.divmod can be used to get weightsTimesNInteger and decimalWeights from one function call.
     
     if onlyDeterministic:
-        resampleParticles(particles, deterministicResampleIndices, reinitialization_variance)
+        particles.resample(deterministicResampleIndices, reinitialization_variance)
     if onlyStochastic:
-        resampleParticles(particles, stochasticResampleIndices, reinitialization_variance)
+        particles.resample(stochasticResampleIndices, reinitialization_variance)
     
-    resampleParticles(particles, np.concatenate((deterministicResampleIndices, stochasticResampleIndices)), \
+    particles.resample(np.concatenate((deterministicResampleIndices, stochasticResampleIndices)), \
                       reinitialization_variance)
     
 
@@ -205,7 +171,7 @@ def stochasticUniversalSampling(particles, reinitialization_variance=0):
     newSampleIndices = np.repeat(allIndices, bucketValues)
     
     # Return a new set of particles
-    resampleParticles(particles, newSampleIndices, reinitialization_variance)
+    particles.resample(newSampleIndices, reinitialization_variance)
 
 
 def metropolisHastingSampling(particles,  reinitialization_variance=0):
@@ -242,4 +208,4 @@ def metropolisHastingSampling(particles,  reinitialization_variance=0):
             newSampleIndices[i] = newSampleIndices[i-1]
     
     # Return a new set of particles
-    resampleParticles(particles, newSampleIndices, reinitialization_variance)
+    particles.resample(newSampleIndices, reinitialization_variance)

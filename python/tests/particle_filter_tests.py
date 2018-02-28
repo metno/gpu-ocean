@@ -12,12 +12,16 @@ from dataAssimilation.GPUDrifterTest import GPUDrifterTest
 
 if (len(sys.argv) < 1):
     print ("Usage:")
-    print ("\t %s  [jenkins]" % sys.argv[0])
+    print ("\t %s [cpuOnly]  [jenkins]" % sys.argv[0])
     exit()
 
 # In order to format the test report so that Jenkins can read it:
 jenkins = False
+cpuOnly = False
 if (len(sys.argv) > 1):
+    if sys.argv[1] == "1":
+        cpuOnly = True
+if (len(sys.argv) > 2):
     if (sys.argv[1].lower() == "jenkins"):
         jenkins = True
 
@@ -27,7 +31,10 @@ if (jenkins):
 
 # Define the tests that will be part of our test suite:
 test_classes_to_run = None
-test_classes_to_run = [CPUDrifterTest, GPUDrifterTest]
+if cpuOnly:
+    test_classes_to_run = [CPUDrifterTest]
+else:
+    test_classes_to_run = [CPUDrifterTest, GPUDrifterTest]
 
 
 loader = unittest.TestLoader()

@@ -205,6 +205,49 @@ class Drifter(object):
         mean_x, mean_y = self._enforceBoundaryConditionsOnPosition(mean_x, mean_y)
         return np.array([mean_x, mean_y])
     
+    
+    
+    def resample(self, newSampleIndices, reinitialization_variance):
+        """
+        Resamples the particle positions at the given indices. Duplicates are resampled from a gaussian distribution.
+
+        newSampleIndices: particle indices selected for resampling
+        reinitialization_variance: variance used when resampling duplicates
+        """
+
+        oldParticlePositions = self.getParticlePositions().copy()
+        newNumberOfParticles = len(newSampleIndices)
+        newParticlePositions = np.zeros((newNumberOfParticles, 2))
+
+        if self.getNumParticles() != newNumberOfParticles:
+            raise RuntimeError("ERROR: The size of the new ensemble differs from the old size!\n" + \
+                               "(old size, new size): " + str((self.getNumParticles(), newNumberOfParticles)) + \
+                               "\nWe can fix this in the future by requiring a function resizeEnsemble")
+
+        # We really do not the if. The random number with zero variance returns exactly the mean
+        if reinitialization_variance == 0:
+            # Simply copy the given positions
+            newParticlePositions[:,:] = oldParticlePositions[newSampleIndices, :]
+        else:
+            # Make sure to make a clean copy of first resampled particle, and add a disturbance of the next ones.
+            resampledOnce = np.full(self.getNumParticles(), False, dtype=bool)
+            var = np.eye(2)*reinitialization_variance
+            for i in range(len(newSampleIndices)):
+                index = newSampleIndices[i]
+                if resampledOnce[index]:
+                    newParticlePositions[i,:] = np.random.multivariate_normal(oldParticlePositions[index,:], var)
+                else:
+                    newParticlePositions[i,:] = oldParticlePositions[index,:]
+                    resampledOnce[index] = True
+
+        # Set particle positions to the ensemble:            
+        self.setParticlePositions(newParticlePositions)
+
+        # Enforce boundary conditions
+        self.enforceBoundaryConditions()
+
+
+    
     def initializeParticles(self, domain_size_x=1.0, domain_size_y=1.0):
         """
         Initialization of all particles (and observation) within a rectangle of given size.
