@@ -312,7 +312,13 @@ class CDKLM16(Simulator.Simulator):
                 
                 self.bc_kernel.boundaryCondition(self.cl_queue, \
                         self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
-                
+              
+            if self.hasDrifters:
+                self.drifters.drift(self.cl_data.h0, self.cl_data.hu0, \
+                                    self.cl_data.hv0, np.float32(10), \
+                                    self.nx, self.ny, self.dx, self.dy, \
+                                    local_dt, \
+                                    np.int32(2), np.int32(2))
             self.t += local_dt
             
         if self.write_netcdf:
