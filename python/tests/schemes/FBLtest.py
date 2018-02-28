@@ -105,11 +105,11 @@ class FBLtest(unittest.TestCase):
                               vRef[:, refRange[3]:refRange[1]])
             
         
-        self.assertAlmostEqual(maxDiffEta, 0.0,
+        self.assertAlmostEqual(maxDiffEta, 0.0, places=5,
                                msg='Unexpected eta difference! Max diff: ' + str(maxDiffEta) + ', L2 diff: ' + str(diffEta))
-        self.assertAlmostEqual(maxDiffU, 0.0,
+        self.assertAlmostEqual(maxDiffU, 0.0, places=5,
                                msg='Unexpected U difference: ' + str(maxDiffU) + ', L2 diff: ' + str(diffU))
-        self.assertAlmostEqual(maxDiffV, 0.0,
+        self.assertAlmostEqual(maxDiffV, 0.0, places=5,
                                msg='Unexpected V difference: ' + str(maxDiffV) + ', L2 diff: ' + str(diffV))
         
 

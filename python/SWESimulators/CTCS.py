@@ -23,52 +23,23 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
 import Common, SimWriter, SimReader
+import Simulator
 
-
-
-
-
-
-
-
-
-"""
-Class that solves the SW equations using the Centered in time centered in space scheme
-"""
-class CTCS:
-
+class CTCS(Simulator.Simulator):
     """
-    Initialization routine
-    H: Water depth incl ghost cells, (nx+2)*(ny+2) cells
-    eta0: Initial deviation from mean sea level incl ghost cells, (nx+2)*(ny+2) cells
-    hu0: Initial momentum along x-axis incl ghost cells, (nx+1)*(ny+2) cells
-    hv0: Initial momentum along y-axis incl ghost cells, (nx+2)*(ny+1) cells
-    nx: Number of cells along x-axis
-    ny: Number of cells along y-axis
-    dx: Grid cell spacing along x-axis (20 000 m)
-    dy: Grid cell spacing along y-axis (20 000 m)
-    dt: Size of each timestep (90 s)
-    g: Gravitational accelleration (9.81 m/s^2)
-    f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
-    r: Bottom friction coefficient (2.4e-3 m/s)
-    A: Eddy viscosity coefficient (O(dx))
-    coriolis_beta: Coriolis linear factor -> f = f + beta*(y-y_0)
-    y_zero_reference_cell: The cell representing y_0 in the above, defined as the lower face of the cell.
-    wind_stress: Wind stress parameters
-    boundary_conditions: Boundary condition object
-    write_netcdf: Write the results after each superstep to a netCDF file
+    Class that solves the SW equations using the Centered in time centered in space scheme
     """
+
     def __init__(self, \
                  cl_ctx, \
                  H, eta0, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
-                 g, f, r, A, \
+                 g, f, r, A=0.0, \
                  t=0.0, \
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
@@ -78,6 +49,28 @@ class CTCS:
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0, \
                  block_width=16, block_height=16):
+        """
+        Initialization routine
+        H: Water depth incl ghost cells, (nx+2)*(ny+2) cells
+        eta0: Initial deviation from mean sea level incl ghost cells, (nx+2)*(ny+2) cells
+        hu0: Initial momentum along x-axis incl ghost cells, (nx+1)*(ny+2) cells
+        hv0: Initial momentum along y-axis incl ghost cells, (nx+2)*(ny+1) cells
+        nx: Number of cells along x-axis
+        ny: Number of cells along y-axis
+        dx: Grid cell spacing along x-axis (20 000 m)
+        dy: Grid cell spacing along y-axis (20 000 m)
+        dt: Size of each timestep (90 s)
+        g: Gravitational accelleration (9.81 m/s^2)
+        f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
+        r: Bottom friction coefficient (2.4e-3 m/s)
+        A: Eddy viscosity coefficient (O(dx))
+        t: Start simulation at time t
+        coriolis_beta: Coriolis linear factor -> f = f + beta*(y-y_0)
+        y_zero_reference_cell: The cell representing y_0 in the above, defined as the lower face of the cell .
+        wind_stress: Wind stress parameters
+        boundary_conditions: Boundary condition object
+        write_netcdf: Write the results after each superstep to a netCDF file
+        """
         reload(Common)
         self.cl_ctx = cl_ctx
         self.rk_order = 'NA'
@@ -153,19 +146,20 @@ class CTCS:
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
                                     staggered_grid=True, offset_x=self.offset_x, offset_y=self.offset_y)
-    
-    """
-    Initialize and hotstart simulation from nc-file.
-    cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
-    filename: Continue simulation based on parameters and last timestep in this file
-    """
+        
     @classmethod
     def fromfilename(cls, cl_ctx, filename, cont_write_netcdf=True):
+        """
+        Initialize and hotstart simulation from nc-file.
+        cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
+        filename: Continue simulation based on parameters and last timestep in this file
+        """
         # open nc-file
         sim_reader = SimReader.SimNetCDFReader(filename, ignore_ghostcells=False)
         sim_name = str(sim_reader.get('simulator_short'))
-        assert sim_name == "CTCS", \
-               "Trying to initialize a CTCS simulator with netCDF file based on " \
+        assert sim_name == cls.__name__, \
+               "Trying to initialize a " + \
+               cls.__name__ + " simulator with netCDF file based on " \
                + sim_name + " results."
         
         # read parameters
@@ -181,8 +175,12 @@ class CTCS:
         dt = sim_reader.get("dt")
         g = sim_reader.get("g")
         r = sim_reader.get("bottom_friction_r")
-        A = sim_reader.get("eddy_viscosity_coefficient")
         f = sim_reader.get("coriolis_force")
+        beta = sim_reader.get("coriolis_beta")
+        
+        minmodTheta = sim_reader.get("minmod_theta")
+        timeIntegrator = sim_reader.get("time_integrator")
+        y_zero_reference_cell = sim_reader.get("y_zero_reference_cell")
 
         wind_stress_type = sim_reader.get("wind_stress_type")
         wind = Common.WindStressParams(type=wind_stress_type)
@@ -201,26 +199,23 @@ class CTCS:
                 h0, eta0, hu0, hv0, \
                 nx, ny, \
                 dx, dy, dt, \
-                g, f, r, A, \
+                g, f, r, \
                 t=time0, \
                 wind_stress=wind, \
                 boundary_conditions=boundaryConditions, \
                 write_netcdf=cont_write_netcdf)
 
-    """
-    Clean up function
-    """
     def cleanUp(self):
-        if self.write_netcdf:
-            self.sim_writer.__exit__(0,0,0)
-            self.write_netcdf = False
-        self.cl_data.release()
+        """
+        Clean up function
+        """
         self.H.release()
+        super(CTCS, self).cleanUp()
     
-    """
-    Function which steps n timesteps
-    """
     def step(self, t_end=0.0):
+        """
+        Function which steps n timesteps
+        """
         n = int(t_end / self.dt + 1)
         if self.t == 0:
             #print "N: ", n
@@ -308,17 +303,6 @@ class CTCS:
             self.sim_writer.writeTimestep(self)
             
         return self.t
-    
-    
-    
-    
-    def download(self):
-        return self.cl_data.download(self.cl_queue)
-
-
-
-
-
 
         
 class CTCS_boundary_condition:
@@ -353,10 +337,10 @@ class CTCS_boundary_condition:
 
         
        
-    """
-    Updates hu according periodic boundary conditions
-    """
     def boundaryConditionU(self, cl_queue, hu0):
+        """
+        Updates hu according periodic boundary conditions
+        """
        
         if (self.bc_north < 3) or (self.bc_south < 3):
             self.boundaryKernels.boundaryUKernel_NS( \
@@ -380,10 +364,10 @@ class CTCS_boundary_condition:
         
         
         
-    """
-    Updates hv according to periodic boundary conditions
-    """
     def boundaryConditionV(self, cl_queue, hv0):
+        """
+        Updates hv according to periodic boundary conditions
+        """
 
         if (self.bc_north < 3) or (self.bc_south < 3):
             self.boundaryKernels.boundaryVKernel_NS( \
@@ -405,10 +389,10 @@ class CTCS_boundary_condition:
         self.callSpongeEW(cl_queue, hv0, 0, 1)
         #self.callSpongeEW(cl_queue, hv0, 0, 0)
 
-    """
-    Updates eta boundary conditions (ghost cells)
-    """
     def boundaryConditionEta(self, cl_queue, eta0):
+        """
+        Updates eta boundary conditions (ghost cells)
+        """
 
         if (self.bc_north < 3) or (self.bc_south < 3):
             self.boundaryKernels.boundaryEtaKernel_NS( \
@@ -429,10 +413,10 @@ class CTCS_boundary_condition:
         self.callSpongeEW(cl_queue, eta0, 0, 0)
             
               
-    """
-    Call othe approporary sponge-like boundary condition with the given data
-    """
     def callSpongeNS(self, cl_queue, data, staggered_x, staggered_y):
+        """
+        Call othe approporary sponge-like boundary condition with the given data
+        """
         staggered_x_int32 = np.int32(staggered_x)
         staggered_y_int32 = np.int32(staggered_y)
 

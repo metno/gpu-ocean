@@ -21,54 +21,20 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
 import Common, SimWriter, SimReader
-import gc
+import Simulator
 
-
-
-
-        
-        
-        
-
-
-"""
-Class that solves the SW equations using the Coriolis well balanced reconstruction scheme, as given by the publication of Chertock, Dudzinski, Kurganov and Lukacova-Medvidova (CDFLM) in 2016.
-"""
-class CDKLM16:
-
+class CDKLM16(Simulator.Simulator):
     """
-    Initialization routine
-    eta0: Water level incl ghost cells, (nx+4)*(ny+4) cells
-    u0: Initial momentum along x-axis incl ghost cells, (nx+4)*(ny+4) cells
-    v0: Initial momentum along y-axis incl ghost cells, (nx+4)*(ny+4) cells
-    Hi: Equilibrium water depth defined on cell corners, (nx+5)*(ny+5) corners
-    nx: Number of cells along x-axis
-    ny: Number of cells along y-axis
-    dx: Grid cell spacing along x-axis (20 000 m)
-    dy: Grid cell spacing along y-axis (20 000 m)
-    dt: Size of each timestep (90 s)
-    g: Gravitational accelleration (9.81 m/s^2)
-    f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
-    r: Bottom friction coefficient (2.4e-3 m/s)
-    theta: minmod reconstruction parameter
-    rk_order: Order of Runge Kutta method {1,2*,3}
-    coriolis_beta: Coriolis linear factor -> f = f + beta*y
-    y_zero_reference_cell: The cell representing y_0 in the above, defined as the lower face of the cell.
-    wind_stress: Wind stress parameters
-    boundary_conditions: Boundary conditions object
-    h0AsWaterElevation: True if h0 is described by the surface elevation, and false if h0 is described by water depth
-    reportGeostrophicEquilibrium: Calculate the Geostrophic Equilibrium variables for each superstep
-    write_netcdf: Write the results after each superstep to a netCDF file
+    Class that solves the SW equations using the Coriolis well balanced reconstruction scheme, as given by the publication of Chertock, Dudzinski, Kurganov and Lukacova-Medvidova (CDFLM) in 2016.
     """
+
     def __init__(self, \
                  cl_ctx, \
-                 eta0, hu0, hv0, \
-                 Hi, \
+                 eta0, hu0, hv0, Hi, \
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
@@ -81,8 +47,34 @@ class CDKLM16:
                  h0AsWaterElevation=False, \
                  reportGeostrophicEquilibrium=False, \
                  write_netcdf=False, \
-                 double_precision = False, \
+                 ignore_ghostcells=False, \
+                 offset_x=0, offset_y=0, \
                  block_width=16, block_height=16):
+        """
+        Initialization routine
+        eta0: Initial deviation from mean sea level incl ghost cells, (nx+2)*(ny+2) cells
+        hu0: Initial momentum along x-axis incl ghost cells, (nx+1)*(ny+2) cells
+        hv0: Initial momentum along y-axis incl ghost cells, (nx+2)*(ny+1) cells
+        Hi: Depth from equilibrium defined on cell corners, (nx+5)*(ny+5) corners
+        nx: Number of cells along x-axis
+        ny: Number of cells along y-axis
+        dx: Grid cell spacing along x-axis (20 000 m)
+        dy: Grid cell spacing along y-axis (20 000 m)
+        dt: Size of each timestep (90 s)
+        g: Gravitational accelleration (9.81 m/s^2)
+        f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
+        r: Bottom friction coefficient (2.4e-3 m/s)
+        t: Start simulation at time t
+        theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
+        rk_order: Order of Runge Kutta method {1,2*,3}
+        coriolis_beta: Coriolis linear factor -> f = f + beta*(y-y_0)
+        y_zero_reference_cell: The cell representing y_0 in the above, defined as the lower face of the cell .
+        wind_stress: Wind stress parameters
+        boundary_conditions: Boundary condition object
+        h0AsWaterElevation: True if h0 is described by the surface elevation, and false if h0 is described by water depth
+        reportGeostrophicEquilibrium: Calculate the Geostrophic Equilibrium variables for each superstep
+        write_netcdf: Write the results after each superstep to a netCDF file
+        """
         
         self.cl_ctx = cl_ctx
 
@@ -95,11 +87,7 @@ class CDKLM16:
             assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
         
         #Get kernels
-        self.kernel = None
-        if double_precision:
-            self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_double_kernel.opencl", block_width, block_height)
-        else:
-            self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
+        self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
 
         self.ghost_cells_x = 2
         self.ghost_cells_y = 2
@@ -153,7 +141,7 @@ class CDKLM16:
         self.drifters = None
         
         #Initialize time
-        self.t = np.float32(0.0)
+        self.t = np.float32(t)
         
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height) 
@@ -174,23 +162,27 @@ class CDKLM16:
             self.bathymetry.waterElevationToDepth(self.cl_data.h0)
 
         self.write_netcdf = write_netcdf
+        self.ignore_ghostcells = ignore_ghostcells
+        self.offset_x = offset_x
+        self.offset_y = offset_y
         self.sim_writer = None
         if self.write_netcdf:
-            self.sim_writer = SimWriter.SimNetCDFWriter(self)
-           
-        
-    """
-    Initialize and hotstart simulation from nc-file.
-    cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
-    filename: Continue simulation based on parameters and last timestep in this file
-    """
+            self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
+                                    offset_x=self.offset_x, offset_y=self.offset_y)
+            
     @classmethod
     def fromfilename(cls, cl_ctx, filename, cont_write_netcdf=True):
+        """
+        Initialize and hotstart simulation from nc-file.
+        cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
+        filename: Continue simulation based on parameters and last timestep in this file
+        """
         # open nc-file
         sim_reader = SimReader.SimNetCDFReader(filename, ignore_ghostcells=False)
         sim_name = str(sim_reader.get('simulator_short'))
-        assert sim_name == "CDKLM16", \
-               "Trying to initialize a CDKLM16 simulator with netCDF file based on " \
+        assert sim_name == cls.__name__, \
+               "Trying to initialize a " + \
+               cls.__name__ + " simulator with netCDF file based on " \
                + sim_name + " results."
         
         # read parameters
@@ -240,35 +232,21 @@ class CDKLM16:
                  boundary_conditions=boundaryConditions, \
                  write_netcdf=cont_write_netcdf)
     
-    """
-    Clean up function
-    """
     def cleanUp(self):
-        if self.write_netcdf:
-            self.sim_writer.__exit__(0,0,0)
-            self.write_netcdf = False
-        self.cl_data.release()
+        """
+        Clean up function
+        """
         self.geoEq_uxpvy.release()
         self.geoEq_Kx.release()
         self.geoEq_Ly.release()
         self.bathymetry.release()
         self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
-        gc.collect() # Force run garbage collection to free up memory
-        
-        
-    def attachDrifters(self, drifters):
-        ### Do the following type of checking here:
-        #assert isinstance(drifters, SingleGPUPassiveDrifterEnsemble)
-        #assert drifters.isInitialized()
-        
-        self.drifters = drifters
-        self.hasDrifters = True
-        self.drifters.setCLQueue(self.cl_queue)
+        super(CDKLM16, self).cleanUp()
     
-    """
-    Function which steps n timesteps
-    """
     def step(self, t_end=0.0):
+        """
+        Function which steps n timesteps
+        """
         n = int(t_end / self.dt + 1)
 
         if self.t == 0:
@@ -334,16 +312,13 @@ class CDKLM16:
                 
                 self.bc_kernel.boundaryCondition(self.cl_queue, \
                         self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
-                
-                
+              
             if self.hasDrifters:
                 self.drifters.drift(self.cl_data.h0, self.cl_data.hu0, \
                                     self.cl_data.hv0, np.float32(10), \
                                     self.nx, self.ny, self.dx, self.dy, \
                                     local_dt, \
                                     np.int32(2), np.int32(2))
-
-                
             self.t += local_dt
             
         if self.write_netcdf:
@@ -388,30 +363,19 @@ class CDKLM16:
                            self.geoEq_Ly.data, self.geoEq_Ly.pitch )
 
     
-    """
-    Static function which reads a text file and creates an OpenCL kernel from that
-    """
-    def get_kernel(self, kernel_filename):
-        #Read the proper program
-        module_path = os.path.dirname(os.path.realpath(__file__))
-        fullpath = os.path.join(module_path, kernel_filename)
-        with open(fullpath, "r") as kernel_file:
-            kernel_string = kernel_file.read()
-            kernel = cl.Program(self.cl_ctx, kernel_string).build()
-            
-        return kernel
+    #def get_kernel(self, kernel_filename):
+    #    """
+    #    Static function which reads a text file and creates an OpenCL kernel from that
+    #    """
+    #    #Read the proper program
+    #    module_path = os.path.dirname(os.path.realpath(__file__))
+    #    fullpath = os.path.join(module_path, kernel_filename)
+    #    with open(fullpath, "r") as kernel_file:
+    #        kernel_string = kernel_file.read()
+    #        kernel = cl.Program(self.cl_ctx, kernel_string).build()
+    #        
+    #    return kernel
     
-    
-    
-    def download(self):
-        if (self.h0AsWaterElevation):
-            # Swap h0 with h1, fill h0 with w, download, swap back h0 with h1
-            self.cl_data.h0, self.cl_data.h1 = self.cl_data.h1, self.cl_data.h0
-            self.bathymetry.waterDepthToElevation(self.cl_data.h0, self.cl_data.h1)
-            h1, hu1, hv1 = self.cl_data.download(self.cl_queue)
-            self.cl_data.h0, self.cl_data.h1 = self.cl_data.h1, self.cl_data.h0
-            return h1, hu1, hv1
-        return self.cl_data.download(self.cl_queue)
 
     def downloadBathymetry(self):
         return self.bathymetry.download(self.cl_queue)
