@@ -24,8 +24,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
+import gc
+
 import Common, SimWriter, SimReader
 import Simulator
+
+#reload(Simulator)
 
 class CDKLM16(Simulator.Simulator):
     """
@@ -75,6 +79,8 @@ class CDKLM16(Simulator.Simulator):
         reportGeostrophicEquilibrium: Calculate the Geostrophic Equilibrium variables for each superstep
         write_netcdf: Write the results after each superstep to a netCDF file
         """
+        
+        print "Creating CDKLM16 simulator"
         
         self.cl_ctx = cl_ctx
 
@@ -169,7 +175,48 @@ class CDKLM16(Simulator.Simulator):
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
                                     offset_x=self.offset_x, offset_y=self.offset_y)
-            
+            print "< in CDKLM16.constructor - created sim_writer >"
+        print "< in end of CDKLM16.constructor > "
+    
+    #def __del__(self):
+    #    print "CDKLM16 destructor"
+    #    self.cleanUp()
+        #try:
+        #    print "in try"
+        #    super(CDKLM16, self).__del__()
+        #except TypeError:
+        #    pass
+
+        # It is tempting to use self.__class__ (as below) here, which would work 
+        # even after a reload(CDKLM16). However, self could in principle be a 
+        # child of CDKLM16 in the future, and self would then no longer be
+        # CDKLM16. The destructure would then give a self-recursive loop.
+        # 
+        # super(self.__class__, self).__del__()
+        
+    def cleanUp(self):
+        """
+        Clean up function
+        """
+        print "< in CDKLM16.cleanUp() >"
+        self.closeNetCDF()
+        
+        print "< in CDKLM16.cleanUp - calling release on device data > "
+        self.cl_data.release()
+        
+        self.geoEq_uxpvy.release()
+        self.geoEq_Kx.release()
+        self.geoEq_Ly.release()
+        self.bathymetry.release()
+        self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
+        gc.collect()
+        
+   
+    def printClassInfo(self):
+        print CDKLM16
+        print self.__class__
+        print isinstance(self, CDKLM16)
+    
     @classmethod
     def fromfilename(cls, cl_ctx, filename, cont_write_netcdf=True):
         """
@@ -232,16 +279,7 @@ class CDKLM16(Simulator.Simulator):
                  boundary_conditions=boundaryConditions, \
                  write_netcdf=cont_write_netcdf)
     
-    def cleanUp(self):
-        """
-        Clean up function
-        """
-        self.geoEq_uxpvy.release()
-        self.geoEq_Kx.release()
-        self.geoEq_Ly.release()
-        self.bathymetry.release()
-        self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
-        super(CDKLM16, self).cleanUp()
+    
     
     def step(self, t_end=0.0):
         """

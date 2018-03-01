@@ -68,7 +68,6 @@ class SimNetCDFWriter:
         self.textPos = -1
         
         # Simulator info
-        self.sim = sim
         self.boundary_conditions = str(sim.boundary_conditions)
         # (machine readable BC)
         self.boundary_conditions_mr = str(sim.boundary_conditions.get())
@@ -100,6 +99,8 @@ class SimNetCDFWriter:
         dx = sim.dx
         dy = sim.dy
         dt = sim.dt
+        self.dx = dx
+        self.dy = dy
         auto_dt = False
         self.ghost_cells_east = sim.ghost_cells_x
         self.ghost_cells_west = sim.ghost_cells_x
@@ -308,6 +309,9 @@ class SimNetCDFWriter:
         self.i = 0
         self.writeTimestep(sim)
 
+    def __del__(self):
+        print "< in SimWriter.destructor >"
+        #self.sim = None
 
         
     def __str__(self):
@@ -411,7 +415,7 @@ class SimNetCDFWriter:
         self._addText(ax, 'Simulator: ' + self.simulator_short)
         self._addText(ax, 'BC: ' + str(self.boundary_conditions))
         self._addText(ax, 'f:  ' + str(self.coriolis_force))
-        self._addText(ax, 'dt: ' + str(self.dt) + ", dx: " + str(self.sim.dx) + ", dy: " + str(self.sim.dy))
+        self._addText(ax, 'dt: ' + str(self.dt) + ", dx: " + str(self.dx) + ", dy: " + str(self.dy))
         self._addText(ax, 'wind type: ' + str(self.wind_stress.type))
         
         ax.axis([0, 6, 0, 3])

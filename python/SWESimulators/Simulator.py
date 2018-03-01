@@ -48,15 +48,26 @@ class Simulator(object):
         """
         pass
    
+    def __del__(self):
+        print "Super destructor triggered"
+        self.cleanUp()
+
+    @abstractmethod
     def cleanUp(self):
         """
         Clean up function
         """
+        pass
+        
+    def closeNetCDF(self):
+        """
+        Close the NetCDF file, if there is one
+        """
+        print "< in super.closeNetCDF() >"
         if self.write_netcdf:
             self.sim_writer.__exit__(0,0,0)
             self.write_netcdf = False
-        self.cl_data.release()
-        gc.collect()
+            self.sim_writer = None
         
     def attachDrifters(self, drifters):
         ### Do the following type of checking here:
