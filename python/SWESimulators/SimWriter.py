@@ -309,11 +309,7 @@ class SimNetCDFWriter:
         self.i = 0
         self.writeTimestep(sim)
 
-    def __del__(self):
-        print "< in SimWriter.destructor >"
-        #self.sim = None
-
-        
+       
     def __str__(self):
         msg = ""
         theMap = vars(self)

@@ -79,9 +79,7 @@ class CDKLM16(Simulator.Simulator):
         reportGeostrophicEquilibrium: Calculate the Geostrophic Equilibrium variables for each superstep
         write_netcdf: Write the results after each superstep to a netCDF file
         """
-        
-        print "Creating CDKLM16 simulator"
-        
+               
         self.cl_ctx = cl_ctx
 
         #Create an OpenCL command queue
@@ -175,17 +173,14 @@ class CDKLM16(Simulator.Simulator):
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
                                     offset_x=self.offset_x, offset_y=self.offset_y)
-            print "< in CDKLM16.constructor - created sim_writer >"
-        print "< in end of CDKLM16.constructor > "
+
     
     def cleanUp(self):
         """
         Clean up function
         """
-        print "< in CDKLM16.cleanUp() >"
         self.closeNetCDF()
         
-        print "< in CDKLM16.cleanUp - calling release on device data > "
         self.cl_data.release()
         
         self.geoEq_uxpvy.release()

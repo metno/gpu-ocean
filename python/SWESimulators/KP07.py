@@ -222,10 +222,8 @@ class KP07(Simulator.Simulator):
         """
         Clean up function
         """
-        print "< in KP07.cleanUp() >"
         self.closeNetCDF()
         
-        print "< in KP07.cleanUp - calling release on device data > "
         self.cl_data.release()
         
         self.bathymetry.release()

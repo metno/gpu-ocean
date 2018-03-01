@@ -211,10 +211,8 @@ class CTCS(Simulator.Simulator):
         """
         Clean up function
         """
-        print "< in CTCS.cleanUp() >"
         self.closeNetCDF()
         
-        print "< in CTCS.cleanUp - calling release on device data > "
         self.cl_data.release()
         
         self.H.release()

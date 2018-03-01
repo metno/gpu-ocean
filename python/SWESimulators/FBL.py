@@ -219,10 +219,8 @@ class FBL(Simulator.Simulator):
         """
         Clean up function
         """
-        print "< in FBL.cleanUp() >"
         self.closeNetCDF()
         
-        print "< in FBL.cleanUp - calling release on device data > "
         self.cl_data.release()
         
         self.H.release()

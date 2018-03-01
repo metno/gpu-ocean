@@ -49,7 +49,6 @@ class Simulator(object):
         pass
    
     def __del__(self):
-        print "Super destructor triggered"
         self.cleanUp()
 
     @abstractmethod
@@ -63,7 +62,6 @@ class Simulator(object):
         """
         Close the NetCDF file, if there is one
         """
-        print "< in super.closeNetCDF() >"
         if self.write_netcdf:
             self.sim_writer.__exit__(0,0,0)
             self.write_netcdf = False
