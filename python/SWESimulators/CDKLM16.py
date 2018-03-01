@@ -363,20 +363,10 @@ class CDKLM16(Simulator.Simulator):
                            self.geoEq_Ly.data, self.geoEq_Ly.pitch )
 
     
-    #def get_kernel(self, kernel_filename):
-    #    """
-    #    Static function which reads a text file and creates an OpenCL kernel from that
-    #    """
-    #    #Read the proper program
-    #    module_path = os.path.dirname(os.path.realpath(__file__))
-    #    fullpath = os.path.join(module_path, kernel_filename)
-    #    with open(fullpath, "r") as kernel_file:
-    #        kernel_string = kernel_file.read()
-    #        kernel = cl.Program(self.cl_ctx, kernel_string).build()
-    #        
-    #    return kernel
     
 
+    
+    
     def downloadBathymetry(self):
         return self.bathymetry.download(self.cl_queue)
 
