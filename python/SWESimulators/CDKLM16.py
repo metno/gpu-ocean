@@ -178,22 +178,6 @@ class CDKLM16(Simulator.Simulator):
             print "< in CDKLM16.constructor - created sim_writer >"
         print "< in end of CDKLM16.constructor > "
     
-    #def __del__(self):
-    #    print "CDKLM16 destructor"
-    #    self.cleanUp()
-        #try:
-        #    print "in try"
-        #    super(CDKLM16, self).__del__()
-        #except TypeError:
-        #    pass
-
-        # It is tempting to use self.__class__ (as below) here, which would work 
-        # even after a reload(CDKLM16). However, self could in principle be a 
-        # child of CDKLM16 in the future, and self would then no longer be
-        # CDKLM16. The destructure would then give a self-recursive loop.
-        # 
-        # super(self.__class__, self).__del__()
-        
     def cleanUp(self):
         """
         Clean up function
@@ -210,13 +194,7 @@ class CDKLM16(Simulator.Simulator):
         self.bathymetry.release()
         self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
         gc.collect()
-        
-   
-    def printClassInfo(self):
-        print CDKLM16
-        print self.__class__
-        print isinstance(self, CDKLM16)
-    
+           
     @classmethod
     def fromfilename(cls, cl_ctx, filename, cont_write_netcdf=True):
         """
