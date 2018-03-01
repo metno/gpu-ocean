@@ -25,6 +25,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
+import gc
+
 import Common, SimWriter, SimReader
 import Simulator
    
@@ -217,9 +219,15 @@ class FBL(Simulator.Simulator):
         """
         Clean up function
         """
+        print "< in FBL.cleanUp() >"
+        self.closeNetCDF()
+        
+        print "< in FBL.cleanUp - calling release on device data > "
+        self.cl_data.release()
+        
         self.H.release()
-        super(FBL, self).cleanUp()
-    
+        gc.collect()
+        
     def step(self, t_end=0.0):
         """
         Function which steps n timesteps
