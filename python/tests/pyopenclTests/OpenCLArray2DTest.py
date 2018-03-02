@@ -48,7 +48,7 @@ class OpenCLArray2DTest(unittest.TestCase):
         
     def tearDown(self):
         if self.tests_failed:
-            print "\nDevice name: " + self.device_name
+            print "Device name: " + self.device_name
         if not self.explicit_free:
             self.clarray.release()
                                             
@@ -67,7 +67,7 @@ class OpenCLArray2DTest(unittest.TestCase):
         self.tests_failed = False
 
     def test_release(self):
-        self.explicit_free = True
+        #self.explicit_free = True
         self.clarray.release()
         self.assertFalse(self.clarray.holds_data)
 
@@ -85,8 +85,23 @@ class OpenCLArray2DTest(unittest.TestCase):
         self.assertEqual(host_data.tolist(), self.buf1.tolist())
         self.tests_failed = False
 
-    def tests_upload(self):
+    def test_upload(self):
         self.clarray.upload(self.cl_queue, self.buf3)
         host_data = self.clarray.download(self.cl_queue)
         self.assertEqual(host_data.tolist(), self.buf3.tolist())
         self.tests_failed = False
+
+    def test_copy_buffer(self):
+        clarray2 = Common.OpenCLArray2D(self.cl_ctx, \
+                                        self.nx, self.ny, self.nx_halo, self.ny_halo, \
+                                        self.buf3)
+
+        host_data_pre_copy = self.clarray.download(self.cl_queue)
+        self.assertEqual(host_data_pre_copy.tolist(), self.buf1.tolist())
+        
+        self.clarray.copyBuffer(self.cl_queue, clarray2)
+        host_data_post_copy = self.clarray.download(self.cl_queue)
+        self.assertEqual(host_data_post_copy.tolist(), self.buf3.tolist())
+        
+        self.tests_failed = False
+        

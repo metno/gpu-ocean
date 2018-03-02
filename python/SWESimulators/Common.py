@@ -85,8 +85,29 @@ class OpenCLArray2D:
         assert(host_data.itemsize == self.bytes_per_float), "Host data itemsize is " + str(host_data.itemsize) + ", but should have been " + str(self.bytes_per_float)
         
         # Okay, everything is fine, now upload:
-        total_num_bytes = self.bytes_per_float*self.nx_halo*self.ny_halo
         pyopencl.enqueue_copy(cl_queue, self.data, host_data)
+        
+    
+    def copyBuffer(self, cl_queue, cl_buffer):
+        """
+        Copying the given device buffer into the already allocated memory
+        """
+        if not self.holds_data:
+            raise RuntimeError('The buffer has been freed before copyBuffer is called')
+        
+        if not cl_buffer.holds_data:
+            raise RuntimeError('The provided cl_buffer is either not allocated, or has been freed before copyBuffer is called')
+        
+        # Make sure that the input is of correct size:
+        assert(cl_buffer.nx_halo == self.nx_halo), str(cl_buffer.nx_halo) + " vs " + str(self.nx_halo)
+        assert(cl_buffer.ny_halo == self.ny_halo), str(cl_buffer.ny_halo) + " vs " + str(self.ny_halo)
+        
+        assert(cl_buffer.bytes_per_float == self.bytes_per_float), "Provided cl_buffer itemsize is " + str(cl_buffer.bytes_per_float) + ", but should have been " + str(self.bytes_per_float)
+        
+        # Okay, everything is fine - issue device-to-device-copy:
+        total_num_bytes = self.bytes_per_float*self.nx_halo*self.ny_halo
+        pyopencl.enqueue_copy_buffer(cl_queue, cl_buffer.data, self.data, total_num_bytes)
+        
         
         
     def download(self, cl_queue):
