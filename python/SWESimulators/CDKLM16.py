@@ -372,19 +372,6 @@ class CDKLM16(Simulator.Simulator):
                            self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
                            self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
                            self.geoEq_Ly.data, self.geoEq_Ly.pitch )
-
-    
-    def upload(self, eta, hu, hv):
-        """
-        Upload new data (eta, hu, hv) from the host to device
-        """
-        # h0, hu0 and hv0 are always input in the first kernel call, and
-        # h1, hu1 and hv1 are never read in the first kernel.
-        # It is therefore safe to upload eta, hu, hv to h0, hu0 and hv0.
-        
-        self.cl_data.h0.upload(self.cl_queue, eta)
-        self.cl_data.hu0.upload(self.cl_queue, hu)
-        self.cl_data.hv0.upload(self.cl_queue, hv)
             
     
     def downloadBathymetry(self):

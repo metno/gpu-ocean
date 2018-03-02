@@ -183,6 +183,16 @@ class SWEDataArakawaA:
         hv_cpu = self.hv0.download(cl_queue)
         
         return h_cpu, hu_cpu, hv_cpu
+    
+    """
+    Enables downloading data from the additional buffer of CL device to Python
+    """
+    def downloadPrevTimestep(self, cl_queue):
+        h_cpu  = self.h1.download(cl_queue)
+        hu_cpu = self.hu1.download(cl_queue)
+        hv_cpu = self.hv1.download(cl_queue)
+        
+        return h_cpu, hu_cpu, hv_cpu
 
     """
     Frees the allocated memory buffers on the GPU 
@@ -253,6 +263,16 @@ class SWEDataArakawaC:
         
         return h_cpu, hu_cpu, hv_cpu
 
+    """
+    Enables downloading data from the additional buffer of CL device to Python
+    """
+    def downloadPrevTimestep(self, cl_queue):
+        h_cpu  = self.h1.download(cl_queue)
+        hu_cpu = self.hu1.download(cl_queue)
+        hv_cpu = self.hv1.download(cl_queue)
+        
+        return h_cpu, hu_cpu, hv_cpu
+    
     """
     Frees the allocated memory buffers on the GPU 
     """

@@ -198,8 +198,9 @@ class WindForcingEnsamble:
                                                       wind_direction=newWindDirection[i])
             
             # Download index's ocean state:
-            eta, hu, hv = self.particles[index].download()
-            newOceanStates[i] = (eta, hu, hv)
+            eta0, hu0, hv0 = self.particles[index].download()
+            eta1, hu1, hv1 = self.particles[index].downloadPrevTimestep()
+            newOceanStates[i] = (eta0, hu0, hv0, eta1, hu1, hv1)
             
             self.particles[i].wind_stress = newWindInstance
             self.particles[i].drifters.setParticlePositions(newPos)
@@ -210,7 +211,10 @@ class WindForcingEnsamble:
         for i in range(self.getNumParticles()):
             self.particles[i].upload(newOceanStates[i][0],
                                      newOceanStates[i][1],
-                                     newOceanStates[i][2])
+                                     newOceanStates[i][2],
+                                     newOceanStates[i][3],
+                                     newOceanStates[i][4],
+                                     newOceanStates[i][5])
                     
             
     ### Duplication of code
