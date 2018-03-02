@@ -24,8 +24,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
+import gc
+
 import Common, SimWriter, SimReader
 import Simulator
+
+#reload(Simulator)
 
 class CDKLM16(Simulator.Simulator):
     """
@@ -75,7 +79,7 @@ class CDKLM16(Simulator.Simulator):
         reportGeostrophicEquilibrium: Calculate the Geostrophic Equilibrium variables for each superstep
         write_netcdf: Write the results after each superstep to a netCDF file
         """
-        
+               
         self.cl_ctx = cl_ctx
 
         #Create an OpenCL command queue
@@ -169,7 +173,23 @@ class CDKLM16(Simulator.Simulator):
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
                                     offset_x=self.offset_x, offset_y=self.offset_y)
-            
+
+    
+    def cleanUp(self):
+        """
+        Clean up function
+        """
+        self.closeNetCDF()
+        
+        self.cl_data.release()
+        
+        self.geoEq_uxpvy.release()
+        self.geoEq_Kx.release()
+        self.geoEq_Ly.release()
+        self.bathymetry.release()
+        self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
+        gc.collect()
+           
     @classmethod
     def fromfilename(cls, cl_ctx, filename, cont_write_netcdf=True):
         """
@@ -232,16 +252,7 @@ class CDKLM16(Simulator.Simulator):
                  boundary_conditions=boundaryConditions, \
                  write_netcdf=cont_write_netcdf)
     
-    def cleanUp(self):
-        """
-        Clean up function
-        """
-        self.geoEq_uxpvy.release()
-        self.geoEq_Kx.release()
-        self.geoEq_Ly.release()
-        self.bathymetry.release()
-        self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
-        super(CDKLM16, self).cleanUp()
+    
     
     def step(self, t_end=0.0):
         """
