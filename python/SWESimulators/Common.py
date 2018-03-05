@@ -2,10 +2,11 @@ import pyopencl
 import os
 import numpy as np
 
-"""
-Static function which reads a text file and creates an OpenCL kernel from that
-"""
+
 def get_kernel(cl_ctx, kernel_filename, block_width, block_height):
+    """
+    Static function which reads a text file and creates an OpenCL kernel from that
+    """
     #Create define string
     define_string = "#define block_width " + str(block_width) + "\n"
     define_string += "#define block_height " + str(block_height) + "\n"
@@ -150,14 +151,15 @@ class OpenCLArray2D:
 
 
     
-"""
-A class representing an Arakawa A type (unstaggered, logically Cartesian) grid
-"""
 class SWEDataArakawaA:
     """
-    Uploads initial data to the CL device
+    A class representing an Arakawa A type (unstaggered, logically Cartesian) grid
     """
+
     def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, h0, hu0, hv0):
+        """
+        Uploads initial data to the CL device
+        """
         self.h0  = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0)
         self.hu0 = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, hu0)
         self.hv0 = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, hv0)
@@ -166,38 +168,39 @@ class SWEDataArakawaA:
         self.hu1 = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, hu0)
         self.hv1 = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, hv0)
 
-    """
-    Swaps the variables after a timestep has been completed
-    """
     def swap(self):
+        """
+        Swaps the variables after a timestep has been completed
+        """
         self.h1,  self.h0  = self.h0,  self.h1
         self.hu1, self.hu0 = self.hu0, self.hu1
         self.hv1, self.hv0 = self.hv0, self.hv1
         
-    """
-    Enables downloading data from CL device to Python
-    """
     def download(self, cl_queue):
+        """
+        Enables downloading data from CL device to Python
+        """
         h_cpu  = self.h0.download(cl_queue)
         hu_cpu = self.hu0.download(cl_queue)
         hv_cpu = self.hv0.download(cl_queue)
         
         return h_cpu, hu_cpu, hv_cpu
     
-    """
-    Enables downloading data from the additional buffer of CL device to Python
-    """
+
     def downloadPrevTimestep(self, cl_queue):
+        """
+        Enables downloading data from the additional buffer of CL device to Python
+        """
         h_cpu  = self.h1.download(cl_queue)
         hu_cpu = self.hu1.download(cl_queue)
         hv_cpu = self.hv1.download(cl_queue)
         
         return h_cpu, hu_cpu, hv_cpu
 
-    """
-    Frees the allocated memory buffers on the GPU 
-    """
     def release(self):
+        """
+        Frees the allocated memory buffers on the GPU 
+        """
         self.h0.release()
         self.hu0.release()
         self.hv0.release()
@@ -208,17 +211,17 @@ class SWEDataArakawaA:
         
         
         
-"""
-A class representing an Arakawa C type (staggered, u fluxes on east/west faces, v fluxes on north/south faces) grid
-We use h as cell centers
-"""
 class SWEDataArakawaC:
     """
-    Uploads initial data to the CL device
-    asymHalo needs to be on the form [north, east, south, west]
+    A class representing an Arakawa C type (staggered, u fluxes on east/west faces, v fluxes on north/south faces) grid
+    We use h as cell centers
     """
     def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, h0, hu0, hv0, \
                  asymHalo=None):
+        """
+        Uploads initial data to the CL device
+        asymHalo needs to be on the form [north, east, south, west]
+        """
         #FIXME: This at least works for 0 and 1 ghost cells, but not convinced it generalizes
         assert(halo_x <= 1 and halo_y <= 1)
         # FIXME: asymHalo has not been tested for other values either.
@@ -244,39 +247,39 @@ class SWEDataArakawaC:
         self.hv1  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
                    
         
-    """
-    Swaps the variables after a timestep has been completed
-    """
     def swap(self):
+        """
+        Swaps the variables after a timestep has been completed
+        """
         #h is assumed to be constant (bottom topography really)
         self.h1,  self.h0  = self.h0, self.h1
         self.hu1, self.hu0 = self.hu0, self.hu1
         self.hv1, self.hv0 = self.hv0, self.hv1
         
-    """
-    Enables downloading data from CL device to Python
-    """
     def download(self, cl_queue):
+        """
+        Enables downloading data from CL device to Python
+        """
         h_cpu  = self.h0.download(cl_queue)
         hu_cpu = self.hu0.download(cl_queue)
         hv_cpu = self.hv0.download(cl_queue)
         
         return h_cpu, hu_cpu, hv_cpu
 
-    """
-    Enables downloading data from the additional buffer of CL device to Python
-    """
     def downloadPrevTimestep(self, cl_queue):
+        """
+        Enables downloading data from the additional buffer of CL device to Python
+        """
         h_cpu  = self.h1.download(cl_queue)
         hu_cpu = self.hu1.download(cl_queue)
         hv_cpu = self.hv1.download(cl_queue)
         
         return h_cpu, hu_cpu, hv_cpu
     
-    """
-    Frees the allocated memory buffers on the GPU 
-    """
     def release(self):
+        """
+        Frees the allocated memory buffers on the GPU 
+        """
         self.h0.release()
         self.hu0.release()
         self.hv0.release()
@@ -286,31 +289,31 @@ class SWEDataArakawaC:
         
     
 
-"""
-Class which represents different wind stresses
-"""
 class WindStressParams:
+    """
+    Class which represents different wind stresses
+    """
 
-    """
-    wind_type: TYpe of wind stress, 0=Uniform along shore, 1=bell shaped along shore, 2=moving cyclone, 50=Uniform specified by direction and speed
-    wind_tau0: Amplitude of wind stress (Pa)
-    wind_rho: Density of sea water (1025.0 kg / m^3)
-    wind_alpha: Offshore e-folding length (1/(10*dx) = 5e-6 m^-1)
-    wind_xm: Maximum wind stress for bell shaped wind stress
-    wind_Rc: Distance to max wind stress from center of cyclone (10dx = 200 000 m)
-    wind_x0: Initial x position of moving cyclone (dx*(nx/2) - u0*3600.0*48.0)
-    wind_y0: Initial y position of moving cyclone (dy*(ny/2) - v0*3600.0*48.0)
-    wind_u0: Translation speed along x for moving cyclone (30.0/sqrt(5.0))
-    wind_v0: Translation speed along y for moving cyclone (-0.5*u0)
-    wind_speed: Wind speed in m/s
-    wind_direction: Wind direction in degrees (clockwise, 0 being wind blowing from north towards south)
-    """
     def __init__(self, 
                  type=99, # "no wind" \
                  tau0=0, rho=0, alpha=0, xm=0, Rc=0, \
                  x0=0, y0=0, \
                  u0=0, v0=0, \
                  wind_speed=0, wind_direction=0):
+        """
+        wind_type: TYpe of wind stress, 0=Uniform along shore, 1=bell shaped along shore, 2=moving cyclone, 50=Uniform specified by direction and speed
+        wind_tau0: Amplitude of wind stress (Pa)
+        wind_rho: Density of sea water (1025.0 kg / m^3)
+        wind_alpha: Offshore e-folding length (1/(10*dx) = 5e-6 m^-1)
+        wind_xm: Maximum wind stress for bell shaped wind stress
+        wind_Rc: Distance to max wind stress from center of cyclone (10dx = 200 000 m)
+        wind_x0: Initial x position of moving cyclone (dx*(nx/2) - u0*3600.0*48.0)
+        wind_y0: Initial y position of moving cyclone (dy*(ny/2) - v0*3600.0*48.0)
+        wind_u0: Translation speed along x for moving cyclone (30.0/sqrt(5.0))
+        wind_v0: Translation speed along y for moving cyclone (-0.5*u0)
+        wind_speed: Wind speed in m/s
+        wind_direction: Wind direction in degrees (clockwise, 0 being wind blowing from north towards south)
+        """
         self.type = np.int32(type)
         self.tau0 = np.float32(tau0)
         self.rho = np.float32(rho)
@@ -325,22 +328,22 @@ class WindStressParams:
         self.wind_direction = np.float32(wind_direction)
                  
 
-"""
-Class that represents different forms for boundary conidtions
-"""
 class BoundaryConditions:
     """
-    There is one parameter for each of the cartesian boundaries.
-    Values can be set as follows:
-    1 = Wall
-    2 = Periodic (requires same for opposite boundary as well)
-    3 = Open Boundary with Flow Relaxation Scheme
-    4 = Open linear interpolation
-    Options 3 and 4 are of sponge type (requiring extra computational domain)
+    Class that represents different forms for boundary conidtions
     """
     def __init__(self, \
                  north=1, east=1, south=1, west=1, \
                  spongeCells=[0,0,0,0]):
+        """
+        There is one parameter for each of the cartesian boundaries.
+        Values can be set as follows:
+        1 = Wall
+        2 = Periodic (requires same for opposite boundary as well)
+        3 = Open Boundary with Flow Relaxation Scheme
+        4 = Open linear interpolation
+        Options 3 and 4 are of sponge type (requiring extra computational domain)
+        """
         self.north = np.int32(north)
         self.east  = np.int32(east)
         self.south = np.int32(south)
@@ -400,10 +403,11 @@ class BoundaryConditions:
         msg = msg + ", spongeCells: " + str(self.spongeCells)
         return msg
     
-"""
-Class that checks boundary conditions and calls the required kernels for Arakawa A type grids.
-"""
 class BoundaryConditionsArakawaA:
+    """
+    Class that checks boundary conditions and calls the required kernels for Arakawa A type grids.
+    """
+
     def __init__(self, cl_ctx, nx, ny, \
                  halo_x, halo_y, \
                  boundary_conditions, \
@@ -525,11 +529,11 @@ class BoundaryConditionsArakawaA:
 
 
         
-"""
-Class for holding bathymetry defined on cell intersections (cell corners) and reconstructed on 
-cell mid-points.
-"""
 class Bathymetry:
+    """
+    Class for holding bathymetry defined on cell intersections (cell corners) and reconstructed on 
+    cell mid-points.
+    """
     
     def __init__(self, cl_ctx, cl_queue, nx, ny, halo_x, halo_y, Bi_host, \
                  boundary_conditions=BoundaryConditions(), \
@@ -586,10 +590,10 @@ class Bathymetry:
 
         return Bi_cpu, Bm_cpu
 
-    """
-    Frees the allocated memory buffers on the GPU 
-    """
     def release(self):
+        """
+        Frees the allocated memory buffers on the GPU 
+        """
         self.Bm.release()
         self.Bi.release()
         
