@@ -109,9 +109,6 @@ class Simulator(object):
                        int(np.ceil(self.nx / float(self.local_size[0])) * self.local_size[0]), \
                        int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
                       ) 
-        print "(nx, ny): ", (self.nx, self.ny)
-        print "local_size: ", self.local_size
-        print "global_size: ", self.global_size
     
     @abstractmethod
     def step(self, t_end=0.0):
