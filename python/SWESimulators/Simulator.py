@@ -170,6 +170,25 @@ class Simulator(object):
         """
         return self.cl_data.downloadPrevTimestep(self.cl_queue)
         
+    def copyState(self, otherSim):
+        """
+        Copies the state ocean state (eta, hu, hv) from the other simulator
+        """
+        
+        assert type(otherSim) is type(self), "A simulator can only copy the state from another simulator of the same class. Here we try to copy a " + str(type(otherSim)) + " into a " + str(type(self))
+        
+        assert (self.ny, self.nx) == (otherSim.ny, otherSim.nx), "Simulators differ in computational domain. Self (ny, nx): " + str((self.ny, self.nx)) + ", vs other: " + ((otherSim.ny, otherSim.nx))
+        
+        self.cl_data.h0.copyBuffer( self.cl_queue, otherSim.cl_data.h0)
+        self.cl_data.hu0.copyBuffer(self.cl_queue, otherSim.cl_data.hu0)
+        self.cl_data.hv0.copyBuffer(self.cl_queue, otherSim.cl_data.hv0)
+        
+        self.cl_data.h1.copyBuffer( self.cl_queue, otherSim.cl_data.h1)
+        self.cl_data.hu1.copyBuffer(self.cl_queue, otherSim.cl_data.hu1)
+        self.cl_data.hv1.copyBuffer(self.cl_queue, otherSim.cl_data.hv1)
+        
+        
+        
     def upload(self, eta0, hu0, hv0, eta1=None, hu1=None, hv1=None):
         """
         Reinitialize simulator with a new ocean state.
