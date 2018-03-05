@@ -30,7 +30,6 @@ import gc
 import Common, SimWriter, SimReader
 import Simulator
    
-reload(Common)
 
 class FBL(Simulator.Simulator):
     """
@@ -72,28 +71,14 @@ class FBL(Simulator.Simulator):
         boundary_conditions: Boundary condition object
         write_netcdf: Write the results after each superstep to a netCDF file
         """
-        reload(Common)
-        self.cl_ctx = cl_ctx
-        self.boundary_conditions = boundary_conditions
-        self.rk_order = 'NA'
-        self.theta = 'NA'
-        self.A = 'NA'
         
-        #Create an OpenCL command queue
-        self.cl_queue = cl.CommandQueue(self.cl_ctx)
-
-        #Get kernels
-        self.u_kernel = Common.get_kernel(self.cl_ctx, "FBL_U_kernel.opencl", block_width, block_height)
-        self.v_kernel = Common.get_kernel(self.cl_ctx, "FBL_V_kernel.opencl", block_width, block_height)
-        self.eta_kernel = Common.get_kernel(self.cl_ctx, "FBL_eta_kernel.opencl", block_width, block_height)
-
         #Create data by uploading to device
         ghost_cells_x = 0
         ghost_cells_y = 0
-        self.ghost_cells_x = ghost_cells_x
-        self.ghost_cells_y = ghost_cells_y
-        self.y_zero_reference_cell = np.float32(y_zero_reference_cell + 0)
+        y_zero_reference_cell = y_zero_reference_cell
         self.asym_ghost_cells = [0, 0, 0, 0] # [N, E, S, W]
+        
+        self.boundary_conditions = boundary_conditions
         # Add asym ghost cell if periodic boundary condition:
         if (self.boundary_conditions.north == 2) or \
            (self.boundary_conditions.south == 2):
@@ -105,40 +90,41 @@ class FBL(Simulator.Simulator):
         if boundary_conditions.isSponge():
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3]# - self.asym_ghost_cells[1] - self.asym_ghost_cells[3]
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2]# - self.asym_ghost_cells[0] - self.asym_ghost_cells[2]
-            self.y_zero_reference_cell = np.float32(y_zero_reference_cell + boundary_conditions.spongeCells[2])
-                
+            y_zero_reference_cell = y_zero_reference_cell + boundary_conditions.spongeCells[2]
+          
+        rk_order = None
+        theta = None
+        A = None
+        super(FBL, self).__init__(cl_ctx, \
+                                  nx, ny, \
+                                  ghost_cells_x, \
+                                  ghost_cells_y, \
+                                  dx, dy, dt, \
+                                  g, f, r, A, \
+                                  t, \
+                                  theta, rk_order, \
+                                  coriolis_beta, \
+                                  y_zero_reference_cell, \
+                                  wind_stress, \
+                                  write_netcdf, \
+                                  ignore_ghostcells, \
+                                  offset_x, offset_y, \
+                                  block_width, block_height)
+        
+        
+        #Get kernels
+        self.u_kernel = Common.get_kernel(self.cl_ctx, "FBL_U_kernel.opencl", block_width, block_height)
+        self.v_kernel = Common.get_kernel(self.cl_ctx, "FBL_V_kernel.opencl", block_width, block_height)
+        self.eta_kernel = Common.get_kernel(self.cl_ctx, "FBL_eta_kernel.opencl", block_width, block_height)
+
+        
         self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, H, self.asym_ghost_cells)
         self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, self.asym_ghost_cells)
         
-        #Save input parameters
-        #Notice that we need to specify them in the correct dataformat for the
-        #OpenCL kernel
-        self.nx = np.int32(nx)
-        self.ny = np.int32(ny)
+        # Overwrite halo with asymetric ghost cells
         self.nx_halo = np.int32(nx + self.asym_ghost_cells[1] + self.asym_ghost_cells[3])
         self.ny_halo = np.int32(ny + self.asym_ghost_cells[0] + self.asym_ghost_cells[2])
-        self.dx = np.float32(dx)
-        self.dy = np.float32(dy)
-        self.dt = np.float32(dt)
-        self.g = np.float32(g)
-        self.f = np.float32(f)
-        self.coriolis_beta = np.float32(coriolis_beta)
-        self.r = np.float32(r)
-        self.wind_stress = wind_stress
-        
-              
-        #Initialize time
-        self.t = np.float32(t)
-        
-        #Compute kernel launch parameters
-        self.local_size = (block_width, block_height) # WARNING::: MUST MATCH defines of block_width/height in kernels!
-        self.global_size =  ( \
-                       int(np.ceil(self.nx_halo / float(self.local_size[0])) * self.local_size[0]), \
-                       int(np.ceil(self.ny_halo / float(self.local_size[1])) * self.local_size[1]) \
-                      ) 
-        #print("FBL.local_size: " + str(self.local_size))
-        #print("FBL.global_size: " + str(self.global_size))
-
+       
         self.bc_kernel = FBL_periodic_boundary(self.cl_ctx, \
                                                self.nx, \
                                                self.ny, \
@@ -147,11 +133,6 @@ class FBL(Simulator.Simulator):
         )
 
         self.totalNumIterations = 0
-        self.write_netcdf = write_netcdf
-        self.ignore_ghostcells = ignore_ghostcells
-        self.offset_x = offset_x
-        self.offset_y = offset_y
-        self.sim_writer = None
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
                                     staggered_grid=True, offset_x=self.offset_x, offset_y=self.offset_y)

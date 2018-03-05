@@ -32,6 +32,87 @@ class Simulator(object):
     """
     __metaclass__ = ABCMeta
     
+    
+    def __init__(self, \
+                 cl_ctx, \
+                 nx, ny, \
+                 ghost_cells_x, \
+                 ghost_cells_y, \
+                 dx, dy, dt, \
+                 g, f, r, A, \
+                 t, \
+                 theta, rk_order, \
+                 coriolis_beta, \
+                 y_zero_reference_cell, \
+                 wind_stress, \
+                 write_netcdf, \
+                 ignore_ghostcells, \
+                 offset_x, offset_y, \
+                 block_width, block_height):
+        """
+        Setting all parameters that are common for all simulators
+        """
+        self.cl_ctx = cl_ctx
+        #Create an OpenCL command queue
+        self.cl_queue = cl.CommandQueue(self.cl_ctx)
+        
+        #Save input parameters
+        #Notice that we need to specify them in the correct dataformat for the
+        #OpenCL kernel
+        self.nx = np.int32(nx)
+        self.ny = np.int32(ny)
+        self.ghost_cells_x = np.int32(ghost_cells_x)
+        self.ghost_cells_y = np.int32(ghost_cells_y)
+        self.dx = np.float32(dx)
+        self.dy = np.float32(dy)
+        self.dt = np.float32(dt)
+        self.g = np.float32(g)
+        self.f = np.float32(f)
+        self.r = np.float32(r)
+        self.coriolis_beta = np.float32(coriolis_beta)
+        self.wind_stress = wind_stress
+        self.y_zero_reference_cell = np.float32(y_zero_reference_cell)
+        
+        self.offset_x = offset_x
+        self.offset_y = offset_y
+        
+        #Initialize time
+        self.t = np.float32(t)
+        
+        if A is None:
+            self.A = 'NA'  # Eddy viscocity coefficient
+        else:
+            self.A = np.float32(A)
+        
+        if theta is None:
+            self.theta = 'NA'
+        else:
+            self.theta = np.float32(theta)
+        if rk_order is None:
+            self.rk_order = 'NA'
+        else:
+            self.rk_order = np.int32(rk_order)
+            
+        self.hasDrifters = False
+        self.drifters = None
+        
+        # NetCDF related parameters
+        self.write_netcdf = write_netcdf
+        self.ignore_ghostcells = ignore_ghostcells
+        self.offset_x = offset_x
+        self.offset_y = offset_y
+        self.sim_writer = None
+        
+        #Compute kernel launch parameters
+        self.local_size = (block_width, block_height) 
+        self.global_size = ( \
+                       int(np.ceil(self.nx / float(self.local_size[0])) * self.local_size[0]), \
+                       int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
+                      ) 
+        print "(nx, ny): ", (self.nx, self.ny)
+        print "local_size: ", self.local_size
+        print "global_size: ", self.global_size
+    
     @abstractmethod
     def step(self, t_end=0.0):
         """

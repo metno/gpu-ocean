@@ -73,15 +73,43 @@ class CTCS(Simulator.Simulator):
         boundary_conditions: Boundary condition object
         write_netcdf: Write the results after each superstep to a netCDF file
         """
-        reload(Common)
-        self.cl_ctx = cl_ctx
-        self.rk_order = 'NA'
-        self.theta = 'NA'
+        
+       
+        
+        
+        # Sort out internally represented ghost_cells in the presence of given
+        # boundary conditions
+        halo_x = 1
+        halo_y = 1
+        ghost_cells_x = 1
+        ghost_cells_y = 1
+        y_zero_reference_cell = y_zero_reference_cell + 1
+        
+        self.boundary_conditions = boundary_conditions
+        if boundary_conditions.isSponge():
+            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*ghost_cells_x
+            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*ghost_cells_y
+            y_zero_reference_cell = y_zero_reference_cell + boundary_conditions.spongeCells[2]
 
-        #Create an OpenCL command queue
-        self.cl_queue = cl.CommandQueue(self.cl_ctx)
-
-        reload(Common)
+        # self.<parameters> are sat in parent constructor:
+        rk_order = None
+        theta = None
+        super(CTCS, self).__init__(cl_ctx, \
+                                   nx, ny, \
+                                   ghost_cells_x, \
+                                   ghost_cells_y, \
+                                   dx, dy, dt, \
+                                   g, f, r, A, \
+                                   t, \
+                                   theta, rk_order, \
+                                   coriolis_beta, \
+                                   y_zero_reference_cell, \
+                                   wind_stress, \
+                                   write_netcdf, \
+                                   ignore_ghostcells, \
+                                   offset_x, offset_y, \
+                                   block_width, block_height)
+            
         #Get kernels
         self.u_kernel = Common.get_kernel(self.cl_ctx, "CTCS_U_kernel.opencl", block_width, block_height)
         self.v_kernel = Common.get_kernel(self.cl_ctx, "CTCS_V_kernel.opencl", block_width, block_height)
@@ -89,45 +117,11 @@ class CTCS(Simulator.Simulator):
 
         #self.u_kernel_exec = self.u_kernel.computeUKernel
         
-        
-        #Create data by uploading to device
-        halo_x = 1
-        halo_y = 1
-        self.ghost_cells_x = 1
-        self.ghost_cells_y = 1
-        self.y_zero_reference_cell = np.float32(y_zero_reference_cell + 1)
-        self.boundary_conditions = boundary_conditions
-        if boundary_conditions.isSponge():
-            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
-            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
-            self.y_zero_reference_cell = np.float32(y_zero_reference_cell + boundary_conditions.spongeCells[2])
-
-              
+        #Create data by uploading to device     
         self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, halo_x, halo_y, H)
         self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, halo_x, halo_y, eta0, hu0, hv0)
         
-        #Save input parameters
-        #Notice that we need to specify them in the correct dataformat for the
-        #OpenCL kernel
-        self.nx = np.int32(nx)
-        self.ny = np.int32(ny)
-        self.halo_x = np.int32(halo_x)
-        self.halo_y = np.int32(halo_y)
-        self.dx = np.float32(dx)
-        self.dy = np.float32(dy)
-        self.dt = np.float32(dt)
-        self.g = np.float32(g)
-        self.f = np.float32(f)
-        self.coriolis_beta = np.float32(coriolis_beta)
-        self.r = np.float32(r)
-        self.A = np.float32(A)
-        self.wind_stress = wind_stress
-        
-        #Initialize time
-        self.t = np.float32(t)
-        
-        #Compute kernel launch parameters
-        self.local_size = (block_width, block_height) 
+        # Global size needs to be larger than the default from parent.__init__
         self.global_size = ( \
                        int(np.ceil((self.nx+2*halo_x) / float(self.local_size[0])) * self.local_size[0]), \
                        int(np.ceil((self.ny+2*halo_y) / float(self.local_size[1])) * self.local_size[1]) \
@@ -139,12 +133,7 @@ class CTCS(Simulator.Simulator):
                                                  self.boundary_conditions, \
                                                  halo_x, halo_y \
         )
-
-        self.write_netcdf = write_netcdf
-        self.ignore_ghostcells = ignore_ghostcells
-        self.offset_x = offset_x
-        self.offset_y = offset_y
-        self.sim_writer = None
+        
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
                                     staggered_grid=True, offset_x=self.offset_x, offset_y=self.offset_y)
