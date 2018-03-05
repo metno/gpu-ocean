@@ -134,6 +134,8 @@ __kernel void swe_2D(
         float tau0_, float rho_, float alpha_, float xm_, float Rc_,
         float x0_, float y0_,
         float u0_, float v0_,
+	float wind_speed_, float wind_direction_,
+	
         float t_, 
     
         // Boundary conditions (1: wall, 2: periodic, 3: open boundary (flow relaxation scheme))
@@ -508,6 +510,7 @@ __kernel void swe_2D(
             tau0_, rho_, alpha_, xm_, Rc_,
             x0_, y0_,
             u0_, v0_,
+	    wind_speed_, wind_direction_,
             t_);
         const float Y = windStressY(
             wind_stress_type_, 
@@ -515,6 +518,7 @@ __kernel void swe_2D(
             tau0_, rho_, alpha_, xm_, Rc_,
             x0_, y0_,
             u0_, v0_,
+	    wind_speed_, wind_direction_,
             t_);
 
 	// Bottom topography source terms!

@@ -36,14 +36,6 @@ class GPUDrifter(Drifter.Drifter):
                  domain_size_x=1.0, domain_size_y=1.0, \
                  cl_queue=None, \
                  block_width = 64):
-        
-        # Call parent constructor
-        super(GPUDrifter, self).__init__(numParticles,
-                                         observation_variance=observation_variance,
-                                         boundaryConditions=boundaryConditions,
-                                         domain_size_x=domain_size_x, 
-                                         domain_size_y=domain_size_y)
-        
         # Define OpenCL environment:
         self.cl_ctx = cl_ctx
         self.block_width = block_width
@@ -56,7 +48,14 @@ class GPUDrifter(Drifter.Drifter):
         if self.cl_queue is None:
             self.cl_queue = pyopencl.CommandQueue(self.cl_ctx)
         
+        self.numParticles = numParticles
+        self.obs_index = self.numParticles
+        self.observation_variance = observation_variance
         self.sensitivity = 1.0
+        
+        self.domain_size_x = domain_size_x
+        self.domain_size_y = domain_size_y
+        self.boundaryConditions = boundaryConditions
         
         self.particlesHost = np.zeros((self.numParticles + 1, 2)).astype(np.float32, order='C')
         self.particlesDevice = Common.OpenCLArray2D(self.cl_ctx, \

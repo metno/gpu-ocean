@@ -365,28 +365,15 @@ class CDKLM16(Simulator.Simulator):
                            self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
                            self.wind_stress.x0, self.wind_stress.y0, \
                            self.wind_stress.u0, self.wind_stress.v0, \
+                           self.wind_stress.wind_speed, self.wind_stress.wind_direction, \
                            self.t, \
                            self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                            self.reportGeostrophicEquilibrium, \
                            self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
                            self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
                            self.geoEq_Ly.data, self.geoEq_Ly.pitch )
-
+            
     
-    #def get_kernel(self, kernel_filename):
-    #    """
-    #    Static function which reads a text file and creates an OpenCL kernel from that
-    #    """
-    #    #Read the proper program
-    #    module_path = os.path.dirname(os.path.realpath(__file__))
-    #    fullpath = os.path.join(module_path, kernel_filename)
-    #    with open(fullpath, "r") as kernel_file:
-    #        kernel_string = kernel_file.read()
-    #        kernel = cl.Program(self.cl_ctx, kernel_string).build()
-    #        
-    #    return kernel
-    
-
     def downloadBathymetry(self):
         return self.bathymetry.download(self.cl_queue)
 

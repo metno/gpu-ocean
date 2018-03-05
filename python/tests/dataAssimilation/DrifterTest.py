@@ -11,7 +11,7 @@ from testUtils import *
 
 sys.path.insert(0, '../')
 from SWESimulators import Common
-from SWESimulators import Resampling
+from SWESimulators import DataAssimilationUtils as dautils
 
 
 
@@ -97,8 +97,8 @@ class DrifterTest(unittest.TestCase):
 
         weight = 1.0/self.resampleNumParticles
         weights = [weight]*self.resampleNumParticles
-        self.assertEqual(defaultParticleSet.getGaussianWeight().tolist(), weights)
-        self.assertEqual(defaultParticleSet.getCauchyWeight().tolist(), weights)
+        self.assertEqual(dautils.getGaussianWeight(defaultParticleSet.getDistances(), defaultParticleSet.getObservationVariance()).tolist(), weights)
+        self.assertEqual(dautils.getCauchyWeight(defaultParticleSet.getDistances(), defaultParticleSet.getObservationVariance()).tolist(), weights)
         
         # Check boundary condition
         self.assertEqual(defaultParticleSet.getBoundaryConditions().get(), [1,1,1,1])
@@ -335,7 +335,7 @@ class DrifterTest(unittest.TestCase):
         
     def test_gaussian_weights(self):
         self.set_positions_resampling_set()
-        obtainedWeights = self.resamplingParticleSet.getGaussianWeight()
+        obtainedWeights = dautils.getGaussianWeight(self.resamplingParticleSet.getDistances(), self.resamplingParticleSet.getObservationVariance())
         referenceWeights = [  3.77361928e-01,   1.22511481e-01,   1.26590824e-04,   3.77361928e-01, 1.22511481e-01,   1.26590824e-04]
         assertListAlmostEqual(self, obtainedWeights.tolist(),
                               referenceWeights, 6,
@@ -343,7 +343,7 @@ class DrifterTest(unittest.TestCase):
 
     def test_cauchy_weights(self):
         self.set_positions_resampling_set()
-        obtainedWeights = self.resamplingParticleSet.getCauchyWeight()
+        obtainedWeights = dautils.getCauchyWeight(self.resamplingParticleSet.getDistances(), self.resamplingParticleSet.getObservationVariance())
         referenceWeights = [0.28413284,  0.16789668,  0.04797048,  0.28413284,  0.16789668,  0.04797048]
         assertListAlmostEqual(self, obtainedWeights.tolist(),
                               referenceWeights, 6,
@@ -359,8 +359,7 @@ class DrifterTest(unittest.TestCase):
         self.set_positions_resampling_set()
         indices_list = [2,2,2,4,5,5]
         newParticlePositions = self.resample(indices_list)
-        Resampling.resampleParticles(self.resamplingParticleSet, \
-                                     indices_list, 0)
+        self.resamplingParticleSet.resample(indices_list, 0)
         self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
                          newParticlePositions)
 
@@ -369,7 +368,7 @@ class DrifterTest(unittest.TestCase):
         setNpRandomSeed()
         indices = [1,3,0,0,0,0]
         solutions = self.resample(indices)
-        Resampling.probabilisticResampling(self.resamplingParticleSet)
+        dautils.probabilisticResampling(self.resamplingParticleSet)
         self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
                          solutions)
 
@@ -379,7 +378,7 @@ class DrifterTest(unittest.TestCase):
         setNpRandomSeed()
         indices = [0,0,3,3,1,4]
         solutions = self.resample(indices)
-        Resampling.residualSampling(self.resamplingParticleSet)
+        dautils.residualSampling(self.resamplingParticleSet)
         self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
                          solutions)
         
@@ -388,7 +387,7 @@ class DrifterTest(unittest.TestCase):
         setNpRandomSeed()
         indices = [0,0,1,3,3,4]
         solutions = self.resample(indices)
-        Resampling.stochasticUniversalSampling(self.resamplingParticleSet)
+        dautils.stochasticUniversalSampling(self.resamplingParticleSet)
         self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), \
                          solutions)
 
@@ -397,7 +396,7 @@ class DrifterTest(unittest.TestCase):
         setNpRandomSeed()
         indices = [0,0,0,3,4,4]
         solutions = self.resample(indices)
-        Resampling.metropolisHastingSampling(self.resamplingParticleSet)
+        dautils.metropolisHastingSampling(self.resamplingParticleSet)
         self.assertEqual(self.resamplingParticleSet.getParticlePositions().tolist(), solutions)
 
 
@@ -406,7 +405,7 @@ class DrifterTest(unittest.TestCase):
         setNpRandomSeed()
         indices = [1,3,0,0,0,0]
         solutions = self.resample(indices)
-        Resampling.probabilisticResampling(self.resamplingParticleSet, self.resamplingVar)
+        dautils.probabilisticResampling(self.resamplingParticleSet, self.resamplingVar)
         assert2DListAlmostEqual(self, self.resamplingParticleSet.getParticlePositions().tolist(), solutions, 2, "probabilistic resampling, probabilistic duplicates")
 
             
@@ -415,7 +414,7 @@ class DrifterTest(unittest.TestCase):
         setNpRandomSeed()
         indices = [0,0,3,3,1,4]
         solutions = self.resample(indices)
-        Resampling.residualSampling(self.resamplingParticleSet, self.resamplingVar)
+        dautils.residualSampling(self.resamplingParticleSet, self.resamplingVar)
         assert2DListAlmostEqual(self, self.resamplingParticleSet.getParticlePositions().tolist(), solutions, 2, "residual sampling, probabilistic duplicates")
                 
     def test_stochastic_universal_sampling(self):
@@ -423,7 +422,7 @@ class DrifterTest(unittest.TestCase):
         setNpRandomSeed()
         indices = [0,0,1,3,3,4]
         solutions = self.resample(indices)
-        Resampling.stochasticUniversalSampling(self.resamplingParticleSet, self.resamplingVar)
+        dautils.stochasticUniversalSampling(self.resamplingParticleSet, self.resamplingVar)
         assert2DListAlmostEqual(self, self.resamplingParticleSet.getParticlePositions().tolist(), solutions, 2, "stochastic universal sampling, probabilistic duplicates")
 
     def test_monte_carlo_metropolis_hasting_sampling(self):
@@ -431,7 +430,7 @@ class DrifterTest(unittest.TestCase):
         setNpRandomSeed()
         indices = [0,0,0,3,4,4]
         solutions = self.resample(indices)
-        Resampling.metropolisHastingSampling(self.resamplingParticleSet, self.resamplingVar)
+        dautils.metropolisHastingSampling(self.resamplingParticleSet, self.resamplingVar)
         #print self.resamplingParticleSet.getParticlePositions().tolist()
         assert2DListAlmostEqual(self, self.resamplingParticleSet.getParticlePositions().tolist(), solutions, 2, "metropolis hasting sampling, probabilistic duplicates")
         

@@ -77,4 +77,35 @@ class Simulator(object):
         self.drifters.setCLQueue(self.cl_queue)
     
     def download(self):
+        """
+        Download the latest time step from the GPU
+        """
         return self.cl_data.download(self.cl_queue)
+    
+    
+    def downloadPrevTimestep(self):
+        """
+        Download the second-latest time step from the GPU
+        """
+        return self.cl_data.downloadPrevTimestep(self.cl_queue)
+        
+    def upload(self, eta0, hu0, hv0, eta1=None, hu1=None, hv1=None):
+        """
+        Reinitialize simulator with a new ocean state.
+        """
+        self.cl_data.h0.upload(self.cl_queue, eta0)
+        self.cl_data.hu0.upload(self.cl_queue, hu0)
+        self.cl_data.hv0.upload(self.cl_queue, hv0)
+        
+        if eta1 is None:
+            self.cl_data.h1.upload(self.cl_queue, eta0)
+            self.cl_data.hu1.upload(self.cl_queue, hu0)
+            self.cl_data.hv1.upload(self.cl_queue, hv0)
+        else:
+            self.cl_data.h1.upload(self.cl_queue, eta1)
+            self.cl_data.hu1.upload(self.cl_queue, hu1)
+            self.cl_data.hv1.upload(self.cl_queue, hv1)
+        
+
+    
+    

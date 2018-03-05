@@ -27,7 +27,7 @@ import time
 import abc
 
 import Common
-
+import DataAssimilationUtils as dautils
 
 class Drifter(object):
     __metaclass__ = abc.ABCMeta
@@ -128,7 +128,7 @@ class Drifter(object):
         
     ### METHODS UNIQUELY DEFINED FOR ALL CHILD CLASSES
     
-    def _getClosestPositions(self):
+    def _getClosestPositions(self, obs=None):
         """
         Returns a set of coordinates corresponding to each particles closest position to the observation,
         considering possible periodic boundary conditions
@@ -139,6 +139,9 @@ class Drifter(object):
         else:
             periodicPositions = self.getParticlePositions().copy()
             obs_x, obs_y = self.getObservationPosition()
+            if obs is not None:
+                obs_x = obs[0]
+                obs_y = obs[1]
             if self.boundaryConditions.isPeriodicEastWest():
                 for i in range(self.getNumParticles()):
                     x = periodicPositions[i,0]
@@ -159,16 +162,19 @@ class Drifter(object):
         return periodicPositions
         
     
-    def getDistances(self):
+    def getDistances(self, obs=None):
         """
         Computes the distance between particles and observation. Possible periodic boundary conditions are taken care of.
         """
         distances = np.zeros(self.getNumParticles())
-        closestPositions = self._getClosestPositions()
-        obs_x, obs_y = self.getObservationPosition()
+        if obs is None:
+            obs = self.getObservationPosition()
+            closestPositions = self._getClosestPositions()
+        else:
+            closestPositions = self._getClosestPositions(obs)
         for i in range(self.getNumParticles()):
-            distances[i] = np.sqrt( (closestPositions[i,0]-obs_x)**2 +
-                                    (closestPositions[i,1]-obs_y)**2)
+            distances[i] = np.sqrt( (closestPositions[i,0]-obs[0])**2 +
+                                    (closestPositions[i,1]-obs[1])**2)
         return distances
         
     
@@ -189,32 +195,6 @@ class Drifter(object):
         return x, y
     
     
-    def getGaussianWeight(self, distance=None, normalize=True):
-        """
-        Calculates a weight associated to every particle, based on its distance from the observation, using Gaussian uncertainty of the position of the observation 
-        """
-        if distance is None:
-            distance = self.getDistances()
-        weights = (1.0/np.sqrt(2*np.pi*self.getObservationVariance()**2))* \
-            np.exp(- (distance**2/(2*self.getObservationVariance()**2)))
-        if normalize:
-            return weights/np.sum(weights)
-        return weights
-    
-    
-    def getCauchyWeight(self, distance=None, normalize=True):
-        """
-        Calculates a weight associated to every particle, based on its distance from the observation, using Cauchy distribution based on the uncertainty of the position of the observation.
-        This distribution should be used if wider tails of the distribution is beneficial.
-        """
-        if distance is None:
-            distance = self.getDistances()
-        weights = 1.0/(np.pi*self.observation_variance*(1 + (distance/self.observation_variance)**2))
-        if normalize:
-            return weights/np.sum(weights)
-        return weights
-    
-    
     def getEnsembleMean(self):
         """
         Calculates the mean position of all the particles in the ensemble.
@@ -224,6 +204,49 @@ class Drifter(object):
         mean_x, mean_y = np.mean(closestPositions, axis=0)
         mean_x, mean_y = self._enforceBoundaryConditionsOnPosition(mean_x, mean_y)
         return np.array([mean_x, mean_y])
+    
+    
+    
+    def resample(self, newSampleIndices, reinitialization_variance):
+        """
+        Resamples the particle positions at the given indices. Duplicates are resampled from a gaussian distribution.
+
+        newSampleIndices: particle indices selected for resampling
+        reinitialization_variance: variance used when resampling duplicates
+        """
+
+        oldParticlePositions = self.getParticlePositions().copy()
+        newNumberOfParticles = len(newSampleIndices)
+        newParticlePositions = np.zeros((newNumberOfParticles, 2))
+
+        if self.getNumParticles() != newNumberOfParticles:
+            raise RuntimeError("ERROR: The size of the new ensemble differs from the old size!\n" + \
+                               "(old size, new size): " + str((self.getNumParticles(), newNumberOfParticles)) + \
+                               "\nWe can fix this in the future by requiring a function resizeEnsemble")
+
+        # We really do not the if. The random number with zero variance returns exactly the mean
+        if reinitialization_variance == 0:
+            # Simply copy the given positions
+            newParticlePositions[:,:] = oldParticlePositions[newSampleIndices, :]
+        else:
+            # Make sure to make a clean copy of first resampled particle, and add a disturbance of the next ones.
+            resampledOnce = np.full(self.getNumParticles(), False, dtype=bool)
+            var = np.eye(2)*reinitialization_variance
+            for i in range(len(newSampleIndices)):
+                index = newSampleIndices[i]
+                if resampledOnce[index]:
+                    newParticlePositions[i,:] = np.random.multivariate_normal(oldParticlePositions[index,:], var)
+                else:
+                    newParticlePositions[i,:] = oldParticlePositions[index,:]
+                    resampledOnce[index] = True
+
+        # Set particle positions to the ensemble:            
+        self.setParticlePositions(newParticlePositions)
+
+        # Enforce boundary conditions
+        self.enforceBoundaryConditions()
+
+
     
     def initializeParticles(self, domain_size_x=1.0, domain_size_y=1.0):
         """
@@ -270,14 +293,15 @@ class Drifter(object):
         # PLOT DISCTRIBUTION OF PARTICLE DISTANCES AND THEORETIC OBSERVATION PDF
         ax0 = plt.subplot2grid((2,3), (0,1), colspan=2)
         distances = self.getDistances()
+        obs_var = self.getObservationVariance()
         plt.hist(distances, bins=30, \
                  range=(0, max(min(self.getDomainSizeX(), self.getDomainSizeY()), np.max(distances))),\
                  normed=True, label="particle distances")
         
         # With observation 
-        x = np.linspace(0, max(self.domain_size_x, self.domain_size_y), num=100)
-        cauchy_pdf = self.getCauchyWeight(x, normalize=False)
-        gauss_pdf = self.getGaussianWeight(x, normalize=False)
+        x = np.linspace(0, max(self.getDomainSizeX(), self.getDomainSizeY()), num=100)
+        cauchy_pdf = dautils.getCauchyWeight(x, obs_var, normalize=False)
+        gauss_pdf = dautils.getGaussianWeight(x, obs_var, normalize=False)
         plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
         plt.plot(x, gauss_pdf, 'g', label="obs Gauss pdf")
         plt.legend()
@@ -285,8 +309,8 @@ class Drifter(object):
         
         # PLOT SORTED DISTANCES FROM OBSERVATION
         ax0 = plt.subplot2grid((2,3), (1,0), colspan=3)
-        cauchyWeights = self.getCauchyWeight(distances)
-        gaussWeights = self.getGaussianWeight(distances)
+        cauchyWeights = dautils.getCauchyWeight(distances, obs_var)
+        gaussWeights = dautils.getGaussianWeight(distances, obs_var)
         indices_sorted_by_observation = distances.argsort()
         ax0.plot(cauchyWeights[indices_sorted_by_observation]/np.max(cauchyWeights), 'r', label="Cauchy weight")
         ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Gauss weight")
