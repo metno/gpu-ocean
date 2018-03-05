@@ -150,7 +150,7 @@ class Simulator(object):
         
     def attachDrifters(self, drifters):
         ### Do the following type of checking here:
-        #assert isinstance(drifters, SingleGPUPassiveDrifterEnsemble)
+        #assert isinstance(drifters, GPUDrifters)
         #assert drifters.isInitialized()
         
         self.drifters = drifters
@@ -172,7 +172,11 @@ class Simulator(object):
         
     def copyState(self, otherSim):
         """
-        Copies the state ocean state (eta, hu, hv) from the other simulator
+        Copies the state ocean state (eta, hu, hv) from the other simulator.
+        
+        This function is exposed to enable efficient re-initialization of
+        resampled ocean states. This means that all parameters which can be 
+        initialized/assigned a perturbation should be copied here as well.
         """
         
         assert type(otherSim) is type(self), "A simulator can only copy the state from another simulator of the same class. Here we try to copy a " + str(type(otherSim)) + " into a " + str(type(self))
@@ -187,6 +191,15 @@ class Simulator(object):
         self.cl_data.hu1.copyBuffer(self.cl_queue, otherSim.cl_data.hu1)
         self.cl_data.hv1.copyBuffer(self.cl_queue, otherSim.cl_data.hv1)
         
+        # Question: Which parameters should we require equal, and which 
+        # should become equal?
+        self.wind_stress = otherSim.wind_stress
+        
+        self.drifters.setParticlePositions(otherSim.drifters.getParticlePositions())
+        self.drifters.setObservationPosition(otherSim.drifters.getObservationPosition())
+        
+        #self.drifters = None
+        #self.attachDrifters(otherSim.drifters.copy())
         
         
     def upload(self, eta0, hu0, hv0, eta1=None, hu1=None, hv1=None):
