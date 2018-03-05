@@ -9,7 +9,6 @@ from testUtils import *
 sys.path.insert(0, '../')
 from SWESimulators import Common
 from SWESimulators.CPUDrifter import *
-from SWESimulators import Resampling
 from dataAssimilation.DrifterTest import DrifterTest
 
 class CPUDrifterTest(DrifterTest):
