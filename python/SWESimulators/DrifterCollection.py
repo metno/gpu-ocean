@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class takes care of the global ensemble of particles for EPS.
+This python class implements an abstract collection of Drifters. All actual drifters should inherit this class, and implement its abstract methods.
 
 Copyright (C) 2018  SINTEF ICT
 
@@ -29,7 +29,7 @@ import abc
 import Common
 import DataAssimilationUtils as dautils
 
-class Drifter(object):
+class DrifterCollection(object):
     __metaclass__ = abc.ABCMeta
     
     """
@@ -91,7 +91,7 @@ class Drifter(object):
     
     ### GETs
     def getNumParticles(self):
-        #print "\n\nUsing Drifter::getNumParticles()\n"
+        #print "\n\nUsing DrifterCollection::getNumParticles()\n"
         return self.numParticles
     
     def getObservationVariance(self):

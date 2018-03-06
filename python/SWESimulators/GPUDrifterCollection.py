@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class represent an ensemble of particles stored on the GPU and using the GPU for drift calculations.
+This python class implements a DrifterCollection living on the GPU.
 
 Copyright (C) 2018  SINTEF ICT
 
@@ -27,9 +27,9 @@ import time
 import pyopencl
 
 import Common
-import Drifter
+import DrifterCollection
 
-class GPUDrifter(Drifter.Drifter):
+class GPUDrifterCollection(DrifterCollection.DrifterCollection):
     def __init__(self, cl_ctx, numParticles, \
                  observation_variance=0.1, \
                  boundaryConditions=Common.BoundaryConditions(), \
@@ -78,7 +78,7 @@ class GPUDrifter(Drifter.Drifter):
         Makes an independent indentical copy of the current object
         """
     
-        copyOfSelf = GPUDrifter(self.cl_ctx,
+        copyOfSelf = GPUDrifterCollection(self.cl_ctx,
                                 self.numParticles,
                                 observation_variance = self.observation_variance,
                                 boundaryConditions = self.boundaryConditions,

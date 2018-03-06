@@ -9,7 +9,7 @@ from testUtils import *
 
 sys.path.insert(0, '../')
 from SWESimulators import Common
-from SWESimulators.GPUDrifter import *
+from SWESimulators.GPUDrifterCollection import *
 from dataAssimilation.DrifterTest import DrifterTest
 
 
@@ -29,17 +29,17 @@ class GPUDrifterTest(DrifterTest):
 
 
     def create_small_particle_set(self):
-        self.smallParticleSet = GPUDrifter(self.cl_ctx,
-                                           self.numParticles,
-                                           self.observationVariance,
-                                           self.boundaryCondition)
+        self.smallParticleSet = GPUDrifterCollection(self.cl_ctx,
+                                                     self.numParticles,
+                                                     self.observationVariance,
+                                                     self.boundaryCondition)
 
     def create_resampling_particle_set(self):
-        self.resamplingParticleSet = GPUDrifter(self.cl_ctx,
-                                                self.resampleNumParticles)
+        self.resamplingParticleSet = GPUDrifterCollection(self.cl_ctx,
+                                                          self.resampleNumParticles)
         
     def create_large_particle_set(self, size):
-        return GPUDrifter(self.cl_ctx, size) 
+        return GPUDrifterCollection(self.cl_ctx, size) 
         
 
 

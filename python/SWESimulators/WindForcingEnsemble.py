@@ -27,7 +27,7 @@ import time
 import abc
 
 import CDKLM16
-import GPUDrifter
+import GPUDrifterCollection
 import Common
 import DataAssimilationUtils as dautils
 
@@ -119,7 +119,7 @@ class WindForcingEnsamble:
                 # number in the other particles.
                 driftersPerOceanModel = 1
             
-            drifters = GPUDrifter.GPUDrifter(self.cl_ctx, driftersPerOceanModel,
+            drifters = GPUDrifterCollection.GPUDrifterCollection(self.cl_ctx, driftersPerOceanModel,
                                              observation_variance=self.observation_variance,
                                              boundaryConditions=self.boundaryConditions,
                                              domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)

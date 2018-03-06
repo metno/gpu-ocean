@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class takes care of the global ensemble of particles for EPS.
+This python class implements a DrifterCollection living on the CPU.
 
 Copyright (C) 2018  SINTEF ICT
 
@@ -26,11 +26,11 @@ import numpy as np
 import time
 
 import Common
-import Drifter
+import DrifterCollection
 
-class CPUDrifter(Drifter.Drifter):
+class CPUDrifterCollection(DrifterCollection.DrifterCollection):
     """
-    Class holding the global set of particles.
+    Class holding the global set of drifters.
     """ 
     def __init__(self, numParticles, observation_variance=0.1,
                  boundaryConditions=Common.BoundaryConditions(), 
@@ -44,7 +44,7 @@ class CPUDrifter(Drifter.Drifter):
         """
         
         # Call parent constructor
-        super(CPUDrifter, self).__init__(numParticles,
+        super(CPUDrifterCollection, self).__init__(numParticles,
                                          observation_variance=observation_variance,
                                          boundaryConditions=boundaryConditions,
                                          domain_size_x=domain_size_x, 
@@ -58,7 +58,7 @@ class CPUDrifter(Drifter.Drifter):
         Makes an independent indentical copy of the current object
         """
     
-        copyOfSelf = CPUDrifter(self.numParticles,
+        copyOfSelf = CPUDrifterCollection(self.numParticles,
                                 observation_variance = self.observation_variance,
                                 boundaryConditions = self.boundaryConditions,
                                 domain_size_x = self.domain_size_x, 
@@ -85,7 +85,8 @@ class CPUDrifter(Drifter.Drifter):
         # Include the observation:
         #newPositionsAll = np.concatenate((newParticlePositions, np.array([self.getObservationPosition()])), \
         #                                 axis=0)
-        np.copyto(self.positions[:-1,:], newParticlePositions) # np.copyto(dst, src)
+        np.copyto(self.positions[:-1,:], newParticlePositions) 
+        # Signature of copyto: np.copyto(dst, src)
     
     def setObservationPosition(self, newObservationPosition):
         np.copyto(self.positions[-1,:], newObservationPosition)

@@ -8,7 +8,7 @@ from testUtils import *
 
 sys.path.insert(0, '../')
 from SWESimulators import Common
-from SWESimulators.CPUDrifter import *
+from SWESimulators.CPUDrifterCollection import *
 from dataAssimilation.DrifterTest import DrifterTest
 
 class CPUDrifterTest(DrifterTest):
@@ -21,13 +21,13 @@ class CPUDrifterTest(DrifterTest):
     
 
     def create_small_particle_set(self):
-        self.smallParticleSet = CPUDrifter(self.numParticles,
-                                           self.observationVariance,
-                                           self.boundaryCondition)
+        self.smallParticleSet = CPUDrifterCollection(self.numParticles,
+                                                     self.observationVariance,
+                                                     self.boundaryCondition)
 
     def create_resampling_particle_set(self):
-        self.resamplingParticleSet = CPUDrifter(self.resampleNumParticles)
+        self.resamplingParticleSet = CPUDrifterCollection(self.resampleNumParticles)
 
     def create_large_particle_set(self, size):
-        return CPUDrifter(size)
+        return CPUDrifterCollection(size)
 
