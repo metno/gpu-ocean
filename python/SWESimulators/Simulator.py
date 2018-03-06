@@ -195,8 +195,6 @@ class Simulator(object):
         self.drifters.setParticlePositions(otherSim.drifters.getParticlePositions())
         self.drifters.setObservationPosition(otherSim.drifters.getObservationPosition())
         
-        #self.drifters = None
-        #self.attachDrifters(otherSim.drifters.copy())
         
         
     def upload(self, eta0, hu0, hv0, eta1=None, hu1=None, hv1=None):

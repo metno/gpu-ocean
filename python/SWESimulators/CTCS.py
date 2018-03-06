@@ -115,7 +115,11 @@ class CTCS(Simulator.Simulator):
         self.v_kernel = Common.get_kernel(self.cl_ctx, "CTCS_V_kernel.opencl", block_width, block_height)
         self.eta_kernel = Common.get_kernel(self.cl_ctx, "CTCS_eta_kernel.opencl", block_width, block_height)
 
-        #self.u_kernel_exec = self.u_kernel.computeUKernel
+        # In PyOpenCL version 2, it would be more efficient to store the
+        # exectutional kernel functions rather than the kernel object 
+        # currently used.
+        # So, instead of self.u_kernel, we would like to use:
+        # self.u_kernel_exec = self.u_kernel.computeUKernel
         
         #Create data by uploading to device     
         self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, halo_x, halo_y, H)
