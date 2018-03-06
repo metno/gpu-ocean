@@ -80,31 +80,49 @@ class CDKLM16(Simulator.Simulator):
         write_netcdf: Write the results after each superstep to a netCDF file
         """
                
-        self.cl_ctx = cl_ctx
-
-        #Create an OpenCL command queue
-        self.cl_queue = cl.CommandQueue(self.cl_ctx)
-        self.A = "NA"  # Eddy viscocity coefficient
+        
 
         ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
         if ( np.sum(eta0 - Hi[:-1, :-1] > 0) > nx):
             assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
         
-        #Get kernels
-        self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
+        assert( rk_order < 4 or rk_order > 0 ), "Only 1st, 2nd and 3rd order Runge Kutta supported"
 
-        self.ghost_cells_x = 2
-        self.ghost_cells_y = 2
+        if (rk_order == 3):
+            assert(r == 0.0), "3rd order Runge Kutta supported only without friction"
+        
+        # Sort out internally represented ghost_cells in the presence of given
+        # boundary conditions
         ghost_cells_x = 2
         ghost_cells_y = 2
-        self.y_zero_reference_cell = np.float32(2 + y_zero_reference_cell)
+        y_zero_reference_cell = 2 + y_zero_reference_cell
         
         # Boundary conditions
         self.boundary_conditions = boundary_conditions
         if (boundary_conditions.isSponge()):
-            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*self.ghost_cells_x
-            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*self.ghost_cells_y
-            self.y_zero_reference_cell = np.float32(boundary_conditions.spongeCells[2] + y_zero_reference_cell)
+            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*ghost_cells_x
+            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*ghost_cells_y
+            y_zero_reference_cell = boundary_conditions.spongeCells[2] + y_zero_reference_cell
+        
+        A = None
+        super(CDKLM16, self).__init__(cl_ctx, \
+                                      nx, ny, \
+                                      ghost_cells_x, \
+                                      ghost_cells_y, \
+                                      dx, dy, dt, \
+                                      g, f, r, A, \
+                                      t, \
+                                      theta, rk_order, \
+                                      coriolis_beta, \
+                                      y_zero_reference_cell, \
+                                      wind_stress, \
+                                      write_netcdf, \
+                                      ignore_ghostcells, \
+                                      offset_x, offset_y, \
+                                      block_width, block_height)
+        
+        #Get kernels
+        self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
         
         #Create data by uploading to device
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
@@ -118,42 +136,11 @@ class CDKLM16(Simulator.Simulator):
 
         #Bathymetry
         self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Hi, boundary_conditions)
-
-        assert( rk_order < 4 or rk_order > 0 ), "Only 1st, 2nd and 3rd order Runge Kutta supported"
-
-        if (rk_order == 3):
-            assert(r == 0.0), "3rd order Runge Kutta supported only without friction"
-        
-        #Save input parameters
-        #Notice that we need to specify them in the correct dataformat for the
-        #OpenCL kernel
-        self.nx = np.int32(nx)
-        self.ny = np.int32(ny)
-        self.dx = np.float32(dx)
-        self.dy = np.float32(dy)
-        self.dt = np.float32(dt)
-        self.g = np.float32(g)
-        self.f = np.float32(f)
-        self.r = np.float32(r)
-        self.theta = np.float32(theta)
-        self.rk_order = np.int32(rk_order)
-        self.coriolis_beta = np.float32(coriolis_beta)
-        self.wind_stress = wind_stress
         self.h0AsWaterElevation = h0AsWaterElevation
-
-        self.hasDrifters = False
-        self.drifters = None
+        if self.h0AsWaterElevation:
+            self.bathymetry.waterElevationToDepth(self.cl_data.h0)
         
-        #Initialize time
-        self.t = np.float32(t)
         
-        #Compute kernel launch parameters
-        self.local_size = (block_width, block_height) 
-        self.global_size = ( \
-                       int(np.ceil(self.nx / float(self.local_size[0])) * self.local_size[0]), \
-                       int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
-                      ) 
-    
         self.bc_kernel = Common.BoundaryConditionsArakawaA(self.cl_ctx, \
                                                            self.nx, \
                                                            self.ny, \
@@ -162,14 +149,7 @@ class CDKLM16(Simulator.Simulator):
                                                            self.boundary_conditions, \
         )
 
-        if self.h0AsWaterElevation:
-            self.bathymetry.waterElevationToDepth(self.cl_data.h0)
-
-        self.write_netcdf = write_netcdf
-        self.ignore_ghostcells = ignore_ghostcells
-        self.offset_x = offset_x
-        self.offset_y = offset_y
-        self.sim_writer = None
+        
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
                                     offset_x=self.offset_x, offset_y=self.offset_y)
