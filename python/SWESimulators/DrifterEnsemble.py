@@ -35,7 +35,7 @@ import DataAssimilationUtils as dautils
 
 class DrifterEnsemble:
         
-    def __init__(self, numParticles, cl_ctx):
+    def __init__(self, cl_ctx, numParticles, observation_variance=0.0):
         
         self.cl_ctx = cl_ctx
         
@@ -46,21 +46,21 @@ class DrifterEnsemble:
         
         self.simType = 'CDKLM16'
         
+        self.observation_variance = observation_variance
+        
     # UNCHANGED
     def cleanUp(self):
         for oceanState in self.particles:
             if oceanState is not None:
                 oceanState.cleanUp()
         
-    # UNCHANGED
-    def setGridInfo(self, nx, ny, dx, dy, dt, boundaryConditions):
+    # IMPROVED
+    def setGridInfo(self, nx, ny, dx, dy, dt, boundaryConditions, eta=None, hu=None, hv=None, H=None):
         self.nx = nx
         self.ny = ny
         self.dx = dx
         self.dy = dy
         self.dt = dt
-        
-        self.observation_variance = 5*dx
         
         self.initialization_variance = 10*dx
         self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
@@ -79,18 +79,30 @@ class DrifterEnsemble:
         dataShape =  ( ny + self.ghostCells[0] + self.ghostCells[2], 
                        nx + self.ghostCells[1] + self.ghostCells[3]  )
             
-        # Create base initial data:
-        self.base_eta = np.zeros(dataShape, dtype=np.float32, order='C')
-        self.base_hu  = np.zeros(dataShape, dtype=np.float32, order='C');
-        self.base_hv  = np.zeros(dataShape, dtype=np.float32, order='C');
+        self.base_eta = eta
+        self.base_hu = hu
+        self.base_hv = hv
+        self.base_H = H
+            
+        # Create base initial data: 
+        if self.base_eta is None:
+            self.base_eta = np.zeros(dataShape, dtype=np.float32, order='C')
+        if self.base_hu is None:
+            self.base_hu  = np.zeros(dataShape, dtype=np.float32, order='C');
+        if self.base_hv is None:
+            self.base_hv  = np.zeros(dataShape, dtype=np.float32, order='C');
         
         # Bathymetry:
-        waterDepth = 5
-        self.base_Hi = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C')*waterDepth
+        if self.base_H is None:
+            waterDepth = 10
+            self.base_H = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C')*waterDepth
  
+
+        self.setParameters()
     
-    # UNCHANGED
-    def setParameters(self, f, g=9.81, beta=0, r=0, wind=Common.WindStressParams(type=99)):
+    
+    # IMPROVED
+    def setParameters(self, f=0, g=9.81, beta=0, r=0, wind=Common.WindStressParams(type=99)):
         self.g = g
         self.f = f
         self.beta = beta
@@ -105,20 +117,19 @@ class DrifterEnsemble:
 
         self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
                                    self.base_eta, self.base_hu, self.base_hv, \
-                                   self.base_Hi, \
+                                   self.base_H, \
                                    self.nx, self.ny, self.dx, self.dy, self.dt, \
                                    self.g, self.f, self.r, \
-                                   wind_stress=wind, \
-                                                boundary_conditions=self.boundaryConditions, \
+                                   wind_stress=self.wind, \
+                                   boundary_conditions=self.boundaryConditions, \
                                    write_netcdf=False)
 
-        drifters = GPUDrifterCollection.GPUDrifterCollection(self.cl_ctx, driftersPerOceanModel,
+        drifters = GPUDrifterCollection.GPUDrifterCollection(self.cl_ctx, self.numParticles,
                       observation_variance=self.observation_variance,
                       boundaryConditions=self.boundaryConditions,
                       domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
-            
-        initPos = np.random.multivariate_normal(self.midPoint, self.initialization_cov, driftersPerOceanModel)
-        drifters.setParticlePositions(initPos)
+        
+        drifters.initializeUniform()
         self.sim.attachDrifters(drifters)
     
     
@@ -126,10 +137,10 @@ class DrifterEnsemble:
         return self.sim.drifters.getParticlePositions()
     
     def observeTrueState(self):
-        return self.sim.drifters.getParticleObservation()
+        return self.sim.drifters.getObservationPosition()
     
     def step(self, t):
-        self.sim.step(t)
+        return self.sim.step(t)
     
     def getDistances(self, obs=None):
         return self.sim.drifters.getDistances()
@@ -143,6 +154,8 @@ class DrifterEnsemble:
     def plotDistanceInfo(self, title=None):
         self.sim.drifters.plotDistanceInfo()
             
+    def enforceBoundaryConditions(self):
+        self.sim.drifters.enforceBoundaryConditions()
     
     ### Duplication of code
     def getDomainSizeX(self):
