@@ -169,7 +169,8 @@ class Simulator(object):
         
     def copyState(self, otherSim):
         """
-        Copies the state ocean state (eta, hu, hv) from the other simulator.
+        Copies the state ocean state (eta, hu, hv), the wind object and 
+        drifters (if any) from the other simulator.
         
         This function is exposed to enable efficient re-initialization of
         resampled ocean states. This means that all parameters which can be 
@@ -192,8 +193,9 @@ class Simulator(object):
         # should become equal?
         self.wind_stress = otherSim.wind_stress
         
-        self.drifters.setParticlePositions(otherSim.drifters.getParticlePositions())
-        self.drifters.setObservationPosition(otherSim.drifters.getObservationPosition())
+        if otherSim.hasDrifters and self.hasDrifters:
+            self.drifters.setParticlePositions(otherSim.drifters.getParticlePositions())
+            self.drifters.setObservationPosition(otherSim.drifters.getObservationPosition())
         
         
         
