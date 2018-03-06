@@ -32,6 +32,84 @@ class Simulator(object):
     """
     __metaclass__ = ABCMeta
     
+    
+    def __init__(self, \
+                 cl_ctx, \
+                 nx, ny, \
+                 ghost_cells_x, \
+                 ghost_cells_y, \
+                 dx, dy, dt, \
+                 g, f, r, A, \
+                 t, \
+                 theta, rk_order, \
+                 coriolis_beta, \
+                 y_zero_reference_cell, \
+                 wind_stress, \
+                 write_netcdf, \
+                 ignore_ghostcells, \
+                 offset_x, offset_y, \
+                 block_width, block_height):
+        """
+        Setting all parameters that are common for all simulators
+        """
+        self.cl_ctx = cl_ctx
+        #Create an OpenCL command queue
+        self.cl_queue = cl.CommandQueue(self.cl_ctx)
+        
+        #Save input parameters
+        #Notice that we need to specify them in the correct dataformat for the
+        #OpenCL kernel
+        self.nx = np.int32(nx)
+        self.ny = np.int32(ny)
+        self.ghost_cells_x = np.int32(ghost_cells_x)
+        self.ghost_cells_y = np.int32(ghost_cells_y)
+        self.dx = np.float32(dx)
+        self.dy = np.float32(dy)
+        self.dt = np.float32(dt)
+        self.g = np.float32(g)
+        self.f = np.float32(f)
+        self.r = np.float32(r)
+        self.coriolis_beta = np.float32(coriolis_beta)
+        self.wind_stress = wind_stress
+        self.y_zero_reference_cell = np.float32(y_zero_reference_cell)
+        
+        self.offset_x = offset_x
+        self.offset_y = offset_y
+        
+        #Initialize time
+        self.t = np.float32(t)
+        
+        if A is None:
+            self.A = 'NA'  # Eddy viscocity coefficient
+        else:
+            self.A = np.float32(A)
+        
+        if theta is None:
+            self.theta = 'NA'
+        else:
+            self.theta = np.float32(theta)
+        if rk_order is None:
+            self.rk_order = 'NA'
+        else:
+            self.rk_order = np.int32(rk_order)
+            
+        self.hasDrifters = False
+        self.drifters = None
+        
+        # NetCDF related parameters
+        self.write_netcdf = write_netcdf
+        self.ignore_ghostcells = ignore_ghostcells
+        self.offset_x = offset_x
+        self.offset_y = offset_y
+        self.sim_writer = None
+        
+        #Compute kernel launch parameters
+        self.local_size = (block_width, block_height) 
+        self.global_size = ( \
+                       int(np.ceil(self.nx / float(self.local_size[0])) * self.local_size[0]), \
+                       int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
+                      ) 
+    
     @abstractmethod
     def step(self, t_end=0.0):
         """
@@ -69,7 +147,7 @@ class Simulator(object):
         
     def attachDrifters(self, drifters):
         ### Do the following type of checking here:
-        #assert isinstance(drifters, SingleGPUPassiveDrifterEnsemble)
+        #assert isinstance(drifters, GPUDrifters)
         #assert drifters.isInitialized()
         
         self.drifters = drifters
@@ -88,6 +166,38 @@ class Simulator(object):
         Download the second-latest time step from the GPU
         """
         return self.cl_data.downloadPrevTimestep(self.cl_queue)
+        
+    def copyState(self, otherSim):
+        """
+        Copies the state ocean state (eta, hu, hv), the wind object and 
+        drifters (if any) from the other simulator.
+        
+        This function is exposed to enable efficient re-initialization of
+        resampled ocean states. This means that all parameters which can be 
+        initialized/assigned a perturbation should be copied here as well.
+        """
+        
+        assert type(otherSim) is type(self), "A simulator can only copy the state from another simulator of the same class. Here we try to copy a " + str(type(otherSim)) + " into a " + str(type(self))
+        
+        assert (self.ny, self.nx) == (otherSim.ny, otherSim.nx), "Simulators differ in computational domain. Self (ny, nx): " + str((self.ny, self.nx)) + ", vs other: " + ((otherSim.ny, otherSim.nx))
+        
+        self.cl_data.h0.copyBuffer( self.cl_queue, otherSim.cl_data.h0)
+        self.cl_data.hu0.copyBuffer(self.cl_queue, otherSim.cl_data.hu0)
+        self.cl_data.hv0.copyBuffer(self.cl_queue, otherSim.cl_data.hv0)
+        
+        self.cl_data.h1.copyBuffer( self.cl_queue, otherSim.cl_data.h1)
+        self.cl_data.hu1.copyBuffer(self.cl_queue, otherSim.cl_data.hu1)
+        self.cl_data.hv1.copyBuffer(self.cl_queue, otherSim.cl_data.hv1)
+        
+        # Question: Which parameters should we require equal, and which 
+        # should become equal?
+        self.wind_stress = otherSim.wind_stress
+        
+        if otherSim.hasDrifters and self.hasDrifters:
+            self.drifters.setParticlePositions(otherSim.drifters.getParticlePositions())
+            self.drifters.setObservationPosition(otherSim.drifters.getObservationPosition())
+        
+        
         
     def upload(self, eta0, hu0, hv0, eta1=None, hu1=None, hv1=None):
         """
