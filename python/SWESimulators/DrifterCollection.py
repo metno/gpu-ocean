@@ -250,25 +250,24 @@ class DrifterCollection(object):
 
 
     
-    def initializeParticles(self, domain_size_x=1.0, domain_size_y=1.0):
+    def initializeUniform(self):
         """
-        Initialization of all particles (and observation) within a rectangle of given size.
-        domain_size_x [default 1.0]: size of rectangle in x-direction 
-        domain_size_y [default 1.0]: size of rectangle in y-direction
+        Initialization of all particles (and observation) within the domain.
         """
 
         # Initialize in unit square
-        np.copyto(self.positions, np.random.rand(self.numParticles + 1, 2))
-        # Ensure that the observation is in the middle 0.5x0.5 square:
-        self.positions[self.obs_index, :] = self.positions[self.obs_index]*0.5 + 0.25
+        positions = np.random.rand(self.numParticles+1, 2)  
         
-        # Map to given square
-        self.positions[:,0] = self.positions[:,0]*domain_size_x
-        self.positions[:,1] = self.positions[:,1]*domain_size_y
+        # Move observation to the middle 0.5x0.5 square
+        positions[-1,:] = positions[-1,:]*0.5 + 0.25
         
-        self.domain_size_x = domain_size_x
-        self.domain_size_y = domain_size_y
+        # Map to domain
+        positions[:,0] = positions[:,0]*self.domain_size_x
+        positions[:,1] = positions[:,1]*self.domain_size_y
         
+        # Set positions
+        self.setParticlePositions(positions[:-1, :])
+        self.setObservationPosition(positions[-1, :])
     
     def plotDistanceInfo(self, title=None):
         """

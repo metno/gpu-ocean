@@ -68,7 +68,7 @@ class DrifterTest(unittest.TestCase):
         pass
 
     @abc.abstractmethod
-    def create_large_particle_set(self, size):
+    def create_large_particle_set(self, size, domain_x, domain_y):
         pass
 
         
@@ -257,11 +257,13 @@ class DrifterTest(unittest.TestCase):
         
         
     def test_init_uniform_positions(self):
-        largeParticleSet = self.create_large_particle_set(1000)
+        
         domain_x = 10.3
         domain_y = 5.4
-        largeParticleSet.initializeParticles(domain_size_x = domain_x,
-                                             domain_size_y = domain_y)
+        largeParticleSet = self.create_large_particle_set(1000,
+                                                          domain_x,
+                                                          domain_y)
+        largeParticleSet.initializeUniform()
 
         self.assertEqual(largeParticleSet.getDomainSizeX(), domain_x)
         self.assertEqual(largeParticleSet.getDomainSizeY(), domain_y)

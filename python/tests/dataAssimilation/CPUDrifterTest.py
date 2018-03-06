@@ -28,6 +28,6 @@ class CPUDrifterTest(DrifterTest):
     def create_resampling_particle_set(self):
         self.resamplingParticleSet = CPUDrifterCollection(self.resampleNumParticles)
 
-    def create_large_particle_set(self, size):
-        return CPUDrifterCollection(size)
+    def create_large_particle_set(self, size, domain_x, domain_y):
+        return CPUDrifterCollection(size, domain_size_x=domain_x, domain_size_y=domain_y)
 

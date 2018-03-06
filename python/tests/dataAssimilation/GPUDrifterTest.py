@@ -38,8 +38,8 @@ class GPUDrifterTest(DrifterTest):
         self.resamplingParticleSet = GPUDrifterCollection(self.cl_ctx,
                                                           self.resampleNumParticles)
         
-    def create_large_particle_set(self, size):
-        return GPUDrifterCollection(self.cl_ctx, size) 
+    def create_large_particle_set(self, size, domain_x, domain_y):
+        return GPUDrifterCollection(self.cl_ctx, size, domain_size_x=domain_x, domain_size_y=domain_y) 
         
 
 
