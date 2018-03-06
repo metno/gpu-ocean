@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class takes care of the global ensemble of particles for EPS.
+This python class implements a Ensemble of particles, each consisting of a single drifter in its own ocean state. The perturbation parameter is the wind direction.
+
 
 Copyright (C) 2018  SINTEF ICT
 
@@ -32,7 +33,7 @@ import Common
 import DataAssimilationUtils as dautils
 
 
-class WindForcingEnsamble:
+class WindForcingEnsemble:
         
     def __init__(self, numParticles, cl_ctx):
         

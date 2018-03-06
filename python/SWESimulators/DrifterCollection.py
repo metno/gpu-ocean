@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class implements an abstract collection of Drifters. All actual drifters should inherit this class, and implement its abstract methods.
+This python class provides an abstract collection of Drifters. All actual drifters should inherit this class, and implement its abstract methods.
 
 Copyright (C) 2018  SINTEF ICT
 
@@ -29,12 +29,14 @@ import abc
 import Common
 import DataAssimilationUtils as dautils
 
-class DrifterCollection(object):
-    __metaclass__ = abc.ABCMeta
-    
+class DrifterCollection(object):    
     """
-    Class holding the global set of particles.
+    Abstract collection of Drifters. 
+    All actual drifters should inherit this class, and implement its abstract methods.
     """ 
+    
+    __metaclass__ = abc.ABCMeta
+
     def __init__(self, numParticles, observation_variance=0.1, \
                  boundaryConditions=Common.BoundaryConditions(), \
                  domain_size_x=1.0, domain_size_y=1.0):
