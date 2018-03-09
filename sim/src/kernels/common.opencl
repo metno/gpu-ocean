@@ -1,6 +1,13 @@
 #ifndef COMMON_CL
 #define COMMON_CL
 
+#ifndef __OPENCL_VERSION__
+#define __kernel
+#define __global
+#define __local
+#define CLK_LOCAL_MEM_FENCE
+#endif
+
 #define _180_OVER_PI 57.29578f
 #define PI_OVER_180 0.01745329f
 

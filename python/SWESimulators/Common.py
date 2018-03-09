@@ -38,8 +38,12 @@ class OpenCLArray2D:
     """
     Class that holds data 
     """
+    
     def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, data=None, \
                  asymHalo=None):
+        """
+        Uploads initial data to the CL device
+        """
 
         self.nx = nx
         self.ny = ny
@@ -54,7 +58,7 @@ class OpenCLArray2D:
 
         #Upload data to the device
         mf = pyopencl.mem_flags
-        if (data != None):
+        if (data is not None):
             host_data = self.convert_to_float32(data)
             self.bytes_per_float = host_data.itemsize
             self.data = pyopencl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=host_data)
@@ -63,13 +67,11 @@ class OpenCLArray2D:
             assert(host_data.shape[0] == self.ny_halo), str(host_data.shape[0]) + " vs " + str(self.ny_halo)
             assert(self.bytes_per_float == 4)
             assert(data.shape == (self.ny_halo, self.nx_halo))
-            
         else:
             self.bytes_per_float = 4
             self.data = pyopencl.Buffer(cl_ctx, mf.READ_WRITE, self.nx_halo*self.ny_halo*self.bytes_per_float)
-            
-        self.holds_data = True
         
+        self.holds_data = True
         self.pitch = np.int32((self.nx_halo)*self.bytes_per_float)
         
         

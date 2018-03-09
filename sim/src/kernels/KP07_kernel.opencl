@@ -38,7 +38,7 @@ float linear_coriolis_term(const float f, const float beta,
 			   const float tj, const float dy,
 			   const float y_zero_reference_cell) {
     // y_0 is at the southern face of the row y_zero_reference_cell.
-    float y = (tj-y_zero_reference_cell + 0.5)*dy;
+    float y = (tj-y_zero_reference_cell + 0.5f)*dy;
     return f + beta * y;
 }
 
@@ -90,7 +90,7 @@ void adjustSlopeUx(__local float Qx[3][block_height+2][block_width+2],
     Qx[0][qQx][pQx] = (Q[0][q][p]-Qx[0][qQx][pQx] < -RHx[q][p]) ?
         (Q[0][q][p] + RHx[q][p]) : Qx[0][qQx][pQx];
     Qx[0][qQx][pQx] = (Q[0][q][p]+Qx[0][qQx][pQx] < -RHx[q][p+1]) ?
-        (-RHx[q][p+1] - Q[0][q][p]) : Qx[0][qQx][pQx];    
+        (-RHx[q][p+1] - Q[0][q][p]) : Qx[0][qQx][pQx];
 }
 
 void adjustSlopeUy(__local float Qy[3][block_height+2][block_width+2],
@@ -104,7 +104,7 @@ void adjustSlopeUy(__local float Qy[3][block_height+2][block_width+2],
     Qy[0][qQy][pQy] = (Q[0][q][p]-Qy[0][qQy][pQy] < -RHy[q][p]) ?
         (Q[0][q][p] + RHy[q][p]) : Qy[0][qQy][pQy];
     Qy[0][qQy][pQy] = (Q[0][q][p]+Qy[0][qQy][pQy] < -RHy[q+1][p]) ?
-        (-RHy[q+1][p] - Q[0][q][p]) : Qy[0][qQy][pQy];    
+        (-RHy[q+1][p] - Q[0][q][p]) : Qy[0][qQy][pQy];
 }
 
 void adjustSlopes(__local float Qx[3][block_height+2][block_width+2],
@@ -127,17 +127,16 @@ void adjustSlopes(__local float Qx[3][block_height+2][block_width+2],
             adjustSlopeUx(Qx, RHx, Q, 1, p);
             adjustSlopeUx(Qx, RHx, Q, block_width+2, p);
         }
-    }    
+    }
 }
-
 
 float computeDt(const float3 Qp, const float3 Qm, float H, const float g_, const float dx) {
     float hp = Qp.x+H;
     float hm = Qm.x+H;
-    
+
     // u = hu/h
-    float up = (hp > 0.0) ? Qp.y / hp : 0.0;
-    float um = (hm > 0.0) ? Qm.y / hm : 0.0;
+    float up = (hp > 0.0f) ? Qp.y / hp : 0.0f;
+    float um = (hm > 0.0f) ? Qm.y / hm : 0.0f;
     
     // sqrt(gh)
     float cp = sqrt(g_*hp);
@@ -149,10 +148,8 @@ float computeDt(const float3 Qp, const float3 Qm, float H, const float g_, const
     float u_max = max(ap, -am);
     
     // cfl = 0.25*dx/u_max
-    return (u_max > 0.0) ? (0.25f*dx / u_max) : FLT_MAX;
+    return (u_max > 0.0f) ? (0.25f*dx / u_max) : FLT_MAX;
 }
-
-
 float computeFluxF(__local float Q[3][block_height+4][block_width+4],
                   __local float Qx[3][block_height+2][block_width+2],
                   __local float F[3][block_height+1][block_width+1],
@@ -169,7 +166,7 @@ float computeFluxF(__local float Q[3][block_height+4][block_width+4],
         for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
             const int k = i + 1;
             // Q at interface from the right and left
-            // In CentralUpwindFlux we need [h, hu, hv]
+            // In CentralUpwindFlux we need [eta, hu, hv]
             // Subtract the bottom elevation on the relevant face in Q[0]
             float3 Qp = (float3)(Q[0][l][k+1] - Qx[0][j][i+1],
                                  Q[1][l][k+1] - Qx[1][j][i+1],
@@ -239,9 +236,9 @@ void init_H_with_garbage(__local float Hi[block_height+4][block_width+4],
     if (get_local_id(0) == 0 && get_local_id(1) == 0) {
         for (int j = 0; j < block_height+4; j++) {
             for (int i = 0; i < block_width+4; i++) {
-            Hi[j][i]  = -99.0f; //0.1*get_global_id(0);
-            RHx[j][i] = -99.0f; //0.1*get_global_id(0);
-            RHy[j][i] = -99.0f; //0.1*get_global_id(0);
+                Hi[j][i]  = 99.0f; //0.1*get_global_id(0);
+                RHx[j][i] = 99.0f; //0.1*get_global_id(0);
+                RHy[j][i] = 99.0f; //0.1*get_global_id(0);
             }
         }
     }
@@ -354,6 +351,8 @@ float findMaxDt(float per_thread_dt, int tid, __local float* sdata) {
 
 
 
+
+
 /**
   * This unsplit kernel computes the 2D numerical scheme with a TVD RK2 time integration scheme
   */
@@ -425,7 +424,7 @@ __kernel void swe_2D(
     __local float RHx[block_height+4][block_width+4];
     __local float RHy[block_height+4][block_width+4];
        
-    //Read Q = [h, hu, hv] into shared memory
+    //Read Q = [eta, hu, hv] into shared memory
     readBlock2(U1_ptr_, U1_pitch_,
                U2_ptr_, U2_pitch_,
                U3_ptr_, U3_pitch_,
@@ -488,7 +487,7 @@ __kernel void swe_2D(
             t_);
 
         // Coriolis parameter
-        float global_thread_y = tj-2; // Global id including ghost cells
+        float global_thread_y = tj-2.0f; // Global id including ghost cells
         float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
                             dy_, y_zero_reference_);
         
