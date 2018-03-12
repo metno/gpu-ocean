@@ -53,6 +53,15 @@ class DrifterEnsemble:
         for oceanState in self.particles:
             if oceanState is not None:
                 oceanState.cleanUp()
+    
+    # ADDED
+    def setGridInfoFromSim(self, sim):
+        eta, hu, hv = sim.download()
+        Hi = sim.downloadBathymetry()[0]
+        self.setGridInfo(sim.nx, sim.ny, sim.dx, sim.dy, sim.dt,
+                         sim.boundary_conditions,
+                         eta=eta, hu=hu, hv=hv, H=Hi)
+        self.setParameters(f=sim.f, g=sim.g, beta=sim.coriolis_beta, r=sim.r, wind=sim.wind_stress)
         
     # IMPROVED
     def setGridInfo(self, nx, ny, dx, dy, dt, boundaryConditions, eta=None, hu=None, hv=None, H=None):
@@ -62,6 +71,7 @@ class DrifterEnsemble:
         self.dy = dy
         self.dt = dt
         
+        # Default values for now:
         self.initialization_variance = 10*dx
         self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
         self.initialization_cov = np.eye(2)*self.initialization_variance
@@ -124,6 +134,7 @@ class DrifterEnsemble:
                                    boundary_conditions=self.boundaryConditions, \
                                    write_netcdf=False)
 
+        # TO CHECK! Is it okay to have drifters as self.drifters - in order to easier reach its member functions?
         drifters = GPUDrifterCollection.GPUDrifterCollection(self.cl_ctx, self.numParticles,
                       observation_variance=self.observation_variance,
                       boundaryConditions=self.boundaryConditions,
@@ -134,7 +145,7 @@ class DrifterEnsemble:
     
     
     def observeParticles(self):
-        return self.sim.drifters.getParticlePositions()
+        return self.sim.drifters.getDrifterPositions()
     
     def observeTrueState(self):
         return self.sim.drifters.getObservationPosition()
