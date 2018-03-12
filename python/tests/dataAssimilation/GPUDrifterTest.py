@@ -22,23 +22,23 @@ class GPUDrifterTest(DrifterTest):
         
     def tearDown(self):
         self.cl_ctx = None
-        if self.smallParticleSet is not None:
-            self.smallParticleSet.cleanUp()
-        if self.resamplingParticleSet is not None:
-            self.resamplingParticleSet.cleanUp()
+        if self.smallDrifterSet is not None:
+            self.smallDrifterSet.cleanUp()
+        if self.resamplingDrifterSet is not None:
+            self.resamplingDrifterSet.cleanUp()
 
 
-    def create_small_particle_set(self):
-        self.smallParticleSet = GPUDrifterCollection(self.cl_ctx,
-                                                     self.numParticles,
-                                                     self.observationVariance,
-                                                     self.boundaryCondition)
+    def create_small_drifter_set(self):
+        self.smallDrifterSet = GPUDrifterCollection(self.cl_ctx,
+                                                    self.numDrifters,
+                                                    self.observationVariance,
+                                                    self.boundaryCondition)
 
-    def create_resampling_particle_set(self):
-        self.resamplingParticleSet = GPUDrifterCollection(self.cl_ctx,
-                                                          self.resampleNumParticles)
+    def create_resampling_drifter_set(self):
+        self.resamplingDrifterSet = GPUDrifterCollection(self.cl_ctx,
+                                                         self.resampleNumDrifters)
         
-    def create_large_particle_set(self, size, domain_x, domain_y):
+    def create_large_drifter_set(self, size, domain_x, domain_y):
         return GPUDrifterCollection(self.cl_ctx, size, domain_size_x=domain_x, domain_size_y=domain_y) 
         
 

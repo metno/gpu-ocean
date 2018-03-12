@@ -20,14 +20,14 @@ class CPUDrifterTest(DrifterTest):
         pass
     
 
-    def create_small_particle_set(self):
-        self.smallParticleSet = CPUDrifterCollection(self.numParticles,
+    def create_small_drifter_set(self):
+        self.smallDrifterSet = CPUDrifterCollection(self.numDrifters,
                                                      self.observationVariance,
                                                      self.boundaryCondition)
 
-    def create_resampling_particle_set(self):
-        self.resamplingParticleSet = CPUDrifterCollection(self.resampleNumParticles)
+    def create_resampling_drifter_set(self):
+        self.resamplingDrifterSet = CPUDrifterCollection(self.resampleNumDrifters)
 
-    def create_large_particle_set(self, size, domain_x, domain_y):
+    def create_large_drifter_set(self, size, domain_x, domain_y):
         return CPUDrifterCollection(size, domain_size_x=domain_x, domain_size_y=domain_y)
 
