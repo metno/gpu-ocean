@@ -48,11 +48,12 @@ class DrifterEnsemble:
         
         self.observation_variance = observation_variance
         
+        self.sim = None
+        
     # UNCHANGED
     def cleanUp(self):
-        for oceanState in self.particles:
-            if oceanState is not None:
-                oceanState.cleanUp()
+        if self.sim is not None:
+            self.sim.cleanUp()
     
     # ADDED
     def setGridInfoFromSim(self, sim):
@@ -64,7 +65,9 @@ class DrifterEnsemble:
         self.setParameters(f=sim.f, g=sim.g, beta=sim.coriolis_beta, r=sim.r, wind=sim.wind_stress)
         
     # IMPROVED
-    def setGridInfo(self, nx, ny, dx, dy, dt, boundaryConditions, eta=None, hu=None, hv=None, H=None):
+    def setGridInfo(self, nx, ny, dx, dy, dt, 
+                    boundaryConditions=Common.BoundaryConditions(), 
+                    eta=None, hu=None, hv=None, H=None):
         self.nx = nx
         self.ny = ny
         self.dx = dx
@@ -143,12 +146,17 @@ class DrifterEnsemble:
         drifters.initializeUniform()
         self.sim.attachDrifters(drifters)
     
-    
     def observeParticles(self):
         return self.sim.drifters.getDrifterPositions()
     
     def observeTrueState(self):
         return self.sim.drifters.getObservationPosition()
+    
+    def setParticleStates(self, newStates):
+        self.sim.drifters.setDrifterPositions(newStates)
+        
+    def setObservationState(self, newState):
+        self.sim.drifters.setObservationPosition(newState)
     
     def step(self, t):
         return self.sim.step(t)
@@ -160,7 +168,7 @@ class DrifterEnsemble:
         self.sim.drifters.resample(newSampleIndices, reinitialization_variance)
                     
     def getEnsembleMean(self):
-        return self.sim.drifters.getEnsembleMean()
+        return self.sim.drifters.getCollectionMean()
     
     def plotDistanceInfo(self, title=None):
         self.sim.drifters.plotDistanceInfo()
@@ -168,7 +176,7 @@ class DrifterEnsemble:
     def enforceBoundaryConditions(self):
         self.sim.drifters.enforceBoundaryConditions()
     
-    ### Duplication of code
+    ### Code that can be in parent class:
     def getDomainSizeX(self):
         return self.nx*self.dx
     def getDomainSizeY(self):

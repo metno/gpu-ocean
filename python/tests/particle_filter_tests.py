@@ -9,6 +9,7 @@ import xmlrunner
 #import testUtils
 from dataAssimilation.CPUDrifterTest import CPUDrifterTest
 from dataAssimilation.GPUDrifterTest import GPUDrifterTest
+from dataAssimilation.DrifterEnsembleTest import DrifterEnsembleTest
 
 if (len(sys.argv) < 1):
     print ("Usage:")
@@ -34,9 +35,9 @@ test_classes_to_run = None
 if cpuOnly:
     test_classes_to_run = [CPUDrifterTest]
 else:
-    test_classes_to_run = [CPUDrifterTest, GPUDrifterTest]
+    test_classes_to_run = [CPUDrifterTest, GPUDrifterTest, DrifterEnsembleTest]
 
-
+    
 loader = unittest.TestLoader()
 suite_list = []
 for test_class in test_classes_to_run:
