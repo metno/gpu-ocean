@@ -125,7 +125,7 @@ class WindForcingEnsemble:
                                              boundaryConditions=self.boundaryConditions,
                                              domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
             initPos = np.random.multivariate_normal(self.midPoint, self.initialization_cov, driftersPerOceanModel)
-            drifters.setParticlePositions(initPos)
+            drifters.setDrifterPositions(initPos)
             #print "drifter particles: ", drifter.getParticlePositions()
             #print "drifter observations: ", drifter.getObservationPosition()
             self.particles[i].attachDrifters(drifters)
@@ -135,12 +135,12 @@ class WindForcingEnsemble:
         drifterPositions = np.empty((0,2))
         for oceanState in self.particles[:-1]:
             drifterPositions = np.append(drifterPositions, 
-                                         oceanState.drifters.getParticlePositions(),
+                                         oceanState.drifters.getDrifterPositions(),
                                          axis=0)
         return drifterPositions
     
     def observeTrueState(self):
-        observation = self.particles[self.obs_index].drifters.getParticlePositions()
+        observation = self.particles[self.obs_index].drifters.getDrifterPositions()
         return observation[0,:]
     
     def step(self, t):
@@ -204,7 +204,7 @@ class WindForcingEnsemble:
             newOceanStates[i] = (eta0, hu0, hv0, eta1, hu1, hv1)
             
             self.particles[i].wind_stress = newWindInstance
-            self.particles[i].drifters.setParticlePositions(newPos)
+            self.particles[i].drifters.setDrifterPositions(newPos)
 
         self.directions = newWindDirection.copy()
         
