@@ -341,11 +341,7 @@ class CDKLM16(Simulator.Simulator):
                            hv_out.data, hv_out.pitch, \
                            self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
                            self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
-                           self.wind_stress.type, \
-                           self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
-                           self.wind_stress.x0, self.wind_stress.y0, \
-                           self.wind_stress.u0, self.wind_stress.v0, \
-                           self.wind_stress.wind_speed, self.wind_stress.wind_direction, \
+                           self.wind_stress_dev, \
                            self.t, \
                            self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                            self.reportGeostrophicEquilibrium, \

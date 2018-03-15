@@ -91,7 +91,7 @@ class SimNetCDFWriter:
         self.coriolis_force = sim.f
         self.coriolis_beta = sim.coriolis_beta
         self.y_zero_reference_cell = sim.y_zero_reference_cell
-        self.wind_stress = sim.wind_stress
+        self.wind_stress = sim.wind_stress.type()
         self.eddy_viscosity_coefficient = sim.A
         g = sim.g
         nx = sim.nx
@@ -141,7 +141,7 @@ class SimNetCDFWriter:
         self.ncfile.coriolis_force = self.coriolis_force
         self.ncfile.coriolis_beta = self.coriolis_beta
         self.ncfile.y_zero_reference_cell = self.y_zero_reference_cell
-        self.ncfile.wind_stress_type = self.wind_stress.type
+        self.ncfile.wind_stress_type = self.wind_stress
         self.ncfile.eddy_viscosity_coefficient = self.eddy_viscosity_coefficient
         self.ncfile.g = g  
         self.ncfile.nx = nx
@@ -412,6 +412,6 @@ class SimNetCDFWriter:
         self._addText(ax, 'BC: ' + str(self.boundary_conditions))
         self._addText(ax, 'f:  ' + str(self.coriolis_force))
         self._addText(ax, 'dt: ' + str(self.dt) + ", dx: " + str(self.dx) + ", dy: " + str(self.dy))
-        self._addText(ax, 'wind type: ' + str(self.wind_stress.type))
+        self._addText(ax, 'wind type: ' + str(self.wind_stress))
         
         ax.axis([0, 6, 0, 3])

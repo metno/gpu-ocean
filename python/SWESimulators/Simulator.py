@@ -76,6 +76,10 @@ class Simulator(object):
         self.offset_x = offset_x
         self.offset_y = offset_y
         
+        # Upload wind stress params to device
+        self.wind_stress_dev = cl.Buffer(self.cl_ctx, cl.mem_flags.WRITE_ONLY, wind_stress.csize())
+        cl.enqueue_copy(self.cl_queue, self.wind_stress_dev, wind_stress.tostruct())
+        
         #Initialize time
         self.t = np.float32(t)
         
