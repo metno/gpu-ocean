@@ -21,10 +21,17 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef __OPENCL_VERSION__
+#define __kernel
+#define __global
+#define __local
+#define CLK_LOCAL_MEM_FENCE
+#endif
+
+#include "common.opencl"
 
 #define block_height 8
 #define block_width 8
-
 
 typedef __local float eta_shmem[block_height+2][block_width+1];
 typedef __local float u_shmem[block_height+2][block_width+2];
@@ -115,10 +122,8 @@ __kernel void computeUKernel(
         __global float* V2_1_ptr_, int V2_1_pitch_, // V^n
     
         // Wind stress parameters
-        int wind_stress_type_, 
-        float tau0_, float alpha_, float xm_, float Rc_,
-        float x0_, float y0_,
-        float u0_, float v0_,
+        __global const wind_stress_params *wind_stress_,
+
         float t_) {
                     
     eta_shmem H1_shared;
@@ -383,11 +388,11 @@ __kernel void computeUKernel(
     
     //Calculate the wind shear stress for the top layer
     const float X = windStressX(
-        wind_stress_type_, 
+        wind_stress_->type,
         dx_, dy_, dt_,
-        tau0_, rho1_, alpha_, xm_, Rc_,
-        x0_, y0_,
-        u0_, v0_,
+		wind_stress_->tau0, wind_stress_->rho, wind_stress_->alpha, wind_stress_->xm, wind_stress_->Rc,
+		wind_stress_->x0, wind_stress_->y0,
+		wind_stress_->u0, wind_stress_->v0,
         t_);
     
     
