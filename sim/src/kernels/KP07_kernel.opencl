@@ -368,9 +368,9 @@ __kernel void swe_2D(
         float y_zero_reference_, // the cell row representing y = 0.5*dy
         
         // Input [w, hu, hv] at time t_n
-        __global const float* U1_ptr_, int U1_pitch_,
-        __global const float* U2_ptr_, int U2_pitch_,
-        __global const float* U3_ptr_, int U3_pitch_,
+        __global float* U1_ptr_, int U1_pitch_,
+        __global float* U2_ptr_, int U2_pitch_,
+        __global float* U3_ptr_, int U3_pitch_,
         
         // Output flux
         __global float* R1_ptr_, int R1_pitch_,

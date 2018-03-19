@@ -206,6 +206,9 @@ class KP07(Simulator.Simulator):
         height = ny * dy
 
         dt = sim_reader.get("dt")
+        # dt set to 0.0 if variable dt is used
+        if dt == 0.0:
+            dt = None
         g = sim_reader.get("g")
         r = sim_reader.get("bottom_friction_r")
         f = sim_reader.get("coriolis_force")
@@ -329,7 +332,7 @@ class KP07(Simulator.Simulator):
                 self.fluxKernel(update_dt, self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
                 if self.dt is not None:
                     local_dt = np.float32(min(t_end, local_dt))
-                    upload_dt = np.zeros((128), dtype=np.float32)
+                    upload_dt = np.zeros((1), dtype=np.float32)
                     upload_dt[0] = local_dt
                     cl.enqueue_copy(self.cl_queue, self.var_dt.data, upload_dt)
                 else:
@@ -352,7 +355,7 @@ class KP07(Simulator.Simulator):
                 self.fluxKernel(update_dt, self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
                 if self.dt is not None:
                     local_dt = np.float32(min(t_end, local_dt))
-                    upload_dt = np.zeros((128), dtype=np.float32)
+                    upload_dt = np.zeros((1), dtype=np.float32)
                     upload_dt[0] = local_dt
                     cl.enqueue_copy(self.cl_queue, self.var_dt.data, upload_dt)
                 else:
@@ -368,7 +371,7 @@ class KP07(Simulator.Simulator):
                 t_end = t_end - local_dt;
                 self.t += np.float32(local_dt);
             else:
-                local_dt = np.zeros((128), dtype=np.float32)
+                local_dt = np.zeros((1), dtype=np.float32)
                 cl.enqueue_copy(self.cl_queue, local_dt, self.var_dt.data)
                 t_end = t_end - local_dt[0];
                 self.t += np.float32(local_dt[0]);

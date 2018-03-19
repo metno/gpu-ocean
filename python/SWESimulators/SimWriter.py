@@ -98,7 +98,11 @@ class SimNetCDFWriter:
         ny = sim.ny
         dx = sim.dx
         dy = sim.dy
-        dt = sim.dt
+        # dt set to 0.0 if variable dt is used
+        if sim.dt is not None:
+            dt = sim.dt
+        else:
+            dt = np.float32(0.0)
         self.dx = dx
         self.dy = dy
         auto_dt = False
