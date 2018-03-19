@@ -65,7 +65,10 @@ class Simulator(object):
         self.ghost_cells_y = np.int32(ghost_cells_y)
         self.dx = np.float32(dx)
         self.dy = np.float32(dy)
-        self.dt = np.float32(dt)
+        if dt is not None:
+            self.dt = np.float32(dt)
+        else:
+            self.dt = dt
         self.g = np.float32(g)
         self.f = np.float32(f)
         self.r = np.float32(r)

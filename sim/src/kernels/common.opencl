@@ -1,6 +1,13 @@
 #ifndef COMMON_CL
 #define COMMON_CL
 
+#ifndef __OPENCL_VERSION__
+#define __kernel
+#define __global
+#define __local
+#define CLK_LOCAL_MEM_FENCE
+#endif
+
 #define _180_OVER_PI 57.29578f
 #define PI_OVER_180 0.01745329f
 
@@ -27,6 +34,11 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+/**
+  * Define NVIDIA pragma for assuming a 32-wide SIMD
+  */
+#define NVIDIA 1
 
 /**
   * Reads a block of data  with one ghost cell for the shallow water equations
@@ -769,7 +781,7 @@ float3 CentralUpwindFluxBottom(const float3 Qm, float3 Qp, const float H, const 
     // The constant is a compiler constant in the CUDA code.
     const float KPSIMULATOR_FLUX_SLOPE_EPS = 1.0e-4f;
     if ( fabs(ap - am) < KPSIMULATOR_FLUX_SLOPE_EPS ) {
-	return (float3)(0.0f, 0.0f, 0.0f);
+        return (float3)(0.0f, 0.0f, 0.0f);
     }
     
     return ((ap*Fm - am*Fp) + ap*am*(Qp-Qm))/(ap-am);
@@ -1185,5 +1197,8 @@ float3 FORCE_1D_flux(const float3 Q_l, const float3 Q_r, const float g_, const f
     const float3 F_lw2 = LxW2_1D_flux(Q_l, Q_r, g_, dx_, dt_);
     return 0.5f*(F_lf + F_lw2);
 }
+
+
+
 
 #endif // COMMON_CL

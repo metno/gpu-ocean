@@ -33,17 +33,16 @@ import Common, SimWriter, SimReader
 import Simulator
 
 class KP07(Simulator.Simulator):
-    """
-    Class that solves the SW equations using the Forward-Backward linear scheme
-    """
 
     def __init__(self, \
                  cl_ctx, \
                  eta0, Hi, hu0, hv0, \
                  nx, ny, \
-                 dx, dy, dt, \
+                 dx, dy, \
                  g, f=0.0, r=0.0, \
                  t=0.0, \
+                 dt=None, \
+                 dt_scale=1.0, \
                  theta=1.3, use_rk2=True,
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
@@ -52,7 +51,7 @@ class KP07(Simulator.Simulator):
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0, \
-                 block_width=16, block_height=16):
+                 block_width=16, block_height=16, dt_block_size=128):
         """
         Initialization routine
         eta0: Initial deviation from mean sea level incl ghost cells, (nx+2)*(ny+2) cells
@@ -63,11 +62,12 @@ class KP07(Simulator.Simulator):
         ny: Number of cells along y-axis
         dx: Grid cell spacing along x-axis (20 000 m)
         dy: Grid cell spacing along y-axis (20 000 m)
-        dt: Size of each timestep (90 s)
         g: Gravitational accelleration (9.81 m/s^2)
         f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
         r: Bottom friction coefficient (2.4e-3 m/s)
         t: Start simulation at time t
+        dt: Size of each time step (None if variable/computed dt is to be used)
+        dt_scale: Scale factor for time-step size
         theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
         use_rk2: Boolean if to use 2nd order Runge-Kutta (false -> 1st order forward Euler)
         coriolis_beta: Coriolis linear factor -> f = f + beta*(y-y_0)
@@ -76,15 +76,11 @@ class KP07(Simulator.Simulator):
         boundary_conditions: Boundary condition object
         write_netcdf: Write the results after each superstep to a netCDF file
         """
-       
+                 
+        
         ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
         if ( np.sum(eta0 - Hi[:-1, :-1] > 0) > nx):
             assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
-
-        
-
-        
-        
         
         ghost_cells_x = 2
         ghost_cells_y = 2
@@ -100,9 +96,11 @@ class KP07(Simulator.Simulator):
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*ghost_cells_y
             y_zero_reference_cell = boundary_conditions.spongeCells[2] + y_zero_reference_cell
             
+        A = None
+        self.dt_scale = np.float32(dt_scale)
+        self.dt_block_size = dt_block_size
         self.use_rk2 = use_rk2
         rk_order = np.int32(use_rk2 + 1)
-        A = None
         super(KP07, self).__init__(cl_ctx, \
                                    nx, ny, \
                                    ghost_cells_x, \
@@ -118,15 +116,51 @@ class KP07(Simulator.Simulator):
                                    ignore_ghostcells, \
                                    offset_x, offset_y, \
                                    block_width, block_height)
-            
+
+
         #Get kernels
         self.kp07_kernel = Common.get_kernel(self.cl_ctx, "KP07_kernel.opencl", block_width, block_height)
+        self.runge_kutta_kernel = Common.get_kernel(self.cl_ctx, "RungeKutta.opencl", block_width, block_height)
+        self.dt_kernel = Common.get_kernel(self.cl_ctx, "max_dt.opencl", dt_block_size, 1)
         
         #Create data by uploading to device    
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
+        self.R1 = Common.OpenCLArray2D(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y)
+        self.R2 = Common.OpenCLArray2D(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y)
+        self.R3 = Common.OpenCLArray2D(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y)
+        self.var_dt = Common.OpenCLArray2D(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y)
         
         #Bathymetry
         self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Hi, boundary_conditions)
+        
+        #Save input parameters
+        #Notice that we need to specify them in the correct dataformat for the
+        #OpenCL kernel
+        self.nx = np.int32(nx)
+        self.ny = np.int32(ny)
+        self.dx = np.float32(dx)
+        self.dy = np.float32(dy)
+        self.g = np.float32(g)
+        self.f = np.float32(f)
+        self.r = np.float32(r)
+        self.theta = np.float32(theta)
+        self.use_rk2 = use_rk2
+        self.coriolis_beta = np.float32(coriolis_beta)
+        self.dt_scale = np.float32(dt_scale)
+        self.y_zero_reference = np.int32(y_zero_reference_cell)
+        self.rk_order = np.int32(use_rk2 + 1)
+        self.wind_stress = wind_stress
+        
+        #Initialize time
+        self.t = np.float32(0.0)
+        
+        #Compute kernel launch parameters
+        self.local_size = (block_width, block_height) 
+        self.global_size = ( \
+                       int(np.ceil(self.nx / float(self.local_size[0])) * self.local_size[0]), \
+                       int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
+                      ) 
+        self.dt_block_size = dt_block_size
         
         self.bc_kernel = Common.BoundaryConditionsArakawaA(self.cl_ctx, \
                                                            self.nx, \
@@ -138,7 +172,14 @@ class KP07(Simulator.Simulator):
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
                                     offset_x=self.offset_x, offset_y=self.offset_y)
+
+        self.bc_kernel.boundaryCondition(self.cl_queue, \
+                self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+
             
+        self.bc_kernel.boundaryCondition(self.cl_queue, \
+                self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+        
     @classmethod
     def fromfilename(cls, cl_ctx, filename, cont_write_netcdf=True):
         """
@@ -194,9 +235,10 @@ class KP07(Simulator.Simulator):
         return cls(cl_ctx, \
                  eta0, Hi, hu0, hv0, \
                  nx, ny, \
-                 dx, dy, dt, \
+                 dx, dy, \
                  g, f, r, \
                  t=time0, \
+                 dt=dt, \
                  theta=minmodTheta, use_rk2=using_rk2, \
                  coriolis_beta=beta, \
                  y_zero_reference_cell = y_zero_reference_cell, \
@@ -215,117 +257,130 @@ class KP07(Simulator.Simulator):
         self.bathymetry.release()
         gc.collect()
         
+    def fluxKernel(self, update_dt, U1, U2, U3):
+        self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
+                        self.nx, self.ny, \
+                        self.dx, self.dy, \
+                        self.g, \
+                        self.theta, \
+                        self.f, \
+                        self.coriolis_beta, \
+                        self.y_zero_reference_cell, \
+                        U1.data, U1.pitch,  \
+                        U2.data, U2.pitch, \
+                        U3.data, U3.pitch, \
+                        self.R1.data, self.R1.pitch, \
+                        self.R2.data, self.R2.pitch, \
+                        self.R3.data, self.R3.pitch, \
+                        self.var_dt.data, \
+                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
+                        self.wind_stress.type, \
+                        self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
+                        self.wind_stress.x0, self.wind_stress.y0, \
+                        self.wind_stress.u0, self.wind_stress.v0, \
+                        self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
+                        self.t, np.int32(update_dt))
+                        
+    def findDtKernel(self, max_dt):
+        num_blocks_x = self.global_size[0]/self.local_size[0];
+        num_blocks_y = self.global_size[1]/self.local_size[1];
+        num_blocks = num_blocks_x*num_blocks_y
+        self.dt_kernel.reduce_dt(self.cl_queue, (self.dt_block_size, 1), (self.dt_block_size, 1), \
+                        self.var_dt.data, np.int32(num_blocks), 
+                        self.dt_scale, np.float32(max_dt) )
+                        
+    
+    def rungeKuttaKernel(self, substep, U1, U2, U3, Q1, Q2, Q3):
+        self.runge_kutta_kernel.RungeKutta(self.cl_queue, self.global_size, self.local_size, \
+                        self.nx, self.ny, \
+                        U1.data, U1.pitch,  \
+                        U2.data, U2.pitch, \
+                        U3.data, U3.pitch, \
+                        self.R1.data, self.R1.pitch, \
+                        self.R2.data, self.R2.pitch, \
+                        self.R3.data, self.R3.pitch, \
+                        Q1.data, Q1.pitch, \
+                        Q2.data, Q2.pitch, \
+                        Q3.data, Q3.pitch, \
+                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
+                        self.r, \
+                        self.var_dt.data, \
+                        np.int32(substep) )
+                        
+    def boundaryConditionsKernel(self, U1, U2, U3):
+        self.bc_kernel.boundaryCondition(self.cl_queue, U1, U2, U3)
+        
     def step(self, t_end=0.0):
         """
         Function which steps n timesteps
         """
-        n = int(t_end / self.dt + 1)
 
-        if self.t == 0:
-            self.bc_kernel.boundaryCondition(self.cl_queue, \
-                    self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
-        
-        for i in range(0, n):        
-            local_dt = np.float32(min(self.dt, t_end-i*self.dt))
-            
-            if (local_dt <= 0.0):
-                break
-        
+        # Only update dt if we are using variable/computed dt
+        update_dt = 1
+        if self.dt is not None:
+            update_dt = 0
+            local_dt = np.float32(self.dt)
+
+        n = 0
+        t_end = np.float32(t_end);
+        while (t_end > 0.0):
             if (self.use_rk2):
-                self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, local_dt, \
-                        self.g, \
-                        self.theta, \
-                        self.f, \
-                        self.coriolis_beta, \
-                        self.y_zero_reference_cell, \
-                        self.r, \
-                        np.int32(0), \
-                        self.cl_data.h0.data,  self.cl_data.h0.pitch,  \
-                        self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
-                        self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
-                        self.cl_data.h1.data,  self.cl_data.h1.pitch,  \
-                        self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
-                        self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
-                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
-                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
-                        self.wind_stress.type, \
-                        self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
-                        self.wind_stress.x0, self.wind_stress.y0, \
-                        self.wind_stress.u0, self.wind_stress.v0, \
-                        self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
-                        self.t)
+                # Substep one
+                self.fluxKernel(update_dt, self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+                if self.dt is not None:
+                    local_dt = np.float32(min(t_end, local_dt))
+                    upload_dt = np.zeros((128), dtype=np.float32)
+                    upload_dt[0] = local_dt
+                    cl.enqueue_copy(self.cl_queue, self.var_dt.data, upload_dt)
+                else:
+                    self.findDtKernel(t_end)
+                self.rungeKuttaKernel(0, self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0, \
+                                         self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+                self.boundaryConditionsKernel(self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+                        
+                # Substep two
+                self.fluxKernel(0, self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+                self.rungeKuttaKernel(1, self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0, \
+                                         self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+                self.boundaryConditionsKernel(self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
                 
-                self.bc_kernel.boundaryCondition(self.cl_queue, \
-                        self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
-                
-                self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, local_dt, \
-                        self.g, \
-                        self.theta, \
-                        self.f, \
-                        self.coriolis_beta, \
-                        self.y_zero_reference_cell, \
-                        self.r, \
-                        np.int32(1), \
-                        self.cl_data.h1.data,  self.cl_data.h1.pitch,  \
-                        self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
-                        self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
-                        self.cl_data.h0.data,  self.cl_data.h0.pitch,  \
-                        self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
-                        self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
-                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
-                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
-                        self.wind_stress.type, \
-                        self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
-                        self.wind_stress.x0, self.wind_stress.y0, \
-                        self.wind_stress.u0, self.wind_stress.v0, \
-                        self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
-                        self.t)
-                
-                self.bc_kernel.boundaryCondition(self.cl_queue, \
-                        self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0) 
-            else:
-                self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
-                        self.nx, self.ny, \
-                        self.dx, self.dy, local_dt, \
-                        self.g, \
-                        self.theta, \
-                        self.f, \
-                        self.coriolis_beta, \
-                        self.y_zero_reference_cell, \
-                        self.r, \
-                        np.int32(0), \
-                        self.cl_data.h0.data,  self.cl_data.h0.pitch,  \
-                        self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
-                        self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
-                        self.cl_data.h1.data,  self.cl_data.h1.pitch,  \
-                        self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
-                        self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
-                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
-                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
-                        self.wind_stress.type, \
-                        self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
-                        self.wind_stress.x0, self.wind_stress.y0, \
-                        self.wind_stress.u0, self.wind_stress.v0, \
-                        self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
-                        self.t)
+                # Swap h0 and h1
                 self.cl_data.swap()
-                self.bc_kernel.boundaryCondition(self.cl_queue, \
-                        self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
                 
-            self.t += local_dt
+                        
+            else:
+                self.fluxKernel(update_dt, self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+                if self.dt is not None:
+                    local_dt = np.float32(min(t_end, local_dt))
+                    upload_dt = np.zeros((128), dtype=np.float32)
+                    upload_dt[0] = local_dt
+                    cl.enqueue_copy(self.cl_queue, self.var_dt.data, upload_dt)
+                else:
+                    self.findDtKernel(t_end)
+                self.rungeKuttaKernel(0, self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0, \
+                                         self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+                self.boundaryConditionsKernel(self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+                      
+                # Swap h0 and h1  
+                self.cl_data.swap()
+            
+            if self.dt is not None:
+                t_end = t_end - local_dt;
+                self.t += np.float32(local_dt);
+            else:
+                local_dt = np.zeros((128), dtype=np.float32)
+                cl.enqueue_copy(self.cl_queue, local_dt, self.var_dt.data)
+                t_end = t_end - local_dt[0];
+                self.t += np.float32(local_dt[0]);
+                #print(local_dt[0]);
+            n = n + 1;
+            
             
         if self.write_netcdf:
             self.sim_writer.writeTimestep(self)
             
+            
         return self.t
-    
-    
-    
 
     def downloadBathymetry(self):
         return self.bathymetry.download(self.cl_queue)
-

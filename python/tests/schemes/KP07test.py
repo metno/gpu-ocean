@@ -142,6 +142,21 @@ class KP07test(unittest.TestCase):
                          msg='Movement in water (v): ' + str(vMinMax) + message)
                          
     ## Wall boundary conditions
+    def test_wall_central_var_dt(self):
+        self.setBoundaryConditions()
+        self.allocData()
+        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = KP07.KP07(self.cl_ctx, \
+                    self.eta0, self.Hi, self.u0, self.v0, \
+                    self.nx, self.ny, \
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("KP07", "wallBC", "central")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
     
     def test_wall_central(self):
         self.setBoundaryConditions()
@@ -150,8 +165,9 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt) #, boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta1, u1, v1 = self.sim.download()
@@ -170,8 +186,9 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt) #, boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta1, u1, v1 = self.sim.download()
@@ -187,8 +204,9 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt) #, boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta1, u1, v1 = self.sim.download()
@@ -203,8 +221,9 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt) #, boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta1, u1, v1 = self.sim.download()
@@ -213,6 +232,20 @@ class KP07test(unittest.TestCase):
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
 ## Test lake at rest cases
+    def test_lake_at_rest_flat_bottom_var_dt(self):
+        self.setBoundaryConditions()
+        self.allocData()
+        self.Hi = self.Hi+10.0
+        self.sim = KP07.KP07(self.cl_ctx, \
+                    self.eta0, self.Hi, self.u0, self.v0, \
+                    self.nx, self.ny, \
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta, u, v = self.sim.download()
+        self.checkLakeAtRest(eta, u, v)
+        
     def test_lake_at_rest_flat_bottom(self):
         self.setBoundaryConditions()
         self.allocData()
@@ -220,8 +253,9 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt) #, boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta, u, v = self.sim.download()
@@ -236,8 +270,9 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt) #, boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta, u, v = self.sim.download()
@@ -252,14 +287,32 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt) #, boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta, u, v = self.sim.download()
         self.checkLakeAtRest(eta, u, v)
         
 ## Full periodic boundary conditions
+
+    def test_periodic_central_var_dt(self):
+        self.setBoundaryConditions(bcSettings=2)
+        self.allocData()
+        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = KP07.KP07(self.cl_ctx, \
+                    self.eta0, self.Hi, self.u0, self.v0, \
+                    self.nx, self.ny, \
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("KP07", "wallBC", "central")
+        
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
     def test_periodic_central(self):
         self.setBoundaryConditions(bcSettings=2)
@@ -268,8 +321,10 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt, \
+                    boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta1, u1, v1 = self.sim.download()
@@ -285,8 +340,10 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt, \
+                    boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta1, u1, v1 = self.sim.download()
@@ -301,8 +358,10 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt, \
+                    boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta1, u1, v1 = self.sim.download()
@@ -320,8 +379,10 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt, \
+                    boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta1, u1, v1 = self.sim.download()
@@ -337,8 +398,10 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt, \
+                    boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta1, u1, v1 = self.sim.download()
@@ -355,8 +418,10 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt, \
+                    boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta1, u1, v1 = self.sim.download()
@@ -373,8 +438,10 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt, \
+                    boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta1, u1, v1 = self.sim.download()
@@ -390,8 +457,10 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt, \
+                    boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta1, u1, v1 = self.sim.download()
@@ -406,8 +475,10 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt, \
+                    boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta1, u1, v1 = self.sim.download()
@@ -415,6 +486,22 @@ class KP07test(unittest.TestCase):
         
         self.checkResults(eta1, u1, v1, eta2, u2, v2)       
 
+    def test_coriolis_central_var_dt(self):
+        self.setBoundaryConditions()
+        self.allocData()
+        self.f = 0.01
+        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = KP07.KP07(self.cl_ctx, \
+                    self.eta0, self.Hi, self.u0, self.v0, \
+                    self.nx, self.ny, \
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("KP07", "coriolis", "central")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
   
     def test_coriolis_central(self):
         self.setBoundaryConditions()
@@ -424,8 +511,9 @@ class KP07test(unittest.TestCase):
         self.sim = KP07.KP07(self.cl_ctx, \
                     self.eta0, self.Hi, self.u0, self.v0, \
                     self.nx, self.ny, \
-                    self.dx, self.dy, self.dt, \
-                    self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+                    self.dx, self.dy, \
+                    self.g, self.f, self.r, \
+                    dt=self.dt) #, boundary_conditions=self.boundaryConditions)
 
         t = self.sim.step(self.T)
         eta1, u1, v1 = self.sim.download()
