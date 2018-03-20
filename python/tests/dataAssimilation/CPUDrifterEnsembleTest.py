@@ -13,27 +13,25 @@ sys.path.insert(0, '../')
 from SWESimulators import Common
 from SWESimulators import DataAssimilationUtils as dautils
 
-from SWESimulators import DrifterEnsemble
+from SWESimulators import CPUDrifterEnsemble
 from dataAssimilation.BaseDrifterEnsembleTest import BaseDrifterEnsembleTest
 
-class DrifterEnsembleTest(BaseDrifterEnsembleTest):
+class CPUDrifterEnsembleTest(BaseDrifterEnsembleTest):
     #__metaclass__ = abc.ABCMeta
     
     def setUp(self):
-        super(DrifterEnsembleTest, self).setUp()
-        
-        self.cl_ctx = make_cl_ctx()                               
-                
+        super(CPUDrifterEnsembleTest, self).setUp()
+                        
     def tearDown(self):
-        super(DrifterEnsembleTest, self).tearDown()
+        super(CPUDrifterEnsembleTest, self).tearDown()
 
     ### Define required functions as abstract ###
 
     #@abc.abstractmethod
     def create_small_particle_set(self):
-        self.smallParticleSet = DrifterEnsemble.DrifterEnsemble(self.cl_ctx,
-                                                                self.numParticles,
-                                                                self.observationVariance)
+        self.smallParticleSet = CPUDrifterEnsemble.CPUDrifterEnsemble(self.cl_ctx,
+                                                                      self.numParticles,
+                                                                      self.observationVariance)
         self.smallParticleSet.setGridInfo(self.nx, self.ny, self.dx, self.dy, self.dt,
                                           self.boundaryCondition)
         self.smallParticleSet.setParameters()
@@ -42,9 +40,9 @@ class DrifterEnsembleTest(BaseDrifterEnsembleTest):
 
     #@abc.abstractmethod
     def create_resampling_particle_set(self):
-        self.resamplingParticleSet = DrifterEnsemble.DrifterEnsemble(self.cl_ctx,
-                                                                     self.resampleNumParticles,
-                                                                     observation_variance=self.resamplingObservationVariance)
+        self.resamplingParticleSet = CPUDrifterEnsemble.CPUDrifterEnsemble(self.cl_ctx,
+                                                                           self.resampleNumParticles,
+                                                                           observation_variance=self.resamplingObservationVariance)
         self.resamplingParticleSet.setGridInfo(self.nx, self.ny, self.dx, self.dy, self.dt)
         self.resamplingParticleSet.setParameters()
         self.resamplingParticleSet.init()
@@ -52,10 +50,10 @@ class DrifterEnsembleTest(BaseDrifterEnsembleTest):
 
     #@abc.abstractmethod
     def create_large_particle_set(self, size, domain_x, domain_y):
-        largeParticleSet = DrifterEnsemble.DrifterEnsemble(self.cl_ctx,
-                                                           size)
+        largeParticleSet = CPUDrifterEnsemble.CPUDrifterEnsemble(self.cl_ctx,
+                                                                 size)
         largeParticleSet.setGridInfo(10, 10, domain_x/10.0, domain_y/10.0, self.dt,
-                                               self.boundaryCondition)
+                                     self.boundaryCondition)
         largeParticleSet.setParameters()
         largeParticleSet.init()
         return largeParticleSet
