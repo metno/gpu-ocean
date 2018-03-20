@@ -31,100 +31,20 @@ import CDKLM16
 import GPUDrifterCollection
 import Common
 import DataAssimilationUtils as dautils
+import BaseDrifterEnsemble
 
 
-class DrifterEnsemble:
+class DrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
         
     def __init__(self, cl_ctx, numParticles, observation_variance=0.0):
         
-        self.cl_ctx = cl_ctx
+        super(DrifterEnsemble, self).__init__(cl_ctx, 
+                                              numParticles, 
+                                              observation_variance)
         
-        self.numParticles = numParticles
-        self.particles = [None]*(self.numParticles + 1)
-        
-        self.obs_index = self.numParticles
-        
-        self.simType = 'CDKLM16'
-        
-        self.observation_variance = observation_variance
-        
-        self.sim = None
-        
-    # UNCHANGED
-    def cleanUp(self):
-        if self.sim is not None:
-            self.sim.cleanUp()
-    
-    # ADDED
-    def setGridInfoFromSim(self, sim):
-        eta, hu, hv = sim.download()
-        Hi = sim.downloadBathymetry()[0]
-        self.setGridInfo(sim.nx, sim.ny, sim.dx, sim.dy, sim.dt,
-                         sim.boundary_conditions,
-                         eta=eta, hu=hu, hv=hv, H=Hi)
-        self.setParameters(f=sim.f, g=sim.g, beta=sim.coriolis_beta, r=sim.r, wind=sim.wind_stress)
-        
-    # IMPROVED
-    def setGridInfo(self, nx, ny, dx, dy, dt, 
-                    boundaryConditions=Common.BoundaryConditions(), 
-                    eta=None, hu=None, hv=None, H=None):
-        self.nx = nx
-        self.ny = ny
-        self.dx = dx
-        self.dy = dy
-        self.dt = dt
-        
-        # Default values for now:
-        self.initialization_variance = 10*dx
-        self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
-        self.initialization_cov = np.eye(2)*self.initialization_variance
-        
-        self.boundaryConditions = boundaryConditions
-        
-        assert(self.simType == 'CDKLM16'), 'CDKLM16 is currently the only supported scheme'
-        #if self.simType == 'CDKLM16':
-        self.ghostCells = np.array([2,2,2,2])
-        if self.boundaryConditions.isSponge():
-            sponge = self.boundaryConditions.getSponge()
-            for i in range(4):
-                if sponge[i] > 0: 
-                    self.ghostCells[i] = sponge[i]
-        dataShape =  ( ny + self.ghostCells[0] + self.ghostCells[2], 
-                       nx + self.ghostCells[1] + self.ghostCells[3]  )
-            
-        self.base_eta = eta
-        self.base_hu = hu
-        self.base_hv = hv
-        self.base_H = H
-            
-        # Create base initial data: 
-        if self.base_eta is None:
-            self.base_eta = np.zeros(dataShape, dtype=np.float32, order='C')
-        if self.base_hu is None:
-            self.base_hu  = np.zeros(dataShape, dtype=np.float32, order='C');
-        if self.base_hv is None:
-            self.base_hv  = np.zeros(dataShape, dtype=np.float32, order='C');
-        
-        # Bathymetry:
-        if self.base_H is None:
-            waterDepth = 10
-            self.base_H = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C')*waterDepth
- 
-
-        self.setParameters()
-    
-    
-    # IMPROVED
-    def setParameters(self, f=0, g=9.81, beta=0, r=0, wind=Common.WindStressParams(type=99)):
-        self.g = g
-        self.f = f
-        self.beta = beta
-        self.r = r
-        self.wind = wind
-    
     
     # ---------------------------------------
-    # Needs to be abstract!
+    # Implementing abstract function
     # ---------------------------------------
     def init(self):
 
@@ -138,51 +58,12 @@ class DrifterEnsemble:
                                    write_netcdf=False)
 
         # TO CHECK! Is it okay to have drifters as self.drifters - in order to easier reach its member functions?
-        drifters = GPUDrifterCollection.GPUDrifterCollection(self.cl_ctx, self.numParticles,
+        self.drifters = GPUDrifterCollection.GPUDrifterCollection(self.cl_ctx, self.numParticles,
                       observation_variance=self.observation_variance,
                       boundaryConditions=self.boundaryConditions,
                       domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
         
-        drifters.initializeUniform()
-        self.sim.attachDrifters(drifters)
+        self.drifters.initializeUniform()
+        self.sim.attachDrifters(self.drifters)
     
-    def observeParticles(self):
-        return self.sim.drifters.getDrifterPositions()
-    
-    def observeTrueState(self):
-        return self.sim.drifters.getObservationPosition()
-    
-    def setParticleStates(self, newStates):
-        self.sim.drifters.setDrifterPositions(newStates)
-        
-    def setObservationState(self, newState):
-        self.sim.drifters.setObservationPosition(newState)
-    
-    def step(self, t):
-        return self.sim.step(t)
-    
-    def getDistances(self, obs=None):
-        return self.sim.drifters.getDistances()
-       
-    def resample(self, newSampleIndices, reinitialization_variance):
-        self.sim.drifters.resample(newSampleIndices, reinitialization_variance)
-                    
-    def getEnsembleMean(self):
-        return self.sim.drifters.getCollectionMean()
-    
-    def plotDistanceInfo(self, title=None):
-        self.sim.drifters.plotDistanceInfo()
-            
-    def enforceBoundaryConditions(self):
-        self.sim.drifters.enforceBoundaryConditions()
-    
-    ### Code that can be in parent class:
-    def getDomainSizeX(self):
-        return self.nx*self.dx
-    def getDomainSizeY(self):
-        return self.ny*self.dy
-    def getObservationVariance(self):
-        return self.observation_variance
-    def getNumParticles(self):
-        return self.numParticles
-    
+   

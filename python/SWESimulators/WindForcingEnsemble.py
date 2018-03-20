@@ -97,7 +97,7 @@ class WindForcingEnsemble:
     def initWindCase(self, driftersPerOceanModel=1):
         self.windSpeed = 2.0
         self.directions = np.random.rand(self.numParticles + 1)*360
-        print "Directions: ", self.directions
+        #print "Directions: ", self.directions
         self.driftersPerOceanModel = driftersPerOceanModel
         
         for i in range(self.numParticles+1):
