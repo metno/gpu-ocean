@@ -9,18 +9,22 @@ import xmlrunner
 #import testUtils
 from dataAssimilation.CPUDrifterTest import CPUDrifterTest
 from dataAssimilation.GPUDrifterTest import GPUDrifterTest
+from dataAssimilation.OceanStateNoiseTest import OceanStateNoiseTest
 
-if (len(sys.argv) < 1):
+def printSupportedTests():
+    print ("Supported tests:")
+    print ("0: All, 1: CPUDrifter, 2: GPUDrifter, 3: OceanStateNoise")
+
+
+if (len(sys.argv) < 2):
     print ("Usage:")
-    print ("\t %s [cpuOnly]  [jenkins]" % sys.argv[0])
+    print ("\t %s tests  [jenkins]" % sys.argv[0])
+    printSupportedTests()
     exit()
+tests = int(sys.argv[1])
 
 # In order to format the test report so that Jenkins can read it:
 jenkins = False
-cpuOnly = False
-if (len(sys.argv) > 1):
-    if sys.argv[1] == "1":
-        cpuOnly = True
 if (len(sys.argv) > 2):
     if (sys.argv[1].lower() == "jenkins"):
         jenkins = True
@@ -31,12 +35,19 @@ if (jenkins):
 
 # Define the tests that will be part of our test suite:
 test_classes_to_run = None
-if cpuOnly:
+if tests == 0:
+    test_classes_to_run = [CPUDrifterTest, GPUDrifterTest, OceanStateNoiseTest]
+elif tests == 1:
     test_classes_to_run = [CPUDrifterTest]
+elif tests == 2:
+    test_classes_to_run = [GPUDrifterTest]
+elif tests == 3:
+    test_classes_to_run = [OceanStateNoiseTest]
 else:
-    test_classes_to_run = [CPUDrifterTest, GPUDrifterTest]
-
-
+    print ("Error: " + str(tests) + " is not a supported test number...")
+    printSupportedTests()
+    exit()
+    
 loader = unittest.TestLoader()
 suite_list = []
 for test_class in test_classes_to_run:
