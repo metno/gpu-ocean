@@ -63,4 +63,17 @@ class CPUDrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
     def step(self, t):
         # TODO: Steel particleDrift function from BasicParticleFilter.ipynb
         pass
-   
+    
+    #-------------------
+    ### NEW
+    #-------------------
+    def copy(self):
+        copy = CPUDrifterEnsemble(None, self.numParticles, self.observation_variance)
+        copy.setGridInfo(self.nx, self.ny, self.dx, self.dy, self.dt,
+                         self.boundaryConditions,
+                         self.base_eta, self.base_hu, self.base_hv, self.base_H)
+        copy.setParameters(self.f, self.g, self.beta, self.r, self.wind)
+        copy.init()
+        copy.setParticleStates(self.observeParticles())
+        copy.setObservationState(self.observeTrueState())
+        return copy
