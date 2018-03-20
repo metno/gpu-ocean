@@ -15,7 +15,7 @@ from SWESimulators import DataAssimilationUtils as dautils
 
 
 
-class DrifterTest(unittest.TestCase):
+class BaseDrifterTest(unittest.TestCase):
     __metaclass__ = abc.ABCMeta
     
     def setUp(self):

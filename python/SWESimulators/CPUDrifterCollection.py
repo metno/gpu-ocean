@@ -26,9 +26,9 @@ import numpy as np
 import time
 
 import Common
-import DrifterCollection
+import BaseDrifterCollection
 
-class CPUDrifterCollection(DrifterCollection.DrifterCollection):
+class CPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
     """
     Class holding the collection of drifters.
     """ 

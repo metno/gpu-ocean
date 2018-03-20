@@ -10,11 +10,11 @@ from testUtils import *
 sys.path.insert(0, '../')
 from SWESimulators import Common
 from SWESimulators.GPUDrifterCollection import *
-from dataAssimilation.DrifterTest import DrifterTest
+from dataAssimilation.BaseDrifterTest import BaseDrifterTest
 
 
 
-class GPUDrifterTest(DrifterTest):
+class GPUDrifterTest(BaseDrifterTest):
 
     def setUp(self):
         super(GPUDrifterTest, self).setUp()

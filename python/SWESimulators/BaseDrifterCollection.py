@@ -29,7 +29,7 @@ import abc
 import Common
 import DataAssimilationUtils as dautils
 
-class DrifterCollection(object):    
+class BaseDrifterCollection(object):    
     """
     Abstract collection of Drifters. 
     All actual drifters should inherit this class, and implement its abstract methods.

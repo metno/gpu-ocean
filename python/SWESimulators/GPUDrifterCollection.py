@@ -27,9 +27,9 @@ import time
 import pyopencl
 
 import Common
-import DrifterCollection
+import BaseDrifterCollection
 
-class GPUDrifterCollection(DrifterCollection.DrifterCollection):
+class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
     def __init__(self, cl_ctx, numDrifters, \
                  observation_variance=0.1, \
                  boundaryConditions=Common.BoundaryConditions(), \

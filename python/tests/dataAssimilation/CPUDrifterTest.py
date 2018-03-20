@@ -9,9 +9,9 @@ from testUtils import *
 sys.path.insert(0, '../')
 from SWESimulators import Common
 from SWESimulators.CPUDrifterCollection import *
-from dataAssimilation.DrifterTest import DrifterTest
+from dataAssimilation.BaseDrifterTest import BaseDrifterTest
 
-class CPUDrifterTest(DrifterTest):
+class CPUDrifterTest(BaseDrifterTest):
 
     def setUp(self):
         super(CPUDrifterTest, self).setUp()
