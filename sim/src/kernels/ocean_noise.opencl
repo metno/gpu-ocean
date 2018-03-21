@@ -103,3 +103,44 @@ __kernel void uniformDistribution(
 }
 
 
+/**
+  * Kernel that generates normal distributed random numbers with mean 0 and variance 1.
+  */
+__kernel void normalDistribution(
+        // Size of data
+        int seed_nx_, int seed_ny_,
+	int random_nx_, 
+	
+        //Data
+        __global float* seed_ptr_, int seed_pitch_,
+        __global float* random_ptr_, int random_pitch_
+    ) {
+
+    //Index of cell within domain
+    const int ti = get_global_id(0); 
+    const int tj = get_global_id(1);
+
+    // Each thread computes and writes two uniform numbers.
+
+    if ((ti < seed_nx_) && (tj < seed_ny_)) {
+    
+	//Compute pointer to current row in the U array
+	__global float* const seed_row = (__global float*) ((__global char*) seed_ptr_ + seed_pitch_*tj);
+	__global float* const random_row = (__global float*) ((__global char*) random_ptr_ + random_pitch_*tj);
+	
+	float seed = seed_row[ti];
+	float2 u = boxMuller(&seed);
+
+	seed_row[ti] = seed;
+
+	if (2*ti + 1 < random_nx_) {
+	    random_row[2*ti    ] = u.x;
+	    random_row[2*ti + 1] = u.y;
+	}
+	else if (2*ti == random_nx_) {
+	    random_row[2*ti    ] = u.x;
+	}
+    }
+}
+
+

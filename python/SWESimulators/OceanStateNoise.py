@@ -66,10 +66,11 @@ class OceanStateNoise(object):
         # Generate seed:
         self.floatMax = 2147483648.0
         self.host_seed = np.random.rand(self.seed_ny, self.seed_nx)*self.floatMax
+        self.host_seed.astype(np.float32, order='C')
         self.seed = Common.OpenCLArray2D(cl_ctx, self.seed_nx, self.seed_ny, 0, 0, self.host_seed)
         
         # Allocate memory for random numbers
-        self.random_numbers_host = np.zeros((self.rand_ny, self.rand_nx), dtype=np.float32)
+        self.random_numbers_host = np.zeros((self.rand_ny, self.rand_nx), dtype=np.float32, order='C')
         self.random_numbers = Common.OpenCLArray2D(cl_ctx, self.rand_nx, self.rand_ny, 0, 0, self.random_numbers_host)
         
         # Generate kernels
@@ -117,9 +118,13 @@ class OceanStateNoise(object):
         return self.random_numbers.download(self.cl_queue)
     
     def generateNormalDistribution(self):
-        # Call kernel -> new random numbers
-        pass
-    
+        self.kernels.normalDistribution(self.cl_queue, 
+                                        self.global_size_random_numbers, self.local_size,
+                                        self.seed_nx, self.seed_ny,
+                                        self.rand_nx,
+                                        self.seed.data, self.seed.pitch,
+                                        self.random_numbers.data, self.random_numbers.pitch)
+        
     def generateUniformDistribution(self):
         # Call kernel -> new random numbers
         self.kernels.uniformDistribution(self.cl_queue, 
@@ -149,14 +154,15 @@ class OceanStateNoise(object):
         seed = ((seed*1103515245) + 12345) % 0x7fffffff
         return seed / 2147483648.0, seed
     
-    def _boxMuller(self, seed):
+    def _boxMuller(self, seed_in):
+        seed = np.long(seed_in)
         u1, seed = self._lcg(seed)
         u2, seed = self._lcg(seed)
         r = np.sqrt(-2.0*np.log(u1))
         theta = 2*np.pi*u2
         n1 = r*np.cos(theta)
         n2 = r*np.sin(theta)
-        return n1, n2, seed
+        return n1, n2, np.float32(seed)
     
     def _CPUUpdateRandom(self, normalDist):
         """
