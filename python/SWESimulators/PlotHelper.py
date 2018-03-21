@@ -59,9 +59,9 @@ class PlotHelper:
         ax.set_aspect('equal')
         plt.title('Eta')
         plt.colorbar()
-        self.particles = plt.scatter(x=None, y=None, color='blue')
+        self.drifters = plt.scatter(x=None, y=None, color='blue')
         self.observations = plt.scatter(x=None, y=None, color='red')
-        self.ensembleMean = plt.scatter(x=None, y=None, color='red', marker='+')
+        self.driftersMean = plt.scatter(x=None, y=None, color='red', marker='+')
         
         ax = self.fig.add_subplot(self.gs[0, 1])
         self.sp_u = plt.imshow(u1, interpolation=interpolation_type, origin='bottom', vmin=-1.5, vmax=1.5, extent=domain_extent)
@@ -166,12 +166,12 @@ class PlotHelper:
         time.sleep(0.001)
         
     
-    def showParticles(self, particles, showObservation=True, showMean=True):
-        self.particles.set_offsets(particles.getParticlePositions())
+    def showDrifters(self, drifters, showObservation=True, showMean=True):
+        self.drifters.set_offsets(drifters.getDrifterPositions())
         if showMean:
-            self.ensembleMean.set_offsets(particles.getEnsembleMean())
+            self.driftersMean.set_offsets(drifters.getCollectionMean())
         if showObservation:
-            self.observations.set_offsets(particles.getObservationPosition())
+            self.observations.set_offsets(drifters.getObservationPosition())
         plt.draw()
         
         

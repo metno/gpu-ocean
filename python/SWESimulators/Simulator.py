@@ -198,7 +198,7 @@ class Simulator(object):
         self.wind_stress = otherSim.wind_stress
         
         if otherSim.hasDrifters and self.hasDrifters:
-            self.drifters.setParticlePositions(otherSim.drifters.getParticlePositions())
+            self.drifters.setDrifterPositions(otherSim.drifters.getDrifterPositions())
             self.drifters.setObservationPosition(otherSim.drifters.getObservationPosition())
         
         
