@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class takes care of the global ensemble of particles for EPS.
+This python class provides an abstract collection of Drifters. All actual drifters should inherit this class, and implement its abstract methods.
 
 Copyright (C) 2018  SINTEF ICT
 
@@ -29,27 +29,29 @@ import abc
 import Common
 import DataAssimilationUtils as dautils
 
-class Drifter(object):
-    __metaclass__ = abc.ABCMeta
-    
+class BaseDrifterCollection(object):    
     """
-    Class holding the global set of particles.
+    Abstract collection of Drifters. 
+    All actual drifters should inherit this class, and implement its abstract methods.
     """ 
-    def __init__(self, numParticles, observation_variance=0.1, \
+    
+    __metaclass__ = abc.ABCMeta
+
+    def __init__(self, numDrifters, observation_variance=0.1, \
                  boundaryConditions=Common.BoundaryConditions(), \
                  domain_size_x=1.0, domain_size_y=1.0):
         """
         Creates a GlobalParticles object for drift trajectory ensemble.
 
-        numParticles: number of particles in the ensemble, not included the observation
+        numDrifters: number of drifers in the collection, not included the observation
         observation_variance: uncertainty of observation position
         boundaryConditions: BoundaryConditions object, relevant during re-initialization of particles.    
         """
         
-        self.numParticles = numParticles
+        self.numDrifters = numDrifters
         
         # Observation index is the last particle
-        self.obs_index = self.numParticles 
+        self.obs_index = self.numDrifters 
         self.observation_variance = observation_variance
         
         self.positions = None # Needs to be allocated in the child class
@@ -71,7 +73,7 @@ class Drifter(object):
     
     ### Abstract GETs
     @abc.abstractmethod
-    def getParticlePositions(self):
+    def getDrifterPositions(self):
         pass
     
     @abc.abstractmethod
@@ -80,7 +82,7 @@ class Drifter(object):
     
     ### Abstract SETs
     @abc.abstractmethod
-    def setParticlePositions(self, newParticlePositions):
+    def setDrifterPositions(self, newDrifterPositions):
         pass
     
     @abc.abstractmethod
@@ -90,9 +92,9 @@ class Drifter(object):
     
     
     ### GETs
-    def getNumParticles(self):
-        #print "\n\nUsing Drifter::getNumParticles()\n"
-        return self.numParticles
+    def getNumDrifters(self):
+        #print "\n\nUsing DrifterCollection::getNumDrifters()\n"
+        return self.numDrifters
     
     def getObservationVariance(self):
         return self.observation_variance
@@ -135,15 +137,15 @@ class Drifter(object):
         """
         if not (self.boundaryConditions.isPeriodicNorthSouth() or self.boundaryConditions.isPeriodicEastWest()):
             #return self.positions 
-            return self.getParticlePositions()
+            return self.getDrifterPositions()
         else:
-            periodicPositions = self.getParticlePositions().copy()
+            periodicPositions = self.getDrifterPositions().copy()
             obs_x, obs_y = self.getObservationPosition()
             if obs is not None:
                 obs_x = obs[0]
                 obs_y = obs[1]
             if self.boundaryConditions.isPeriodicEastWest():
-                for i in range(self.getNumParticles()):
+                for i in range(self.getNumDrifters()):
                     x = periodicPositions[i,0]
                     
                     pos_x = np.array([x - self.getDomainSizeX(), x, \
@@ -152,7 +154,7 @@ class Drifter(object):
                     periodicPositions[i,0] = pos_x[np.argmin(dist_x)]
 
             if self.boundaryConditions.isPeriodicNorthSouth():
-                for i in range(self.numParticles):
+                for i in range(self.getNumDrifters()):
                     y = periodicPositions[i,1]
                     
                     pos_y = np.array([y - self.getDomainSizeY(), y, \
@@ -164,15 +166,16 @@ class Drifter(object):
     
     def getDistances(self, obs=None):
         """
-        Computes the distance between particles and observation. Possible periodic boundary conditions are taken care of.
+        Computes the distance between drifter and observation. Possible periodic boundary conditions are taken care of.
+        obs can be sat to be different than the observation within this collection.
         """
-        distances = np.zeros(self.getNumParticles())
+        distances = np.zeros(self.getNumDrifters())
         if obs is None:
             obs = self.getObservationPosition()
             closestPositions = self._getClosestPositions()
         else:
             closestPositions = self._getClosestPositions(obs)
-        for i in range(self.getNumParticles()):
+        for i in range(self.getNumDrifters()):
             distances[i] = np.sqrt( (closestPositions[i,0]-obs[0])**2 +
                                     (closestPositions[i,1]-obs[1])**2)
         return distances
@@ -195,12 +198,12 @@ class Drifter(object):
         return x, y
     
     
-    def getEnsembleMean(self):
+    def getCollectionMean(self, obs=None):
         """
-        Calculates the mean position of all the particles in the ensemble.
-        For cases with periodic boundary conditions, the every particle position is considered in the direction which minimize the distance to the observation.
+        Calculates the mean position of all the drifters in the collection.
+        For cases with periodic boundary conditions, the every drifter position is considered in the direction which minimize the distance to the observation.
         """
-        closestPositions = self._getClosestPositions()
+        closestPositions = self._getClosestPositions(obs=obs)
         mean_x, mean_y = np.mean(closestPositions, axis=0)
         mean_x, mean_y = self._enforceBoundaryConditionsOnPosition(mean_x, mean_y)
         return np.array([mean_x, mean_y])
@@ -215,58 +218,57 @@ class Drifter(object):
         reinitialization_variance: variance used when resampling duplicates
         """
 
-        oldParticlePositions = self.getParticlePositions().copy()
-        newNumberOfParticles = len(newSampleIndices)
-        newParticlePositions = np.zeros((newNumberOfParticles, 2))
+        oldDrifterPositions = self.getDrifterPositions().copy()
+        newNumberOfDrifters = len(newSampleIndices)
+        newDrifterPositions = np.zeros((newNumberOfDrifters, 2))
 
-        if self.getNumParticles() != newNumberOfParticles:
+        if self.getNumDrifters() != newNumberOfDrifters:
             raise RuntimeError("ERROR: The size of the new ensemble differs from the old size!\n" + \
-                               "(old size, new size): " + str((self.getNumParticles(), newNumberOfParticles)) + \
+                               "(old size, new size): " + str((self.getNumDrifters(), newNumberOfDrifters)) + \
                                "\nWe can fix this in the future by requiring a function resizeEnsemble")
 
         # We really do not the if. The random number with zero variance returns exactly the mean
         if reinitialization_variance == 0:
             # Simply copy the given positions
-            newParticlePositions[:,:] = oldParticlePositions[newSampleIndices, :]
+            newDrifterPositions[:,:] = oldDrifterPositions[newSampleIndices, :]
         else:
             # Make sure to make a clean copy of first resampled particle, and add a disturbance of the next ones.
-            resampledOnce = np.full(self.getNumParticles(), False, dtype=bool)
+            resampledOnce = np.full(self.getNumDrifters(), False, dtype=bool)
             var = np.eye(2)*reinitialization_variance
             for i in range(len(newSampleIndices)):
                 index = newSampleIndices[i]
                 if resampledOnce[index]:
-                    newParticlePositions[i,:] = np.random.multivariate_normal(oldParticlePositions[index,:], var)
+                    newDrifterPositions[i,:] = np.random.multivariate_normal(oldDrifterPositions[index,:], var)
                 else:
-                    newParticlePositions[i,:] = oldParticlePositions[index,:]
+                    newDrifterPositions[i,:] = oldDrifterPositions[index,:]
                     resampledOnce[index] = True
 
         # Set particle positions to the ensemble:            
-        self.setParticlePositions(newParticlePositions)
+        self.setDrifterPositions(newDrifterPositions)
 
         # Enforce boundary conditions
         self.enforceBoundaryConditions()
 
 
     
-    def initializeParticles(self, domain_size_x=1.0, domain_size_y=1.0):
+    def initializeUniform(self):
         """
-        Initialization of all particles (and observation) within a rectangle of given size.
-        domain_size_x [default 1.0]: size of rectangle in x-direction 
-        domain_size_y [default 1.0]: size of rectangle in y-direction
+        Initialization of all particles (and observation) within the domain.
         """
 
         # Initialize in unit square
-        np.copyto(self.positions, np.random.rand(self.numParticles + 1, 2))
-        # Ensure that the observation is in the middle 0.5x0.5 square:
-        self.positions[self.obs_index, :] = self.positions[self.obs_index]*0.5 + 0.25
+        positions = np.random.rand(self.getNumDrifters()+1, 2)  
         
-        # Map to given square
-        self.positions[:,0] = self.positions[:,0]*domain_size_x
-        self.positions[:,1] = self.positions[:,1]*domain_size_y
+        # Move observation to the middle 0.5x0.5 square
+        positions[-1,:] = positions[-1,:]*0.5 + 0.25
         
-        self.domain_size_x = domain_size_x
-        self.domain_size_y = domain_size_y
+        # Map to domain
+        positions[:,0] = positions[:,0]*self.domain_size_x
+        positions[:,1] = positions[:,1]*self.domain_size_y
         
+        # Set positions
+        self.setDrifterPositions(positions[:-1, :])
+        self.setObservationPosition(positions[-1, :])
     
     def plotDistanceInfo(self, title=None):
         """
@@ -277,13 +279,13 @@ class Drifter(object):
         
         # PLOT POSITIONS OF PARTICLES AND OBSERVATIONS
         ax0 = plt.subplot2grid((2,3), (0,0))
-        plt.plot(self.getParticlePositions()[:,0], \
-                 self.getParticlePositions()[:,1], 'b.')
+        plt.plot(self.getDrifterPositions()[:,0], \
+                 self.getDrifterPositions()[:,1], 'b.')
         plt.plot(self.getObservationPosition()[0], \
                  self.getObservationPosition()[1], 'r.')
-        ensembleMean = self.getEnsembleMean()
-        if ensembleMean is not None:
-            plt.plot(ensembleMean[0], ensembleMean[1], 'r+')
+        collectionMean = self.getCollectionMean()
+        if collectionMean is not None:
+            plt.plot(collectionMean[0], collectionMean[1], 'r+')
         plt.xlim(0, self.getDomainSizeX())
         plt.xlabel('x')
         plt.ylabel('y')

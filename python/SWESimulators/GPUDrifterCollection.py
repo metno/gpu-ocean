@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class represent an ensemble of particles stored on the GPU and using the GPU for drift calculations.
+This python class implements a DrifterCollection living on the GPU.
 
 Copyright (C) 2018  SINTEF ICT
 
@@ -27,15 +27,22 @@ import time
 import pyopencl
 
 import Common
-import Drifter
+import BaseDrifterCollection
 
-class GPUDrifter(Drifter.Drifter):
-    def __init__(self, cl_ctx, numParticles, \
+class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
+    def __init__(self, cl_ctx, numDrifters, \
                  observation_variance=0.1, \
                  boundaryConditions=Common.BoundaryConditions(), \
                  domain_size_x=1.0, domain_size_y=1.0, \
                  cl_queue=None, \
                  block_width = 64):
+        
+        super(GPUDrifterCollection, self).__init__(numDrifters,
+                                observation_variance=observation_variance,
+                                boundaryConditions=boundaryConditions,
+                                domain_size_x=domain_size_x, 
+                                domain_size_y=domain_size_y)
+        
         # Define OpenCL environment:
         self.cl_ctx = cl_ctx
         self.block_width = block_width
@@ -48,29 +55,22 @@ class GPUDrifter(Drifter.Drifter):
         if self.cl_queue is None:
             self.cl_queue = pyopencl.CommandQueue(self.cl_ctx)
         
-        self.numParticles = numParticles
-        self.obs_index = self.numParticles
-        self.observation_variance = observation_variance
         self.sensitivity = 1.0
-        
-        self.domain_size_x = domain_size_x
-        self.domain_size_y = domain_size_y
-        self.boundaryConditions = boundaryConditions
-        
-        self.particlesHost = np.zeros((self.numParticles + 1, 2)).astype(np.float32, order='C')
-        self.particlesDevice = Common.OpenCLArray2D(self.cl_ctx, \
-                                                    2, self.numParticles+1, 0, 0, \
-                                                    self.particlesHost)
+         
+        self.driftersHost = np.zeros((self.getNumDrifters() + 1, 2)).astype(np.float32, order='C')
+        self.driftersDevice = Common.OpenCLArray2D(self.cl_ctx, \
+                                                   2, self.getNumDrifters()+1, 0, 0, \
+                                                    self.driftersHost)
         
         self.driftKernels = Common.get_kernel(self.cl_ctx,\
             "driftKernels.opencl", self.block_width, self.block_height)
         self.local_size = (self.block_width, self.block_height)
-        self.global_size = (int(np.ceil((self.numParticles + 2)/float(self.block_width))*self.block_width), 
+        self.global_size = (int(np.ceil((self.getNumDrifters() + 2)/float(self.block_width))*self.block_width), 
                             self.block_height )
         
         #print "local_size: ", self.local_size
         #print "global_size: ", self.global_size
-        #print "numParticles + obs: ", self.numParticles + 1
+        #print "numDrifters + obs: ", self.numDrifters + 1
         # remember: shape = (y, x)
         
     def copy(self):
@@ -78,8 +78,8 @@ class GPUDrifter(Drifter.Drifter):
         Makes an independent indentical copy of the current object
         """
     
-        copyOfSelf = GPUDrifter(self.cl_ctx,
-                                self.numParticles,
+        copyOfSelf = GPUDrifterCollection(self.cl_ctx,
+                                self.getNumDrifters(),
                                 observation_variance = self.observation_variance,
                                 boundaryConditions = self.boundaryConditions,
                                 domain_size_x = self.domain_size_x, 
@@ -87,52 +87,35 @@ class GPUDrifter(Drifter.Drifter):
                                 cl_queue = self.cl_queue,
                                 block_width = self.block_width)
         
-        copyOfSelf.setParticlePositions(self.getParticlePositions())
+        copyOfSelf.setDrifterPositions(self.getDrifterPositions())
         copyOfSelf.setObservationPosition(self.getObservationPosition())
         
         return copyOfSelf
     
     
-    # To be removed
-    def initializeParticles(self, domain_size_x = 1.0, domain_size_y = 1.0):
-        
-         # Initialize in unit square
-        self.particlesHost = np.random.rand(self.numParticles + 1, 2)        
-        # Ensure that the observation is in the middle 0.5x0.5 square:
-        self.particlesHost[self.obs_index, :] = self.particlesHost[self.obs_index]*0.5 + 0.25
-        
-        # Map to given square
-        self.particlesHost[:,0] = self.particlesHost[:,0]*domain_size_x
-        self.particlesHost[:,1] = self.particlesHost[:,1]*domain_size_y
-        
-        self.domain_size_x = domain_size_x
-        self.domain_size_y = domain_size_y
-        self.particlesHost = self.particlesHost.astype(np.float32, order='C')
-        
-        self.particlesDevice.upload(self.cl_queue, self.particlesHost)
-        
-    def setParticlePositions(self, newParticlePositions):
-        ### Need to attache the observation to the newParticlePositions, and then upload
+    
+    def setDrifterPositions(self, newDrifterPositions):
+        ### Need to attache the observation to the newDrifterPositions, and then upload
         # to the GPU
-        newPositionsAll = np.concatenate((newParticlePositions, np.array([self.getObservationPosition()])), \
+        newPositionsAll = np.concatenate((newDrifterPositions, np.array([self.getObservationPosition()])), \
                                          axis=0)
         #print newPositionsAll
-        self.particlesDevice.upload(self.cl_queue, newPositionsAll)
+        self.driftersDevice.upload(self.cl_queue, newPositionsAll)
     
     def setObservationPosition(self, newObservationPosition):
-        newPositionsAll = np.concatenate((self.getParticlePositions(), np.array([newObservationPosition])))
-        self.particlesDevice.upload(self.cl_queue, newPositionsAll)
+        newPositionsAll = np.concatenate((self.getDrifterPositions(), np.array([newObservationPosition])))
+        self.driftersDevice.upload(self.cl_queue, newPositionsAll)
         
     def setSensitivity(self, sensitivity):
         self.sensitivity = sensitivity
         
-    def getParticlePositions(self):
-        allParticles = self.particlesDevice.download(self.cl_queue)
-        return allParticles[:-1, :]
+    def getDrifterPositions(self):
+        allDrifters = self.driftersDevice.download(self.cl_queue)
+        return allDrifters[:-1, :]
     
     def getObservationPosition(self):
-        allParticles = self.particlesDevice.download(self.cl_queue)
-        return allParticles[self.obs_index, :]
+        allDrifters = self.driftersDevice.download(self.cl_queue)
+        return allDrifters[self.obs_index, :]
     
     def drift(self, eta, hu, hv, H0, nx, ny, dx, dy, dt, \
               x_zero_ref, y_zero_ref):
@@ -146,17 +129,17 @@ class GPUDrifter(Drifter.Drifter):
                                                H0, \
                                                np.int32(self.boundaryConditions.isPeriodicNorthSouth()), \
                                                np.int32(self.boundaryConditions.isPeriodicEastWest()), \
-                                               np.int32(self.numParticles), \
-                                               self.particlesDevice.data, \
-                                               self.particlesDevice.pitch, \
+                                               np.int32(self.getNumDrifters()), \
+                                               self.driftersDevice.data, \
+                                               self.driftersDevice.pitch, \
                                                np.float32(self.sensitivity))
 
     def setCLQueue(self, cl_queue):
         self.cl_queue = cl_queue
         
     def cleanUp(self):
-        if (self.particlesDevice is not None):
-            self.particlesDevice.release()
+        if (self.driftersDevice is not None):
+            self.driftersDevice.release()
             
     def enforceBoundaryConditions(self):
         if self.boundaryConditions.isPeriodicNorthSouth or self.boundaryConditions.isPeriodicEastWest:
@@ -165,7 +148,7 @@ class GPUDrifter(Drifter.Drifter):
                                                         np.float32(self.domain_size_y), \
                                                         np.int32(self.boundaryConditions.isPeriodicNorthSouth()), \
                                                         np.int32(self.boundaryConditions.isPeriodicEastWest()), \
-                                                        np.int32(self.numParticles), \
-                                                        self.particlesDevice.data, \
-                                                        self.particlesDevice.pitch)
+                                                        np.int32(self.numDrifters), \
+                                                        self.driftersDevice.data, \
+                                                        self.driftersDevice.pitch)
 

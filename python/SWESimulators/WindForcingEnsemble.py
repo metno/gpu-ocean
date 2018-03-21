@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class takes care of the global ensemble of particles for EPS.
+This python class implements a Ensemble of particles, each consisting of a single drifter in its own ocean state. The perturbation parameter is the wind direction.
+
 
 Copyright (C) 2018  SINTEF ICT
 
@@ -27,12 +28,12 @@ import time
 import abc
 
 import CDKLM16
-import GPUDrifter
+import GPUDrifterCollection
 import Common
 import DataAssimilationUtils as dautils
 
 
-class WindForcingEnsamble:
+class WindForcingEnsemble:
         
     def __init__(self, numParticles, cl_ctx):
         
@@ -96,7 +97,7 @@ class WindForcingEnsamble:
     def initWindCase(self, driftersPerOceanModel=1):
         self.windSpeed = 2.0
         self.directions = np.random.rand(self.numParticles + 1)*360
-        print "Directions: ", self.directions
+        #print "Directions: ", self.directions
         self.driftersPerOceanModel = driftersPerOceanModel
         
         for i in range(self.numParticles+1):
@@ -119,12 +120,12 @@ class WindForcingEnsamble:
                 # number in the other particles.
                 driftersPerOceanModel = 1
             
-            drifters = GPUDrifter.GPUDrifter(self.cl_ctx, driftersPerOceanModel,
+            drifters = GPUDrifterCollection.GPUDrifterCollection(self.cl_ctx, driftersPerOceanModel,
                                              observation_variance=self.observation_variance,
                                              boundaryConditions=self.boundaryConditions,
                                              domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
             initPos = np.random.multivariate_normal(self.midPoint, self.initialization_cov, driftersPerOceanModel)
-            drifters.setParticlePositions(initPos)
+            drifters.setDrifterPositions(initPos)
             #print "drifter particles: ", drifter.getParticlePositions()
             #print "drifter observations: ", drifter.getObservationPosition()
             self.particles[i].attachDrifters(drifters)
@@ -134,12 +135,12 @@ class WindForcingEnsamble:
         drifterPositions = np.empty((0,2))
         for oceanState in self.particles[:-1]:
             drifterPositions = np.append(drifterPositions, 
-                                         oceanState.drifters.getParticlePositions(),
+                                         oceanState.drifters.getDrifterPositions(),
                                          axis=0)
         return drifterPositions
     
     def observeTrueState(self):
-        observation = self.particles[self.obs_index].drifters.getParticlePositions()
+        observation = self.particles[self.obs_index].drifters.getDrifterPositions()
         return observation[0,:]
     
     def step(self, t):
@@ -203,7 +204,7 @@ class WindForcingEnsamble:
             newOceanStates[i] = (eta0, hu0, hv0, eta1, hu1, hv1)
             
             self.particles[i].wind_stress = newWindInstance
-            self.particles[i].drifters.setParticlePositions(newPos)
+            self.particles[i].drifters.setDrifterPositions(newPos)
 
         self.directions = newWindDirection.copy()
         
