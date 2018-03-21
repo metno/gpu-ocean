@@ -160,7 +160,7 @@ class BaseDrifterEnsemble(object):
         return self.drifters.getCollectionMean()
     
     def plotDistanceInfo(self, title=None):
-        self.drifters.plotDistanceInfo()
+        self.drifters.plotDistanceInfo(title=title)
             
     def enforceBoundaryConditions(self):
         self.drifters.enforceBoundaryConditions()
