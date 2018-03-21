@@ -65,7 +65,7 @@ float2 boxMuller(float* seed) {
 /**
   * Kernel that generates uniform random numbers.
   */
-__kernel void uniformDistribtion(
+__kernel void uniformDistribution(
         // Size of data
         int seed_nx_, int seed_ny_,
 	int random_nx_, 

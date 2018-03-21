@@ -27,7 +27,6 @@ import pyopencl
 import gc
 
 import Common
-import FBL, CTCS
 
 class OceanStateNoise(object):
     """
@@ -61,12 +60,12 @@ class OceanStateNoise(object):
             self.rand_nx = np.int32(nx)
         if self.periodicNorthSouth:
             self.rand_ny = np.int32(ny)
-        self.seed_ny = self.rand_ny
+        self.seed_ny = np.int32(self.rand_ny)
         self.seed_nx = np.int32(self.rand_nx/2) ### WHAT IF rand_nx IS ODD??
         
         # Generate seed:
         self.floatMax = 2147483648.0
-        self.host_seed = np.random.rand(self.seed_ny, self.seed_nx)
+        self.host_seed = np.random.rand(self.seed_ny, self.seed_nx)*self.floatMax
         self.seed = Common.OpenCLArray2D(cl_ctx, self.seed_nx, self.seed_ny, 0, 0, self.host_seed)
         
         # Allocate memory for random numbers
@@ -109,25 +108,89 @@ class OceanStateNoise(object):
                    sim.boundary_conditions, staggered, 
                    cutoff=cutoff,)
         
+        
+        
     def getSeed(self):
         return self.seed.download(self.cl_queue)
-    
-    def generateRandomNumbers(self):
-        # Call kernel -> new random numbers 
-        pass
     
     def getRandomNumbers(self):
         return self.random_numbers.download(self.cl_queue)
     
-    # CPU versions of the above functions.
+    def generateNormalDistribution(self):
+        # Call kernel -> new random numbers
+        pass
+    
+    def generateUniformDistribution(self):
+        # Call kernel -> new random numbers
+        self.kernels.uniformDistribution(self.cl_queue, 
+                                         self.global_size_random_numbers, self.local_size,
+                                         self.seed_nx, self.seed_ny,
+                                         self.rand_nx,
+                                         self.seed.data, self.seed.pitch,
+                                         self.random_numbers.data, self.random_numbers.pitch)
+    
+    
+    
+    ##### CPU versions of the above functions ####
     def getSeedCPU(self):
         return self.host_seed
     
-    def generateRandomNumbersCPU(self):
-        pass
+    def generateNormalDistributionCPU(self):
+        self._CPUUpdateRandom(True)
+    
+    def generateUniformDistributionCPU(self):
+        self._CPUUpdateRandom(False)
     
     def getRandomNumbersCPU(self):
         return self.random_numbers_host
     
     # CPU utility functions:
+    def _lcg(self, seed):
+        seed = ((seed*1103515245) + 12345) % 0x7fffffff
+        return seed / 2147483648.0, seed
+    
+    def _boxMuller(self, seed):
+        u1, seed = self._lcg(seed)
+        u2, seed = self._lcg(seed)
+        r = np.sqrt(-2.0*np.log(u1))
+        theta = 2*np.pi*u2
+        n1 = r*np.cos(theta)
+        n2 = r*np.sin(theta)
+        return n1, n2, seed
+    
+    def _CPUUpdateRandom(self, normalDist):
+        """
+        Updating the random number buffer at the CPU.
+        normalDist: Boolean parameter. 
+            If True, the random numbers are from N(0,1)
+            If False, the random numbers are from U[0,1]
+        """
+        #(ny, nx) = seed.shape
+        #(domain_ny, domain_nx) = random.shape
+        b_dim_x = self.local_size[0]
+        b_dim_y = self.local_size[1]
+        blocks_x = self.global_size_random_numbers[0]/b_dim_x
+        blocks_y = self.global_size_random_numbers[1]/b_dim_y
+        for by in range(blocks_y):
+            for bx in range(blocks_x):
+                for j in range(b_dim_y):
+                    for i in range(b_dim_x):
+
+                        ## Content of kernel:
+                        y = b_dim_y*by + j # thread_id
+                        x = b_dim_x*bx + i # thread_id
+                        if (x < self.seed_nx and y < self.seed_ny):
+                            n1, n2 = 0.0, 0.0
+                            if normalDist:
+                                n1, n2, self.host_seed[y,x]   = self._boxMuller(self.host_seed[y,x])
+                            else:
+                                n1, self.host_seed[y,x] = self._lcg(self.host_seed[y,x])
+                                n2, self.host_seed[y,x] = self._lcg(self.host_seed[y,x])
+                                
+                            if x*2 + 1 < self.rand_nx:
+                                self.random_numbers_host[y, x*2  ] = n1
+                                self.random_numbers_host[y, x*2+1] = n2
+                            elif x*2 == self.rand_nx:
+                                self.random_numbers_host[y, x*2] = n1
+        
     
