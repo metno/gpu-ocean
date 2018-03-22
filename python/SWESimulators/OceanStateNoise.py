@@ -37,8 +37,9 @@ class OceanStateNoise(object):
     """
     
     def __init__(self, cl_ctx, cl_queue,
-                 nx, ny, 
+                 nx, ny, dx, dy,
                  boundaryConditions, staggered, cutoff=2,
+                 soar_q0=None, soar_L=None,
                  block_width=16, block_height=16):
         
         self.cl_ctx = cl_ctx
@@ -46,9 +47,12 @@ class OceanStateNoise(object):
         
         self.nx = np.int32(nx)
         self.ny = np.int32(ny)
+        self.dx = np.float32(dx)
+        self.dy = np.float32(dy)
         self.staggered = np.int(0)
         if staggered:
             self.staggered = np.int(1)
+        self.cutoff = np.int32(cutoff)
         
         self.periodicNorthSouth = np.int32(boundaryConditions.isPeriodicNorthSouth())
         self.periodicEastWest = np.int32(boundaryConditions.isPeriodicEastWest())
@@ -62,6 +66,15 @@ class OceanStateNoise(object):
             self.rand_ny = np.int32(ny)
         self.seed_ny = np.int32(self.rand_ny)
         self.seed_nx = np.int32(self.rand_nx/2) ### WHAT IF rand_nx IS ODD??
+        
+        # Constants for the SOAR function:
+        self.soar_q0 = np.float32(self.dx/100000)
+        if soar_q0 is not None:
+            self.soar_q0 = np.float32(soar_q0)
+            
+        self.soar_L = np.float32(0.75*self.dx)
+        if soar_L is not None:
+            self.soar_L = np.float32(soar_L)
         
         # Generate seed:
         self.floatMax = 2147483648.0
@@ -135,6 +148,19 @@ class OceanStateNoise(object):
                                          self.random_numbers.data, self.random_numbers.pitch)
     
     
+    def perturbEta(self, eta):
+        """
+        Apply the SOAR Q covariance matrix on the random field to add
+        a perturbation to the incomming eta buffer.
+        eta: OpenCLArray2D object.
+        """
+        # Need to update the random field, requiering a global sync
+        self.generateNormalDistribution()
+        
+        # Call applySOARQ_kernel and add to eta
+        # self.kernels.perturb_eta()
+        
+        
     
     ##### CPU versions of the above functions ####
     def getSeedCPU(self):
@@ -148,6 +174,19 @@ class OceanStateNoise(object):
     
     def getRandomNumbersCPU(self):
         return self.random_numbers_host
+    
+    def perturbEtaCPU(self, eta, use_existing_GPU_random_numbers=False):
+        """
+        Apply the SOAR Q covariance matrix on the random field to add
+        a perturbation to the incomming eta buffer.
+        eta: numpy array
+        """
+        # Call CPU utility function
+        if use_existing_GPU_random_numbers:
+            self.random_numbers_host = self.getRandomNumbers()
+        else:
+            self.generateNormalDistributionCPU()
+        eta += self._applyQ_CPU()
     
     # CPU utility functions:
     def _lcg(self, seed):
@@ -198,5 +237,56 @@ class OceanStateNoise(object):
                                 self.random_numbers_host[y, x*2+1] = n2
                             elif x*2 == self.rand_nx:
                                 self.random_numbers_host[y, x*2] = n1
+    
+    def _SOAR_Q_CPU(self, a_x, a_y, b_x, b_y):
+        """
+        CPU implementation of a SOAR covariance function between grid points
+        (a_x, a_y) and (b_x, b_y)
+        """
+        dist = np.sqrt(  self.dx*self.dx*(a_x - b_x)**2  
+                       + self.dy*self.dy*(a_y - b_y)**2 )
+        return self.soar_q0*(1.0 + dist/self.soar_L)*np.exp(-dist/self.soar_L)
+    
+    def _applyQ_CPU(self):
+        #xi, dx=1, dy=1, q0=0.1, L=1, cutoff=5):
+        """
+        Create the perturbation field for eta based on the SOAR covariance 
+        structure
+        """
+                        
+        # Assume in a GPU setting - we read xi into shared memory with ghostcells
+        ny_halo = int(self.ny + self.cutoff*2)
+        nx_halo = int(self.nx + self.cutoff*2)
+        local_xi = np.zeros((ny_halo, nx_halo))
+        for j in range(ny_halo):
+            global_j = j
+            if self.periodicNorthSouth:
+                global_j = (j - self.cutoff) % self.rand_ny
+            for i in range(nx_halo):
+                global_i = i
+                if self.periodicEastWest:
+                    global_i = (i - self.cutoff) % self.rand_nx
+                local_xi[j,i] = self.random_numbers_host[global_j, global_i]
+                
+        # Sync threads
         
+        Qxi = np.zeros((self.ny, self.nx))
+        for a_y in range(self.ny):
+            for a_x in range(self.nx):
+                # This is a OpenCL thread (a_x, a_y)
+                local_a_x = a_x + self.cutoff
+                local_a_y = a_y + self.cutoff
+
+                start_b_y = local_a_y - self.cutoff
+                end_b_y =  local_a_y + self.cutoff+1
+                start_b_x = local_a_x - self.cutoff
+                end_b_x =  local_a_x + self.cutoff+1
+
+                Qx = 0
+                for b_y in range(start_b_y, end_b_y):
+                    for b_x in range(start_b_x, end_b_x):
+                        Q = self._SOAR_Q_CPU(local_a_x, local_a_y, b_x, b_y)
+                        Qx += Q*local_xi[b_y, b_x]
+                Qxi[a_y, a_x] = Qx
+        return Qxi
     

@@ -20,7 +20,9 @@ class OceanStateNoiseTest(unittest.TestCase):
 
         self.nx = 30
         self.ny = 40
-
+        self.dx = 1.0
+        self.dy = 1.0
+        
         self.noise = None
 
         self.cutoff = 2
@@ -60,6 +62,7 @@ class OceanStateNoiseTest(unittest.TestCase):
             e,w = 2,2
         self.noise = OceanStateNoise(self.cl_ctx, self.cl_queue,
                                      self.nx, self.ny,
+                                     self.dx, self.dy,
                                      Common.BoundaryConditions(n,e,s,w),
                                      staggered=self.staggered)
     def create_large_noise(self):
@@ -70,6 +73,7 @@ class OceanStateNoiseTest(unittest.TestCase):
             e,w = 2,2
         self.large_noise = OceanStateNoise(self.cl_ctx, self.cl_queue,
                                            self.large_nx, self.large_ny,
+                                           self.dx, self.dy,
                                            Common.BoundaryConditions(n,e,s,w),
                                            staggered = self.staggered)
         
@@ -193,7 +197,7 @@ class OceanStateNoiseTest(unittest.TestCase):
 
     def test_seed_diff(self):
         self.create_noise()
-        tol = 4
+        tol = 6
         
         init_seed = self.noise.getSeed()/self.floatMax
         self.noise.generateNormalDistribution()
