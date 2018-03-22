@@ -39,11 +39,18 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.glob_size_y_nonperiodic = 16*3
         self.glob_size_random_x = 16*1
         self.glob_size_random_x_nonperiodic = 16*2
+
+        self.large_nx = 200
+        self.large_ny = 200
+        self.large_noise = None
+
+        self.floatMax = 2147483648.0
         
     def tearDown(self):
         if self.noise is not None:
             self.noise.cleanUp()
-    
+        if self.large_noise is not None:
+            self.large_noise.cleanUp()
 
     def create_noise(self):
         n,e,s,w = 1,1,1,1
@@ -54,11 +61,25 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.noise = OceanStateNoise(self.cl_ctx, self.cl_queue,
                                      self.nx, self.ny,
                                      Common.BoundaryConditions(n,e,s,w),
-                                     staggered=False)
-
+                                     staggered=self.staggered)
+    def create_large_noise(self):
+        n,e,s,w = 1,1,1,1
+        if self.periodicNS:
+            n,s = 2,2
+        if self.periodicEW:
+            e,w = 2,2
+        self.large_noise = OceanStateNoise(self.cl_ctx, self.cl_queue,
+                                           self.large_nx, self.large_ny,
+                                           Common.BoundaryConditions(n,e,s,w),
+                                           staggered = self.staggered)
+        
     def compare_random(self, tol, msg):
-        seed = self.noise.getSeed()
-        seedCPU = self.noise.getSeedCPU()
+
+        # The tolerance provided to testAlmostEqual makes the comparison wrt to the
+        # number of decimal places, not the number of significant digits.
+        # We therefore make sure that seed is in [0, 1]
+        seed = self.noise.getSeed()/self.floatMax
+        seedCPU = self.noise.getSeedCPU()/self.floatMax
 
         assert2DListAlmostEqual(self, seed.tolist(), seedCPU.tolist(), tol, msg+", seed")
 
@@ -139,3 +160,47 @@ class OceanStateNoiseTest(unittest.TestCase):
 
         self.compare_random(6, "test_init_periodiEW_nonstaggered")
         
+    def test_random_uniform(self):
+        self.create_large_noise()
+
+        self.large_noise.generateUniformDistribution()
+
+        U = self.large_noise.getRandomNumbers()
+
+        mean = np.mean(U)
+        var = np.var(U)
+
+        # Check the mean and var with very low accuracy.
+        # Gives error if the distribution is way off
+        self.assertAlmostEqual(mean, 0.5, 1)
+        self.assertAlmostEqual(var, 1.0/12.0, 2)
+
+    def test_random_normal(self):
+        self.create_large_noise()
+
+        self.large_noise.generateNormalDistribution()
+
+        U = self.large_noise.getRandomNumbers()
+
+        mean = np.mean(U)
+        var = np.var(U)
+
+        # Check the mean and var with very low accuracy.
+        # Gives error if the distribution is way off
+        self.assertAlmostEqual(mean, 0.0, 1)
+        self.assertAlmostEqual(var, 1.0, 1)
+
+
+    def test_seed_diff(self):
+        self.create_noise()
+        tol = 4
+        
+        init_seed = self.noise.getSeed()/self.floatMax
+        self.noise.generateNormalDistribution()
+        normal_seed = self.noise.getSeed()/self.floatMax
+        assert2DListNotAlmostEqual(self, normal_seed.tolist(), init_seed.tolist(), tol, "test_seed_diff, normal vs init_seed")
+        
+        self.noise.generateUniformDistribution()
+        uniform_seed = self.noise.getSeed()/self.floatMax
+        assert2DListNotAlmostEqual(self, uniform_seed.tolist(), init_seed.tolist(), tol, "test_seed_diff, uniform vs init_seed")
+        assert2DListNotAlmostEqual(self, uniform_seed.tolist(), normal_seed.tolist(), tol, "test_seed_diff, uniform vs normal_seed")
