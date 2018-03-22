@@ -335,7 +335,7 @@ def WindStressParams(type=99, # "no wind" \
     
     if type == 0:
         wind_stress = WindStress.UniformAlongShoreWindStress( \
-            tau0=tau0_, rho=rho_, rho_air=rho_air_, alpha=alpha_)
+            tau0=tau0_, rho=rho_, alpha=alpha_)
     elif type == 1:
         wind_stress = WindStress.BellShapedAlongShoreWindStress( \
             xm=xm_, tau0=tau0_, rho=rho_, alpha=alpha_)

@@ -21,10 +21,10 @@ from ctypes import *
 import numpy as np
 from abc import ABCMeta, abstractmethod
 
-"""Mapped to struct WindStressParams in common.opencl
-DO NOT make changes here without changing common.opencl accordingly!
-"""
 class WIND_STRESS_PARAMS(Structure):
+    """Mapped to struct WindStressParams in common.opencl
+    DO NOT make changes here without changing common.opencl accordingly!
+    """
     _fields_ = [("wind_stress_type", c_int),
                 ("tau0", c_float),
                 ("rho", c_float),
@@ -39,7 +39,7 @@ class WIND_STRESS_PARAMS(Structure):
                 ("wind_speed", c_float),
                 ("wind_direction", c_float)]
 
-class WindStress(object):
+class BaseWindStress(object):
     """Superclass for wind stress params."""
     
     __metaclass__ = ABCMeta
@@ -61,7 +61,7 @@ class WindStress(object):
         """Return size (in bytes) of WindStressParams struct (defined above AND in common.opencl)"""
         return sizeof(WIND_STRESS_PARAMS)
 
-class NoWindStress(WindStress):
+class NoWindStress(BaseWindStress):
     """No wind stress."""
 
     def __init__(self):
@@ -76,7 +76,7 @@ class NoWindStress(WindStress):
         wind_stress = WIND_STRESS_PARAMS(wind_stress_type=self.type())
         return wind_stress
 
-class GenericUniformWindStress(WindStress):
+class GenericUniformWindStress(BaseWindStress):
     """Generic uniform wind stress.
     
     rho_air: Density of air (approx. 1.3 kg / m^3 at 0 deg. C and 1013.25 mb)
@@ -103,7 +103,7 @@ class GenericUniformWindStress(WindStress):
                                   wind_direction=self.wind_direction)
         return wind_stress
         
-class UniformAlongShoreWindStress(WindStress):
+class UniformAlongShoreWindStress(BaseWindStress):
     """Uniform along shore wind stress.
     
     tau0: Amplitude of wind stress (Pa)
@@ -129,7 +129,7 @@ class UniformAlongShoreWindStress(WindStress):
                                   alpha=self.alpha)
         return wind_stress
         
-class BellShapedAlongShoreWindStress(WindStress):
+class BellShapedAlongShoreWindStress(BaseWindStress):
     """Bell shaped along shore wind stress.
     
     xm: Maximum wind stress for bell shaped wind stress
@@ -158,7 +158,7 @@ class BellShapedAlongShoreWindStress(WindStress):
                                   alpha=self.alpha)
         return wind_stress
         
-class MovingCycloneWindStress(WindStress):
+class MovingCycloneWindStress(BaseWindStress):
     """Moving cyclone wind stress.
     
     Rc: Distance to max wind stress from center of cyclone (10dx = 200 000 m)
@@ -190,32 +190,4 @@ class MovingCycloneWindStress(WindStress):
                                   y0=self.y0,
                                   u0=self.u0,
                                   v0=self.v0)
-        return wind_stress
-
-class RandomUniformWindStress(WindStress):
-    """Random uniform wind stress.
-    
-    rho_air: Density of air (approx. 1.3 kg / m^3 at 0 deg. C and 1013.25 mb)
-    rand: Random number between 0.0 and 1.0
-    speed: Wind speed in m/s
-    direction: Wind direction in degrees (clockwise, 0 being wind blowing from north towards south)
-    """
-
-    def __init__(self, \
-                 rho_air=0, rand=0, \
-                 speed=0, direction=0):
-        self.rho_air = np.float32(rho_air)
-        self.wind_speed = np.float32(wind_speed)
-        self.wind_direction = np.float32(wind_direction)
-
-    def type(self):
-        """Mapping to wind_stress_type (defined in common.opencl)"""
-        return 5
-    
-    def tostruct(self):
-        """Return correct WindStressParams struct (defined in common.opencl)"""
-        wind_stress = WIND_STRESS_PARAMS(wind_stress_type=self.type(), 
-                                  rho_air=self.rho_air,
-                                  wind_speed=self.speed,
-                                  wind_direction=self.direction)
         return wind_stress

@@ -45,8 +45,7 @@ typedef enum {NO_WIND,
 	GENERIC_UNIFORM,
 	ALONGSHORE_UNIFORM,
 	ALONGSHORE_BELLSHAPED,
-	MOVING_CYCLONE,
-	RANDOM_UNIFORM}
+	MOVING_CYCLONE}
 wind_stress_type;
 
 /**
@@ -646,8 +645,6 @@ float windStressX(__global const wind_stress_params *wind_stress_,
             X = -(wind_stress_->tau0/wind_stress_->rho) * (b/wind_stress_->Rc) * exp(-0.5f*xi);
         }
         break;
-    case RANDOM_UNIFORM:
-    	break;
     }
 
     return X;
@@ -693,8 +690,6 @@ float windStressY(__global const wind_stress_params *wind_stress_,
             Y = (wind_stress_->tau0/wind_stress_->rho) * (a/wind_stress_->Rc) * exp(-0.5f*xi);
         }
         break;
-    case RANDOM_UNIFORM:
-    	break;
     }
 
     return Y;
