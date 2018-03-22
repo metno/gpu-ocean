@@ -148,7 +148,7 @@ class OceanStateNoise(object):
                                          self.random_numbers.data, self.random_numbers.pitch)
     
     
-    def perturbOceanState(self, eta, hu, hv):
+    def perturbOceanState(self, eta, hu, hv, H, f, beta=0.0, g=9.81):
         """
         Apply the SOAR Q covariance matrix on the random ocean field which is
         added to the provided buffers eta, hu and hv.
@@ -196,16 +196,18 @@ class OceanStateNoise(object):
         d_eta = self._applyQ_CPU()
         eta += d_eta[1:-1, 1:-1]
     
-    def perturbOceanStateCPU(self, eta, hu, hv,
+    def perturbOceanStateCPU(self, eta, hu, hv, H, f,  beta=0.0, g=9.81,
                              use_existing_GPU_random_numbers=False):
         # Call CPU utility function
         if use_existing_GPU_random_numbers:
             self.random_numbers_host = self.getRandomNumbers()
         else:
             self.generateNormalDistributionCPU()
-        d_eta = self._applyQ_CPU()
-        eta += d_eta[1:-1, 1:-1]
+        d_eta, d_hu, d_hv = self._obtainOceanPerturbations_CPU(H, f, beta, g)
         
+        eta += d_eta[1:-1, 1:-1]
+        hu += d_hu
+        hv += d_hv
     
     # ------------------------------
     # CPU utility functions:
@@ -311,4 +313,48 @@ class OceanStateNoise(object):
                         Qx += Q*local_xi[b_y, b_x]
                 Qxi[a_y, a_x] = Qx
         return Qxi
+    
+    
+    def _obtainOceanPerturbations_CPU(self, H, f, beta, g):
+        d_eta = self._applyQ_CPU()
+        # d_eta.shape = (self.ny + 2, self.nx + 2)
+        
+        ####
+        # Global sync (currently)
+        #     Can be made into a local sync, as long as d_eta is given 
+        #     periodic overlap (1 more global computated ghost cell)
+        ####
+
+        d_hu = np.zeros((self.ny, self.nx))
+        d_hv = np.zeros((self.ny, self.nx))
+
+        ### Find H_mid:
+        # Read global H (def on intersections) to local, find H_mid
+        # The local memory can then be reused to something else (perhaps use local_d_eta before computing local_d_eta?)
+        #
+        # Here, we just set it to 10
+        H_mid = np.zeros((self.ny, self.nx))
+        for j in range(self.ny):
+            for i in range(self.nx):
+                H_mid[j,i] = 0.25* (H[j,i] + H[j+1, i] + H[j, i+1] + H[j+1, i+1])
+        
+        ####
+        # Local sync
+        ####
+
+        
+        for j in range(0, self.ny):
+            local_j = j + 1
+            coriolis = f + beta*local_j*self.dy
+            for i in range(0, self.nx):
+                local_i = i + 1
+                h_mid = d_eta[local_j,local_i] + H_mid[j, i]
+
+                eta_diff_y = (d_eta[local_j+1, local_i] - d_eta[local_j-1, local_i])/(2.0*self.dy)
+                d_hu[j,i] = -(g/coriolis)*h_mid*eta_diff_y
+
+                eta_diff_x = (d_eta[local_j, local_i+1] - d_eta[local_j, local_i-1])/(2.0*self.dx)
+                d_hv[j,i] = (g/coriolis)*h_mid*eta_diff_x   
+
+        return d_eta, d_hu, d_hv
     
