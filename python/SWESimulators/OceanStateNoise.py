@@ -148,7 +148,7 @@ class OceanStateNoise(object):
                                          self.random_numbers.data, self.random_numbers.pitch)
     
     
-    def perturbOceanState(self, eta, hu, hv, H, f, beta=0.0, g=9.81):
+    def perturbOceanState(self, eta, hu, hv, H, f, beta=0.0, g=9.81, y0_reference_cell = 0):
         """
         Apply the SOAR Q covariance matrix on the random ocean field which is
         added to the provided buffers eta, hu and hv.
@@ -160,14 +160,22 @@ class OceanStateNoise(object):
         self.generateNormalDistribution()
         
         # Call applySOARQ_kernel and add to eta
-        self.kernels.perturbEta(self.cl_queue,
-                                self.global_size_noise, self.local_size,
-                                self.nx, self.ny,
-                                self.dx, self.dy,
-                                self.soar_q0, self.soar_L,
-                                self.periodicNorthSouth, self.periodicEastWest,
-                                self.random_numbers.data, self.random_numbers.pitch,
-                                eta.data, eta.pitch)
+        self.kernels.perturbOcean(self.cl_queue,
+                                  self.global_size_noise, self.local_size,
+                                  self.nx, self.ny,
+                                  self.dx, self.dy,
+                                  
+                                  np.float32(g), np.float32(f),
+                                  np.float32(beta), np.float32(y0_reference_cell),
+                                  
+                                  self.soar_q0, self.soar_L,
+                                  self.periodicNorthSouth, self.periodicEastWest,
+                                  
+                                  self.random_numbers.data, self.random_numbers.pitch,
+                                  eta.data, eta.pitch,
+                                  hu.data, hu.pitch,
+                                  hv.data, hv.pitch,
+                                  H.data, H.pitch)
     
     ##### CPU versions of the above functions ####
     def getSeedCPU(self):

@@ -160,11 +160,14 @@ float soar_covariance(int a_x, int a_y, int b_x, int b_y,
   * Kernel that adds a perturbation to the input field eta.
   * The perturbation is based on a SOAR covariance function using a cut-off value of 2.
   */
-__kernel void perturbEta(
+__kernel void perturbOcean(
         // Size of data
 	int nx_, int ny_,
         float dx_, float dy_,
 
+	// physical parameters
+	float g_, float f_, float beta_, float y0_reference_cell_,
+	
 	// Parameter for the SOAR function
 	float soar_q0_, float soar_L_, 
 	
@@ -173,8 +176,10 @@ __kernel void perturbEta(
 	
         //Data
 	__global float* random_ptr_, int random_pitch_,
-	__global float* eta_ptr_, int eta_pitch_
-	
+	__global float* eta_ptr_, int eta_pitch_,
+	__global float* hu_ptr_, int hu_pitch_,
+	__global float* hv_ptr_, int hv_pitch_,
+	__global float* Hi_ptr_, int Hi_pitch_
     ) {
 
     //Index of cell within block
