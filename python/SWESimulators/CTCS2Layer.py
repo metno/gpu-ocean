@@ -41,7 +41,6 @@ import pyopencl as cl #OpenCL in Python
 
 
 
-
 """
 Class that holds data for the SW equations in OpenCL
 """

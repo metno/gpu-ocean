@@ -31,6 +31,7 @@ import gc
 
 import Common, SimWriter, SimReader
 import Simulator
+import WindStress
 
 class KP07(Simulator.Simulator):
     """
