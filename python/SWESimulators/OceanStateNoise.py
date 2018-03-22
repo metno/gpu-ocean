@@ -158,7 +158,14 @@ class OceanStateNoise(object):
         self.generateNormalDistribution()
         
         # Call applySOARQ_kernel and add to eta
-        # self.kernels.perturb_eta()
+        self.kernels.perturbEta(self.cl_queue,
+                                self.global_size_noise, self.local_size,
+                                self.nx, self.ny,
+                                self.dx, self.dy,
+                                self.soar_q0, self.soar_L,
+                                self.periodicNorthSouth, self.periodicEastWest,
+                                self.random_numbers.data, self.random_numbers.pitch,
+                                eta.data, eta.pitch)
         
         
     
@@ -186,9 +193,15 @@ class OceanStateNoise(object):
             self.random_numbers_host = self.getRandomNumbers()
         else:
             self.generateNormalDistributionCPU()
-        eta += self._applyQ_CPU()
+        d_eta = self._applyQ_CPU()
+        eta += d_eta[1:-1, 1:-1]
     
+    
+    
+    # ------------------------------
     # CPU utility functions:
+    # ------------------------------
+    
     def _lcg(self, seed):
         seed = ((seed*1103515245) + 12345) % 0x7fffffff
         return seed / 2147483648.0, seed
@@ -255,24 +268,24 @@ class OceanStateNoise(object):
         """
                         
         # Assume in a GPU setting - we read xi into shared memory with ghostcells
-        ny_halo = int(self.ny + self.cutoff*2)
-        nx_halo = int(self.nx + self.cutoff*2)
+        ny_halo = int(self.ny + (1 + self.cutoff)*2)
+        nx_halo = int(self.nx + (1 + self.cutoff)*2)
         local_xi = np.zeros((ny_halo, nx_halo))
         for j in range(ny_halo):
             global_j = j
             if self.periodicNorthSouth:
-                global_j = (j - self.cutoff) % self.rand_ny
+                global_j = (j - self.cutoff - 1) % self.rand_ny
             for i in range(nx_halo):
                 global_i = i
                 if self.periodicEastWest:
-                    global_i = (i - self.cutoff) % self.rand_nx
+                    global_i = (i - self.cutoff - 1) % self.rand_nx
                 local_xi[j,i] = self.random_numbers_host[global_j, global_i]
                 
         # Sync threads
         
-        Qxi = np.zeros((self.ny, self.nx))
-        for a_y in range(self.ny):
-            for a_x in range(self.nx):
+        Qxi = np.zeros((self.ny+2, self.nx+2))
+        for a_y in range(self.ny+2):
+            for a_x in range(self.nx+2):
                 # This is a OpenCL thread (a_x, a_y)
                 local_a_x = a_x + self.cutoff
                 local_a_y = a_y + self.cutoff

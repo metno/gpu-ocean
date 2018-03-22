@@ -47,13 +47,23 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.large_noise = None
 
         self.floatMax = 2147483648.0
+
+        self.eta = None
+        self.hu = None
+        self.hv = None
         
     def tearDown(self):
         if self.noise is not None:
             self.noise.cleanUp()
         if self.large_noise is not None:
             self.large_noise.cleanUp()
-
+        if self.eta is not None:
+            self.eta.release()
+        if self.hu is not None:
+            self.hu.release()
+        if self.hv is not None:
+            self.hv.release()
+            
     def create_noise(self):
         n,e,s,w = 1,1,1,1
         if self.periodicNS:
@@ -76,7 +86,13 @@ class OceanStateNoiseTest(unittest.TestCase):
                                            self.dx, self.dy,
                                            Common.BoundaryConditions(n,e,s,w),
                                            staggered = self.staggered)
-        
+
+    def allocateBuffers(self):
+        host_buffer = np.zeros((self.ny, self.nx))
+        self.eta = Common.OpenCLArray2D(self.cl_ctx, self.nx, self.ny, 0, 0, host_buffer)
+        self.hu = Common.OpenCLArray2D(self.cl_ctx, self.nx, self.ny, 0, 0, host_buffer)
+        self.hv = Common.OpenCLArray2D(self.cl_ctx, self.nx, self.ny, 0, 0, host_buffer)
+            
     def compare_random(self, tol, msg):
 
         # The tolerance provided to testAlmostEqual makes the comparison wrt to the
@@ -208,3 +224,50 @@ class OceanStateNoiseTest(unittest.TestCase):
         uniform_seed = self.noise.getSeed()/self.floatMax
         assert2DListNotAlmostEqual(self, uniform_seed.tolist(), init_seed.tolist(), tol, "test_seed_diff, uniform vs init_seed")
         assert2DListNotAlmostEqual(self, uniform_seed.tolist(), normal_seed.tolist(), tol, "test_seed_diff, uniform vs normal_seed")
+
+    def test_perturb_eta_periodic(self):
+        self.create_noise()
+        self.allocateBuffers()
+        etaCPU = np.zeros((self.ny, self.nx))
+        self.noise.perturbEta(self.eta)
+        self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True)
+        etaFromGPU = self.eta.download(self.cl_queue)
+
+        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, "test_perturb_eta_periodic")
+
+    def test_perturb_eta_nonperiodic(self):
+        self.periodicNS = False
+        self.periodicEW = False
+        self.create_noise()
+        self.allocateBuffers()
+        etaCPU = np.zeros((self.ny, self.nx))
+        self.noise.perturbEta(self.eta)
+        self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True)
+        etaFromGPU = self.eta.download(self.cl_queue)
+
+        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, "test_perturb_eta_periodic")
+
+    def test_perturb_eta_NS_periodic(self):
+        self.periodicEW = False
+        self.create_noise()
+        self.allocateBuffers()
+        etaCPU = np.zeros((self.ny, self.nx))
+        self.noise.perturbEta(self.eta)
+        self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True)
+        etaFromGPU = self.eta.download(self.cl_queue)
+
+        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, "test_perturb_eta_periodic")
+
+    def test_perturb_eta_EW_periodic(self):
+        self.periodicNS = False
+        self.create_noise()
+        self.allocateBuffers()
+        etaCPU = np.zeros((self.ny, self.nx))
+        self.noise.perturbEta(self.eta)
+        self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True)
+        etaFromGPU = self.eta.download(self.cl_queue)
+
+        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, "test_perturb_eta_periodic")
+
+
+    

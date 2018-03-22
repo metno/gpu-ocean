@@ -144,3 +144,110 @@ __kernel void normalDistribution(
 }
 
 
+/**
+  * Local function calculating the SOAR function given two grid locations
+  */
+float soar_covariance(int a_x, int a_y, int b_x, int b_y,
+		      float dx, float dy, float soar_q0, float soar_L) {
+    const float dist = sqrt( dx*dx*(a_x - b_x)*(a_x - b_x) +
+			     dy*dy*(a_y - b_y)*(a_y - b_y) );
+    return soar_q0*( 1.0f + dist/soar_L)*exp(-dist/soar_L);
+}
+
+
+
+/**
+  * Kernel that adds a perturbation to the input field eta.
+  * The perturbation is based on a SOAR covariance function using a cut-off value of 2.
+  */
+__kernel void perturbEta(
+        // Size of data
+	int nx_, int ny_,
+        float dx_, float dy_,
+
+	// Parameter for the SOAR function
+	float soar_q0_, float soar_L_, 
+	
+	// Periodic domain
+	int periodic_north_south_, int periodic_east_west_,
+	
+        //Data
+	__global float* random_ptr_, int random_pitch_,
+	__global float* eta_ptr_, int eta_pitch_
+	
+    ) {
+
+    //Index of cell within block
+    const int tx = get_local_id(0); 
+    const int ty = get_local_id(1);
+
+    //Index of start of block within domain
+    const int bx = get_local_size(0) * get_group_id(0);
+    const int by = get_local_size(1) * get_group_id(1);
+
+    //Index of cell within domain
+    const int ti = get_global_id(0);
+    const int tj = get_global_id(1);
+
+    const int cutoff = 2;
+
+    // Local storage for xi (the random numbers)
+    __local float xi[block_height+6][block_width+6];
+
+    // Local storage for d_eta (also used for H)
+    __local float d_eta[block_height+2][block_width+2];
+
+    // Read random numbers into local memory:
+    for (int j = ty; j < block_height+6; j += get_local_size(1)) {
+	int global_j = 0;
+	if (periodic_north_south_) {
+	    global_j = (by + j - cutoff - 1 + ny_) % ny_;
+	} else {
+	    global_j = clamp(by + j, 0, ny_+6);
+	}
+	__global float* const random_row = (__global float*) ((__global char*) random_ptr_ + random_pitch_*global_j);
+	for (int i = tx; i < block_width+6; i += get_local_size(0)) {
+	    int global_i = 0;
+	    if (periodic_east_west_) {
+		global_i = (bx + i - cutoff - 1 + nx_) % nx_;
+	    } else {
+		global_i = clamp(bx + i, 0, nx_+6);
+	    }
+	    xi[j][i] = random_row[global_i];
+	}
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    // Compute eta using the SOAR covariance function, and store in local memory
+    // All reads are from local memory
+    for (int j = ty; j < block_height+2; j += get_local_size(1)) {
+	for(int i = tx; i < block_width+2; i += get_local_size(0)) {
+	    const int a_x = i + cutoff;
+	    const int a_y = j + cutoff;
+	    int b_x = i;
+	    int b_y = j;
+	    float Qxi = 0.0f;
+	    for (int b_y = j; b_y < a_y + cutoff + 1; b_y++) {
+		for (int b_x = i; b_x < a_x + cutoff + 1; b_x++) {
+		    const float Q = soar_covariance(a_x, a_y, b_x, b_y,
+						    dx_, dy_, soar_q0_, soar_L_);
+		    Qxi += Q*xi[b_y][b_x];
+		}
+	    }
+	    d_eta[j][i] = Qxi;
+	}
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    // Write eta to global memory
+    if ((ti < nx_) && (tj < ny_)) {
+
+	//Compute pointer to current row in the U array
+	__global float* const eta_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*tj);
+
+	eta_row[ti] += d_eta[ty+1][tx+1];
+    }
+}
+
