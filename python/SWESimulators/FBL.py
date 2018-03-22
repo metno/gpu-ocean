@@ -45,7 +45,7 @@ class FBL(Simulator.Simulator):
                  t=0.0, \
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
-                 wind_stress=Common.WindStressParams(), \
+                 wind_stress=WindStress.NoWindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
