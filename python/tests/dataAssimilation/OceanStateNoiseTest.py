@@ -229,7 +229,7 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.create_noise()
         self.allocateBuffers()
         etaCPU = np.zeros((self.ny, self.nx))
-        self.noise.perturbEta(self.eta)
+        self.noise.perturbOceanState(self.eta, self.hu, self.hv)
         self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True)
         etaFromGPU = self.eta.download(self.cl_queue)
 
@@ -241,33 +241,95 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.create_noise()
         self.allocateBuffers()
         etaCPU = np.zeros((self.ny, self.nx))
-        self.noise.perturbEta(self.eta)
+        self.noise.perturbOceanState(self.eta, self.hu, self.hv)
         self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True)
         etaFromGPU = self.eta.download(self.cl_queue)
 
-        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, "test_perturb_eta_periodic")
+        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, "test_perturb_eta_nonperiodic")
 
     def test_perturb_eta_NS_periodic(self):
         self.periodicEW = False
         self.create_noise()
         self.allocateBuffers()
         etaCPU = np.zeros((self.ny, self.nx))
-        self.noise.perturbEta(self.eta)
+        self.noise.perturbOceanState(self.eta, self.hu, self.hv)
         self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True)
         etaFromGPU = self.eta.download(self.cl_queue)
 
-        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, "test_perturb_eta_periodic")
+        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, "test_perturb_eta_NS_periodic")
 
     def test_perturb_eta_EW_periodic(self):
         self.periodicNS = False
         self.create_noise()
         self.allocateBuffers()
         etaCPU = np.zeros((self.ny, self.nx))
-        self.noise.perturbEta(self.eta)
+        self.noise.perturbOceanState(self.eta, self.hu, self.hv)
         self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True)
         etaFromGPU = self.eta.download(self.cl_queue)
 
-        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, "test_perturb_eta_periodic")
+        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, "test_perturb_eta_EW_periodic")
 
 
     
+    def test_perturb_ocean_periodic(self):
+        self.create_noise()
+        self.allocateBuffers()
+        etaCPU = np.zeros((self.ny, self.nx))
+        huCPU = np.zeros((self.ny, self.nx))
+        hvCPU = np.zeros((self.ny, self.nx))
+        self.noise.perturbOceanState(self.eta, self.hu, self.hv)
+        self.noise.perturbOceanStateCPU(etaCPU, huCPU, hvCPU, use_existing_GPU_random_numbers=True)
+        huFromGPU = self.hu.download(self.cl_queue)
+        hvFromGPU = self.hv.download(self.cl_queue)
+
+        assert2DListAlmostEqual(self, huCPU.tolist(), huFromGPU.tolist(), 6, "test_perturb_ocean_periodic, hu")
+        assert2DListAlmostEqual(self, hvCPU.tolist(), hvFromGPU.tolist(), 6, "test_perturb_ocean_periodic, hv")
+
+        
+    def test_perturb_ocean_nonperiodic(self):
+        self.periodicNS = False
+        self.periodicEW = False
+        self.create_noise()
+        self.allocateBuffers()
+        etaCPU = np.zeros((self.ny, self.nx))
+        huCPU = np.zeros((self.ny, self.nx))
+        hvCPU = np.zeros((self.ny, self.nx))
+        self.noise.perturbOceanState(self.eta, self.hu, self.hv)
+        self.noise.perturbOceanStateCPU(etaCPU, huCPU, hvCPU, use_existing_GPU_random_numbers=True)
+        huFromGPU = self.hu.download(self.cl_queue)
+        hvFromGPU = self.hv.download(self.cl_queue)
+
+        assert2DListAlmostEqual(self, huCPU.tolist(), huFromGPU.tolist(), 6, "test_perturb_ocean_nonperiodic, hu")
+        assert2DListAlmostEqual(self, hvCPU.tolist(), hvFromGPU.tolist(), 6, "test_perturb_ocean_nonperiodic, hv")
+
+        
+    def test_perturb_ocean_EW_periodic(self):
+        self.periodicNS = False
+        self.create_noise()
+        self.allocateBuffers()
+        etaCPU = np.zeros((self.ny, self.nx))
+        huCPU = np.zeros((self.ny, self.nx))
+        hvCPU = np.zeros((self.ny, self.nx))
+        self.noise.perturbOceanState(self.eta, self.hu, self.hv)
+        self.noise.perturbOceanStateCPU(etaCPU, huCPU, hvCPU, use_existing_GPU_random_numbers=True)
+        huFromGPU = self.hu.download(self.cl_queue)
+        hvFromGPU = self.hv.download(self.cl_queue)
+
+        assert2DListAlmostEqual(self, huCPU.tolist(), huFromGPU.tolist(), 6, "test_perturb_ocean_EW_periodic, hu")
+        assert2DListAlmostEqual(self, hvCPU.tolist(), hvFromGPU.tolist(), 6, "test_perturb_ocean_EW_periodic, hv")
+
+        
+    def test_perturb_ocean_NS_periodic(self):
+        self.periodicEW = False
+        self.create_noise()
+        self.allocateBuffers()
+        etaCPU = np.zeros((self.ny, self.nx))
+        huCPU = np.zeros((self.ny, self.nx))
+        hvCPU = np.zeros((self.ny, self.nx))
+        self.noise.perturbOceanState(self.eta, self.hu, self.hv)
+        self.noise.perturbOceanStateCPU(etaCPU, huCPU, hvCPU, use_existing_GPU_random_numbers=True)
+        huFromGPU = self.hu.download(self.cl_queue)
+        hvFromGPU = self.hv.download(self.cl_queue)
+
+        assert2DListAlmostEqual(self, huCPU.tolist(), huFromGPU.tolist(), 6, "test_perturb_ocean_NS_periodic, hu")
+        assert2DListAlmostEqual(self, hvCPU.tolist(), hvFromGPU.tolist(), 6, "test_perturb_ocean_NS_periodic, hv")

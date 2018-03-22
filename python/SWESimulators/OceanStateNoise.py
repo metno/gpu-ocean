@@ -148,11 +148,13 @@ class OceanStateNoise(object):
                                          self.random_numbers.data, self.random_numbers.pitch)
     
     
-    def perturbEta(self, eta):
+    def perturbOceanState(self, eta, hu, hv):
         """
-        Apply the SOAR Q covariance matrix on the random field to add
-        a perturbation to the incomming eta buffer.
-        eta: OpenCLArray2D object.
+        Apply the SOAR Q covariance matrix on the random ocean field which is
+        added to the provided buffers eta, hu and hv.
+        eta: surface deviation - OpenCLArray2D object.
+        hu: volume transport in x-direction - OpenCLArray2D object.
+        hv: volume transport in y-dirextion - OpenCLArray2D object.
         """
         # Need to update the random field, requiering a global sync
         self.generateNormalDistribution()
@@ -166,8 +168,6 @@ class OceanStateNoise(object):
                                 self.periodicNorthSouth, self.periodicEastWest,
                                 self.random_numbers.data, self.random_numbers.pitch,
                                 eta.data, eta.pitch)
-        
-        
     
     ##### CPU versions of the above functions ####
     def getSeedCPU(self):
@@ -196,7 +196,16 @@ class OceanStateNoise(object):
         d_eta = self._applyQ_CPU()
         eta += d_eta[1:-1, 1:-1]
     
-    
+    def perturbOceanStateCPU(self, eta, hu, hv,
+                             use_existing_GPU_random_numbers=False):
+        # Call CPU utility function
+        if use_existing_GPU_random_numbers:
+            self.random_numbers_host = self.getRandomNumbers()
+        else:
+            self.generateNormalDistributionCPU()
+        d_eta = self._applyQ_CPU()
+        eta += d_eta[1:-1, 1:-1]
+        
     
     # ------------------------------
     # CPU utility functions:
