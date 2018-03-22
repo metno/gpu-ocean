@@ -148,7 +148,8 @@ class OceanStateNoise(object):
                                          self.random_numbers.data, self.random_numbers.pitch)
     
     
-    def perturbOceanState(self, eta, hu, hv, H, f, beta=0.0, g=9.81, y0_reference_cell = 0):
+    def perturbOceanState(self, eta, hu, hv, H, f, beta=0.0, g=9.81, 
+                          y0_reference_cell=0, ghost_cells_x=0, ghost_cells_y=0):
         """
         Apply the SOAR Q covariance matrix on the random ocean field which is
         added to the provided buffers eta, hu and hv.
@@ -164,6 +165,7 @@ class OceanStateNoise(object):
                                   self.global_size_noise, self.local_size,
                                   self.nx, self.ny,
                                   self.dx, self.dy,
+                                  np.float32(ghost_cells_x), np.float32(ghost_cells_y),
                                   
                                   np.float32(g), np.float32(f),
                                   np.float32(beta), np.float32(y0_reference_cell),
@@ -190,7 +192,8 @@ class OceanStateNoise(object):
     def getRandomNumbersCPU(self):
         return self.random_numbers_host
     
-    def perturbEtaCPU(self, eta, use_existing_GPU_random_numbers=False):
+    def perturbEtaCPU(self, eta, use_existing_GPU_random_numbers=False,
+                      ghost_cells_x=0, ghost_cells_y=0):
         """
         Apply the SOAR Q covariance matrix on the random field to add
         a perturbation to the incomming eta buffer.
@@ -202,9 +205,16 @@ class OceanStateNoise(object):
         else:
             self.generateNormalDistributionCPU()
         d_eta = self._applyQ_CPU()
-        eta += d_eta[1:-1, 1:-1]
+        
+        interior = [-ghost_cells_y, -ghost_cells_x, ghost_cells_y, ghost_cells_x]
+        for i in range(4):
+            if interior[i] == 0:
+                interior[i] = None
+        
+        eta[interior[2]:interior[0], interior[3]:interior[1]] = d_eta[1:-1, 1:-1]
     
     def perturbOceanStateCPU(self, eta, hu, hv, H, f,  beta=0.0, g=9.81,
+                             ghost_cells_x=0, ghost_cells_y=0,
                              use_existing_GPU_random_numbers=False):
         # Call CPU utility function
         if use_existing_GPU_random_numbers:
@@ -213,9 +223,14 @@ class OceanStateNoise(object):
             self.generateNormalDistributionCPU()
         d_eta, d_hu, d_hv = self._obtainOceanPerturbations_CPU(H, f, beta, g)
         
-        eta += d_eta[1:-1, 1:-1]
-        hu += d_hu
-        hv += d_hv
+        interior = [-ghost_cells_y, -ghost_cells_x, ghost_cells_y, ghost_cells_x]
+        for i in range(4):
+            if interior[i] == 0:
+                interior[i] = None
+        
+        eta[interior[2]:interior[0], interior[3]:interior[1]] += d_eta[1:-1, 1:-1]
+        hu[interior[2]:interior[0], interior[3]:interior[1]] += d_hu
+        hv[interior[2]:interior[0], interior[3]:interior[1]] += d_hv
     
     # ------------------------------
     # CPU utility functions:

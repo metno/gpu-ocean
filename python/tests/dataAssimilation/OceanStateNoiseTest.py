@@ -297,8 +297,8 @@ class OceanStateNoiseTest(unittest.TestCase):
         huCPU = huCPU / maxVal
         hvCPU = hvCPU / maxVal
         
-        assert2DListAlmostEqual(self, huCPU.tolist(), huFromGPU.tolist(), 6, msg+", hu")
-        assert2DListAlmostEqual(self, hvCPU.tolist(), hvFromGPU.tolist(), 6, msg+", hv")
+        assert2DListAlmostEqual(self, huCPU.tolist(), huFromGPU.tolist(), 5, msg+", hu")
+        assert2DListAlmostEqual(self, hvCPU.tolist(), hvFromGPU.tolist(), 5, msg+", hv")
         
 
         

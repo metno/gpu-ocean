@@ -164,7 +164,8 @@ __kernel void perturbOcean(
         // Size of data
 	int nx_, int ny_,
         float dx_, float dy_,
-
+	int ghost_cells_x_, int ghost_cells_y_,
+	
 	// physical parameters
 	float g_, float f_, float beta_, float y0_reference_cell_,
 	
@@ -177,7 +178,7 @@ __kernel void perturbOcean(
         // random data
 	__global float* random_ptr_, int random_pitch_,
 
-	// Ocean data -- ASSUMING ZERO GHOST CELLS!!!
+	// Ocean data
 	__global float* eta_ptr_, int eta_pitch_,
 	__global float* hu_ptr_, int hu_pitch_,
 	__global float* hv_ptr_, int hv_pitch_,
@@ -208,10 +209,10 @@ __kernel void perturbOcean(
     // Use local memory for d_eta to compute H_mid for given thread id
     for (int j = ty; j < block_height+1; j += get_local_size(1)) {
 	const int global_j = clamp(by+j, 0, ny_+1);
-	__global float* const Hi_row = (__global float*) ((__global char*) Hi_ptr_ + Hi_pitch_*global_j);
+	__global float* const Hi_row = (__global float*) ((__global char*) Hi_ptr_ + Hi_pitch_*(global_j+ghost_cells_y_));
 	for (int i = tx; i < block_width+1; i += get_local_size(0)) {
 	    const int global_i = clamp(bx+i, 0, nx_+1);
-	    d_eta[j][i] = Hi_row[global_i];
+	    d_eta[j][i] = Hi_row[global_i+ghost_cells_x_];
 	}
     }
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -268,7 +269,7 @@ __kernel void perturbOcean(
 	const int eta_tx = tx+1;
 	const int eta_ty = ty+1;
 
-	const float coriolis = f_ + beta_*(tj - y0_reference_cell_)*dy_;
+	const float coriolis = f_ + beta_*(tj - y0_reference_cell_ + ghost_cells_y_)*dy_;
 
 	const float h_mid = d_eta[eta_ty][eta_tx] + H_mid;
 
@@ -279,13 +280,13 @@ __kernel void perturbOcean(
 	const float d_hv =  (g_/coriolis)*h_mid*eta_diff_x;
 	
 	//Compute pointer to current row in the U array
-	__global float* const eta_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*tj);
-	__global float* const hu_row  = (__global float*) ((__global char*) hu_ptr_  + hu_pitch_*tj);
-	__global float* const hv_row = (__global float*) ((__global char*)  hv_ptr_ + hv_pitch_*tj);
+	__global float* const eta_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*(tj+ghost_cells_y_));
+	__global float* const hu_row  = (__global float*) ((__global char*) hu_ptr_  + hu_pitch_*(tj+ghost_cells_y_));
+	__global float* const hv_row = (__global float*) ((__global char*)  hv_ptr_ + hv_pitch_*(tj+ghost_cells_y_));
 
-	eta_row[ti] += d_eta[ty+1][tx+1];
-	hu_row[ti] += d_hu;
-	hv_row[ti] += d_hv;
+	eta_row[ti+ghost_cells_x_] += d_eta[ty+1][tx+1];
+	 hu_row[ti+ghost_cells_x_] += d_hu;
+	 hv_row[ti+ghost_cells_x_] += d_hv;
     }
 }
 
