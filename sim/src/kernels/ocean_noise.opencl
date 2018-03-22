@@ -174,8 +174,10 @@ __kernel void perturbOcean(
 	// Periodic domain
 	int periodic_north_south_, int periodic_east_west_,
 	
-        //Data
+        // random data
 	__global float* random_ptr_, int random_pitch_,
+
+	// Ocean data -- ASSUMING ZERO GHOST CELLS!!!
 	__global float* eta_ptr_, int eta_pitch_,
 	__global float* hu_ptr_, int hu_pitch_,
 	__global float* hv_ptr_, int hv_pitch_,
@@ -202,6 +204,20 @@ __kernel void perturbOcean(
     // Local storage for d_eta (also used for H)
     __local float d_eta[block_height+2][block_width+2];
 
+
+    // Use local memory for d_eta to compute H_mid for given thread id
+    for (int j = ty; j < block_height+1; j += get_local_size(1)) {
+	const int global_j = clamp(by+j, 0, ny_+1);
+	__global float* const Hi_row = (__global float*) ((__global char*) Hi_ptr_ + Hi_pitch_*global_j);
+	for (int i = tx; i < block_width+1; i += get_local_size(0)) {
+	    const int global_i = clamp(bx+i, 0, nx_+1);
+	    d_eta[j][i] = Hi_row[global_i];
+	}
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    const float H_mid = 0.25*(d_eta[ty  ][tx] + d_eta[ty  ][tx+1] +
+			      d_eta[ty+1][tx] + d_eta[ty+1][tx+1]   );
+    
     // Read random numbers into local memory:
     for (int j = ty; j < block_height+6; j += get_local_size(1)) {
 	int global_j = 0;
@@ -246,13 +262,30 @@ __kernel void perturbOcean(
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    // Write eta to global memory
+    // Evaluate geostrophic balance and write eta, hu and hv to global memory
     if ((ti < nx_) && (tj < ny_)) {
 
+	const int eta_tx = tx+1;
+	const int eta_ty = ty+1;
+
+	const float coriolis = f_ + beta_*(tj - y0_reference_cell_)*dy_;
+
+	const float h_mid = d_eta[eta_ty][eta_tx] + H_mid;
+
+	const float eta_diff_x = (d_eta[eta_ty][eta_tx+1] - d_eta[eta_ty][eta_tx-1]) / (2.0f*dx_);
+	const float eta_diff_y = (d_eta[eta_ty+1][eta_tx] - d_eta[eta_ty-1][eta_tx]) / (2.0f*dy_);
+
+	const float d_hu = -(g_/coriolis)*h_mid*eta_diff_y;
+	const float d_hv =  (g_/coriolis)*h_mid*eta_diff_x;
+	
 	//Compute pointer to current row in the U array
 	__global float* const eta_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*tj);
+	__global float* const hu_row  = (__global float*) ((__global char*) hu_ptr_  + hu_pitch_*tj);
+	__global float* const hv_row = (__global float*) ((__global char*)  hv_ptr_ + hv_pitch_*tj);
 
 	eta_row[ti] += d_eta[ty+1][tx+1];
+	hu_row[ti] += d_hu;
+	hv_row[ti] += d_hv;
     }
 }
 
