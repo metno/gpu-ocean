@@ -216,7 +216,7 @@ __kernel void perturbOcean(
 	}
     }
     barrier(CLK_LOCAL_MEM_FENCE);
-    const float H_mid = 0.25*(d_eta[ty  ][tx] + d_eta[ty  ][tx+1] +
+    const float H_mid = 0.25f*(d_eta[ty  ][tx] + d_eta[ty  ][tx+1] +
 			      d_eta[ty+1][tx] + d_eta[ty+1][tx+1]   );
     
     // Read random numbers into local memory:

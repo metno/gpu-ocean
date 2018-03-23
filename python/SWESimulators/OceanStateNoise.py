@@ -157,15 +157,13 @@ class OceanStateNoise(object):
     
     def perturbSim(self, sim):
         assert(isinstance(sim, CDKLM16.CDKLM16))
-        gcx = 0 # sim.ghost_cells_x
-        gcy = 0 # sim.ghost_cells_y
         
         self.perturbOceanState(sim.cl_data.h0, sim.cl_data.hu0, sim.cl_data.hv0,
                                sim.bathymetry.Bi,
                                sim.f, beta=sim.coriolis_beta, g=sim.g, 
                                y0_reference_cell=sim.y_zero_reference_cell,
-                               ghost_cells_x=gcx,
-                               ghost_cells_y=gcy)
+                               ghost_cells_x=sim.ghost_cells_x,
+                               ghost_cells_y=sim.ghost_cells_y)
                                
     
     def perturbOceanState(self, eta, hu, hv, H, f, beta=0.0, g=9.81, 
@@ -185,7 +183,7 @@ class OceanStateNoise(object):
                                   self.global_size_noise, self.local_size,
                                   self.nx, self.ny,
                                   self.dx, self.dy,
-                                  np.float32(ghost_cells_x), np.float32(ghost_cells_y),
+                                  np.int32(ghost_cells_x), np.int32(ghost_cells_y),
                                   
                                   np.float32(g), np.float32(f),
                                   np.float32(beta), np.float32(y0_reference_cell),
