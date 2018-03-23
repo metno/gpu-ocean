@@ -21,6 +21,15 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "../config.h"
+
+#ifndef __OPENCL_VERSION__
+#define __kernel
+#define __global
+#define __local
+#define CLK_LOCAL_MEM_FENCE
+#endif
+
 #include "common.opencl"
 
 
@@ -46,8 +55,8 @@ __kernel void computeUKernel(
         //Physical parameters
         float g_, //< Gravitational constant
         float f_, //< Coriolis coefficient
-	float beta_, //< Coriolis force f_ + beta_*(y-y0)
-	float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
+        float beta_, //< Coriolis force f_ + beta_*(y-y0)
+        float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
         float r_, //< Bottom friction coefficient
     
         //Numerical diffusion
@@ -61,11 +70,8 @@ __kernel void computeUKernel(
         __global float* V1_ptr_, int V1_pitch_, // V^n
     
         // Wind stress parameters
-        int wind_stress_type_, 
-        float tau0_, float rho_, float alpha_, float xm_, float Rc_,
-        float x0_, float y0_,
-        float u0_, float v0_,
-		float wind_speed_, float wind_direction_,
+        __global const wind_stress_params *wind_stress_,
+
         float t_) {
         
     __local float H_shared[block_height+2][block_width+1];
@@ -247,14 +253,7 @@ __kernel void computeUKernel(
     float E = (U_p0 - U0 + U_m0)/(dx_*dx_) + (U_0p - U0 + U_0m)/(dy_*dy_);
     
     //Calculate the wind shear stress
-    float X = windStressX(
-        wind_stress_type_, 
-        dx_, dy_, dt_,
-        tau0_, rho_, alpha_, xm_, Rc_,
-        x0_, y0_,
-        u0_, v0_,
-		wind_speed_, wind_direction_,
-		t_);
+    float X = windStressX(wind_stress_, dx_, dy_, dt_, t_);
 
     // Finding the contribution from Coriolis
     float global_thread_y = get_global_id(1);

@@ -230,8 +230,8 @@ __kernel void swe_2D(
         float theta_,
         
         float f_, //< Coriolis coefficient
-	float beta_, //< Coriolis force f_ + beta_*(y-y0)
-	float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
+        float beta_, //< Coriolis force f_ + beta_*(y-y0)
+        float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
 	
         float r_, //< Bottom friction coefficient
         
@@ -247,17 +247,14 @@ __kernel void swe_2D(
         __global float* hu1_ptr_, int hu1_pitch_,
         __global float* hv1_ptr_, int hv1_pitch_,
 
-	// Depth at cell intersections (i) and mid-points (m)
-	__global float* Hi_ptr_, int Hi_pitch_,
-	__global float* Hm_ptr_, int Hm_pitch_,
+        // Depth at cell intersections (i) and mid-points (m)
+        __global float* Hi_ptr_, int Hi_pitch_,
+        __global float* Hm_ptr_, int Hm_pitch_,
         
         //Wind stress parameters
-        int wind_stress_type_, 
-        float tau0_, float rho_, float alpha_, float xm_, float Rc_,
-        float x0_, float y0_,
-        float u0_, float v0_,
+        __global const wind_stress_params *wind_stress_,
 
-	// Boundary conditions (1: wall, 2: periodic, 3: numerical sponge)
+        // Boundary conditions (1: wall, 2: periodic, 3: numerical sponge)
         int bc_north_, int bc_east_, int bc_south_, int bc_west_,
 	
         float t_) {
@@ -349,20 +346,8 @@ __kernel void swe_2D(
 	const float ST2 = bottomSourceTerm2(Q, Qx, RHx, g_, i, j);
 	const float ST3 = bottomSourceTerm3(Q, Qy, RHy, g_, i, j);
 	
-        const float X = windStressX(
-            wind_stress_type_, 
-            dx_, dy_, dt_,
-            tau0_, rho_, alpha_, xm_, Rc_,
-            x0_, y0_,
-            u0_, v0_,
-            t_);
-        const float Y = windStressY(
-            wind_stress_type_, 
-            dx_, dy_, dt_,
-            tau0_, rho_, alpha_, xm_, Rc_,
-            x0_, y0_,
-            u0_, v0_,
-            t_);
+	const float X = windStressX(wind_stress_, dx_, dy_, dt_, t_);
+	const float Y = windStressY(wind_stress_, dx_, dy_, dt_, t_);
 
 	
 	// Coriolis parameter
