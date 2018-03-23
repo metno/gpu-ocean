@@ -43,6 +43,9 @@ class OceanStateNoise(object):
                  soar_q0=None, soar_L=None,
                  block_width=16, block_height=16):
         
+        self.random_numbers = None
+        self.seed = None
+        
         self.cl_ctx = cl_ctx
         self.cl_queue = cl_queue
         
@@ -114,8 +117,10 @@ class OceanStateNoise(object):
         self.cleanUp()
      
     def cleanUp(self):
-        self.seed.release()
-        self.random_numbers.release()
+        if self.seed is not None:
+            self.seed.release()
+        if self.random_numbers is not None:
+            self.random_numbers.release()
         gc.collect()
         
     @classmethod
