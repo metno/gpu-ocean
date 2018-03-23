@@ -47,6 +47,7 @@ class CDKLM16(Simulator.Simulator):
                  theta=1.3, rk_order=2, \
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
+                 max_wind_direction_perturbation = 0, \
                  wind_stress=WindStress.NoWindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  h0AsWaterElevation=False, \
@@ -74,6 +75,7 @@ class CDKLM16(Simulator.Simulator):
         rk_order: Order of Runge Kutta method {1,2*,3}
         coriolis_beta: Coriolis linear factor -> f = f + beta*(y-y_0)
         y_zero_reference_cell: The cell representing y_0 in the above, defined as the lower face of the cell .
+        max_wind_direction_perturbation: Large-scale model error emulation by per-time-step perturbation of wind direction by +/- max_wind_direction_perturbation (degrees)
         wind_stress: Wind stress parameters
         boundary_conditions: Boundary condition object
         h0AsWaterElevation: True if h0 is described by the surface elevation, and false if h0 is described by water depth
@@ -106,6 +108,7 @@ class CDKLM16(Simulator.Simulator):
             y_zero_reference_cell = boundary_conditions.spongeCells[2] + y_zero_reference_cell
         
         A = None
+        self.max_wind_direction_perturbation = max_wind_direction_perturbation
         super(CDKLM16, self).__init__(cl_ctx, \
                                       nx, ny, \
                                       ghost_cells_x, \
@@ -245,7 +248,18 @@ class CDKLM16(Simulator.Simulator):
             self.bc_kernel.boundaryCondition(self.cl_queue, \
                 self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
         
-        for i in range(0, n):        
+        for i in range(0, n):
+            # Get new random wind direction (emulationg large-scale model error)
+            if(self.max_wind_direction_perturbation > 0.0 and self.wind_stress.type() == 1):
+                # max perturbation +/- max_wind_direction_perturbation deg within original wind direction (at t=0)
+                perturbation = 2.0*(np.random.rand()-0.5) * self.max_wind_direction_perturbation;
+                new_wind_stress = WindStress.GenericUniformWindStress( \
+                    rho_air=self.wind_stress.rho_air, \
+                    wind_speed=self.wind_stress.wind_speed, \
+                    wind_direction=self.wind_stress.wind_direction + perturbation)
+                # Upload new wind stress params to device
+                cl.enqueue_copy(self.cl_queue, self.wind_stress_dev, new_wind_stress.tostruct())
+                
             local_dt = np.float32(min(self.dt, t_end-i*self.dt))
             
             if (local_dt <= 0.0):
