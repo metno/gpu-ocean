@@ -27,6 +27,7 @@ import pyopencl
 import gc
 
 import Common
+import FBL, CTCS, CDKLM16, KP07
 
 class OceanStateNoise(object):
     """
@@ -38,7 +39,7 @@ class OceanStateNoise(object):
     
     def __init__(self, cl_ctx, cl_queue,
                  nx, ny, dx, dy,
-                 boundaryConditions, staggered, cutoff=2,
+                 boundaryConditions, staggered,
                  soar_q0=None, soar_L=None,
                  block_width=16, block_height=16):
         
@@ -52,14 +53,19 @@ class OceanStateNoise(object):
         self.staggered = np.int(0)
         if staggered:
             self.staggered = np.int(1)
-        self.cutoff = np.int32(cutoff)
+            
+        # The cutoff parameter is hard-coded.
+        # The size of the cutoff determines the computational radius in the
+        # SOAR function. Hence, the size of the local memory in the OpenCL 
+        # kernels has to be hard-coded.
+        self.cutoff = np.int32(2) 
         
         self.periodicNorthSouth = np.int32(boundaryConditions.isPeriodicNorthSouth())
         self.periodicEastWest = np.int32(boundaryConditions.isPeriodicEastWest())
         
         # Size of random field and seed
-        self.rand_nx = np.int32(nx + 2*(1+cutoff))
-        self.rand_ny = np.int32(ny + 2*(1+cutoff))
+        self.rand_nx = np.int32(nx + 2*(1+self.cutoff))
+        self.rand_ny = np.int32(ny + 2*(1+self.cutoff))
         if self.periodicEastWest:
             self.rand_nx = np.int32(nx)
         if self.periodicNorthSouth:
@@ -113,14 +119,16 @@ class OceanStateNoise(object):
         gc.collect()
         
     @classmethod
-    def fromsim(cls, sim, cutoff=2, block_width=16, block_height=16):
+    def fromsim(cls, sim, soar_q0=None, soar_L=None, 
+                block_width=16, block_height=16):
         staggered = False
-        if isinstance(cls, FBL.FBL) or isinstance(cls, CTCS.CTCS):
+        if isinstance(sim, FBL.FBL) or isinstance(sim, CTCS.CTCS):
             staggered = True
         return cls(sim.cl_ctx, sim.cl_queue,
-                   sim.nx, sim.ny,
-                   sim.boundary_conditions, staggered, 
-                   cutoff=cutoff,)
+                   sim.nx, sim.ny, sim.dx, sim.dy,
+                   sim.boundary_conditions, staggered,
+                   soar_q0=soar_q0, soar_L=soar_L,
+                   block_width=block_width, block_height=block_height)
         
         
         
@@ -147,6 +155,18 @@ class OceanStateNoise(object):
                                          self.seed.data, self.seed.pitch,
                                          self.random_numbers.data, self.random_numbers.pitch)
     
+    def perturbSim(self, sim):
+        assert(isinstance(sim, CDKLM16.CDKLM16))
+        gcx = 0 # sim.ghost_cells_x
+        gcy = 0 # sim.ghost_cells_y
+        
+        self.perturbOceanState(sim.cl_data.h0, sim.cl_data.hu0, sim.cl_data.hv0,
+                               sim.bathymetry.Bi,
+                               sim.f, beta=sim.coriolis_beta, g=sim.g, 
+                               y0_reference_cell=sim.y_zero_reference_cell,
+                               ghost_cells_x=gcx,
+                               ghost_cells_y=gcy)
+                               
     
     def perturbOceanState(self, eta, hu, hv, H, f, beta=0.0, g=9.81, 
                           y0_reference_cell=0, ghost_cells_x=0, ghost_cells_y=0):
@@ -179,7 +199,10 @@ class OceanStateNoise(object):
                                   hv.data, hv.pitch,
                                   H.data, H.pitch)
     
+    
+    
     ##### CPU versions of the above functions ####
+    
     def getSeedCPU(self):
         return self.host_seed
     
