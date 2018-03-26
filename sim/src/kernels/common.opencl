@@ -1,6 +1,15 @@
 #ifndef COMMON_CL
 #define COMMON_CL
 
+#include "../config.h"
+
+#ifndef __OPENCL_VERSION__
+#define __kernel
+#define __global
+#define __local
+#define CLK_LOCAL_MEM_FENCE
+#endif
+
 #define _180_OVER_PI 57.29578f
 #define PI_OVER_180 0.01745329f
 
@@ -27,6 +36,37 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+/**
+ * Mapped to subclasses of WindStress in SWESimulators/WindStress.py
+ * DO NOT make changes here without changing WindStress.py accordingly!
+ */
+typedef enum {NO_WIND,
+	GENERIC_UNIFORM,
+	ALONGSHORE_UNIFORM,
+	ALONGSHORE_BELLSHAPED,
+	MOVING_CYCLONE}
+wind_stress_type;
+
+/**
+ * Mapped to Structure WIND_STRESS_PARAMS in SWESimulators/WindStress.py
+ * DO NOT make changes here without changing WindStress.py accordingly!
+ */
+typedef struct WindStressParams {
+   wind_stress_type type;
+   float tau0;
+   float rho;
+   float rho_air;
+   float alpha;
+   float xm;
+   float Rc;
+   float x0;
+   float y0;
+   float u0;
+   float v0;
+   float wind_speed;
+   float wind_direction;
+} wind_stress_params;
 
 /**
   * Reads a block of data  with one ghost cell for the shallow water equations
@@ -554,154 +594,106 @@ float wind_v(float wind_speed, float wind_direction) {
 	return -wind_speed * cos(wind_direction * PI_OVER_180);
 }
 
-float __attribute__((overloadable)) windStressX(int wind_stress_type_,
+float windStressX(__global const wind_stress_params *wind_stress_,
                 float dx_, float dy_, float dt_,
-                float tau0_, float rho_, float alpha_, float xm_, float Rc_,
-                float x0_, float y0_,
-                float u0_, float v0_,
-				float wind_speed_, float wind_direction_,
-                float t_) {
-    
+				float t_) {
     float X = 0.0f;
     
-    switch (wind_stress_type_) {
-    case 0: //UNIFORM_ALONGSHORE
-        {
-            const float y = (get_global_id(1)+0.5f)*dy_;
-            X = tau0_/rho_ * exp(-alpha_*y);
-            //X = 0.2f;
-        }
-        break;
-    case 1: //BELL_SHAPED_ALONGSHORE
-        if (t_ <= 48.0f*3600.0f) {
-            const float a = alpha_*((get_global_id(0)+0.5f)*dx_-xm_);
-            const float aa = a*a;
-            const float y = (get_global_id(1)+0.5f)*dy_;
-            X = tau0_/rho_ * exp(-aa) * exp(-alpha_*y);
-        }
-        break;
-    case 2: //MOVING_CYCLONE
-        {
-            const float x = (get_global_id(0))*dx_;
-            const float y = (get_global_id(1)+0.5f)*dy_;
-            const float a = (x-x0_-u0_*(t_+dt_));
-            const float aa = a*a;
-            const float b = (y-y0_-v0_*(t_+dt_));
-            const float bb = b*b;
-            const float r = sqrt(aa+bb);
-            const float c = 1.0f - r/Rc_;
-            const float xi = c*c;
-            
-            X = -(tau0_/rho_) * (b/Rc_) * exp(-0.5f*xi);
-        }
-        break;
-    case 50: //UNIFORM_SPECIFIED
+    switch (wind_stress_->type) {
+    case NO_WIND:
+    	break;
+    case GENERIC_UNIFORM:
 		{
-			const float rho_air = 1.3f;
-
 			/*
 			 * C_drag as defined by Engedahl (1995)
 			 *
 			 * (See "Documentation of simple ocean models for use in ensemble predictions. Part II: Benchmark cases"
 			 * at https://www.met.no/publikasjoner/met-report/met-report-2012 for details.)
 			 */
-			const float C_drag = (wind_speed_ < 11) ? 0.0012f : (0.49f + 0.065f)*wind_speed_;
+			const float C_drag = (wind_stress_->wind_speed < 11) ? 0.0012f : (0.49f + 0.065f)*wind_stress_->wind_speed;
 
-			X = rho_air * C_drag * wind_u(wind_speed_, wind_direction_);
+			X = wind_stress_->rho_air * C_drag * wind_u(wind_stress_->wind_speed, wind_stress_->wind_direction);
 		}
 		break;
+    case ALONGSHORE_UNIFORM:
+        {
+            const float y = (get_global_id(1)+0.5f)*dy_;
+            X = wind_stress_->tau0/wind_stress_->rho * exp(-wind_stress_->alpha*y);
+            //X = 0.2f;
+        }
+        break;
+    case ALONGSHORE_BELLSHAPED:
+        if (t_ <= 48.0f*3600.0f) {
+            const float a = wind_stress_->alpha*((get_global_id(0)+0.5f)*dx_-wind_stress_->xm);
+            const float aa = a*a;
+            const float y = (get_global_id(1)+0.5f)*dy_;
+            X = wind_stress_->tau0/wind_stress_->rho * exp(-aa) * exp(-wind_stress_->alpha*y);
+        }
+        break;
+    case MOVING_CYCLONE:
+        {
+            const float x = (get_global_id(0))*dx_;
+            const float y = (get_global_id(1)+0.5f)*dy_;
+            const float a = (x-wind_stress_->x0-wind_stress_->u0*(t_+dt_));
+            const float aa = a*a;
+            const float b = (y-wind_stress_->y0-wind_stress_->v0*(t_+dt_));
+            const float bb = b*b;
+            const float r = sqrt(aa+bb);
+            const float c = 1.0f - r/wind_stress_->Rc;
+            const float xi = c*c;
+            
+            X = -(wind_stress_->tau0/wind_stress_->rho) * (b/wind_stress_->Rc) * exp(-0.5f*xi);
+        }
+        break;
     }
 
     return X;
 }
 
-/*
- * Temporary overload.
- * TODO: Implement wind parameters as struct.
- */
-float __attribute__((overloadable)) windStressX(int wind_stress_type_,
+float windStressY(__global const wind_stress_params *wind_stress_,
                 float dx_, float dy_, float dt_,
-                float tau0_, float rho_, float alpha_, float xm_, float Rc_,
-                float x0_, float y0_,
-                float u0_, float v0_,
-                float t_) {
-	return windStressX(wind_stress_type_,
-	                dx_, dy_, dt_,
-	                tau0_, rho_, alpha_, xm_, Rc_,
-	                x0_, y0_,
-	                u0_, v0_,
-					0.f, 0.f,
-	                t_);
-}
-
-
-
-
-
-float __attribute__((overloadable)) windStressY(int wind_stress_type_,
-                float dx_, float dy_, float dt_,
-                float tau0_, float rho_, float alpha_, float xm_, float Rc_,
-                float x0_, float y0_,
-                float u0_, float v0_,
-				float wind_speed_, float wind_direction_,
 	            float t_) {
     float Y = 0.0f;
-    
-    switch (wind_stress_type_) {
-    case 2: //MOVING_CYCLONE:
-        {
-            const float x = (get_global_id(0)+0.5f)*dx_; 
-            const float y = (get_global_id(1))*dy_;
-            const float a = (x-x0_-u0_*(t_+dt_));
-            const float aa = a*a;
-            const float b = (y-y0_-v0_*(t_+dt_));
-            const float bb = b*b;
-            const float r = sqrt(aa+bb);
-            const float c = 1.0f - r/Rc_;
-            const float xi = c*c;
-            
-            Y = (tau0_/rho_) * (a/Rc_) * exp(-0.5f*xi);
-        }
-        break;
-    case 50: //UNIFORM_SPECIFIED
-		{
-			const float rho_air = 1.3f;
 
+    switch (wind_stress_->type) {
+    case NO_WIND:
+    	break;
+    case GENERIC_UNIFORM:
+		{
 			/*
 			 * C_drag as defined by Engedahl (1995)
 			 *
 			 * (See "Documentation of simple ocean models for use in ensemble predictions. Part II: Benchmark cases"
 			 * at https://www.met.no/publikasjoner/met-report/met-report-2012 for details.)
 			 */
-			const float C_drag = (wind_speed_ < 11) ? 0.0012f : (0.49f + 0.065f)*wind_speed_;
+			const float C_drag = (wind_stress_->wind_speed < 11) ? 0.0012f : (0.49f + 0.065f)*wind_stress_->wind_speed;
 
-			Y = rho_air * C_drag * wind_v(wind_speed_, wind_direction_);
+			Y = wind_stress_->rho_air * C_drag * wind_v(wind_stress_->wind_speed, wind_stress_->wind_direction);
 		}
 		break;
+    case ALONGSHORE_UNIFORM:
+    	break;
+    case ALONGSHORE_BELLSHAPED:
+    	break;
+    case MOVING_CYCLONE:
+        {
+            const float x = (get_global_id(0)+0.5f)*dx_; 
+            const float y = (get_global_id(1))*dy_;
+            const float a = (x-wind_stress_->x0-wind_stress_->u0*(t_+dt_));
+            const float aa = a*a;
+            const float b = (y-wind_stress_->y0-wind_stress_->v0*(t_+dt_));
+            const float bb = b*b;
+            const float r = sqrt(aa+bb);
+            const float c = 1.0f - r/wind_stress_->Rc;
+            const float xi = c*c;
+            
+            Y = (wind_stress_->tau0/wind_stress_->rho) * (a/wind_stress_->Rc) * exp(-0.5f*xi);
+        }
+        break;
     }
 
     return Y;
 }
-
-/*
- * Temporary overload.
- * TODO: Implement wind parameters as struct.
- */
-float __attribute__((overloadable)) windStressY(int wind_stress_type_,
-                float dx_, float dy_, float dt_,
-                float tau0_, float rho_, float alpha_, float xm_, float Rc_,
-                float x0_, float y0_,
-                float u0_, float v0_,
-                float t_) {
-	return windStressY(wind_stress_type_,
-	                dx_, dy_, dt_,
-	                tau0_, rho_, alpha_, xm_, Rc_,
-	                x0_, y0_,
-	                u0_, v0_,
-					0.f, 0.f,
-	                t_);
-}
-
 
 
 

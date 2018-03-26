@@ -109,12 +109,12 @@ __kernel void swe_2D(
         float theta_,
         
         float f_, //< Coriolis coefficient
-	float beta_, //< Coriolis force f_ + beta_*y
-	float y_zero_reference_, // the cell row representing y = 0.5*dy
+        float beta_, //< Coriolis force f_ + beta_*y
+        float y_zero_reference_, // the cell row representing y = 0.5*dy
 	
         float r_, //< Bottom friction coefficient
 
-	int rk_order, // runge kutta order
+        int rk_order, // runge kutta order
         int step_,    // runge kutta step
         
         //Input h^n
@@ -127,15 +127,13 @@ __kernel void swe_2D(
         __global float* hu1_ptr_, int hu1_pitch_,
         __global float* hv1_ptr_, int hv1_pitch_,
 
-	//Bathymery
-	__global float* Hi_ptr_, int Hi_pitch_,
-	__global float* Hm_ptr_, int Hm_pitch_,
+        //Bathymery
+        __global float* Hi_ptr_, int Hi_pitch_,
+        __global float* Hm_ptr_, int Hm_pitch_,
 	
         //Wind stress parameters
-        int wind_stress_type_, 
-        float tau0_, float rho_, float alpha_, float xm_, float Rc_,
-        float x0_, float y0_,
-        float u0_, float v0_,
+        __global const wind_stress_params *wind_stress_,
+
         float t_, 
     
         // Boundary conditions (1: wall, 2: periodic, 3: open boundary (flow relaxation scheme))
@@ -504,20 +502,8 @@ __kernel void swe_2D(
         const int i = tx + 2; //Skip local ghost cells, i.e., +2
         const int j = ty + 2;
         
-        const float X = windStressX(
-            wind_stress_type_, 
-            dx_, dy_, dt_,
-            tau0_, rho_, alpha_, xm_, Rc_,
-            x0_, y0_,
-            u0_, v0_,
-            t_);
-        const float Y = windStressY(
-            wind_stress_type_, 
-            dx_, dy_, dt_,
-            tau0_, rho_, alpha_, xm_, Rc_,
-            x0_, y0_,
-            u0_, v0_,
-            t_);
+        const float X = windStressX(wind_stress_, dx_, dy_, dt_, t_);
+        const float Y = windStressY(wind_stress_, dx_, dy_, dt_, t_);
 
 	// Bottom topography source terms!
 	// -g*(eta + H)*(-1)*dH/dx   * dx

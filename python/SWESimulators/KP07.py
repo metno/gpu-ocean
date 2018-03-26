@@ -31,6 +31,7 @@ import gc
 
 import Common, SimWriter, SimReader
 import Simulator
+import WindStress
 
 class KP07(Simulator.Simulator):
     """
@@ -47,7 +48,7 @@ class KP07(Simulator.Simulator):
                  theta=1.3, use_rk2=True,
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
-                 wind_stress=Common.WindStressParams(), \
+                 wind_stress=WindStress.NoWindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
@@ -250,10 +251,7 @@ class KP07(Simulator.Simulator):
                         self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
                         self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
                         self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
-                        self.wind_stress.type, \
-                        self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
-                        self.wind_stress.x0, self.wind_stress.y0, \
-                        self.wind_stress.u0, self.wind_stress.v0, \
+                        self.wind_stress_dev, \
                         self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         self.t)
                 
@@ -278,10 +276,7 @@ class KP07(Simulator.Simulator):
                         self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
                         self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
                         self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
-                        self.wind_stress.type, \
-                        self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
-                        self.wind_stress.x0, self.wind_stress.y0, \
-                        self.wind_stress.u0, self.wind_stress.v0, \
+                        self.wind_stress_dev, \
                         self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         self.t)
                 
@@ -306,10 +301,7 @@ class KP07(Simulator.Simulator):
                         self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
                         self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
                         self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
-                        self.wind_stress.type, \
-                        self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
-                        self.wind_stress.x0, self.wind_stress.y0, \
-                        self.wind_stress.u0, self.wind_stress.v0, \
+                        self.wind_stress_dev, \
                         self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         self.t)
                 self.cl_data.swap()

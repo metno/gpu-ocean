@@ -29,6 +29,7 @@ import gc
 
 import Common, SimWriter, SimReader
 import Simulator
+import WindStress
    
 
 class FBL(Simulator.Simulator):
@@ -45,7 +46,7 @@ class FBL(Simulator.Simulator):
                  t=0.0, \
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
-                 wind_stress=Common.WindStressParams(), \
+                 wind_stress=WindStress.NoWindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
@@ -240,10 +241,7 @@ class FBL(Simulator.Simulator):
                     self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
                     self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
                     self.cl_data.h0.data, self.cl_data.h0.pitch, \
-                    self.wind_stress.type, \
-                    self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
-                    self.wind_stress.x0, self.wind_stress.y0, \
-                    self.wind_stress.u0, self.wind_stress.v0, \
+                    self.wind_stress_dev, \
                     self.t)
 
             # Fix U boundary
@@ -257,10 +255,7 @@ class FBL(Simulator.Simulator):
                     self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
                     self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
                     self.cl_data.h0.data, self.cl_data.h0.pitch, \
-                    self.wind_stress.type, \
-                    self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
-                    self.wind_stress.x0, self.wind_stress.y0, \
-                    self.wind_stress.u0, self.wind_stress.v0, \
+                    self.wind_stress_dev, \
                     self.t)
 
             # Fix V boundary

@@ -2,6 +2,26 @@ import pyopencl
 import os
 import numpy as np
 
+import warnings
+import functools
+import WindStress
+
+def deprecated(func):
+    """This is a decorator which can be used to mark functions
+    as deprecated.
+    Reference: https://stackoverflow.com/questions/2536307/how-do-i-deprecate-python-functions
+    """
+    @functools.wraps(func)
+    def new_func(*args, **kwargs):
+        # MLS: Seems wrong to mess with standard filter settings in this context.
+        # Code is nevertheless not removed, as this could be relevant at a later time.
+        #warnings.simplefilter('always', DeprecationWarning)  # turn off filter
+        warnings.warn("Call to deprecated function {}.".format(func.__name__),
+                      category=DeprecationWarning,
+                      stacklevel=2)
+        #warnings.simplefilter('default', DeprecationWarning)  # reset filter
+        return func(*args, **kwargs)
+    return new_func
 
 def get_kernel(cl_ctx, kernel_filename, block_width, block_height):
     """
@@ -286,47 +306,51 @@ class SWEDataArakawaC:
         self.h1.release()
         self.hu1.release()
         self.hv1.release()
-        
-    
 
-class WindStressParams:
-    """
-    Class which represents different wind stresses
-    """
-
-    def __init__(self, 
-                 type=99, # "no wind" \
+@deprecated
+def WindStressParams(type=99, # "no wind" \
                  tau0=0, rho=0, alpha=0, xm=0, Rc=0, \
                  x0=0, y0=0, \
                  u0=0, v0=0, \
                  wind_speed=0, wind_direction=0):
-        """
-        wind_type: TYpe of wind stress, 0=Uniform along shore, 1=bell shaped along shore, 2=moving cyclone, 50=Uniform specified by direction and speed
-        wind_tau0: Amplitude of wind stress (Pa)
-        wind_rho: Density of sea water (1025.0 kg / m^3)
-        wind_alpha: Offshore e-folding length (1/(10*dx) = 5e-6 m^-1)
-        wind_xm: Maximum wind stress for bell shaped wind stress
-        wind_Rc: Distance to max wind stress from center of cyclone (10dx = 200 000 m)
-        wind_x0: Initial x position of moving cyclone (dx*(nx/2) - u0*3600.0*48.0)
-        wind_y0: Initial y position of moving cyclone (dy*(ny/2) - v0*3600.0*48.0)
-        wind_u0: Translation speed along x for moving cyclone (30.0/sqrt(5.0))
-        wind_v0: Translation speed along y for moving cyclone (-0.5*u0)
-        wind_speed: Wind speed in m/s
-        wind_direction: Wind direction in degrees (clockwise, 0 being wind blowing from north towards south)
-        """
-        self.type = np.int32(type)
-        self.tau0 = np.float32(tau0)
-        self.rho = np.float32(rho)
-        self.alpha = np.float32(alpha)
-        self.xm = np.float32(xm)
-        self.Rc = np.float32(Rc)
-        self.x0 = np.float32(x0)
-        self.y0 = np.float32(y0)
-        self.u0 = np.float32(u0)
-        self.v0 = np.float32(v0)
-        self.wind_speed = np.float32(wind_speed)
-        self.wind_direction = np.float32(wind_direction)
-                 
+    """
+    Backward compatibility function to avoid rewriting old code and notebooks.
+    
+    SHOULD NOT BE USED IN NEW CODE! Make WindStress object directly instead.
+    """
+    
+    type_ = np.int32(type)
+    tau0_ = np.float32(tau0)
+    rho_ = np.float32(rho)
+    rho_air_ = np.float32(1.3) # new parameter
+    alpha_ = np.float32(alpha)
+    xm_ = np.float32(xm)
+    Rc_ = np.float32(Rc)
+    x0_ = np.float32(x0)
+    y0_ = np.float32(y0)
+    u0_ = np.float32(u0)
+    v0_ = np.float32(v0)
+    wind_speed_ = np.float32(wind_speed)
+    wind_direction_ = np.float32(wind_direction)
+    
+    if type == 0:
+        wind_stress = WindStress.UniformAlongShoreWindStress( \
+            tau0=tau0_, rho=rho_, alpha=alpha_)
+    elif type == 1:
+        wind_stress = WindStress.BellShapedAlongShoreWindStress( \
+            xm=xm_, tau0=tau0_, rho=rho_, alpha=alpha_)
+    elif type == 2:
+        wind_stress = WindStress.MovingCycloneWindStress( \
+            Rc=Rc_, x0=x0_, y0=y0_, u0=u0_, v0=v0_)
+    elif type == 50:
+        wind_stress = WindStress.GenericUniformWindStress( \
+            rho_air=rho_air_, wind_speed=wind_speed_, wind_direction=wind_direction_)
+    elif type == 99:
+        wind_stress = WindStress.NoWindStress()
+    else:
+        raise RuntimeError('Invalid wind stress type!')
+    
+    return wind_stress
 
 class BoundaryConditions:
     """

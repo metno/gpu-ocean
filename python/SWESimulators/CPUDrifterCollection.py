@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class takes care of the global ensemble of particles for EPS.
+This python class implements a DrifterCollection living on the CPU.
 
 Copyright (C) 2018  SINTEF ICT
 
@@ -26,39 +26,39 @@ import numpy as np
 import time
 
 import Common
-import Drifter
+import BaseDrifterCollection
 
-class CPUDrifter(Drifter.Drifter):
+class CPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
     """
-    Class holding the global set of particles.
+    Class holding the collection of drifters.
     """ 
-    def __init__(self, numParticles, observation_variance=0.1,
+    def __init__(self, numDrifters, observation_variance=0.1,
                  boundaryConditions=Common.BoundaryConditions(), 
                  domain_size_x=1.0, domain_size_y=1.0):
         """
         Creates a GlobalParticles object for drift trajectory ensemble.
 
-        numParticles: number of particles in the ensemble, not included the observation
+        numDrifters: number of drifters in the collection, not included the observation
         observation_variance: uncertainty of observation position
         boundaryConditions: BoundaryConditions object, relevant during re-initialization of particles.    
         """
         
         # Call parent constructor
-        super(CPUDrifter, self).__init__(numParticles,
+        super(CPUDrifterCollection, self).__init__(numDrifters,
                                          observation_variance=observation_variance,
                                          boundaryConditions=boundaryConditions,
                                          domain_size_x=domain_size_x, 
                                          domain_size_y=domain_size_y)
         
         # One position for every particle plus observation
-        self.positions = np.zeros((self.numParticles + 1, 2))
+        self.positions = np.zeros((self.numDrifters + 1, 2))
         
     def copy(self):
         """
         Makes an independent indentical copy of the current object
         """
     
-        copyOfSelf = CPUDrifter(self.numParticles,
+        copyOfSelf = CPUDrifterCollection(self.numDrifters,
                                 observation_variance = self.observation_variance,
                                 boundaryConditions = self.boundaryConditions,
                                 domain_size_x = self.domain_size_x, 
@@ -71,7 +71,7 @@ class CPUDrifter(Drifter.Drifter):
     
     ### Implementation of abstract GETs
     
-    def getParticlePositions(self):
+    def getDrifterPositions(self):
         return self.positions[:-1,:].copy()
     
     def getObservationPosition(self):
@@ -81,11 +81,9 @@ class CPUDrifter(Drifter.Drifter):
     
     ### Implementation of abstract GETs
     
-    def setParticlePositions(self, newParticlePositions):
-        # Include the observation:
-        #newPositionsAll = np.concatenate((newParticlePositions, np.array([self.getObservationPosition()])), \
-        #                                 axis=0)
-        np.copyto(self.positions[:-1,:], newParticlePositions) # np.copyto(dst, src)
+    def setDrifterPositions(self, newDrifterPositions):
+        np.copyto(self.positions[:-1,:], newDrifterPositions) 
+        # Signature of copyto: np.copyto(dst, src)
     
     def setObservationPosition(self, newObservationPosition):
         np.copyto(self.positions[-1,:], newObservationPosition)
@@ -117,7 +115,7 @@ class CPUDrifter(Drifter.Drifter):
         
         if (self.boundaryConditions.isPeriodicNorthSouth() and self.boundaryConditions.isPeriodicEastWest()):
             # Loop over particles
-            for i in range(self.numParticles + 1):
+            for i in range(self.getNumDrifters() + 1):
                 x, y = self.positions[i,0], self.positions[i,1]
 
                 x, y = self._enforceBoundaryConditionsOnPosition(x,y)

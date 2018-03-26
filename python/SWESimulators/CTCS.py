@@ -30,6 +30,7 @@ import gc
 
 import Common, SimWriter, SimReader
 import Simulator
+import WindStress
 
 class CTCS(Simulator.Simulator):
     """
@@ -45,7 +46,7 @@ class CTCS(Simulator.Simulator):
                  t=0.0, \
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
-                 wind_stress=Common.WindStressParams(), \
+                 wind_stress=WindStress.NoWindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
@@ -264,11 +265,7 @@ class CTCS(Simulator.Simulator):
                     self.cl_data.hu0.data, self.cl_data.hu0.pitch,    # U^{n-1} => U^{n+1} \
                     self.cl_data.hu1.data, self.cl_data.hu1.pitch,    # U^{n} \
                     self.cl_data.hv1.data, self.cl_data.hv1.pitch,    # V^{n} \
-                    self.wind_stress.type, \
-                    self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
-                    self.wind_stress.x0, self.wind_stress.y0, \
-                    self.wind_stress.u0, self.wind_stress.v0, \
-                    self.wind_stress.wind_speed, self.wind_stress.wind_direction, \
+                    self.wind_stress_dev, \
                     self.t)
 
             self.bc_kernel.boundaryConditionU(self.cl_queue, self.cl_data.hu0)
@@ -284,11 +281,7 @@ class CTCS(Simulator.Simulator):
                     self.cl_data.hu1.data, self.cl_data.hu1.pitch,   # U^{n} \
                     self.cl_data.hv0.data, self.cl_data.hv0.pitch,   # V^{n-1} => V^{n+1} \
                     self.cl_data.hv1.data, self.cl_data.hv1.pitch,   # V^{n} \
-                    self.wind_stress.type, \
-                    self.wind_stress.tau0, self.wind_stress.rho, self.wind_stress.alpha, self.wind_stress.xm, self.wind_stress.Rc, \
-                    self.wind_stress.x0, self.wind_stress.y0, \
-                    self.wind_stress.u0, self.wind_stress.v0, \
-                    self.wind_stress.wind_speed, self.wind_stress.wind_direction, \
+                    self.wind_stress_dev, \
                     self.t)
 
             self.bc_kernel.boundaryConditionV(self.cl_queue, self.cl_data.hv0)

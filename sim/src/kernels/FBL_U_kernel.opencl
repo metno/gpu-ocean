@@ -53,8 +53,8 @@ __kernel void computeUKernel(
         //Physical parameters
         float g_, //< Gravitational constant
         float f_, //< Coriolis coefficient
-	float beta_, //< Coriolis force f_ + beta_*(y-y0)
-	float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
+        float beta_, //< Coriolis force f_ + beta_*(y-y0)
+        float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
         float r_, //< Bottom friction coefficient
     
         //Data
@@ -64,10 +64,8 @@ __kernel void computeUKernel(
         __global float* eta_ptr_, int eta_pitch_,
     
         // Wind stress parameters
-        int wind_stress_type_, 
-        float tau0_, float rho_, float alpha_, float xm_, float Rc_,
-        float x0_, float y0_,
-        float u0_, float v0_,
+        __global const wind_stress_params *wind_stress_,
+
         float t_) {
     
     __local float H_shared[block_height][block_width+1];
@@ -169,14 +167,7 @@ __kernel void computeUKernel(
     float P = g_*H_m*(eta_shared[ty][tx] - eta_shared[ty][tx+1])/dx_;
     
     //Calculate the wind shear stress
-    float X = windStressX(
-        wind_stress_type_, 
-        dx_, dy_, dt_,
-        tau0_, rho_, alpha_, xm_, Rc_,
-        x0_, y0_,
-        u0_, v0_,
-        t_);
-
+    float X = windStressX(wind_stress_, dx_, dy_, dt_, t_);
 
     //Compute the U at the next timestep
     float U_next = B*(U_current + dt_*(fV_m + P + X) );

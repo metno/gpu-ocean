@@ -27,7 +27,7 @@ import numpy as np
 import pyopencl as cl #OpenCL in Python
 import Common
 import gc
-
+import WindStress
 
 
 
@@ -67,7 +67,7 @@ class RecursiveCDKLM16:
                  dx, dy, dt, \
                  g, f, r, \
                  theta=1.3, use_rk2=True, \
-                 wind_stress=Common.WindStressParams(), \
+                 wind_stress=WindStress.NoWindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  h0AsWaterElevation=True, \
                  block_width=16, block_height=16):

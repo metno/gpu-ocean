@@ -61,8 +61,10 @@ class OceanStateNoiseTest(unittest.TestCase):
     def tearDown(self):
         if self.noise is not None:
             self.noise.cleanUp()
+            del self.noise
         if self.large_noise is not None:
             self.large_noise.cleanUp()
+            del self.large_noise
         if self.eta is not None:
             self.eta.release()
         if self.hu is not None:
@@ -101,6 +103,7 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.hu = Common.OpenCLArray2D(self.cl_ctx, self.nx, self.ny, 0, 0, host_buffer)
         self.hv = Common.OpenCLArray2D(self.cl_ctx, self.nx, self.ny, 0, 0, host_buffer)
         self.H = Common.OpenCLArray2D(self.cl_ctx, self.nx+1, self.ny+1, 0, 0, HCPU)
+        del host_buffer
         
     def compare_random(self, tol, msg):
 
