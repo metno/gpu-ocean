@@ -16,3 +16,4 @@
 /CTestTestfile.cmake
 /doc/reference_python/
 /python/images_*
+/python/swashes/*.png
