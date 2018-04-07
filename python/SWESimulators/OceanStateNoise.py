@@ -27,6 +27,7 @@ import pyopencl
 import gc
 
 import Common
+import config
 import FBL, CTCS, CDKLM16, KP07
 
 class OceanStateNoise(object):
@@ -61,7 +62,7 @@ class OceanStateNoise(object):
         # The size of the cutoff determines the computational radius in the
         # SOAR function. Hence, the size of the local memory in the OpenCL 
         # kernels has to be hard-coded.
-        self.cutoff = np.int32(2) 
+        self.cutoff = np.int32(config.soar_cutoff) 
         
         self.periodicNorthSouth = np.int32(boundaryConditions.isPeriodicNorthSouth())
         self.periodicEastWest = np.int32(boundaryConditions.isPeriodicEastWest())
