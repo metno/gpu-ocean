@@ -75,7 +75,10 @@ class OceanStateNoise(object):
         if self.periodicNorthSouth:
             self.rand_ny = np.int32(ny)
         self.seed_ny = np.int32(self.rand_ny)
-        self.seed_nx = np.int32(self.rand_nx/2) ### WHAT IF rand_nx IS ODD??
+        self.seed_nx = np.int32(self.rand_nx/2) 
+        ### WHAT IF rand_nx IS ODD??
+        # For now, we check this by assert
+        assert(self.rand_nx % 2 == 0), "The OceanStateNoise module might not work with odd Nx, so just to be sure you are not allowed to use odd Nx for now :)"
         
         # Constants for the SOAR function:
         self.soar_q0 = np.float32(self.dx/100000)
