@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class implements an ensemble of particles, each consisting of a single drifter in its own ocean state.
+This python class implements an abstract ensemble class, where each particle
+will consist of an independent ocean state and one or more drifters.
 
 
 Copyright (C) 2018  SINTEF ICT
@@ -29,11 +30,12 @@ import abc
 
 import CDKLM16
 import GPUDrifterCollection
+import WindStress
 import Common
 import DataAssimilationUtils as dautils
 
 
-class WindForcingEnsemble:
+class OceanStateEnsemble(object):
         
     def __init__(self, numParticles, cl_ctx):
         
@@ -87,48 +89,25 @@ class WindForcingEnsemble:
         self.base_Hi = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C')*waterDepth
  
     
-    def setParameters(self, f, g=9.81, beta=0, r=0, wind=Common.WindStressParams(type=99)):
+    def setParameters(self, f, g=9.81, beta=0, r=0, wind=WindStress.NoWindStress()):
         self.g = g
         self.f = f
         self.beta = beta
         self.r = r
         self.wind = wind
     
-    def initWindCase(self, driftersPerOceanModel=1):
-        self.windSpeed = 2.0
-        self.directions = np.random.rand(self.numParticles + 1)*360
-        #print "Directions: ", self.directions
-        self.driftersPerOceanModel = driftersPerOceanModel
-        
-        for i in range(self.numParticles+1):
-            wind = Common.WindStressParams(type=50, 
-                                           wind_speed=self.windSpeed,
-                                           wind_direction=self.directions[i])
-
-            
-            self.particles[i] = CDKLM16.CDKLM16(self.cl_ctx, \
-                                                self.base_eta, self.base_hu, self.base_hv, \
-                                                self.base_Hi, \
-                                                self.nx, self.ny, self.dx, self.dy, self.dt, \
-                                                self.g, self.f, self.r, \
-                                                wind_stress=wind, \
-                                                boundary_conditions=self.boundaryConditions, \
-                                                write_netcdf=False)
-            if i == self.numParticles:
-                # All particles done, only the observation is left,
-                # and for the observation we only use one drifter, regardless of the
-                # number in the other particles.
-                driftersPerOceanModel = 1
-            
-            drifters = GPUDrifterCollection.GPUDrifterCollection(self.cl_ctx, driftersPerOceanModel,
-                                             observation_variance=self.observation_variance,
-                                             boundaryConditions=self.boundaryConditions,
-                                             domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
-            initPos = np.random.multivariate_normal(self.midPoint, self.initialization_cov, driftersPerOceanModel)
-            drifters.setDrifterPositions(initPos)
-            #print "drifter particles: ", drifter.getParticlePositions()
-            #print "drifter observations: ", drifter.getObservationPosition()
-            self.particles[i].attachDrifters(drifters)
+    @abc.abstractmethod
+    def init(self, driftersPerOceanModel=1):
+        # Initialize ocean models
+        # add drifters
+        # add noise
+        # etc
+        pass
+    
+    @abc.abstractmethod
+    def resample(self, newSampleIndices, reinitialization_variance):
+        # Resample and possibly perturb
+        pass
         
     
     def observeParticles(self):
@@ -174,48 +153,8 @@ class WindForcingEnsemble:
             print "Max hu:  ", np.max(hu)
             print "Max hv:  ", np.max(hv)
             simNo = simNo + 1
-            
-    def resample(self, newSampleIndices, reinitialization_variance):
-        positions = self.observeParticles()
-        windDirection = self.directions
-        newWindDirection = np.empty_like(windDirection)
-        newPos = np.empty((self.driftersPerOceanModel, 2))
-        newOceanStates = [None]*self.getNumParticles()
-        for i in range(self.getNumParticles()):
-            index = newSampleIndices[i]
-            #print "(particle no, position, old direction, new direction): "
-            newWindDirection[i] = np.random.normal(windDirection[index], reinitialization_variance, 1)
-            if newWindDirection[i] > 360:
-                newWindDirection[i] -= 360
-            elif newWindDirection[i] < 0:
-                newWindDirection[i] += 360
-            newPos[:,:] = positions[index,:]
-            #print "\t", (index, positions[index,:], windDirection[index])
-            #print "\t", (index, newPos, newWindDirection[i])
-            
-            #newWindInstance = Common.WindStressParams()
-            newWindInstance = Common.WindStressParams(type=50, 
-                                                      wind_speed=self.windSpeed,
-                                                      wind_direction=newWindDirection[i])
-            
-            # Download index's ocean state:
-            eta0, hu0, hv0 = self.particles[index].download()
-            eta1, hu1, hv1 = self.particles[index].downloadPrevTimestep()
-            newOceanStates[i] = (eta0, hu0, hv0, eta1, hu1, hv1)
-            
-            self.particles[i].wind_stress = newWindInstance
-            self.particles[i].drifters.setDrifterPositions(newPos)
-
-        self.directions = newWindDirection.copy()
-        
-        # New loop for transferring the correct ocean states back up to the GPU:
-        for i in range(self.getNumParticles()):
-            self.particles[i].upload(newOceanStates[i][0],
-                                     newOceanStates[i][1],
-                                     newOceanStates[i][2],
-                                     newOceanStates[i][3],
-                                     newOceanStates[i][4],
-                                     newOceanStates[i][5])
+    
+    
                     
             
     ### Duplication of code
