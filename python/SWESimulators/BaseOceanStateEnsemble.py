@@ -42,7 +42,7 @@ class BaseOceanStateEnsemble(object):
     def __init__(self, numParticles, cl_ctx):
         
         self.cl_ctx = cl_ctx
-        
+        C
         self.numParticles = numParticles
         self.particles = [None]*(self.numParticles + 1)
         

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class implements a Ensemble of particles, each consisting of a single drifter in its own ocean state. The perturbation parameter is the wind direction.
+This python class implements an ensemble of particles, each consisting of a single drifter in its own ocean state. The perturbation parameter is the wind direction.
 
 
 Copyright (C) 2018  SINTEF ICT

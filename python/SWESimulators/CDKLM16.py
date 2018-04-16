@@ -29,6 +29,7 @@ import gc
 import Common, SimWriter, SimReader
 import Simulator
 import WindStress
+import OceanStateNoise
 
 #reload(Simulator)
 
@@ -50,6 +51,8 @@ class CDKLM16(Simulator.Simulator):
                  max_wind_direction_perturbation = 0, \
                  wind_stress=WindStress.NoWindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
+                 small_scale_perturbation=False, \
+                 small_scale_perturbation_amplitude=None, \
                  h0AsWaterElevation=False, \
                  reportGeostrophicEquilibrium=False, \
                  write_netcdf=False, \
@@ -153,6 +156,14 @@ class CDKLM16(Simulator.Simulator):
                                                            self.boundary_conditions, \
         )
 
+        # Small scale perturbation:
+        self.small_scale_perturbation = small_scale_perturbation
+        self.small_scale_model_error = None
+        if small_scale_perturbation:
+            if small_scale_perturbation_amplitude is None:
+                self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self)
+            else:
+                self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, soar_q0=small_scale_perturbation_amplitude)
         
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
@@ -166,6 +177,9 @@ class CDKLM16(Simulator.Simulator):
         self.closeNetCDF()
         
         self.cl_data.release()
+        
+        if self.small_scale_model_error is not None:
+            self.small_scale_model_error.cleanUp()
         
         self.geoEq_uxpvy.release()
         self.geoEq_Kx.release()
@@ -318,7 +332,12 @@ class CDKLM16(Simulator.Simulator):
                 
                 self.bc_kernel.boundaryCondition(self.cl_queue, \
                         self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
-              
+            
+            # Perturb ocean state with model error
+            if self.small_scale_perturbation:
+                self.small_scale_model_error.perturbSim(self)
+            
+            # Evolve drifters
             if self.hasDrifters:
                 self.drifters.drift(self.cl_data.h0, self.cl_data.hu0, \
                                     self.cl_data.hv0, np.float32(10), \
