@@ -35,7 +35,9 @@ import Common
 import DataAssimilationUtils as dautils
 
 
-class OceanStateEnsemble(object):
+class BaseOceanStateEnsemble(object):
+
+    __metaclass__ = abc.ABCMeta
         
     def __init__(self, numParticles, cl_ctx):
         

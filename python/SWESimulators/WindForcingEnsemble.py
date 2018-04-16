@@ -29,12 +29,12 @@ import abc
 
 import CDKLM16
 import GPUDrifterCollection
-import OceanStateEnsemble
+import BaseOceanStateEnsemble
 import Common
 import DataAssimilationUtils as dautils
 
 
-class WindForcingEnsemble(OceanStateEnsemble.OceanStateEnsemble):
+class WindForcingEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
     
     def init(self, driftersPerOceanModel=1):
