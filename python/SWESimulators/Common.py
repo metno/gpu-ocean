@@ -60,15 +60,15 @@ class OpenCLArray2D:
     """
     
     def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, data, \
-                 asymHalo=None, double_precision=False):
+                 asymHalo=None, double_precision=False, integers=False):
         """
         Uploads initial data to the CL device
         """
         self.double_precision = double_precision
+        self.integers = integers
         host_data = None
         if self.double_precision:
             host_data = data
-            print "Skipping convert_to_float32"
         else:
             host_data = self.convert_to_float32(data)
         
@@ -151,8 +151,10 @@ class OpenCLArray2D:
         
         #Allocate data on the host for result
         host_data = np.empty((self.ny_halo, self.nx_halo), dtype=np.float32, order='C')
-        if self.double_precision:
+        if self.double_precision and not self.integers:
             host_data = np.empty((self.ny_halo, self.nx_halo), dtype=np.float64, order='C')
+        if self.double_precision and self.integers:
+            host_data = np.empty((self.ny_halo, self.nx_halo), dtype=np.uint64, order='C')
         
         #Copy data from device to host
         pyopencl.enqueue_copy(cl_queue, host_data, self.data)

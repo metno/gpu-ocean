@@ -33,14 +33,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
   *  Generates two uniform random numbers based on the ANSIC Linear Congruential 
   *  Generator.
   */
-float2 ansic_lcg(float* seed_ptr) {
-    long seed = (*seed_ptr);
+float2 ansic_lcg(ulong* seed_ptr) {
+    ulong seed = (*seed_ptr);
+    double denum = 2147483648.0;
+    ulong modulo = 2147483647;
 
-    seed = ((seed * 1103515245) + 12345) % 0x7fffffff;
-    float u1 = seed / 2147483648.0f;
+    seed = ((seed * 1103515245) + 12345) % modulo; //% 0x7fffffff;
+    float u1 = seed / denum;
 
-    seed = ((seed * 1103515245) + 12345) % 0x7fffffff;
-    float u2 = seed / 2147483648.0f;
+    seed = ((seed * 1103515245) + 12345) % modulo; //0x7fffffff;
+    float u2 = seed / denum;
 
     (*seed_ptr) = seed;
     return (float2)(u1, u2);
@@ -50,7 +52,7 @@ float2 ansic_lcg(float* seed_ptr) {
   *  Generates two random numbers, drawn from a normal distribtion with mean 0 and
   *  variance 1. Based on the Box Muller transform.
   */
-float2 boxMuller(float* seed) {
+float2 boxMuller(ulong* seed) {
     float2 u = ansic_lcg(seed);
     
     float r = sqrt(-2.0f*log(u.x));
@@ -69,7 +71,7 @@ __kernel void uniformDistribution(
         int random_nx_, 
         
         //Data
-        __global float* seed_ptr_, int seed_pitch_,
+        __global ulong* seed_ptr_, int seed_pitch_,
         __global float* random_ptr_, int random_pitch_
     ) {
 
@@ -82,10 +84,10 @@ __kernel void uniformDistribution(
     if ((ti < seed_nx_) && (tj < seed_ny_)) {
     
         //Compute pointer to current row in the U array
-        __global float* const seed_row = (__global float*) ((__global char*) seed_ptr_ + seed_pitch_*tj);
+        __global ulong* const seed_row = (__global ulong*) ((__global char*) seed_ptr_ + seed_pitch_*tj);
         __global float* const random_row = (__global float*) ((__global char*) random_ptr_ + random_pitch_*tj);
         
-        float seed = seed_row[ti];
+        ulong seed = seed_row[ti];
         float2 u = ansic_lcg(&seed);
 
         seed_row[ti] = seed;
@@ -110,7 +112,7 @@ __kernel void normalDistribution(
         int random_nx_, 
         
         //Data
-        __global float* seed_ptr_, int seed_pitch_,
+        __global ulong* seed_ptr_, int seed_pitch_,
         __global float* random_ptr_, int random_pitch_
     ) {
 
@@ -123,10 +125,10 @@ __kernel void normalDistribution(
     if ((ti < seed_nx_) && (tj < seed_ny_)) {
     
         //Compute pointer to current row in the U array
-        __global float* const seed_row = (__global float*) ((__global char*) seed_ptr_ + seed_pitch_*tj);
+        __global ulong* const seed_row = (__global ulong*) ((__global char*) seed_ptr_ + seed_pitch_*tj);
         __global float* const random_row = (__global float*) ((__global char*) random_ptr_ + random_pitch_*tj);
         
-        float seed = seed_row[ti];
+        ulong seed = seed_row[ti];
         float2 u = boxMuller(&seed);
 
         seed_row[ti] = seed;
@@ -239,7 +241,7 @@ __kernel void perturbOcean(
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    // Compute eta using the SOAR covariance function, and store in local memory
+    // Compute d_eta using the SOAR covariance function, and store in local memory
     // All reads are from local memory
     for (int j = ty; j < block_height+2; j += get_local_size(1)) {
         for(int i = tx; i < block_width+2; i += get_local_size(0)) {
@@ -256,6 +258,7 @@ __kernel void perturbOcean(
                 }
             }
             d_eta[j][i] = Qxi;
+            //d_eta[j][i] = xi[j+2][i+2];//Qxi;
         }
     }
 
@@ -264,27 +267,36 @@ __kernel void perturbOcean(
     // Evaluate geostrophic balance and write eta, hu and hv to global memory
     if ((ti < nx_) && (tj < ny_)) {
 
+        //Compute pointer to current row in the U array
+        __global float* const eta_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*(tj+ghost_cells_y_));
+        __global float* const hu_row  = (__global float*) ((__global char*) hu_ptr_  + hu_pitch_*(tj+ghost_cells_y_));
+        __global float* const hv_row = (__global float*) ((__global char*)  hv_ptr_ + hv_pitch_*(tj+ghost_cells_y_));
+        
         const int eta_tx = tx+1;
         const int eta_ty = ty+1;
 
         const float coriolis = f_ + beta_*(tj - y0_reference_cell_ + ghost_cells_y_)*dy_;
 
-        const float h_mid = d_eta[eta_ty][eta_tx] + H_mid;
+        // Total water depth in the given cell (H + eta + d_eta)
+        const float h_mid = d_eta[eta_ty][eta_tx] + H_mid + eta_row[ti+ghost_cells_x_];
 
+        // Slope of perturbation of eta
         const float eta_diff_x = (d_eta[eta_ty][eta_tx+1] - d_eta[eta_ty][eta_tx-1]) / (2.0f*dx_);
         const float eta_diff_y = (d_eta[eta_ty+1][eta_tx] - d_eta[eta_ty-1][eta_tx]) / (2.0f*dy_);
 
+        // perturbation of hu and hv
         const float d_hu = -(g_/coriolis)*h_mid*eta_diff_y;
-        const float d_hv =  (g_/coriolis)*h_mid*eta_diff_x;
-        
-        //Compute pointer to current row in the U array
-        __global float* const eta_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*(tj+ghost_cells_y_));
-        __global float* const hu_row  = (__global float*) ((__global char*) hu_ptr_  + hu_pitch_*(tj+ghost_cells_y_));
-        __global float* const hv_row = (__global float*) ((__global char*)  hv_ptr_ + hv_pitch_*(tj+ghost_cells_y_));
+        const float d_hv =  (g_/coriolis)*h_mid*eta_diff_x;        
 
-        eta_row[ti+ghost_cells_x_] += d_eta[ty+1][tx+1];
-         hu_row[ti+ghost_cells_x_] += d_hu;
-         hv_row[ti+ghost_cells_x_] += d_hv;
+        if (true) {
+            eta_row[ti+ghost_cells_x_] += d_eta[ty+1][tx+1];
+             hu_row[ti+ghost_cells_x_] += d_hu;
+             hv_row[ti+ghost_cells_x_] += d_hv;
+        } else {
+            eta_row[ti+ghost_cells_x_] = d_eta[ty+1][tx+1];
+            hu_row[ti+ghost_cells_x_] = d_hu;
+            hv_row[ti+ghost_cells_x_] = d_hv;
+        }
     }
 }
 
