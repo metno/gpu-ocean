@@ -60,11 +60,17 @@ class OpenCLArray2D:
     """
     
     def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, data, \
-                 asymHalo=None):
+                 asymHalo=None, double_precision=False):
         """
         Uploads initial data to the CL device
         """
-        host_data = self.convert_to_float32(data)
+        self.double_precision = double_precision
+        host_data = None
+        if self.double_precision:
+            host_data = data
+            print "Skipping convert_to_float32"
+        else:
+            host_data = self.convert_to_float32(data)
         
         self.nx = nx
         self.ny = ny
@@ -86,7 +92,8 @@ class OpenCLArray2D:
         self.holds_data = True
         
         self.bytes_per_float = host_data.itemsize
-        assert(self.bytes_per_float == 4)
+        assert(self.bytes_per_float == 4 or
+              (self.double_precision and self.bytes_per_float == 8))
         self.pitch = np.int32((self.nx_halo)*self.bytes_per_float)
         
         
@@ -98,7 +105,11 @@ class OpenCLArray2D:
             raise RuntimeError('The buffer has been freed before upload is called')
         
         # Make sure that the input is of correct size:
-        host_data = self.convert_to_float32(data)
+        if self.double_precision:
+            host_data = data
+        else:
+            host_data = self.convert_to_float32(data)
+            
         assert(host_data.shape[1] == self.nx_halo), str(host_data.shape[1]) + " vs " + str(self.nx_halo)
         assert(host_data.shape[0] == self.ny_halo), str(host_data.shape[0]) + " vs " + str(self.ny_halo)
         assert(host_data.shape == (self.ny_halo, self.nx_halo))
@@ -140,6 +151,8 @@ class OpenCLArray2D:
         
         #Allocate data on the host for result
         host_data = np.empty((self.ny_halo, self.nx_halo), dtype=np.float32, order='C')
+        if self.double_precision:
+            host_data = np.empty((self.ny_halo, self.nx_halo), dtype=np.float64, order='C')
         
         #Copy data from device to host
         pyopencl.enqueue_copy(cl_queue, host_data, self.data)
