@@ -10,7 +10,7 @@ before_install:
   - sudo apt-get install -qq lcov curl libboost-filesystem-dev libboost-system-dev libboost-thread-dev libboost-program-options-dev libboost-test-dev ocl-icd-opencl-dev opencl-headers libnetcdf-dev libhwloc-dev libltdl-dev pkg-config libedit-dev
   - wget https://github.com/pocl/pocl/archive/v1.0.tar.gz
   - tar xzf v1.0.tar.gz && cd pocl-1.0
-  - cmake -DENABLE_ICD=OFF .
+  - cmake .
   - make -j2 && sudo make install
   - cd ..
 
@@ -23,7 +23,7 @@ script:
   - cd python/tests
   - python basic_pyopencl_tests.py
   - python oneLayer_2D_tests.py 0
-  - python particle_filter_tests.py
+  - python particle_filter_tests.py 0
 #  - mkdir build
 #  - cd build
 #  - export COVERALLS_SERVICE_NAME=travis-ci
