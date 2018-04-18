@@ -21,7 +21,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-
+import matplotlib
 from matplotlib import pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
@@ -42,7 +42,7 @@ class BaseOceanStateEnsemble(object):
     def __init__(self, numParticles, cl_ctx):
         
         self.cl_ctx = cl_ctx
-        C
+        
         self.numParticles = numParticles
         self.particles = [None]*(self.numParticles + 1)
         
@@ -55,15 +55,17 @@ class BaseOceanStateEnsemble(object):
             if oceanState is not None:
                 oceanState.cleanUp()
         
-    def setGridInfo(self, nx, ny, dx, dy, dt, boundaryConditions):
+    # IMPROVED
+    def setGridInfo(self, nx, ny, dx, dy, dt, 
+                    boundaryConditions=Common.BoundaryConditions(), 
+                    eta=None, hu=None, hv=None, H=None):
         self.nx = nx
         self.ny = ny
         self.dx = dx
         self.dy = dy
         self.dt = dt
         
-        self.observation_variance = 5*dx
-        
+        # Default values for now:
         self.initialization_variance = 10*dx
         self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
         self.initialization_cov = np.eye(2)*self.initialization_variance
@@ -81,22 +83,53 @@ class BaseOceanStateEnsemble(object):
         dataShape =  ( ny + self.ghostCells[0] + self.ghostCells[2], 
                        nx + self.ghostCells[1] + self.ghostCells[3]  )
             
-        # Create base initial data:
-        self.base_eta = np.zeros(dataShape, dtype=np.float32, order='C')
-        self.base_hu  = np.zeros(dataShape, dtype=np.float32, order='C');
-        self.base_hv  = np.zeros(dataShape, dtype=np.float32, order='C');
+        self.base_eta = eta
+        self.base_hu = hu
+        self.base_hv = hv
+        self.base_H = H
+            
+        # Create base initial data: 
+        if self.base_eta is None:
+            self.base_eta = np.zeros(dataShape, dtype=np.float32, order='C')
+        if self.base_hu is None:
+            self.base_hu  = np.zeros(dataShape, dtype=np.float32, order='C');
+        if self.base_hv is None:
+            self.base_hv  = np.zeros(dataShape, dtype=np.float32, order='C');
         
         # Bathymetry:
-        waterDepth = 5
-        self.base_Hi = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C')*waterDepth
- 
+        if self.base_H is None:
+            waterDepth = 10
+            self.base_H = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C')*waterDepth
+        
+        # Ensure that parameters are initialized:
+        self.setParameters()
+
+    def setGridInfoFromSim(self, sim):
+        eta, hu, hv = sim.download()
+        Hi = sim.downloadBathymetry()[0]
+        self.setGridInfo(sim.nx, sim.ny, sim.dx, sim.dy, sim.dt,
+                         sim.boundary_conditions,
+                         eta=eta, hu=hu, hv=hv, H=Hi)
+        self.setParameters(f=sim.f, g=sim.g, beta=sim.coriolis_beta, r=sim.r, wind=sim.wind_stress)
     
-    def setParameters(self, f, g=9.81, beta=0, r=0, wind=WindStress.NoWindStress()):
+    def setParameters(self, f=0, g=9.81, beta=0, r=0, wind=WindStress.NoWindStress()):
         self.g = g
         self.f = f
         self.beta = beta
         self.r = r
         self.wind = wind
+    
+    def setStochasticVariables(self, 
+                               observation_variance_factor=5,
+                               initialization_variance_factor=10,
+                               small_scale_perturbation_amplitude=0):
+
+        self.observation_variance = 5*self.dx
+        self.initialization_variance = 10*self.dx
+        
+        self.initialization_cov = np.eye(2)*self.initialization_variance
+        
+        self.small_scale_perturbation_amplitude = small_scale_perturbation_amplitude
     
     @abc.abstractmethod
     def init(self, driftersPerOceanModel=1):
@@ -156,10 +189,9 @@ class BaseOceanStateEnsemble(object):
             print "Max hv:  ", np.max(hv)
             simNo = simNo + 1
     
-    
+
                     
             
-    ### Duplication of code
     def getEnsembleMean(self):
         return None
     def getDomainSizeX(self):
@@ -170,6 +202,116 @@ class BaseOceanStateEnsemble(object):
         return self.observation_variance
     def getNumParticles(self):
         return self.numParticles
+    
+    def downloadParticleOceanState(self, particleNo):
+        assert(particleNo < self.getNumParticles()+1), "particle out of range"
+        eta, hu, hv = self.particles[particleNo].download()
+        eta = eta[2:-2, 2:-2]
+        hu = hu[2:-2, 2:-2]
+        hv = hv[2:-2, 2:-2]
+        return eta, hu, hv
+    
+    def downloadTrueOceanState(self):
+        eta, hu, hv = self.particles[self.obs_index].download()
+        eta = eta[2:-2, 2:-2]
+        hu = hu[2:-2, 2:-2]
+        hv = hv[2:-2, 2:-2]
+        return eta, hu, hv
+    
+    def _updateMinMax(self, eta, hu, hv, fieldRanges):
+        fieldRanges[0] = min(fieldRanges[0], np.min(eta))
+        fieldRanges[1] = max(fieldRanges[1], np.max(eta))
+        fieldRanges[2] = min(fieldRanges[2], np.min(hu ))
+        fieldRanges[3] = max(fieldRanges[3], np.max(hu ))
+        fieldRanges[4] = min(fieldRanges[4], np.min(hv ))
+        fieldRanges[5] = max(fieldRanges[5], np.max(hv ))
+
+    def plotEnsemble(self):
+        """
+        Utility function to plot:
+            - the true state
+            - the ensemble mean
+            - the state of up to 5 first ensemble members
+        """
+        matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
+
+        numParticlePlots = min(self.getNumParticles(), 5)
+        numPlots = numParticlePlots + 2
+        fig = plt.figure(figsize=(5, 2*numPlots))
+
+        eta_true, hu_true, hv_true = self.downloadTrueOceanState()
+        fieldRanges = np.zeros(6) # = [eta_min, eta_max, hu_min, hu_max, hv_min, hv_max]
+        self._updateMinMax(eta_true, hu_true, hv_true, fieldRanges)
+
+        eta_mean = np.zeros_like(eta_true)
+        hu_mean = np.zeros_like(hu_true)
+        hv_mean = np.zeros_like(hv_true)
+
+        eta = [None]*numParticlePlots
+        hu = [None]*numParticlePlots
+        hv = [None]*numParticlePlots
+        for p in range(self.getNumParticles()):
+            if p < numParticlePlots:
+                eta[p], hu[p], hv[p] = self.downloadParticleOceanState(p)
+                eta_mean += eta[p]
+                hu_mean += hu[p]
+                hv_mean += hv[p]
+                self._updateMinMax(eta[p], hu[p], hv[p], fieldRanges)
+            else:
+                tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
+                eta_mean += tmp_eta
+                hu_mean += tmp_hu
+                hv_mean += tmp_hv
+                self._updateMinMax(tmp_eta, tmp_hu, tmp_hv, fieldRanges)
+
+        eta_mean = eta_mean/self.getNumParticles()
+        hu_mean = hu_mean/self.getNumParticles()
+        hv_mean = hv_mean/self.getNumParticles()
+
+        eta_levels = np.linspace(fieldRanges[0], fieldRanges[1], 10)
+        hu_levels = np.linspace(fieldRanges[2], fieldRanges[3], 10)
+        hv_levels = np.linspace(fieldRanges[4], fieldRanges[5], 10)
+
+        plt.subplot(numPlots, 3, 1)
+        plt.imshow(eta_true, origin='lower')
+        plt.contour(eta_true, levels=eta_levels, colors='black', alpha=0.5)
+        plt.title("true eta")
+        plt.subplot(numPlots, 3, 2)
+        plt.imshow(hu_true, origin='lower')
+        plt.contour(hu_true, levels=hu_levels, colors='black', alpha=0.5)
+        plt.title("true hu")
+        plt.subplot(numPlots, 3, 3)
+        plt.imshow(hv_true, origin='lower')
+        plt.contour(hv_true, levels=hv_levels, colors='black', alpha=0.5)
+        plt.title("true hv")
+
+        plt.subplot(numPlots, 3, 4)
+        plt.imshow(eta_mean, origin='lower')
+        plt.contour(eta_mean, levels=eta_levels, colors='black', alpha=0.5)
+        plt.title("mean eta")
+        plt.subplot(numPlots, 3, 5)
+        plt.imshow(hu_mean, origin='lower')
+        plt.contour(hu_mean, levels=hu_levels, colors='black', alpha=0.5)
+        plt.title("mean hu")
+        plt.subplot(numPlots, 3, 6)
+        plt.imshow(hv_mean, origin='lower')
+        plt.contour(hv_mean, levels=hv_levels, colors='black', alpha=0.5)
+        plt.title("mean hv")
+
+        for p in range(numParticlePlots):
+            plt.subplot(numPlots, 3, 7+p*3)
+            plt.imshow(eta[p], origin='lower')
+            plt.contour(eta[p], levels=eta_levels, colors='black', alpha=0.5)
+            plt.title("particle eta")
+            plt.subplot(numPlots, 3, 7+p*3 + 1)
+            plt.imshow(hu[p], origin='lower')
+            plt.contour(hu[p], levels=hu_levels, colors='black', alpha=0.5)
+            plt.title("particle hu")
+            plt.subplot(numPlots, 3, 7+p*3 + 2)
+            plt.imshow(hv[p], origin='lower')
+            plt.contour(hv[p], levels=hv_levels, colors='black', alpha=0.5)
+            plt.title("particle hv")
+
     
     def plotDistanceInfo(self, title=None):
         """
