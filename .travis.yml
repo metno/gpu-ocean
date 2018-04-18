@@ -13,8 +13,8 @@ before_install:
     libboost-system-dev libboost-thread-dev libboost-program-options-dev
     libboost-test-dev ocl-icd-opencl-dev opencl-headers libnetcdf-dev
     libhwloc-dev libltdl-dev pkg-config libedit-dev
-  - wget https://github.com/pocl/pocl/archive/v1.0.tar.gz
-  - tar xzf v1.0.tar.gz && cd pocl-1.0
+  - wget https://github.com/pocl/pocl/archive/v1.1.tar.gz
+  - tar xzf v1.1.tar.gz && cd pocl-1.1
   - cmake .
   - sudo make -j2 && sudo make install
   - cd ..
