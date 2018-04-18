@@ -146,6 +146,23 @@ class BaseOceanStateEnsemble(object):
         
     
     def observeParticles(self):
+        """
+        Applying the observation operator on each particle,
+        adding an observation error.
+        """
+        ## TODO: ADD ERROR!
+        drifterPositions = np.empty((0,2))
+        for oceanState in self.particles[:-1]:
+            drifterPositions = np.append(drifterPositions, 
+                                         oceanState.drifters.getDrifterPositions(),
+                                         axis=0)
+        return drifterPositions
+    
+    def getParticleDrifterPositions(self):
+        """
+        Read the position of drifters in all particles, 
+        without any observation error.
+        """
         drifterPositions = np.empty((0,2))
         for oceanState in self.particles[:-1]:
             drifterPositions = np.append(drifterPositions, 
@@ -154,6 +171,19 @@ class BaseOceanStateEnsemble(object):
         return drifterPositions
     
     def observeTrueState(self):
+        """
+        Applying the observation operator on the syntetic true state,
+        adding an observation error.
+        """
+        ## TODO: ADD ERROR!
+        observation = self.particles[self.obs_index].drifters.getDrifterPositions()
+        return observation[0,:]
+    
+    def getTrueStateDrifterPositions(self):
+        """
+        Read the position of drifters in the syntetic true state 
+        without any observation error.
+        """
         observation = self.particles[self.obs_index].drifters.getDrifterPositions()
         return observation[0,:]
     
@@ -161,9 +191,10 @@ class BaseOceanStateEnsemble(object):
         simNo = 0
         for oceanState in self.particles:
             #print "Starting sim " + str(simNo)
-            oceanState.step(t)
+            output_t = oceanState.step(t)
             #print "Finished sim " + str(simNo)      
             simNo = simNo + 1
+        return output_t
     
     def getDistances(self, obs=None):
         if obs is None:
@@ -203,6 +234,35 @@ class BaseOceanStateEnsemble(object):
     def getNumParticles(self):
         return self.numParticles
     
+    
+    def downloadEnsembleStatisticalFields(self):
+        eta_true, hu_true, hv_true = self.downloadTrueOceanState()
+        
+        eta_mean = np.zeros_like(eta_true)
+        hu_mean = np.zeros_like(hu_true)
+        hv_mean = np.zeros_like(hv_true)
+        eta_mrse = np.zeros_like(eta_true)
+        hu_mrse = np.zeros_like(hu_true)
+        hv_mrse = np.zeros_like(hv_true)
+        
+        for p in range(self.getNumParticles()):
+            tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
+            eta_mean += tmp_eta
+            hu_mean += tmp_hu
+            hv_mean += tmp_hv
+            eta_mrse += (eta_true - tmp_eta)**2
+            hu_mrse += (hu_true - tmp_hu)**2
+            hv_mrse += (hv_true - tmp_hv)**2
+            
+        eta_mean = eta_mean/self.getNumParticles()
+        hu_mean = hu_mean/self.getNumParticles()
+        hv_mean = hv_mean/self.getNumParticles()
+        eta_mrse = np.sqrt(eta_mrse/self.getNumParticles())
+        hu_mrse = np.sqrt(hu_mrse/self.getNumParticles())
+        hv_mrse = np.sqrt(hv_mrse/self.getNumParticles())
+        
+        return eta_mean, hu_mean, hv_mean, eta_mrse, hu_mrse, hv_mrse
+    
     def downloadParticleOceanState(self, particleNo):
         assert(particleNo < self.getNumParticles()+1), "particle out of range"
         eta, hu, hv = self.particles[particleNo].download()
@@ -236,7 +296,7 @@ class BaseOceanStateEnsemble(object):
         matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
 
         numParticlePlots = min(self.getNumParticles(), 5)
-        numPlots = numParticlePlots + 2
+        numPlots = numParticlePlots + 3
         fig = plt.figure(figsize=(5, 2*numPlots))
 
         eta_true, hu_true, hv_true = self.downloadTrueOceanState()
@@ -246,7 +306,10 @@ class BaseOceanStateEnsemble(object):
         eta_mean = np.zeros_like(eta_true)
         hu_mean = np.zeros_like(hu_true)
         hv_mean = np.zeros_like(hv_true)
-
+        eta_mrse = np.zeros_like(eta_true)
+        hu_mrse = np.zeros_like(hu_true)
+        hv_mrse = np.zeros_like(hv_true)
+        
         eta = [None]*numParticlePlots
         hu = [None]*numParticlePlots
         hv = [None]*numParticlePlots
@@ -256,17 +319,26 @@ class BaseOceanStateEnsemble(object):
                 eta_mean += eta[p]
                 hu_mean += hu[p]
                 hv_mean += hv[p]
+                eta_mrse += (eta_true - eta[p])**2
+                hu_mrse += (hu_true - hu[p])**2
+                hv_mrse += (hv_true - hv[p])**2
                 self._updateMinMax(eta[p], hu[p], hv[p], fieldRanges)
             else:
                 tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
                 eta_mean += tmp_eta
                 hu_mean += tmp_hu
                 hv_mean += tmp_hv
+                eta_mrse += (eta_true - tmp_eta)**2
+                hu_mrse += (hu_true - tmp_hu)**2
+                hv_mrse += (hv_true - tmp_hv)**2
                 self._updateMinMax(tmp_eta, tmp_hu, tmp_hv, fieldRanges)
 
         eta_mean = eta_mean/self.getNumParticles()
         hu_mean = hu_mean/self.getNumParticles()
         hv_mean = hv_mean/self.getNumParticles()
+        eta_mrse = np.sqrt(eta_mrse/self.getNumParticles())
+        hu_mrse = np.sqrt(hu_mrse/self.getNumParticles())
+        hv_mrse = np.sqrt(hv_mrse/self.getNumParticles())
 
         eta_levels = np.linspace(fieldRanges[0], fieldRanges[1], 10)
         hu_levels = np.linspace(fieldRanges[2], fieldRanges[3], 10)
@@ -297,17 +369,30 @@ class BaseOceanStateEnsemble(object):
         plt.imshow(hv_mean, origin='lower')
         plt.contour(hv_mean, levels=hv_levels, colors='black', alpha=0.5)
         plt.title("mean hv")
+        
+        plt.subplot(numPlots, 3, 7)
+        plt.imshow(eta_mrse, origin='lower')
+        plt.contour(eta_mrse, levels=eta_levels, colors='black', alpha=0.5)
+        plt.title("MRSE eta")
+        plt.subplot(numPlots, 3, 8)
+        plt.imshow(hu_mrse, origin='lower')
+        plt.contour(hu_mrse, levels=hu_levels, colors='black', alpha=0.5)
+        plt.title("MRSE hu")
+        plt.subplot(numPlots, 3, 9)
+        plt.imshow(hv_mrse, origin='lower')
+        plt.contour(hv_mrse, levels=hv_levels, colors='black', alpha=0.5)
+        plt.title("MRSE hv")
 
         for p in range(numParticlePlots):
-            plt.subplot(numPlots, 3, 7+p*3)
+            plt.subplot(numPlots, 3, 10+p*3)
             plt.imshow(eta[p], origin='lower')
             plt.contour(eta[p], levels=eta_levels, colors='black', alpha=0.5)
             plt.title("particle eta")
-            plt.subplot(numPlots, 3, 7+p*3 + 1)
+            plt.subplot(numPlots, 3, 10+p*3 + 1)
             plt.imshow(hu[p], origin='lower')
             plt.contour(hu[p], levels=hu_levels, colors='black', alpha=0.5)
             plt.title("particle hu")
-            plt.subplot(numPlots, 3, 7+p*3 + 2)
+            plt.subplot(numPlots, 3, 10+p*3 + 2)
             plt.imshow(hv[p], origin='lower')
             plt.contour(hv[p], levels=hv_levels, colors='black', alpha=0.5)
             plt.title("particle hv")

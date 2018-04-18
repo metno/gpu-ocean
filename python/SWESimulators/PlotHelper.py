@@ -207,3 +207,168 @@ class SinglePlot:
         plt.title(title)
         plt.colorbar()
         
+
+        
+        
+class EnsembleAnimator:
+    """
+    For easily making animation of ensemble simulations.
+    The ensemble is expected to be a OceanStateEnsemble-type object.
+    """
+    
+    def __init__(self, fig, ensemble,  interpolation_type='spline36',
+                  eta_abs_lim=0.05, volume_transport_abs_lim=1.5):
+        self.ny, self.nx = ensemble.ny, ensemble.nx
+        self.domain_size_x = ensemble.getDomainSizeX()
+        self.domain_size_y = ensemble.getDomainSizeY()
+        self.fig = fig;
+        
+        fig.set_figheight(12)
+        fig.set_figwidth(12)
+        
+        # Obtain the following fields:
+        eta_mean, hu_mean, hv_mean, eta_mrse, hu_mrse, hv_mrse = ensemble.downloadEnsembleStatisticalFields()
+        eta_true, hu_true, hv_true = ensemble.downloadTrueOceanState()
+        
+        domain_extent = [ 0.0, self.domain_size_x, 0.0, self.domain_size_y ]
+        
+        self.gs = gridspec.GridSpec(3, 3)
+        
+        # ENSEMBLE MEANS 
+        ax = self.fig.add_subplot(self.gs[0, 0])
+        self.mean_eta = plt.imshow(eta_mean, interpolation=interpolation_type, origin='bottom', vmin=-eta_abs_lim, vmax=eta_abs_lim, extent=domain_extent)
+        plt.axis('tight')
+        ax.set_aspect('equal')
+        plt.title('Ensemble mean eta')
+        plt.colorbar()
+        self.mean_drifters = plt.scatter(x=None, y=None, color='blue')
+        self.mean_observations = plt.scatter(x=None, y=None, color='red')
+        self.mean_driftersMean = plt.scatter(x=None, y=None, color='red', marker='+')
+        
+        ax = self.fig.add_subplot(self.gs[0, 1])
+        self.mean_hu = plt.imshow(hu_mean, interpolation=interpolation_type, origin='bottom', vmin=-volume_transport_abs_lim, vmax=volume_transport_abs_lim, extent=domain_extent)
+        plt.axis('tight')
+        ax.set_aspect('equal')
+        plt.title('ensemble mean hu')
+        plt.colorbar()
+        
+        ax = self.fig.add_subplot(self.gs[0, 2])
+        self.mean_hv = plt.imshow(hv_mean, interpolation=interpolation_type, origin='bottom', vmin=-volume_transport_abs_lim, vmax=volume_transport_abs_lim, extent=domain_extent)
+        plt.axis('tight')
+        ax.set_aspect('equal')
+        plt.title('ensemble mean hv')
+        plt.colorbar()
+        
+        ## TRUE STATE
+        ax = self.fig.add_subplot(self.gs[1, 0])
+        self.true_eta = plt.imshow(eta_true, interpolation=interpolation_type, origin='bottom', vmin=-eta_abs_lim, vmax=eta_abs_lim, extent=domain_extent)
+        plt.axis('tight')
+        ax.set_aspect('equal')
+        plt.title('True eta')
+        plt.colorbar()
+        self.true_drifters = plt.scatter(x=None, y=None, color='blue')
+        self.true_observations = plt.scatter(x=None, y=None, color='red')
+        self.true_driftersMean = plt.scatter(x=None, y=None, color='red', marker='+')
+        
+        ax = self.fig.add_subplot(self.gs[1, 1])
+        self.true_hu = plt.imshow(hu_true, interpolation=interpolation_type, origin='bottom', vmin=-volume_transport_abs_lim, vmax=volume_transport_abs_lim, extent=domain_extent)
+        plt.axis('tight')
+        ax.set_aspect('equal')
+        plt.title('True hu')
+        plt.colorbar()
+        
+        ax = self.fig.add_subplot(self.gs[1, 2])
+        self.true_hv = plt.imshow(hv_true, interpolation=interpolation_type, origin='bottom', vmin=-volume_transport_abs_lim, vmax=volume_transport_abs_lim, extent=domain_extent)
+        plt.axis('tight')
+        ax.set_aspect('equal')
+        plt.title('True hv')
+        plt.colorbar()
+        
+            
+        ## MEAN ROOT SQUARE ERROR
+        ax = self.fig.add_subplot(self.gs[2, 0])
+        self.mrse_eta = plt.imshow(eta_mrse, interpolation=interpolation_type, origin='bottom', vmin=-eta_abs_lim, vmax=eta_abs_lim, extent=domain_extent)
+        plt.axis('tight')
+        ax.set_aspect('equal')
+        plt.title('MRSE eta')
+        plt.colorbar()
+        self.mrse_drifters = plt.scatter(x=None, y=None, color='blue')
+        self.mrse_observations = plt.scatter(x=None, y=None, color='red')
+        self.mrse_driftersMean = plt.scatter(x=None, y=None, color='red', marker='+')
+        
+        ax = self.fig.add_subplot(self.gs[2, 1])
+        self.mrse_hu = plt.imshow(hu_mrse, interpolation=interpolation_type, origin='bottom', vmin=-volume_transport_abs_lim, vmax=volume_transport_abs_lim, extent=domain_extent)
+        plt.axis('tight')
+        ax.set_aspect('equal')
+        plt.title('MRSE hu')
+        plt.colorbar()
+        
+        ax = self.fig.add_subplot(self.gs[2, 2])
+        self.mrse_hv = plt.imshow(hv_mrse, interpolation=interpolation_type, origin='bottom', vmin=-volume_transport_abs_lim, vmax=volume_transport_abs_lim, extent=domain_extent)
+        plt.axis('tight')
+        ax.set_aspect('equal')
+        plt.title('MRSE hv')
+        plt.colorbar()
+    
+    
+    def plot(self, ensemble):
+        # Obtain the following fields:
+        eta_mean, hu_mean, hv_mean, eta_mrse, hu_mrse, hv_mrse = ensemble.downloadEnsembleStatisticalFields()
+        eta_true, hu_true, hv_true = ensemble.downloadTrueOceanState()
+        
+        # ENSEMBLE MEAN
+        self.fig.add_subplot(self.gs[0, 0])
+        self.mean_eta.set_data(eta_mean)
+
+        self.fig.add_subplot(self.gs[0, 1])
+        self.mean_hu.set_data(hu_mean)
+
+        self.fig.add_subplot(self.gs[0, 2])
+        self.mean_hv.set_data(hv_mean)
+            
+        # TRUE STATE
+        self.fig.add_subplot(self.gs[1, 0])
+        self.true_eta.set_data(eta_true)
+
+        self.fig.add_subplot(self.gs[1, 1])
+        self.true_hu.set_data(hu_true)
+
+        self.fig.add_subplot(self.gs[1, 2])
+        self.true_hv.set_data(hv_true)
+        
+        # MEAN ROOT SQUARE ERROR
+        self.fig.add_subplot(self.gs[2, 0])
+        self.mrse_eta.set_data(eta_mrse)
+
+        self.fig.add_subplot(self.gs[2, 1])
+        self.mrse_hu.set_data(hu_mrse)
+
+        self.fig.add_subplot(self.gs[2, 2])
+        self.mrse_hv.set_data(hv_mrse)
+        
+        
+        # Drifters
+        drifterPositions = ensemble.getParticleDrifterPositions()
+        observedDrifterPositions = ensemble.observeParticles()
+        trueDrifterPosition = ensemble.getTrueStateDrifterPositions()
+        observedTrueDrifterPosition = ensemble.observeTrueState()
+        
+        self.mean_drifters.set_offsets(observedDrifterPositions)
+        self.mrse_drifters.set_offsets(observedDrifterPositions)   
+        self.true_drifters.set_offsets(observedDrifterPositions)
+        
+        self.mean_observations.set_offsets(observedTrueDrifterPosition)
+        self.mrse_observations.set_offsets(observedTrueDrifterPosition)
+        self.true_observations.set_offsets(observedTrueDrifterPosition)
+        
+        
+        plt.draw()
+        time.sleep(0.001)
+        
+    # Simply include the drifters in the above? This plotter class is
+    # meant for ensembles, and it is not likely that we would want to use
+    # it without drifters.
+    
+    # Also, show that the drifter position and *observed* drifter positions
+    # are not neccessarily the same (plot actual pos under observed pos)
+        
