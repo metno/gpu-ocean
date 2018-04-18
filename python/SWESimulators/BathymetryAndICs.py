@@ -27,6 +27,47 @@ This file contains functions for creating initial conditions
 and bathymetry
 """
 
+
+
+def initializeBalancedVelocityFieldStaggered(eta, H, hu, hv, f, beta, g, nx, ny, dx, dy, ghosts):
+    """
+    Initializing hu and hv according to geostrophic balance, given eta and H.
+    This implementation assumes a staggered C-grid
+    """
+    for j in range(1, ny+ghosts[0]+ghosts[2]-1):
+        coriolis = f + beta*j*dy
+        for i in range(1, nx+ghosts[1]+ghosts[3]-1):
+            eta_pluss = (eta[j+1, i] + eta[j+1, i-1])/2.0
+            eta_minus = (eta[j-1, i] + eta[j-1, i-1])/2.0
+            h_mid = (eta[j,i] + H[j,i] + eta[j, i-1] + H[j,i-1])/2.0
+            hu[j,i] = -(g/coriolis)*h_mid*(eta_pluss - eta_minus)/(2.0*dy)
+    for j in range(1, ny+ghosts[0]+ghosts[2]-1):
+        coriolis = f + beta*j*dy
+        for i in range(1, nx+ghosts[1]+ghosts[3]-1):
+            eta_pluss = (eta[j, i+1] + eta[j-1, i+1])/2.0
+            eta_minus = (eta[j, i-1] + eta[j-1, i-1])/2.0
+            h_mid = (eta[j,i] + H[j,i] + eta[j-1,i] + H[j-1,i])/2.0
+            hv[j,i] =  (g/coriolis)*h_mid*(eta_pluss - eta_minus)/(2.0*dx)
+            
+def initializeBalancedVelocityField(eta, H, hu, hv, f, beta, g, nx, ny, dx, dy, ghosts):
+    """
+    Initializing hu and hv according to geostrophic balance, given eta and H.
+    This implementation assumes a non-staggered A-grid
+    """
+    for j in range(1, ny+ghosts[0]+ghosts[2]-1):
+        coriolis = f + beta*j*dy
+        for i in range(1, nx+ghosts[1]+ghosts[3]-1):
+            h_mid = eta[j,i] + H[j,i]
+            
+            eta_diff_y = (eta[j+1, i] - eta[j-1, i])/(2.0*dy)
+            #eta_diff_y = (eta[j, i] - eta[j-1,i])/(dy)
+            hu[j,i] = -(g/coriolis)*h_mid*eta_diff_y
+            
+            eta_diff_x = (eta[j, i+1] - eta[j, i-1])/(2.0*dx)
+            #eta_diff_x = (eta[j, i] - eta[j,i-1])/(dx)
+            hv[j,i] = (g/coriolis)*h_mid*eta_diff_x            
+            
+
 """
 make*Bump functions generate a bump on a selected part of the domain
 and leave the rest of the water surface unchanged"
