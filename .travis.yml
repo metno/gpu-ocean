@@ -15,10 +15,10 @@ before_install:
   - make -j2 && sudo make install
   - cd ..
 
-#install:
-#  - cd python
-#  - pip install -r requirements.txt
-#  - cd ..
+install:
+  - cd python
+  - pip install -r requirements.txt
+  - cd ..
 
 script:
   - cd python/tests
