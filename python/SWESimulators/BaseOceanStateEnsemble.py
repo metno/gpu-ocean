@@ -234,6 +234,33 @@ class BaseOceanStateEnsemble(object):
     def getNumParticles(self):
         return self.numParticles
     
+    def findLargestPossibleTimeStep(self):
+        """
+        Un-optimized utility function to check largest allowed time-step for 
+        the shallow water model.
+        dt < 0.25*min[ dx/max(|u +- sqrt(g(H+eta))|), dy/max(|v +- sqrt(g(H+eta))|)]
+        """
+        max_u = 0
+        max_v = 0
+        for oceanState in self.particles:
+            eta_tmp, hu, hv = oceanState.download()
+            Hi = oceanState.downloadBathymetry()[0]
+            w = 0.25*(Hi[1:,1:] + Hi[1:,:-1] + Hi[:-1,1:] + Hi[:-1,:-1]) + eta_tmp
+            hu /= w
+            hv /= w
+            Hi = None
+            w = np.sqrt(self.g*w)
+            
+            # using eta_tmp buffer for {u|v} +- sqrt(gw)
+            max_u = max(max_u, np.max(np.abs(hu + w)))
+            max_u = max(max_u, np.max(np.abs(hu - w)))
+            max_v = max(max_v, np.max(np.abs(hv + w)))
+            max_v = max(max_v, np.max(np.abs(hv - w)))
+            
+        return 0.25*min(self.dx/max_u, self.dy/max_v)
+            
+            
+    
     
     def downloadEnsembleStatisticalFields(self):
         eta_true, hu_true, hv_true = self.downloadTrueOceanState()
