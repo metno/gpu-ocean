@@ -15,7 +15,7 @@ before_install:
     libhwloc-dev libltdl-dev pkg-config libedit-dev
   - wget https://github.com/pocl/pocl/archive/v1.1.tar.gz
   - tar xzf v1.1.tar.gz && cd pocl-1.1
-  - cmake .
+  - cmake -DENABLE_ICD=OFF .
   - sudo make -j2 && sudo make install
   - cd ..
 
