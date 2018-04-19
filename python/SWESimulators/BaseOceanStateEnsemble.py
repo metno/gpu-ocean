@@ -68,6 +68,7 @@ class BaseOceanStateEnsemble(object):
         # Default values for now:
         self.initialization_variance = 10*dx
         self.observation_variance = 5*self.dx
+        self.observation_cov = self.observation_variance*np.eye(2)
         
         self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
         self.initialization_cov = np.eye(2)*self.initialization_variance
@@ -127,7 +128,9 @@ class BaseOceanStateEnsemble(object):
                                small_scale_perturbation_amplitude=0):
 
         # Observation_variance_per_drifter
-        self.observation_variance = np.eye(2)*observation_variance_factor*self.dx
+        self.observation_variance = observation_variance_factor*self.dx
+        self.observation_cov = self.observation_variance*np.eye(2)
+
         self.initialization_variance = initialization_variance_factor*self.dx
         
         # TODO: Check if this variable is used anywhere.
@@ -155,14 +158,13 @@ class BaseOceanStateEnsemble(object):
         Applying the observation operator on each particle,
         adding an observation error.
         """
-        ## TODO: ADD ERROR!
         drifterPositions = np.empty((0,2))
         for oceanState in self.particles[:-1]:
             drifterPositions = np.append(drifterPositions, 
                                          oceanState.drifters.getDrifterPositions(),
                                          axis=0)
         for p in drifterPositions:
-            p += np.random.multivariate_normal([0,0], self.observation_variance)
+            p += np.random.multivariate_normal([0,0], self.observation_cov)
         return drifterPositions
     
     def getParticleDrifterPositions(self):
@@ -182,10 +184,9 @@ class BaseOceanStateEnsemble(object):
         Applying the observation operator on the syntetic true state,
         adding an observation error.
         """
-        ## TODO: ADD ERROR!
         observation = self.particles[self.obs_index].drifters.getDrifterPositions()
 
-        observation = observation[0,:] + np.random.multivariate_normal([0,0], self.observation_variance)
+        observation = observation[0,:] + np.random.multivariate_normal([0,0], self.observation_cov)
         return observation
     
     

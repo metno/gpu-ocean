@@ -51,7 +51,7 @@ class WindForcingEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             
             self.particles[i] = CDKLM16.CDKLM16(self.cl_ctx, \
                                                 self.base_eta, self.base_hu, self.base_hv, \
-                                                self.base_Hi, \
+                                                self.base_H, \
                                                 self.nx, self.ny, self.dx, self.dy, self.dt, \
                                                 self.g, self.f, self.r, \
                                                 wind_stress=wind, \
