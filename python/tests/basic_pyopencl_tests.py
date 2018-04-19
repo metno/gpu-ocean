@@ -38,4 +38,4 @@ for test_class in test_classes_to_run:
 big_suite = unittest.TestSuite(suite_list)
 results = unittest.TextTestRunner(verbosity=2).run(big_suite)
 
-sys.exit(not result.wasSuccessful())
+sys.exit(not results.wasSuccessful())
