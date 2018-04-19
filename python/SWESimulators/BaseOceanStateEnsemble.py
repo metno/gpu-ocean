@@ -155,22 +155,7 @@ class BaseOceanStateEnsemble(object):
     
     def observeParticles(self):
         """
-        Applying the observation operator on each particle,
-        adding an observation error.
-        """
-        drifterPositions = np.empty((0,2))
-        for oceanState in self.particles[:-1]:
-            drifterPositions = np.append(drifterPositions, 
-                                         oceanState.drifters.getDrifterPositions(),
-                                         axis=0)
-        for p in drifterPositions:
-            p += np.random.multivariate_normal([0,0], self.observation_cov)
-        return drifterPositions
-    
-    def getParticleDrifterPositions(self):
-        """
-        Read the position of drifters in all particles, 
-        without any observation error.
+        Applying the observation operator on each particle.
         """
         drifterPositions = np.empty((0,2))
         for oceanState in self.particles[:-1]:
@@ -185,19 +170,8 @@ class BaseOceanStateEnsemble(object):
         adding an observation error.
         """
         observation = self.particles[self.obs_index].drifters.getDrifterPositions()
-
-        observation = observation[0,:] + np.random.multivariate_normal([0,0], self.observation_cov)
-        return observation
-    
-    
-    def getTrueStateDrifterPositions(self):
-        """
-        Read the position of drifters in the syntetic true state 
-        without any observation error.
-        """
-        observation = self.particles[self.obs_index].drifters.getDrifterPositions()
         return observation[0,:]
-    
+        
     def step(self, t):
         simNo = 0
         for oceanState in self.particles:

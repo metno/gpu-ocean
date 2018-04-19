@@ -252,9 +252,7 @@ class EnsembleAnimator:
         ax.set_aspect('equal')
         plt.title('True eta')
         plt.colorbar()
-        self.true_drifters_no_error = plt.scatter(x=None, y=None, color='cyan') 
         self.true_drifters = plt.scatter(x=None, y=None, color='blue')
-        self.true_observations_no_error = plt.scatter(x=None, y=None, color='fuchsia')
         self.true_observations = plt.scatter(x=None, y=None, color='red')
         self.true_driftersMean = plt.scatter(x=None, y=None, color='red', marker='+')
 
@@ -280,9 +278,7 @@ class EnsembleAnimator:
             ax.set_aspect('equal')
             plt.title('Ensemble mean eta')
             plt.colorbar()
-            self.mean_drifters_no_error = plt.scatter(x=None, y=None, color='cyan')
             self.mean_drifters = plt.scatter(x=None, y=None, color='blue')
-            self.mean_observations_no_error = plt.scatter(x=None, y=None, color='fuchsia')
             self.mean_observations = plt.scatter(x=None, y=None, color='red')
             self.mean_driftersMean = plt.scatter(x=None, y=None, color='red', marker='+')
 
@@ -309,9 +305,7 @@ class EnsembleAnimator:
             plt.title('MRSE eta')
             plt.colorbar()
             
-            self.mrse_drifters_no_error = plt.scatter(x=None, y=None, color='cyan')
             self.mrse_drifters = plt.scatter(x=None, y=None, color='blue')
-            self.mrse_observations_no_error = plt.scatter(x=None, y=None, color='fuchsia')
             self.mrse_observations = plt.scatter(x=None, y=None, color='red')
             self.mrse_driftersMean = plt.scatter(x=None, y=None, color='red', marker='+')
 
@@ -370,32 +364,20 @@ class EnsembleAnimator:
 
         
         # Drifters
-        drifterPositions = ensemble.getParticleDrifterPositions()
-        observedDrifterPositions = ensemble.observeParticles()
-        trueDrifterPosition = ensemble.getTrueStateDrifterPositions()
-        observedTrueDrifterPosition = ensemble.observeTrueState()
+        drifterPositions = ensemble.observeParticles()
+        trueDrifterPosition = ensemble.observeTrueState()
         
-        self.true_drifters_no_error.set_offsets(drifterPositions)
-        self.true_drifters.set_offsets(observedDrifterPositions)
-        self.true_observations_no_error.set_offsets(trueDrifterPosition)
-        self.true_observations.set_offsets(observedTrueDrifterPosition)
+        self.true_drifters.set_offsets(drifterPositions)
+        self.true_observations.set_offsets(trueDrifterPosition)
         
         if not self.trueStateOnly:
                        
-            self.mean_drifters_no_error.set_offsets(drifterPositions)
-            self.mean_drifters.set_offsets(observedDrifterPositions)
-            self.mean_observations_no_error.set_offsets(trueDrifterPosition)
-            self.mean_observations.set_offsets(observedTrueDrifterPosition)
+            self.mean_drifters.set_offsets(drifterPositions)
+            self.mean_observations.set_offsets(trueDrifterPosition)
             
-            self.mrse_drifters_no_error.set_offsets(drifterPositions)
-            self.mrse_drifters.set_offsets(observedDrifterPositions)
-            self.mrse_observations_no_error.set_offsets(trueDrifterPosition)
-            self.mrse_observations.set_offsets(observedTrueDrifterPosition)
+            self.mrse_drifters.set_offsets(drifterPositions)
+            self.mrse_observations.set_offsets(trueDrifterPosition)
         
         
         plt.draw()
         time.sleep(0.001)
-        
-    # Also, show that the drifter position and *observed* drifter positions
-    # are not neccessarily the same (plot actual pos under observed pos)
-        
