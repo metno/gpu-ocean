@@ -67,6 +67,8 @@ class BaseOceanStateEnsemble(object):
         
         # Default values for now:
         self.initialization_variance = 10*dx
+        self.observation_variance = 5*self.dx
+        
         self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
         self.initialization_cov = np.eye(2)*self.initialization_variance
         
@@ -328,6 +330,7 @@ class BaseOceanStateEnsemble(object):
 
         eta_true, hu_true, hv_true = self.downloadTrueOceanState()
         fieldRanges = np.zeros(6) # = [eta_min, eta_max, hu_min, hu_max, hv_min, hv_max]
+        
         self._updateMinMax(eta_true, hu_true, hv_true, fieldRanges)
 
         eta_mean = np.zeros_like(eta_true)
@@ -370,57 +373,65 @@ class BaseOceanStateEnsemble(object):
         eta_levels = np.linspace(fieldRanges[0], fieldRanges[1], 10)
         hu_levels = np.linspace(fieldRanges[2], fieldRanges[3], 10)
         hv_levels = np.linspace(fieldRanges[4], fieldRanges[5], 10)
-
+        
+        eta_lim = np.max(np.abs(fieldRanges[:2]))
+        huv_lim = np.max(np.abs(fieldRanges[2:]))
+        
         plt.subplot(numPlots, 3, 1)
-        plt.imshow(eta_true, origin='lower')
+        plt.imshow(eta_true, origin='lower', vmin=-eta_lim, vmax=eta_lim)
         plt.contour(eta_true, levels=eta_levels, colors='black', alpha=0.5)
         plt.title("true eta")
         plt.subplot(numPlots, 3, 2)
-        plt.imshow(hu_true, origin='lower')
+        plt.imshow(hu_true, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hu_true, levels=hu_levels, colors='black', alpha=0.5)
         plt.title("true hu")
         plt.subplot(numPlots, 3, 3)
-        plt.imshow(hv_true, origin='lower')
+        plt.imshow(hv_true, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hv_true, levels=hv_levels, colors='black', alpha=0.5)
         plt.title("true hv")
 
         plt.subplot(numPlots, 3, 4)
-        plt.imshow(eta_mean, origin='lower')
+        plt.imshow(eta_mean, origin='lower', vmin=-eta_lim, vmax=eta_lim)
         plt.contour(eta_mean, levels=eta_levels, colors='black', alpha=0.5)
         plt.title("mean eta")
         plt.subplot(numPlots, 3, 5)
-        plt.imshow(hu_mean, origin='lower')
+        plt.imshow(hu_mean, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hu_mean, levels=hu_levels, colors='black', alpha=0.5)
         plt.title("mean hu")
         plt.subplot(numPlots, 3, 6)
-        plt.imshow(hv_mean, origin='lower')
+        plt.imshow(hv_mean, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hv_mean, levels=hv_levels, colors='black', alpha=0.5)
         plt.title("mean hv")
         
+        mrse_max = max(np.max(eta_mrse), np.max(hu_mrse), np.max(hv_mrse))
+        mrse_min = min(np.min(eta_mrse), np.min(hu_mrse), np.min(hv_mrse))
+        mrse_levels = np.linspace(mrse_max, mrse_min, 10)
+        
         plt.subplot(numPlots, 3, 7)
-        plt.imshow(eta_mrse, origin='lower')
+        plt.imshow(eta_mrse, origin='lower', vmin=-eta_lim, vmax=eta_lim)
         plt.contour(eta_mrse, levels=eta_levels, colors='black', alpha=0.5)
         plt.title("MRSE eta")
         plt.subplot(numPlots, 3, 8)
-        plt.imshow(hu_mrse, origin='lower')
+        plt.imshow(hu_mrse, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hu_mrse, levels=hu_levels, colors='black', alpha=0.5)
         plt.title("MRSE hu")
         plt.subplot(numPlots, 3, 9)
-        plt.imshow(hv_mrse, origin='lower')
+        plt.imshow(hv_mrse, origin='lower', vmin=-huv_lim, vmax=huv_lim)
+        #plt.colorbar() # TODO: Find a nice way to include colorbar to this plot...
         plt.contour(hv_mrse, levels=hv_levels, colors='black', alpha=0.5)
         plt.title("MRSE hv")
 
         for p in range(numParticlePlots):
             plt.subplot(numPlots, 3, 10+p*3)
-            plt.imshow(eta[p], origin='lower')
+            plt.imshow(eta[p], origin='lower', vmin=-eta_lim, vmax=eta_lim)
             plt.contour(eta[p], levels=eta_levels, colors='black', alpha=0.5)
             plt.title("particle eta")
             plt.subplot(numPlots, 3, 10+p*3 + 1)
-            plt.imshow(hu[p], origin='lower')
+            plt.imshow(hu[p], origin='lower', vmin=-huv_lim, vmax=huv_lim)
             plt.contour(hu[p], levels=hu_levels, colors='black', alpha=0.5)
             plt.title("particle hu")
             plt.subplot(numPlots, 3, 10+p*3 + 2)
-            plt.imshow(hv[p], origin='lower')
+            plt.imshow(hv[p], origin='lower', vmin=-huv_lim, vmax=huv_lim)
             plt.contour(hv[p], levels=hv_levels, colors='black', alpha=0.5)
             plt.title("particle hv")
 
