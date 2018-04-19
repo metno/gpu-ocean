@@ -15,7 +15,7 @@ before_install:
     libhwloc-dev libltdl-dev pkg-config libedit-dev
   - wget https://github.com/pocl/pocl/archive/v1.1.tar.gz
   - tar xzf v1.1.tar.gz && cd pocl-1.1
-  - cmake -DENABLE_ICD=OFF .
+  - cmake .
   - sudo make -j2 && sudo make install
   - cd ..
 
@@ -25,6 +25,7 @@ install:
   - cd ..
 
 script:
+  - export OCL_ICD_VENDORS=/usr/local/etc/OpenCL/vendors/pocl.icd
   - cd python/tests
   - python basic_pyopencl_tests.py
   - python oneLayer_2D_tests.py 0
