@@ -126,9 +126,12 @@ class BaseOceanStateEnsemble(object):
                                initialization_variance_factor=10,
                                small_scale_perturbation_amplitude=0):
 
-        self.observation_variance = 5*self.dx
-        self.initialization_variance = 10*self.dx
+        # Observation_variance_per_drifter
+        self.observation_variance = np.eye(2)*observation_variance_factor*self.dx
+        self.initialization_variance = initialization_variance_factor*self.dx
         
+        # TODO: Check if this variable is used anywhere.
+        # Should not be defined in the Base class.
         self.initialization_cov = np.eye(2)*self.initialization_variance
         
         self.small_scale_perturbation_amplitude = small_scale_perturbation_amplitude
@@ -158,6 +161,8 @@ class BaseOceanStateEnsemble(object):
             drifterPositions = np.append(drifterPositions, 
                                          oceanState.drifters.getDrifterPositions(),
                                          axis=0)
+        for p in drifterPositions:
+            p += np.random.multivariate_normal([0,0], self.observation_variance)
         return drifterPositions
     
     def getParticleDrifterPositions(self):
@@ -179,7 +184,10 @@ class BaseOceanStateEnsemble(object):
         """
         ## TODO: ADD ERROR!
         observation = self.particles[self.obs_index].drifters.getDrifterPositions()
-        return observation[0,:]
+
+        observation = observation[0,:] + np.random.multivariate_normal([0,0], self.observation_variance)
+        return observation
+    
     
     def getTrueStateDrifterPositions(self):
         """
