@@ -207,7 +207,8 @@ class CTCS(Simulator.Simulator):
         """
         self.closeNetCDF()
         
-        self.cl_data.release()
+        if self.cl_data is not None:
+            self.cl_data.release()
         
         self.H.release()
         gc.collect()
