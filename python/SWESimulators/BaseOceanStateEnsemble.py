@@ -172,11 +172,17 @@ class BaseOceanStateEnsemble(object):
         observation = self.particles[self.obs_index].drifters.getDrifterPositions()
         return observation[0,:]
         
-    def step(self, t):
+    def step(self, t, apply_stochastic_term=True):
+        """
+        Function which makes all particles step until time t.
+        apply_stochastic_term: Boolean value for whether the stochastic
+            perturbation (if any) should be applied.
+        """
         simNo = 0
         for oceanState in self.particles:
             #print "Starting sim " + str(simNo)
-            output_t = oceanState.step(t)
+            output_t = oceanState.step(t, \
+                           apply_stochastic_term=apply_stochastic_term)
             #print "Finished sim " + str(simNo)      
             simNo = simNo + 1
         return output_t
