@@ -32,6 +32,8 @@ import Common, SimWriter, SimReader
 import Simulator
 import WindStress
 
+import time
+
 class CTCS(Simulator.Simulator):
     """
     Class that solves the SW equations using the Centered in time centered in space scheme
@@ -207,8 +209,7 @@ class CTCS(Simulator.Simulator):
         """
         self.closeNetCDF()
         
-        if self.cl_data is not None:
-            self.cl_data.release()
+        self.cl_data.release()
         
         self.H.release()
         gc.collect()

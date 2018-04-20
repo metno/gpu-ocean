@@ -36,7 +36,7 @@ float linear_coriolis_term(const float f, const float beta,
 			   const float tj, const float dy,
 			   const float y_zero_reference_cell) {
     // y_0 is at the southern face of the row y_zero_reference_cell.
-    float y = (tj-y_zero_reference_cell + 0.5)*dy;
+    float y = (tj-y_zero_reference_cell + 0.5f)*dy;
     return f + beta * y;
 }
 
