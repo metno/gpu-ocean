@@ -131,8 +131,7 @@ class Simulator(object):
         pass
    
     def __del__(self):
-        pass
-        #self.cleanUp()
+        self.cleanUp()
 
     @abstractmethod
     def cleanUp(self):

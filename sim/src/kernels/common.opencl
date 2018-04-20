@@ -2,6 +2,7 @@
 #define COMMON_CL
 
 #include "../config.h"
+#include "../windStress_params.h"
 
 #ifndef __OPENCL_VERSION__
 #define __kernel
@@ -37,36 +38,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/**
- * Mapped to subclasses of WindStress in SWESimulators/WindStress.py
- * DO NOT make changes here without changing WindStress.py accordingly!
- */
-typedef enum {NO_WIND,
-	GENERIC_UNIFORM,
-	ALONGSHORE_UNIFORM,
-	ALONGSHORE_BELLSHAPED,
-	MOVING_CYCLONE}
-wind_stress_type;
 
-/**
- * Mapped to Structure WIND_STRESS_PARAMS in SWESimulators/WindStress.py
- * DO NOT make changes here without changing WindStress.py accordingly!
- */
-typedef struct WindStressParams {
-   wind_stress_type type;
-   float tau0;
-   float rho;
-   float rho_air;
-   float alpha;
-   float xm;
-   float Rc;
-   float x0;
-   float y0;
-   float u0;
-   float v0;
-   float wind_speed;
-   float wind_direction;
-} wind_stress_params;
 
 /**
   * Reads a block of data  with one ghost cell for the shallow water equations

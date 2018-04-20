@@ -10,8 +10,8 @@ notifications:
       - martinls@met.no
 #      - havard.heitlo.holm@sintef.no 
 
-    on_success: [change]
-    on_failure: [change]
+    on_success: change
+    on_failure: always
 
 # If testing for more than one python version, use the following 'trick' for C++-tests:
 # https://stackoverflow.com/questions/30404594/how-to-test-both-python-and-c-in-one-travis-yml-without-running-the-c-multi?noredirect=1&lq=1 

@@ -1,10 +1,10 @@
 #include "simulator.h"
 #include "oclutils.h"
 #include "reconstructH_types.h"
+#include "windStress_params.h"
 #include "computeU_types.h"
 #include "computeV_types.h"
 #include "computeEta_types.h"
-#include "windStress_types.h"
 #include <boost/format.hpp>
 #include <iostream>
 #include <stdexcept>
@@ -26,6 +26,10 @@ struct Simulator::SimulatorImpl
 
     float currTime; // current simulation time
     float maxTime; // maximum simulation time
+
+    // Wind stress parameters
+    cl::Buffer ws;
+    wind_stress_params ws_host;
 
     // H reconstructed
     cl::Buffer Hr_u; // x-dimension
@@ -69,7 +73,26 @@ void Simulator::SimulatorImpl::init(const OptionsPtr &options, const InitCondPtr
 	currTime = 0;
 	maxTime = options->duration();
 
+	// Default wind stress parameters
+	// XXX: Read from options!
+	ws_host.type = NO_WIND;
+	ws_host.tau0 = 0.f;
+	ws_host.rho = 0.f;
+	ws_host.rho_air = 0.f;
+	ws_host.alpha = 0.f;
+	ws_host.xm = 0.f;
+	ws_host.Rc = 0.f;
+	ws_host.x0 = 0.f;
+	ws_host.y0 = 0.f;
+	ws_host.u0 = 0.f;
+	ws_host.v0 = 0.f;
+	ws_host.wind_speed = 0.f;
+	ws_host.wind_direction = 0.f;
+
     cl_int error = CL_SUCCESS;
+
+    ws = cl::Buffer(*OpenCLUtils::getContext(), CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(ws_host), &ws_host, &error);
+    CL_CHECK(error);
 
     // create buffers ...
     // ... H reconstructed
@@ -203,17 +226,6 @@ void Simulator::SimulatorImpl::computeU(const OptionsPtr &options, const InitCon
     args.f = f;
     args.g = g;
     kernel->setArg(0, args);
-    windStress_args ws;
-    ws.wind_stress_type = 99;
-	ws.tau0 = 0.0f;
-	ws.rho = 0.0f;
-	ws.alpha = 0.0f;
-	ws.xm = 0.0f;
-	ws.Rc = 0.0f;
-	ws.x0 = 0.0f;
-	ws.y0 = 0.0f;
-	ws.u0 = 0.0f;
-	ws.v0 = 0.0f;
     kernel->setArg(1, ws);
     kernel->setArg<cl::Buffer>(2, H);
     kernel->setArg<int>(3, H_host.getNx()*sizeof(float));
@@ -255,17 +267,6 @@ void Simulator::SimulatorImpl::computeV(const OptionsPtr &options, const InitCon
 	args.f = f;
 	args.g = g;
 	kernel->setArg(0, args);
-	windStress_args ws;
-	ws.wind_stress_type = 99;
-	ws.tau0 = 0.0f;
-	ws.rho = 0.0f;
-	ws.alpha = 0.0f;
-	ws.xm = 0.0f;
-	ws.Rc = 0.0f;
-	ws.x0 = 0.0f;
-	ws.y0 = 0.0f;
-	ws.u0 = 0.0f;
-	ws.v0 = 0.0f;
 	kernel->setArg(1, ws);
 	kernel->setArg<cl::Buffer>(2, H);
 	kernel->setArg<int>(3, H_host.getNx()*sizeof(float));
