@@ -37,8 +37,9 @@ install:
 
 script:
   - export OCL_ICD_VENDORS=/usr/local/etc/OpenCL/vendors/pocl.icd
-  - echo "=============== PYTHON TESTS ==============="
+  - echo "=============== PYTHON TESTS ===============" 
   - cd python/tests
+# We should be doing 'python -m unittest discover .' here. Need default values for test cl arguments.
   - python basic_pyopencl_tests.py
   - python oneLayer_2D_tests.py 0
   - python particle_filter_tests.py 0
