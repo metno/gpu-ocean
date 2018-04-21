@@ -170,14 +170,12 @@ class BaseDrifterCollection(object):
         obs can be sat to be different than the observation within this collection.
         """
         distances = np.zeros(self.getNumDrifters())
+        innovations = self.getInnovations(obs)
         if obs is None:
             obs = self.getObservationPosition()
-            closestPositions = self._getClosestPositions()
-        else:
-            closestPositions = self._getClosestPositions(obs)
         for i in range(self.getNumDrifters()):
-            distances[i] = np.sqrt( (closestPositions[i,0]-obs[0])**2 +
-                                    (closestPositions[i,1]-obs[1])**2)
+            distances[i] = np.sqrt( (innovations[i,0])**2 +
+                                    (innovations[i,1])**2)
         return distances
         
     def getInnovations(self, obs=None):
@@ -188,7 +186,6 @@ class BaseDrifterCollection(object):
         
         obs can be sat to be different than the observation within this collection.
         """
-        distances = np.zeros(self.getNumDrifters())
         if obs is None:
             obs = self.getObservationPosition()
             closestPositions = self._getClosestPositions()
