@@ -199,6 +199,19 @@ class BaseOceanStateEnsemble(object):
                                   axis=0)
             counter += 1
         return distances
+    
+    def getInnovations(self, obs=None):
+        if obs is None:
+            obs = self.observeTrueState()
+        innovations = np.empty((0,2))
+        counter = 0
+        for oceanState in self.particles[:-1]:
+            innovationsFromOceanState = oceanState.drifters.getInnovations(obs)
+            innovations = np.append(innovations,
+                                    innovationsFromOceanState,
+                                    axis=0)
+            counter += 1
+        return innovations
             
     def printMaxOceanStates(self):
         simNo = 0
