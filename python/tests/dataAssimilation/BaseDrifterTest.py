@@ -235,6 +235,37 @@ class BaseDrifterTest(unittest.TestCase):
                               [semiDiag, longLine, shortLine], 6,
                               'distances with periodic boundaries in north-south')
 
+    def test_innovations(self):
+        self.set_positions_small_set()
+        zero = 0.0
+        close = 0.2
+        far = -0.8
+
+        fasit = [[close, close], [close, zero], [zero, close]]
+        # smallDrifterSet is initially with periodic boundary conditions
+        assert2DListAlmostEqual(self, self.smallDrifterSet.getInnovations().tolist(), \
+                              fasit, 6,
+                              'innovations with periodic boundaries')
+
+        fasit = [[far, far], [far, zero], [zero, far]]
+        self.smallDrifterSet.setBoundaryConditions(Common.BoundaryConditions(1,1,1,1))
+        assert2DListAlmostEqual(self, self.smallDrifterSet.getInnovations().tolist(), \
+                              fasit, 6,
+                              'innovations with non-periodic boundaries')
+
+        fasit = [[close, far], [close, zero], [zero, far]]
+        self.smallDrifterSet.setBoundaryConditions(Common.BoundaryConditions(1,2,1,2))
+        assert2DListAlmostEqual(self, self.smallDrifterSet.getInnovations().tolist(), \
+                              fasit, 6,
+                              'innovations with periodic boundaries in east-west')
+
+        fasit = [[far, close], [far, zero], [zero, close]]
+        self.smallDrifterSet.setBoundaryConditions(Common.BoundaryConditions(2,1,2,1))
+        assert2DListAlmostEqual(self, self.smallDrifterSet.getInnovations().tolist(), \
+                              fasit, 6,
+                              'innovations with periodic boundaries in north-south')
+        
+        
     def test_collection_mean(self):
         self.set_positions_small_set()
         periodicMean = [1-0.1/3, 1-0.1/3]

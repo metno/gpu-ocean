@@ -180,6 +180,25 @@ class BaseDrifterCollection(object):
                                     (closestPositions[i,1]-obs[1])**2)
         return distances
         
+    def getInnovations(self, obs=None):
+        """
+        Computes the innovation, meaning the distance vector between drifter
+        and observation, as d = y - H(x).
+        Possible periodic boundary conditions are taken care of.
+        
+        obs can be sat to be different than the observation within this collection.
+        """
+        distances = np.zeros(self.getNumDrifters())
+        if obs is None:
+            obs = self.getObservationPosition()
+            closestPositions = self._getClosestPositions()
+        else:
+            closestPositions = self._getClosestPositions(obs)
+        for i in range(self.getNumDrifters()):
+            closestPositions[i,0] = obs[0] - closestPositions[i,0]
+            closestPositions[i,1] = obs[1] - closestPositions[i,1]
+
+        return closestPositions
     
     def _enforceBoundaryConditionsOnPosition(self, x, y):
         """
