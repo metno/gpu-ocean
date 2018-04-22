@@ -8,7 +8,7 @@ notifications:
   email:
     recipients:
       - martinls@met.no
-#      - havard.heitlo.holm@sintef.no 
+      - havard.heitlo.holm@sintef.no 
 
     on_success: change
     on_failure: always
