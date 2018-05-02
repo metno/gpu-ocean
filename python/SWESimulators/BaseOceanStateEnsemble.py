@@ -247,32 +247,35 @@ class BaseOceanStateEnsemble(object):
     
     
     def downloadEnsembleStatisticalFields(self):
+        """
+        Find the ensemble mean, and the ensemble root mean-square error. 
+        """
         eta_true, hu_true, hv_true = self.downloadTrueOceanState()
         
         eta_mean = np.zeros_like(eta_true)
         hu_mean = np.zeros_like(hu_true)
         hv_mean = np.zeros_like(hv_true)
-        eta_mrse = np.zeros_like(eta_true)
-        hu_mrse = np.zeros_like(hu_true)
-        hv_mrse = np.zeros_like(hv_true)
+        eta_rmse = np.zeros_like(eta_true)
+        hu_rmse = np.zeros_like(hu_true)
+        hv_rmse = np.zeros_like(hv_true)
         
         for p in range(self.getNumParticles()):
             tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
             eta_mean += tmp_eta
             hu_mean += tmp_hu
             hv_mean += tmp_hv
-            eta_mrse += (eta_true - tmp_eta)**2
-            hu_mrse += (hu_true - tmp_hu)**2
-            hv_mrse += (hv_true - tmp_hv)**2
+            eta_rmse += (eta_true - tmp_eta)**2
+            hu_rmse += (hu_true - tmp_hu)**2
+            hv_rmse += (hv_true - tmp_hv)**2
             
         eta_mean = eta_mean/self.getNumParticles()
         hu_mean = hu_mean/self.getNumParticles()
         hv_mean = hv_mean/self.getNumParticles()
-        eta_mrse = np.sqrt(eta_mrse/self.getNumParticles())
-        hu_mrse = np.sqrt(hu_mrse/self.getNumParticles())
-        hv_mrse = np.sqrt(hv_mrse/self.getNumParticles())
+        eta_rmse = np.sqrt(eta_rmse/self.getNumParticles())
+        hu_rmse= np.sqrt(hu_rmse/self.getNumParticles())
+        hv_rmse = np.sqrt(hv_rmse/self.getNumParticles())
         
-        return eta_mean, hu_mean, hv_mean, eta_mrse, hu_mrse, hv_mrse
+        return eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse
     
     def downloadParticleOceanState(self, particleNo):
         assert(particleNo < self.getNumParticles()+1), "particle out of range"
