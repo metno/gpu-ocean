@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class implements an ensemble of particles, each consisting of a single drifter in its own ocean state. Each ocean model is perturbed during each timestep, using small scale perturbations.
+This python class implements an ensemble of particles, each consisting
+of a single drifter in its own ocean state. Each ocean model is 
+perturbed during each timestep, using small scale perturbations.
 
 
 Copyright (C) 2018  SINTEF ICT
@@ -71,38 +73,25 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     
 
     def resample(self, newSampleIndices, reinitialization_variance):
+        """
+        Resampling the particles given by the newSampleIndicies input array.
+        Here, the reinitialization_variance input is ignored, meaning that exact
+        copies only are resampled.
+        """
         positions = self.observeParticles()
-        windDirection = self.directions
-        newWindDirection = np.empty_like(windDirection)
         newPos = np.empty((self.driftersPerOceanModel, 2))
         newOceanStates = [None]*self.getNumParticles()
         for i in range(self.getNumParticles()):
             index = newSampleIndices[i]
-            #print "(particle no, position, old direction, new direction): "
-            newWindDirection[i] = np.random.normal(windDirection[index], reinitialization_variance, 1)
-            if newWindDirection[i] > 360:
-                newWindDirection[i] -= 360
-            elif newWindDirection[i] < 0:
-                newWindDirection[i] += 360
             newPos[:,:] = positions[index,:]
-            #print "\t", (index, positions[index,:], windDirection[index])
-            #print "\t", (index, newPos, newWindDirection[i])
-            
-            #newWindInstance = Common.WindStressParams()
-            newWindInstance = Common.WindStressParams(type=50, 
-                                                      wind_speed=self.windSpeed,
-                                                      wind_direction=newWindDirection[i])
             
             # Download index's ocean state:
             eta0, hu0, hv0 = self.particles[index].download()
             eta1, hu1, hv1 = self.particles[index].downloadPrevTimestep()
             newOceanStates[i] = (eta0, hu0, hv0, eta1, hu1, hv1)
-            
-            self.particles[i].wind_stress = newWindInstance
+
             self.particles[i].drifters.setDrifterPositions(newPos)
 
-        self.directions = newWindDirection.copy()
-        
         # New loop for transferring the correct ocean states back up to the GPU:
         for i in range(self.getNumParticles()):
             self.particles[i].upload(newOceanStates[i][0],
