@@ -258,7 +258,6 @@ __kernel void perturbOcean(
                 }
             }
             d_eta[j][i] = Qxi;
-            //d_eta[j][i] = xi[j+2][i+2];//Qxi;
         }
     }
 

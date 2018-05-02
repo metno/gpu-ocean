@@ -31,7 +31,6 @@ import Simulator
 import WindStress
 import OceanStateNoise
 
-#reload(Simulator)
 
 class CDKLM16(Simulator.Simulator):
     """

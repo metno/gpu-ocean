@@ -1,4 +1,3 @@
-
 import unittest
 import time
 import numpy as np
@@ -111,8 +110,8 @@ class OceanStateNoiseTest(unittest.TestCase):
         # The tolerance provided to testAlmostEqual makes the comparison wrt to the
         # number of decimal places, not the number of significant digits.
         # We therefore make sure that seed is in [0, 1]
-        seed = self.noise.getSeed()#/self.floatMax
-        seedCPU = self.noise.getSeedCPU()#/self.floatMax
+        seed = self.noise.getSeed()
+        seedCPU = self.noise.getSeedCPU()
 
         msg = msg+"\ntype(seed):    " + str(type(seed)) + ", " + str(type(seed[0,0]))\
               + "\ntype(seedCPU): " + str(type(seedCPU)) + ", " + str(type(seedCPU[0,0]))
