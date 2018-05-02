@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define CLK_LOCAL_MEM_FENCE
 #endif
 
-
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
 /**
   *  Generates two uniform random numbers based on the ANSIC Linear Congruential 
