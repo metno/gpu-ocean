@@ -279,19 +279,11 @@ class BaseOceanStateEnsemble(object):
     
     def downloadParticleOceanState(self, particleNo):
         assert(particleNo < self.getNumParticles()+1), "particle out of range"
-        eta, hu, hv = self.particles[particleNo].download()
-        eta = eta[2:-2, 2:-2]
-        hu = hu[2:-2, 2:-2]
-        hv = hv[2:-2, 2:-2]
-        return eta, hu, hv
-    
+        return self.particles[particleNo].download(interior_domain_only=True)
+        
     def downloadTrueOceanState(self):
-        eta, hu, hv = self.particles[self.obs_index].download()
-        eta = eta[2:-2, 2:-2]
-        hu = hu[2:-2, 2:-2]
-        hv = hv[2:-2, 2:-2]
-        return eta, hu, hv
-    
+        return self.particles[self.obs_index].download(interior_domain_only=True)
+        
     def _updateMinMax(self, eta, hu, hv, fieldRanges):
         fieldRanges[0] = min(fieldRanges[0], np.min(eta))
         fieldRanges[1] = max(fieldRanges[1], np.max(eta))
