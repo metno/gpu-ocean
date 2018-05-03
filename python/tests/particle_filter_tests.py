@@ -7,11 +7,11 @@ import xmlrunner
 # $ sudo easy_install unittest-xml-reporting
 
 #import testUtils
-from dataAssimilation.CPUDrifterTest import CPUDrifterTest
-from dataAssimilation.GPUDrifterTest import GPUDrifterTest
-from dataAssimilation.OceanStateNoiseTest import OceanStateNoiseTest
-from dataAssimilation.DrifterEnsembleTest import DrifterEnsembleTest
-from dataAssimilation.CPUDrifterEnsembleTest import CPUDrifterEnsembleTest
+from dataAssimilation.CPUDrifter_test import CPUDrifterTest
+from dataAssimilation.GPUDrifter_test import GPUDrifterTest
+from dataAssimilation.OceanStateNoise_test import OceanStateNoiseTest
+from dataAssimilation.DrifterEnsemble_test import DrifterEnsembleTest
+from dataAssimilation.CPUDrifterEnsemble_test import CPUDrifterEnsembleTest
 
 def printSupportedTests():
     print ("Supported tests:")
