@@ -92,8 +92,9 @@ class OceanStateNoise(object):
         # Generate seed:
         self.floatMax = 2147483648.0
         self.host_seed = np.random.rand(self.seed_ny, self.seed_nx)*self.floatMax
-        self.host_seed.astype(np.float32, order='C')
-        self.seed = Common.OpenCLArray2D(cl_ctx, self.seed_nx, self.seed_ny, 0, 0, self.host_seed)
+        self.host_seed = self.host_seed.astype(np.uint64, order='C')
+
+        self.seed = Common.OpenCLArray2D(cl_ctx, self.seed_nx, self.seed_ny, 0, 0, self.host_seed, double_precision=True, integers=True)
         
         # Allocate memory for random numbers
         self.random_numbers_host = np.zeros((self.rand_ny, self.rand_nx), dtype=np.float32, order='C')
@@ -143,6 +144,13 @@ class OceanStateNoise(object):
         
     def getSeed(self):
         return self.seed.download(self.cl_queue)
+    
+    def resetSeed(self):
+        self.floatMax = 2147483648.0
+        self.host_seed = np.random.rand(self.seed_ny, self.seed_nx)*self.floatMax
+        self.host_seed.astype(np.float32, order='C')
+        self.seed.upload(self.cl_queue, self.host_seed)
+        
     
     def getRandomNumbers(self):
         return self.random_numbers.download(self.cl_queue)
@@ -267,18 +275,19 @@ class OceanStateNoise(object):
     # ------------------------------
     
     def _lcg(self, seed):
-        seed = ((seed*1103515245) + 12345) % 0x7fffffff
+        modulo = np.uint64(2147483647)
+        seed = np.uint64(((seed*1103515245) + 12345) % modulo) #0x7fffffff
         return seed / 2147483648.0, seed
     
     def _boxMuller(self, seed_in):
-        seed = np.long(seed_in)
+        seed = np.uint64(seed_in)
         u1, seed = self._lcg(seed)
         u2, seed = self._lcg(seed)
         r = np.sqrt(-2.0*np.log(u1))
         theta = 2*np.pi*u2
         n1 = r*np.cos(theta)
         n2 = r*np.sin(theta)
-        return n1, n2, np.float32(seed)
+        return n1, n2, seed
     
     def _CPUUpdateRandom(self, normalDist):
         """

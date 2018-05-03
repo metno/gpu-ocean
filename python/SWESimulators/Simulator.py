@@ -107,13 +107,13 @@ class Simulator(object):
         self.offset_y = offset_y
         self.sim_writer = None
         
-        #Compute kernel launch parameters
+        # Compute kernel launch parameters
         self.local_size = (block_width, block_height) 
         self.global_size = ( \
                        int(np.ceil(self.nx / float(self.local_size[0])) * self.local_size[0]), \
                        int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
                       ) 
-    
+            
     @abstractmethod
     def step(self, t_end=0.0):
         """
@@ -158,11 +158,20 @@ class Simulator(object):
         self.hasDrifters = True
         self.drifters.setCLQueue(self.cl_queue)
     
-    def download(self):
+    def download(self, interior_domain_only=False):
         """
         Download the latest time step from the GPU
         """
-        return self.cl_data.download(self.cl_queue)
+        if interior_domain_only:
+            eta, hu, hv = self.cl_data.download(self.cl_queue)
+            return eta[self.interior_domain_indices[2]:self.interior_domain_indices[0],  \
+                       self.interior_domain_indices[3]:self.interior_domain_indices[1]], \
+                   hu[self.interior_domain_indices[2]:self.interior_domain_indices[0],   \
+                      self.interior_domain_indices[3]:self.interior_domain_indices[1]],  \
+                   hv[self.interior_domain_indices[2]:self.interior_domain_indices[0],   \
+                      self.interior_domain_indices[3]:self.interior_domain_indices[1]]
+        else:
+            return self.cl_data.download(self.cl_queue)
     
     
     def downloadPrevTimestep(self):
@@ -219,7 +228,15 @@ class Simulator(object):
             self.cl_data.h1.upload(self.cl_queue, eta1)
             self.cl_data.hu1.upload(self.cl_queue, hu1)
             self.cl_data.hv1.upload(self.cl_queue, hv1)
-        
-
+            
+    def _set_interior_domain_from_sponge_cells(self):
+        """
+        Use possible existing sponge cells to correctly set the 
+        variable self.interior_domain_incides
+        """
+        if (self.boundary_conditions.isSponge()):
+            self.interior_domain_indices = self.boundary_conditions.spongeCells.copy()
+            self.interior_domain_indices[0:2] = -self.interior_domain_indices[0:2]
+            print "self.interior_domain_indices: ", self.interior_domain_indices
     
     

@@ -7,10 +7,10 @@ import xmlrunner
 # $ sudo easy_install unittest-xml-reporting
 
 #import testUtils
-from schemes.FBLtest import FBLtest
-from schemes.CTCStest import CTCStest
-from schemes.CDKLM16test import CDKLM16test
-from schemes.KP07test import KP07test
+from schemes.FBL_test import FBLtest
+from schemes.CTCS_test import CTCStest
+from schemes.CDKLM16_test import CDKLM16test
+from schemes.KP07_test import KP07test
 
 def printSupportedSchemes():
     print ("Supported schemes:")

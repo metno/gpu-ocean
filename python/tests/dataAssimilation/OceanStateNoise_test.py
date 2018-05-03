@@ -46,8 +46,8 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.glob_size_random_x = 16*1
         self.glob_size_random_x_nonperiodic = 16*2
 
-        self.large_nx = 200
-        self.large_ny = 200
+        self.large_nx = 400
+        self.large_ny = 400
         self.large_noise = None
 
         self.floatMax = 2147483648.0
@@ -110,9 +110,12 @@ class OceanStateNoiseTest(unittest.TestCase):
         # The tolerance provided to testAlmostEqual makes the comparison wrt to the
         # number of decimal places, not the number of significant digits.
         # We therefore make sure that seed is in [0, 1]
-        seed = self.noise.getSeed()/self.floatMax
-        seedCPU = self.noise.getSeedCPU()/self.floatMax
+        seed = self.noise.getSeed()
+        seedCPU = self.noise.getSeedCPU()
 
+        msg = msg+"\ntype(seed):    " + str(type(seed)) + ", " + str(type(seed[0,0]))\
+              + "\ntype(seedCPU): " + str(type(seedCPU)) + ", " + str(type(seedCPU[0,0]))
+        
         assert2DListAlmostEqual(self, seed.tolist(), seedCPU.tolist(), tol, msg+", seed")
 
         random = self.noise.getRandomNumbers()
@@ -204,7 +207,7 @@ class OceanStateNoiseTest(unittest.TestCase):
 
         # Check the mean and var with very low accuracy.
         # Gives error if the distribution is way off
-        self.assertAlmostEqual(mean, 0.5, 1)
+        self.assertAlmostEqual(mean, 0.5, 2)
         self.assertAlmostEqual(var, 1.0/12.0, 2)
 
     def test_random_normal(self):
@@ -219,7 +222,7 @@ class OceanStateNoiseTest(unittest.TestCase):
 
         # Check the mean and var with very low accuracy.
         # Gives error if the distribution is way off
-        self.assertAlmostEqual(mean, 0.0, 1)
+        self.assertAlmostEqual(mean, 0.0, 2)
         self.assertAlmostEqual(var, 1.0, 1)
 
 

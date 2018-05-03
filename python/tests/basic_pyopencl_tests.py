@@ -7,7 +7,7 @@ import xmlrunner
 # $ sudo easy_install unittest-xml-reporting
 
 #import testUtils
-from pyopenclTests.OpenCLArray2DTest import OpenCLArray2DTest
+from pyopenclTests.OpenCLArray2D_test import OpenCLArray2DTest
 
 if (len(sys.argv) < 1):
     print ("Usage:")
