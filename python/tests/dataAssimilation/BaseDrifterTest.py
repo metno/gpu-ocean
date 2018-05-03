@@ -16,7 +16,14 @@ from SWESimulators import DataAssimilationUtils as dautils
 
 
 class BaseDrifterTest(unittest.TestCase):
-    __metaclass__ = abc.ABCMeta
+
+    # Skipping tests in Base class (see reference below)
+    # https://stackoverflow.com/questions/1323455/python-unit-test-with-base-and-sub-class/17696807#17696807
+    @classmethod
+    def setUpClass(cls):
+        if cls is BaseDrifterTest:
+            raise unittest.SkipTest("Skip BaseDrifterTest tests, it is a base class!")
+        super(BaseDrifterTest, cls).setUpClass()
     
     def setUp(self):
         self.numDrifters = 3

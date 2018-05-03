@@ -65,4 +65,6 @@ for test_class in test_classes_to_run:
     suite_list.append(suite)
 
 big_suite = unittest.TestSuite(suite_list)
-unittest.TextTestRunner(verbosity=2).run(big_suite)
+results = unittest.TextTestRunner(verbosity=2).run(big_suite)
+
+sys.exit(not results.wasSuccessful())
