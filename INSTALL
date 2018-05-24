@@ -18,6 +18,16 @@ To run the OpenCL code:
 To read and write netCDF-files:
 - NetCDF C++ (legacy) development files
 
+Pyton dependencies (Windows)
+------------------
+- Install NVIDIA CUDA 9.1 
+- Install NVIDIA CUDA/GPU drivers
+- Install Python 2.7 (install Anaconda 32 bit - very important that it is 32 bit)
+- Update Anaconda (conda update --all)
+- Install PyOpencl 1.2 for python 2.7 32 bit (install from https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyopencl NOT from Anaconda. Important that you choose OpenCL 1.2 NOT 2.1)
+- Check that OpenCL works
+- Install ffmpeg (conda install -c conda-forge ffmpeg)
+
 
 Fast and easy install (Unix/Linux)
 ----------------------------------
