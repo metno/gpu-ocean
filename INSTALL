@@ -27,6 +27,7 @@ Pyton dependencies (Windows)
 - Install PyOpencl 1.2 for python 2.7 32 bit (install from https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyopencl NOT from Anaconda. Important that you choose OpenCL 1.2 NOT 2.1)
 - Check that OpenCL works
 - Install ffmpeg (conda install -c conda-forge ffmpeg)
+- Install netcdf4 (conda install -c anaconda netcdf4)
 
 
 Fast and easy install (Unix/Linux)
