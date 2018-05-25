@@ -48,22 +48,6 @@
       % Plotting the initial condition
       % figure; pcolor(s'); colorbar; shading flat; title("Init Eta")
        
-    % Finding the solution
-      % Organize the matrix for inversion
-       % B=aa*reshape(s,Nx*Ny,1);
-       % tmp=A\B;
-       % h(:,:)=reshape(tmp,Nx,Ny);
-      % Plot the solution
-       % figure; pcolor(h(2:end-1,2:end-1)'); colorbar; shading flat; title("Original result (eta)")
-        %figure; plot(x/dx, h(:,(Ny-1)/2)/etaamp, x/dx, s(:,(Ny-1)/2)/aa/etaamp); title("Original Comparison init - steady state")
-        %xlim([-150 150])
-        %figure; plot(x/dx, h(:,(Ny-1)/2), x/dx, s(:,(Ny-1)/2)); title("Comparison init - steady state")
-        %xlim([-150 150])
-        %Not sure why it does not work on the boundaries
-      % Save data
-       %save('KG.mat','h') %, 'X', 'Y')
-       
-       %max(max( h(:,(Ny-1)/2)/etaamp))
        
 %% Loop for sensitivity
    %close all, clear HH hmax A B s h
