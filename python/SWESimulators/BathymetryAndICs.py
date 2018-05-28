@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 
 """
-This notebook sets up and runs a set of benchmarks to compare
-different numerical discretizations of the SWEs
+This software is part of GPU Ocean. 
 
-Copyright (C) 2017  SINTEF ICT
+Copyright (C) 2016 SINTEF ICT, 
+Copyright (C) 2017, 2018 SINTEF Digital
+Copyright (C) 2017, 2018 Norwegian Meteorological Institute
+
+This python module implements a series of functions for generating
+bathymetriy and initial conditions for the shallow water equations.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

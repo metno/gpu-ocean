@@ -1,13 +1,17 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is part of GPU Ocean. 
+
+Copyright (C) 2016 SINTEF ICT, 
+Copyright (C) 2017, 2018 SINTEF Digital
+Copyright (C) 2017, 2018 Norwegian Meteorological Institute
+
 This python module implements the Centered in Time, Centered in Space
 (leapfrog) numerical scheme for the shallow water equations, 
 described in 
 L. P. Røed, "Documentation of simple ocean models for use in ensemble
 predictions", Met no report 2012/3 and 2012/5 .
-
-Copyright (C) 2016  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

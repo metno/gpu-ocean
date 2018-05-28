@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is part of GPU Ocean. 
+
+Copyright (C) 2016 SINTEF ICT, 
+Copyright (C) 2017, 2018 SINTEF Digital
+Copyright (C) 2017, 2018 Norwegian Meteorological Institute
+
 This python module implements 
 Alina Chertock, Michael Dudzinski, A. Kurganov & Maria Lukacova-Medvidova (2016)
 Well-Balanced Schemes for the Shallow Water Equations with Coriolis Forces
-
-Copyright (C) 2016  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
