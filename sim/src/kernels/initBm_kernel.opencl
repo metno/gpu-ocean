@@ -1,8 +1,11 @@
 /*
+This software is part of GPU Ocean. 
+
+Copyright (C) 2018 SINTEF Digital
+Copyright (C) 2018 Norwegian Meteorological Institute
+
 This OpenCL kernel initializes bottom topography in cell centers,
 based on bottom topography given on cell intersections.
-
-Copyright (C) 2016  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
