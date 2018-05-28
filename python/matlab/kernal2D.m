@@ -5,6 +5,27 @@ function [A]=kernal2D(D,U,V,F)
   % V-Advection velocity in y-direction
   % F-Coefficient for source term that depend on the variable
   % Note that the routine requires that D, U, and F are constants
+  
+  % This software is part of GPU Ocean. 
+  % 
+  % Copyright (C) 2017, 2018 SINTEF Digital
+  % Copyright (C) 2017, 2018 Norwegian Meteorological Institute
+  % 
+  % This script generates the matrices involved in finding the reference
+  % solution for the Rossby adjustment problem.
+  % 
+  % This program is free software: you can redistribute it and/or modify
+  % it under the terms of the GNU General Public License as published by
+  % the Free Software Foundation, either version 3 of the License, or
+  % (at your option) any later version.
+  % 
+  % This program is distributed in the hope that it will be useful,
+  % but WITHOUT ANY WARRANTY; without even the implied warranty of
+  % MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  % GNU General Public License for more details.
+  % 
+  % You should have received a copy of the GNU General Public License
+  % along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
   % Global parameters
     global x dx Nx y dy Ny
