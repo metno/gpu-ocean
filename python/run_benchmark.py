@@ -1,45 +1,48 @@
 import sys
-sys.path.insert(0, "C:/Users/anbro/Documents/projects/ocean drift/gpu-ocean/python")
+sys.path.insert(0, "F:/windows/sintef/gpu-ocean/python")
+
+import argparse
+parser = argparse.ArgumentParser(description='Benchmark a simulator.')
+parser.add_argument('--nx', type=int, default=1000)
+parser.add_argument('--ny', type=int, default=1000)
+parser.add_argument('--block_width', type=int)
+parser.add_argument('--block_height', type=int)
+parser.add_argument('--steps_per_download', type=int, default=2000)
+parser.add_argument('--iterations', type=int, default=1)
+parser.add_argument('--simulator', type=str)
+args = parser.parse_args()
 
 
-#Import packages we need
-import numpy as np
-from matplotlib import animation, rc
-from matplotlib import pyplot as plt
+# Import timing utilities
+import time
+tic = time.time();
 
+# Import packages we need
 import os
 import pyopencl
-import datetime
-import sys
-
-#Import our simulator
-from SWESimulators import FBL, CTCS, LxF, KP07, CDKLM16, PlotHelper, Common
-from SWESimulators.BathymetryAndICs import *
+import numpy as np
+from SWESimulators import FBL, CTCS, KP07, CDKLM16, PlotHelper, Common
 
 
-#Make sure we get compiler output from OpenCL
+toc = time.time()
+print("{:02.4f} s: ".format(toc-tic) + "Imported packages")
+
+
+#Set OpenCL parameters
 os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
-
-#Set which CL device to use, and disable kernel caching
-if (str.lower(sys.platform).startswith("linux")):
-    os.environ["PYOPENCL_CTX"] = "0"
-else:
-    os.environ["PYOPENCL_CTX"] = "1"
-
-os.environ["CUDA_CACHE_DISABLE"] = "1"
+os.environ["PYOPENCL_CTX"] = "0"
 os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
 os.environ["PYOPENCL_NO_CACHE"] = "1"
+os.environ["CUDA_CACHE_DISABLE"] = "1"
 
-#Create OpenCL context
+
+# Create OpenCL context
+tic = time.time()
 cl_ctx = pyopencl.create_some_context()
-print "Using ", cl_ctx.devices[0].name
+toc = time.time()
+print("{:02.4f} s: ".format(toc-tic) + "Created context on " + cl_ctx.devices[0].name)
 
-
-    
-# Kurganov-Petrova 2007 paper
-nx = 1000
-ny = 1000
-
+# Set benchmark sizes
 dx = 200.0
 dy = 200.0
 
@@ -49,39 +52,223 @@ g = 9.81
 f = 0.00
 r = 0.0
 
-# WIND
-#wind = Common.WindStressParams(type=0, tau0=3.0, rho=1025, alpha=1.0/(100*dx))
-wind = Common.WindStressParams(type=99)
-
-
-ghosts = np.array([2,2,2,2]) # north, east, south, west
-validDomain = np.array([2,2,2,2])
 boundaryConditions = Common.BoundaryConditions()
-dataShape = (ny + ghosts[0]+ghosts[2], 
-             nx + ghosts[1]+ghosts[3])
-             
+
+# Generate initial conditions
 waterHeight = 60
-eta0 = np.zeros(dataShape, dtype=np.float32, order='C');
-u0 = np.zeros(dataShape, dtype=np.float32, order='C');
-v0 = np.zeros(dataShape, dtype=np.float32, order='C');
 
-Hi = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C') * waterHeight;
+x_center = dx*args.nx/2.0
+y_center = dy*args.ny/2.0
+size = 0.4*min(args.nx*dx, args.ny*dy)
 
-addCentralBump(eta0, nx, ny, dx, dy, validDomain)
+def my_exp(i, j):
+	x = dx*i - x_center
+	y = dy*j - y_center
+	return np.exp(-10*(x*x/(size*size)+y*y/(size*size))) * (np.sqrt(x**2 + y**2) < size)
+	
+"""
+Initializes the KP simulator
+"""
+def initKP():
+	tic = time.time()
+	
+	ghosts = np.array([2,2,2,2]) # north, east, south, west
+	dataShape = (args.ny + ghosts[0]+ghosts[2], 
+				 args.nx + ghosts[1]+ghosts[3])
+
+	eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+	u0 = np.zeros(dataShape, dtype=np.float32, order='C');
+	v0 = np.zeros(dataShape, dtype=np.float32, order='C');
+	Hi = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C') * waterHeight;
+
+	toc = time.time()
+	print("{:02.4f} s: ".format(toc-tic) + "Generated initial conditions")
+			
+	# Initialize simulator
+	tic = time.time()
+	
+	kwargs = {'boundary_conditions': boundaryConditions, 'use_rk2': True}
+	if (args.block_width != None):
+		kwargs['block_width'] = args.block_width
+	if (args.block_height != None):
+		kwargs['block_height'] = args.block_height
+		
+	sim = KP07.KP07(cl_ctx, \
+					eta0, Hi, u0, v0, \
+					args.nx, args.ny, \
+					dx, dy, dt, \
+					g, f, r, \
+					**kwargs)
+	toc = time.time()
+	print("{:02.4f} s: ".format(toc-tic) + "Created KP simulator")
+
+	return sim
+
+"""
+Initializes the CDKLM simulator
+"""
+def initCDKLM():
+	tic = time.time()
+	
+	ghosts = np.array([2,2,2,2]) # north, east, south, west
+	dataShape = (args.ny + ghosts[0]+ghosts[2], 
+				 args.nx + ghosts[1]+ghosts[3])
+
+	eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+	u0 = np.zeros(dataShape, dtype=np.float32, order='C');
+	v0 = np.zeros(dataShape, dtype=np.float32, order='C');
+	Hi = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C') * waterHeight;
+
+	toc = time.time()
+	print("{:02.4f} s: ".format(toc-tic) + "Generated initial conditions")
+			
+	# Initialize simulator
+	tic = time.time()
+	
+	kwargs = {'boundary_conditions': boundaryConditions, 'rk_order': 2}
+	if (args.block_width != None):
+		kwargs['block_width'] = args.block_width
+	if (args.block_height != None):
+		kwargs['block_height'] = args.block_height
+		
+	sim = CDKLM16.CDKLM16(cl_ctx, \
+					eta0, u0, v0, Hi, \
+					args.nx, args.ny, \
+					dx, dy, dt, \
+					g, f, r, \
+					**kwargs)
+	toc = time.time()
+	print("{:02.4f} s: ".format(toc-tic) + "Created CDKLM simulator")
+	
+	return sim
+	
+
+"""
+Initializes the FBL simulator
+"""
+def initFBL():
+	tic = time.time()
+	
+	dataShape = (args.ny, args.nx)
+
+	eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+	u0 = np.zeros((dataShape[0]+0, dataShape[1]+1), dtype=np.float32);
+	v0 = np.zeros((dataShape[0]+1, dataShape[1]+0), dtype=np.float32);
+	h0 = np.ones(dataShape, dtype=np.float32) * waterHeight;
+
+	toc = time.time()
+	print("{:02.4f} s: ".format(toc-tic) + "Generated initial conditions")
+			
+	# Initialize simulator
+	tic = time.time()
+	
+	kwargs = {'boundary_conditions': boundaryConditions}
+	if (args.block_width != None):
+		kwargs['block_width'] = args.block_width
+	if (args.block_height != None):
+		kwargs['block_height'] = args.block_height
+		
+	sim = FBL.FBL(cl_ctx, \
+					h0, eta0, u0, v0, \
+					args.nx, args.ny, \
+					dx, dy, dt, \
+					g, f, r, \
+					**kwargs)
+	toc = time.time()
+	print("{:02.4f} s: ".format(toc-tic) + "Created FBL simulator")
+	
+	return sim
+
+	
+	
+"""
+Initializes the CTCS simulator
+"""
+def initCTCS():
+	tic = time.time()
+	
+	ghosts = [1,1,1,1] # north, east, south, west
+	dataShape = (args.ny + ghosts[0]+ghosts[2], 
+				 args.nx + ghosts[1]+ghosts[3])
+
+	eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+	u0 = np.zeros((dataShape[0]+0, dataShape[1]+1), dtype=np.float32);
+	v0 = np.zeros((dataShape[0]+1, dataShape[1]+0), dtype=np.float32);
+	h0 = np.ones(dataShape, dtype=np.float32) * waterHeight;
+
+	toc = time.time()
+	print("{:02.4f} s: ".format(toc-tic) + "Generated initial conditions")
+			
+	# Initialize simulator
+	tic = time.time()
+	
+	A = 0.1*dx
+	kwargs = {'boundary_conditions': boundaryConditions}
+	if (args.block_width != None):
+		kwargs['block_width'] = args.block_width
+	if (args.block_height != None):
+		kwargs['block_height'] = args.block_height
+		
+	sim = CTCS.CTCS(cl_ctx, \
+					h0, eta0, u0, v0, \
+					args.nx, args.ny, \
+					dx, dy, dt, \
+					g, f, r, A, \
+					**kwargs)
+	toc = time.time()
+	print("{:02.4f} s: ".format(toc-tic) + "Created CTCS simulator")
+	
+	return sim
+	
 
 
-#Initialize simulator
-sim = KP07.KP07(cl_ctx, \
-                eta0, Hi, u0, v0, \
-                nx, ny, \
-                dx, dy, dt, \
-                g, f, r, \
-                wind_stress=wind, \
-                boundary_conditions=boundaryConditions,
-                use_rk2=True)
-T = 1
-for i in range(T):
-    t = sim.step(100.0)
-    eta1, u1, v1 = sim.download()
-    if (i%10 == 0):
-        print "{:03.0f}".format(100*i / T) + " % => t=" + str(t) + "\tMax h: " + str(np.max(eta1))
+sim = None
+
+if (args.simulator == "KP"):
+	sim = initKP()
+elif (args.simulator == "CDKLM"): 
+	sim = initCDKLM()
+elif (args.simulator == "FBL"):
+	sim = initFBL()
+elif (args.simulator == "CTCS"):
+	sim = initCTCS()
+else:
+	print("ERROR: Unknown simulator type '" + args.simulator + "', aborting")
+	sys.exit(-1)
+
+tic = time.time()
+sim.step(5*dt)
+eta1, u1, v1 = sim.download()
+toc = time.time()
+print("{:02.4f} s: ".format(toc-tic) + "Spinup of simulator")
+
+if (np.any(np.isnan(eta1))):
+	print(" `-> ERROR: Not a number in spinup, aborting!")
+	sys.exit(-1)
+
+# Run simulator
+print("=== Running with domain size [{:02d} x {:02d}], block size [{:s} x {:s}] ===".format(args.nx, args.ny, str(args.block_width), str(args.block_height)))
+	
+max_mcells = 0;
+for i in range(args.iterations):
+	print("{:03.0f} %".format(100*(i+1) / args.iterations))
+	tic = time.time()
+	t = sim.step(args.steps_per_download*dt)
+	toc = time.time()
+	mcells = args.nx*args.ny*args.steps_per_download/(1e6*(toc-tic))
+	max_mcells = max(mcells, max_mcells);
+	print(" `-> {:02.4f} s: ".format(toc-tic) + "Step, " + "{:02.4f} mcells/sec".format(mcells))
+	
+	tic = time.time()
+	eta1, u1, v1 = sim.download()
+	toc = time.time()
+	print(" `-> {:02.4f} s: ".format(toc-tic) + "Download")
+	
+	if (np.any(np.isnan(eta1))):
+		print(" `-> ERROR: Not a number in simulation, aborting!")
+		sys.exit(-1)
+		
+	print(" `-> t_sim={:02.4f}".format(t) + ", h_max={:02.4f}".format(np.max(eta1)))
+
+	
+print(" === Maximum megacells: {:02.8f} ===".format(max_mcells))
