@@ -1,0 +1,648 @@
+##########################################################################
+Using simulator FBL.
+##########################################################################
+=========================================
+FBL [256 x 256]
+-----------------------------------------
+0.9730 s: Imported packages
+1.0410 s: Created context on GeForce GTX 780
+0.0020 s: Generated initial conditions
+0.7840 s: Created FBL simulator
+0.0180 s: Spinup of simulator
+=== Running with domain size [256 x 256], block size [16 x 32] ===
+100 %
+ `-> 1.2170 s: Step, 53.8505 mcells/sec
+ `-> 0.0010 s: Download
+ `-> t_sim=9.5474, h_max=0.9974
+ === Maximum megacells: 53.85045159 ===
+
+=========================================
+
+FBL [256 x 256] completed in 4.21 s
+=========================================
+FBL [512 x 512]
+-----------------------------------------
+0.9650 s: Imported packages
+1.0420 s: Created context on GeForce GTX 780
+0.0120 s: Generated initial conditions
+0.7890 s: Created FBL simulator
+0.0220 s: Spinup of simulator
+=== Running with domain size [512 x 512], block size [16 x 32] ===
+100 %
+ `-> 1.2010 s: Step, 218.2714 mcells/sec
+ `-> 0.0030 s: Download
+ `-> t_sim=9.5474, h_max=0.9994
+ === Maximum megacells: 218.27144497 ===
+
+=========================================
+
+FBL [512 x 512] completed in 4.22 s
+=========================================
+FBL [1024 x 1024]
+-----------------------------------------
+0.9640 s: Imported packages
+1.0220 s: Created context on GeForce GTX 780
+0.0490 s: Generated initial conditions
+0.7970 s: Created FBL simulator
+0.0350 s: Spinup of simulator
+=== Running with domain size [1024 x 1024], block size [16 x 32] ===
+100 %
+ `-> 1.2090 s: Step, 867.3084 mcells/sec
+ `-> 0.0100 s: Download
+ `-> t_sim=9.5474, h_max=0.9998
+ === Maximum megacells: 867.30844008 ===
+
+=========================================
+
+FBL [1024 x 1024] completed in 4.27 s
+=========================================
+FBL [2048 x 2048]
+-----------------------------------------
+0.9700 s: Imported packages
+1.0230 s: Created context on GeForce GTX 780
+0.1900 s: Generated initial conditions
+0.8330 s: Created FBL simulator
+0.0930 s: Spinup of simulator
+=== Running with domain size [2048 x 2048], block size [16 x 32] ===
+100 %
+ `-> 2.0740 s: Step, 2022.3258 mcells/sec
+ `-> 0.5530 s: Download
+ `-> t_sim=9.5474, h_max=1.0000
+ === Maximum megacells: 2022.32582304 ===
+
+=========================================
+
+FBL [2048 x 2048] completed in 5.94 s
+=========================================
+FBL [3192 x 3192]
+-----------------------------------------
+0.9640 s: Imported packages
+1.0250 s: Created context on GeForce GTX 780
+0.4610 s: Generated initial conditions
+0.8960 s: Created FBL simulator
+0.1920 s: Spinup of simulator
+=== Running with domain size [3192 x 3192], block size [16 x 32] ===
+100 %
+ `-> 5.1710 s: Step, 1970.3856 mcells/sec
+ `-> 1.3870 s: Download
+ `-> t_sim=9.5474, h_max=1.0000
+ === Maximum megacells: 1970.38561061 ===
+
+=========================================
+
+FBL [3192 x 3192] completed in 10.33 s
+=========================================
+FBL [4096 x 4096]
+-----------------------------------------
+0.9690 s: Imported packages
+1.0400 s: Created context on GeForce GTX 780
+0.7590 s: Generated initial conditions
+0.9730 s: Created FBL simulator
+0.3190 s: Spinup of simulator
+=== Running with domain size [4096 x 4096], block size [16 x 32] ===
+100 %
+ `-> 8.4280 s: Step, 1990.6521 mcells/sec
+ `-> 2.2630 s: Download
+ `-> t_sim=9.5474, h_max=1.0000
+ === Maximum megacells: 1990.65211831 ===
+
+=========================================
+
+FBL [4096 x 4096] completed in 15.02 s
+=========================================
+FBL [5192 x 5192]
+-----------------------------------------
+0.9630 s: Imported packages
+1.0400 s: Created context on GeForce GTX 780
+1.2210 s: Generated initial conditions
+Traceback (most recent call last):
+  File "run_benchmark.py", line 232, in <module>
+    sim = initFBL()
+  File "run_benchmark.py", line 176, in initFBL
+    **kwargs)
+  File "F:/windows/sintef/gpu-ocean/python\SWESimulators\FBL.py", line 134, in __init__
+    self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, self.asym_ghost_cells)
+  File "F:/windows/sintef/gpu-ocean/python\SWESimulators\Common.py", line 281, in __init__
+    self.hu1  = OpenCLArray2D(cl_ctx, nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
+  File "F:/windows/sintef/gpu-ocean/python\SWESimulators\Common.py", line 91, in __init__
+    self.data = pyopencl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=host_data)
+  File "C:\Users\anbro\Anaconda2\lib\site-packages\pyopencl\cffi_cl.py", line 1127, in __init__
+    ptr_buffer, context.ptr, flags, size, c_hostbuf))
+  File "C:\Users\anbro\Anaconda2\lib\site-packages\pyopencl\cffi_cl.py", line 664, in _handle_error
+    raise e
+pyopencl.cffi_cl.RuntimeError: clCreateBuffer failed: OUT_OF_HOST_MEMORY
+Exception AttributeError: "'FBL' object has no attribute 'cl_data'" in <bound method FBL.__del__ of <SWESimulators.FBL.FBL object at 0x0B0B4950>> ignored
+
+=========================================
+
+FBL [5192 x 5192] completed in 4.15 s
+=========================================
+FBL [6144 x 6144]
+-----------------------------------------
+0.9620 s: Imported packages
+1.0330 s: Created context on GeForce GTX 780
+Traceback (most recent call last):
+  File "run_benchmark.py", line 232, in <module>
+    sim = initFBL()
+  File "run_benchmark.py", line 154, in initFBL
+    eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+  File "C:\Users\anbro\Anaconda2\lib\site-packages\numpy\core\numeric.py", line 2132, in fromfunction
+    return function(*args, **kwargs)
+  File "run_benchmark.py", line 154, in <lambda>
+    eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+  File "run_benchmark.py", line 67, in my_exp
+    return np.exp(-10*(x*x/(size*size)+y*y/(size*size))) * (np.sqrt(x**2 + y**2) < size)
+MemoryError
+
+=========================================
+
+FBL [6144 x 6144] completed in 3.59 s
+
+
+
+##########################################################################
+Using simulator CTCS.
+##########################################################################
+=========================================
+CTCS [256 x 256]
+-----------------------------------------
+0.9620 s: Imported packages
+1.0480 s: Created context on GeForce GTX 780
+0.0020 s: Generated initial conditions
+0.6700 s: Created CTCS simulator
+0.0290 s: Spinup of simulator
+=== Running with domain size [256 x 256], block size [8 x 16] ===
+100 %
+ `-> 2.0940 s: Step, 31.2970 mcells/sec
+ `-> 0.0010 s: Download
+ `-> t_sim=9.5474, h_max=0.9973
+ === Maximum megacells: 31.29704121 ===
+
+=========================================
+
+CTCS [256 x 256] completed in 4.98 s
+=========================================
+CTCS [512 x 512]
+-----------------------------------------
+0.9660 s: Imported packages
+1.0220 s: Created context on GeForce GTX 780
+0.0110 s: Generated initial conditions
+0.6720 s: Created CTCS simulator
+0.0350 s: Spinup of simulator
+=== Running with domain size [512 x 512], block size [8 x 16] ===
+100 %
+ `-> 2.1010 s: Step, 124.7711 mcells/sec
+ `-> 0.0020 s: Download
+ `-> t_sim=9.5474, h_max=0.9993
+ === Maximum megacells: 124.77105721 ===
+
+=========================================
+
+CTCS [512 x 512] completed in 4.99 s
+=========================================
+CTCS [1024 x 1024]
+-----------------------------------------
+0.9610 s: Imported packages
+1.0230 s: Created context on GeForce GTX 780
+0.0490 s: Generated initial conditions
+0.6860 s: Created CTCS simulator
+0.0550 s: Spinup of simulator
+=== Running with domain size [1024 x 1024], block size [8 x 16] ===
+100 %
+ `-> 2.0920 s: Step, 501.2314 mcells/sec
+ `-> 0.0110 s: Download
+ `-> t_sim=9.5474, h_max=0.9998
+ === Maximum megacells: 501.23135572 ===
+
+=========================================
+
+CTCS [1024 x 1024] completed in 5.06 s
+=========================================
+CTCS [2048 x 2048]
+-----------------------------------------
+0.9590 s: Imported packages
+1.0290 s: Created context on GeForce GTX 780
+0.1990 s: Generated initial conditions
+0.7160 s: Created CTCS simulator
+0.1540 s: Spinup of simulator
+=== Running with domain size [2048 x 2048], block size [8 x 16] ===
+100 %
+ `-> 5.6840 s: Step, 737.9141 mcells/sec
+ `-> 0.7530 s: Download
+ `-> t_sim=9.5474, h_max=1.0000
+ === Maximum megacells: 737.91414299 ===
+
+=========================================
+
+CTCS [2048 x 2048] completed in 9.69 s
+=========================================
+CTCS [3192 x 3192]
+-----------------------------------------
+0.9680 s: Imported packages
+1.0220 s: Created context on GeForce GTX 780
+0.4700 s: Generated initial conditions
+0.7790 s: Created CTCS simulator
+0.3400 s: Spinup of simulator
+=== Running with domain size [3192 x 3192], block size [8 x 16] ===
+100 %
+ `-> 13.7270 s: Step, 742.2499 mcells/sec
+ `-> 1.8230 s: Download
+ `-> t_sim=9.5474, h_max=1.0000
+ === Maximum megacells: 742.24987262 ===
+
+=========================================
+
+CTCS [3192 x 3192] completed in 19.35 s
+=========================================
+CTCS [4096 x 4096]
+-----------------------------------------
+0.9610 s: Imported packages
+1.0290 s: Created context on GeForce GTX 780
+0.7790 s: Generated initial conditions
+0.8590 s: Created CTCS simulator
+0.5490 s: Spinup of simulator
+=== Running with domain size [4096 x 4096], block size [8 x 16] ===
+100 %
+ `-> 22.8160 s: Step, 735.3268 mcells/sec
+ `-> 3.0280 s: Download
+ `-> t_sim=9.5474, h_max=1.0000
+ === Maximum megacells: 735.32678871 ===
+
+=========================================
+
+CTCS [4096 x 4096] completed in 30.28 s
+=========================================
+CTCS [5192 x 5192]
+-----------------------------------------
+0.9680 s: Imported packages
+1.0360 s: Created context on GeForce GTX 780
+1.2280 s: Generated initial conditions
+Traceback (most recent call last):
+  File "run_benchmark.py", line 234, in <module>
+    sim = initCTCS()
+  File "run_benchmark.py", line 217, in initCTCS
+    **kwargs)
+  File "F:/windows/sintef/gpu-ocean/python\SWESimulators\CTCS.py", line 136, in __init__
+    self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, halo_x, halo_y, eta0, hu0, hv0)
+  File "F:/windows/sintef/gpu-ocean/python\SWESimulators\Common.py", line 281, in __init__
+    self.hu1  = OpenCLArray2D(cl_ctx, nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
+  File "F:/windows/sintef/gpu-ocean/python\SWESimulators\Common.py", line 91, in __init__
+    self.data = pyopencl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=host_data)
+  File "C:\Users\anbro\Anaconda2\lib\site-packages\pyopencl\cffi_cl.py", line 1127, in __init__
+    ptr_buffer, context.ptr, flags, size, c_hostbuf))
+  File "C:\Users\anbro\Anaconda2\lib\site-packages\pyopencl\cffi_cl.py", line 664, in _handle_error
+    raise e
+pyopencl.cffi_cl.RuntimeError: clCreateBuffer failed: OUT_OF_HOST_MEMORY
+Exception AttributeError: "'CTCS' object has no attribute 'cl_data'" in <bound method CTCS.__del__ of <SWESimulators.CTCS.CTCS object at 0x0B78D970>> ignored
+
+=========================================
+
+CTCS [5192 x 5192] completed in 4.19 s
+=========================================
+CTCS [6144 x 6144]
+-----------------------------------------
+0.9620 s: Imported packages
+1.0260 s: Created context on GeForce GTX 780
+Traceback (most recent call last):
+  File "run_benchmark.py", line 234, in <module>
+    sim = initCTCS()
+  File "run_benchmark.py", line 194, in initCTCS
+    eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+  File "C:\Users\anbro\Anaconda2\lib\site-packages\numpy\core\numeric.py", line 2132, in fromfunction
+    return function(*args, **kwargs)
+  File "run_benchmark.py", line 194, in <lambda>
+    eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+  File "run_benchmark.py", line 67, in my_exp
+    return np.exp(-10*(x*x/(size*size)+y*y/(size*size))) * (np.sqrt(x**2 + y**2) < size)
+MemoryError
+
+=========================================
+
+CTCS [6144 x 6144] completed in 3.52 s
+
+
+
+##########################################################################
+Using simulator KP.
+##########################################################################
+=========================================
+KP [256 x 256]
+-----------------------------------------
+0.9690 s: Imported packages
+1.0530 s: Created context on GeForce GTX 780
+0.0020 s: Generated initial conditions
+0.9090 s: Created KP simulator
+0.0110 s: Spinup of simulator
+=== Running with domain size [256 x 256], block size [32 x 16] ===
+100 %
+ `-> 0.7750 s: Step, 84.5626 mcells/sec
+ `-> 0.0030 s: Download
+ `-> t_sim=9.5474, h_max=0.9973
+ === Maximum megacells: 84.56257024 ===
+
+=========================================
+
+KP [256 x 256] completed in 3.90 s
+=========================================
+KP [512 x 512]
+-----------------------------------------
+0.9660 s: Imported packages
+1.0290 s: Created context on GeForce GTX 780
+0.0120 s: Generated initial conditions
+0.9140 s: Created KP simulator
+0.0210 s: Spinup of simulator
+=== Running with domain size [512 x 512], block size [32 x 16] ===
+100 %
+ `-> 0.7750 s: Step, 338.2503 mcells/sec
+ `-> 0.4490 s: Download
+ `-> t_sim=9.5474, h_max=0.9993
+ === Maximum megacells: 338.25028096 ===
+
+=========================================
+
+KP [512 x 512] completed in 4.35 s
+=========================================
+KP [1024 x 1024]
+-----------------------------------------
+0.9700 s: Imported packages
+1.0280 s: Created context on GeForce GTX 780
+0.0480 s: Generated initial conditions
+0.9320 s: Created KP simulator
+0.0560 s: Spinup of simulator
+=== Running with domain size [1024 x 1024], block size [32 x 16] ===
+100 %
+ `-> 2.3080 s: Step, 454.3223 mcells/sec
+ `-> 2.4050 s: Download
+ `-> t_sim=9.5474, h_max=0.9998
+ === Maximum megacells: 454.32233975 ===
+
+=========================================
+
+KP [1024 x 1024] completed in 7.93 s
+=========================================
+KP [2048 x 2048]
+-----------------------------------------
+0.9700 s: Imported packages
+1.0390 s: Created context on GeForce GTX 780
+0.2040 s: Generated initial conditions
+1.0000 s: Created KP simulator
+0.2000 s: Spinup of simulator
+=== Running with domain size [2048 x 2048], block size [32 x 16] ===
+100 %
+ `-> 9.1420 s: Step, 458.7950 mcells/sec
+ `-> 9.6010 s: Download
+ `-> t_sim=9.5474, h_max=1.0000
+ === Maximum megacells: 458.79501404 ===
+
+=========================================
+
+KP [2048 x 2048] completed in 22.36 s
+=========================================
+KP [3192 x 3192]
+-----------------------------------------
+0.9630 s: Imported packages
+1.0180 s: Created context on GeForce GTX 780
+0.4670 s: Generated initial conditions
+1.1280 s: Created KP simulator
+0.4820 s: Spinup of simulator
+=== Running with domain size [3192 x 3192], block size [32 x 16] ===
+100 %
+ `-> 22.9500 s: Step, 443.9592 mcells/sec
+ `-> 24.0910 s: Download
+ `-> t_sim=9.5474, h_max=1.0000
+ === Maximum megacells: 443.95921938 ===
+
+=========================================
+
+KP [3192 x 3192] completed in 51.33 s
+=========================================
+KP [4096 x 4096]
+-----------------------------------------
+0.9620 s: Imported packages
+1.0200 s: Created context on GeForce GTX 780
+0.7700 s: Generated initial conditions
+1.2700 s: Created KP simulator
+0.7900 s: Spinup of simulator
+=== Running with domain size [4096 x 4096], block size [32 x 16] ===
+100 %
+ `-> 38.7540 s: Step, 432.9157 mcells/sec
+ `-> 39.6390 s: Download
+ `-> t_sim=9.5474, h_max=1.0000
+ === Maximum megacells: 432.91572540 ===
+
+=========================================
+
+KP [4096 x 4096] completed in 83.46 s
+=========================================
+KP [5192 x 5192]
+-----------------------------------------
+0.9710 s: Imported packages
+1.0530 s: Created context on GeForce GTX 780
+1.2230 s: Generated initial conditions
+Traceback (most recent call last):
+  File "run_benchmark.py", line 228, in <module>
+    sim = initKP()
+  File "run_benchmark.py", line 101, in initKP
+    **kwargs)
+  File "F:/windows/sintef/gpu-ocean/python\SWESimulators\KP07.py", line 134, in __init__
+    self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
+  File "F:/windows/sintef/gpu-ocean/python\SWESimulators\Common.py", line 204, in __init__
+    self.hv1 = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, hv0)
+  File "F:/windows/sintef/gpu-ocean/python\SWESimulators\Common.py", line 91, in __init__
+    self.data = pyopencl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=host_data)
+  File "C:\Users\anbro\Anaconda2\lib\site-packages\pyopencl\cffi_cl.py", line 1127, in __init__
+    ptr_buffer, context.ptr, flags, size, c_hostbuf))
+  File "C:\Users\anbro\Anaconda2\lib\site-packages\pyopencl\cffi_cl.py", line 664, in _handle_error
+    raise e
+pyopencl.cffi_cl.RuntimeError: clCreateBuffer failed: OUT_OF_HOST_MEMORY
+Exception AttributeError: "'KP07' object has no attribute 'cl_data'" in <bound method KP07.__del__ of <SWESimulators.KP07.KP07 object at 0x0B32C950>> ignored
+
+=========================================
+
+KP [5192 x 5192] completed in 4.13 s
+=========================================
+KP [6144 x 6144]
+-----------------------------------------
+0.9670 s: Imported packages
+1.0540 s: Created context on GeForce GTX 780
+Traceback (most recent call last):
+  File "run_benchmark.py", line 228, in <module>
+    sim = initKP()
+  File "run_benchmark.py", line 79, in initKP
+    eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+  File "C:\Users\anbro\Anaconda2\lib\site-packages\numpy\core\numeric.py", line 2132, in fromfunction
+    return function(*args, **kwargs)
+  File "run_benchmark.py", line 79, in <lambda>
+    eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+  File "run_benchmark.py", line 67, in my_exp
+    return np.exp(-10*(x*x/(size*size)+y*y/(size*size))) * (np.sqrt(x**2 + y**2) < size)
+MemoryError
+
+=========================================
+
+KP [6144 x 6144] completed in 3.57 s
+
+
+
+##########################################################################
+Using simulator CDKLM.
+##########################################################################
+=========================================
+CDKLM [256 x 256]
+-----------------------------------------
+0.9660 s: Imported packages
+1.0590 s: Created context on GeForce GTX 780
+0.0020 s: Generated initial conditions
+0.9230 s: Created CDKLM simulator
+0.0140 s: Spinup of simulator
+=== Running with domain size [256 x 256], block size [32 x 4] ===
+100 %
+ `-> 0.8690 s: Step, 75.4154 mcells/sec
+ `-> 0.0040 s: Download
+ `-> t_sim=9.5474, h_max=0.9973
+ === Maximum megacells: 75.41542366 ===
+
+=========================================
+
+CDKLM [256 x 256] completed in 4.02 s
+=========================================
+CDKLM [512 x 512]
+-----------------------------------------
+0.9850 s: Imported packages
+1.0270 s: Created context on GeForce GTX 780
+0.0110 s: Generated initial conditions
+0.9250 s: Created CDKLM simulator
+0.0290 s: Spinup of simulator
+=== Running with domain size [512 x 512], block size [32 x 4] ===
+100 %
+ `-> 0.8760 s: Step, 299.2511 mcells/sec
+ `-> 0.8490 s: Download
+ `-> t_sim=9.5474, h_max=0.9993
+ === Maximum megacells: 299.25108487 ===
+
+=========================================
+
+CDKLM [512 x 512] completed in 4.88 s
+=========================================
+CDKLM [1024 x 1024]
+-----------------------------------------
+0.9710 s: Imported packages
+1.0230 s: Created context on GeForce GTX 780
+0.0480 s: Generated initial conditions
+0.9550 s: Created CDKLM simulator
+0.0830 s: Spinup of simulator
+=== Running with domain size [1024 x 1024], block size [32 x 4] ===
+100 %
+ `-> 3.3030 s: Step, 317.4617 mcells/sec
+ `-> 3.4410 s: Download
+ `-> t_sim=9.5474, h_max=0.9998
+ === Maximum megacells: 317.46170405 ===
+
+=========================================
+
+CDKLM [1024 x 1024] completed in 10.01 s
+=========================================
+CDKLM [2048 x 2048]
+-----------------------------------------
+0.9610 s: Imported packages
+1.0510 s: Created context on GeForce GTX 780
+0.2040 s: Generated initial conditions
+1.0410 s: Created CDKLM simulator
+0.2740 s: Spinup of simulator
+=== Running with domain size [2048 x 2048], block size [32 x 4] ===
+100 %
+ `-> 13.0670 s: Step, 320.9845 mcells/sec
+ `-> 13.7060 s: Download
+ `-> t_sim=9.5474, h_max=1.0000
+ === Maximum megacells: 320.98446684 ===
+
+=========================================
+
+CDKLM [2048 x 2048] completed in 30.51 s
+=========================================
+CDKLM [3192 x 3192]
+-----------------------------------------
+0.9680 s: Imported packages
+1.0200 s: Created context on GeForce GTX 780
+0.4720 s: Generated initial conditions
+1.1950 s: Created CDKLM simulator
+0.6370 s: Spinup of simulator
+=== Running with domain size [3192 x 3192], block size [32 x 4] ===
+100 %
+ `-> 32.8290 s: Step, 310.3617 mcells/sec
+ `-> 33.7430 s: Download
+ `-> t_sim=9.5474, h_max=1.0000
+ === Maximum megacells: 310.36169244 ===
+
+=========================================
+
+CDKLM [3192 x 3192] completed in 71.10 s
+=========================================
+CDKLM [4096 x 4096]
+-----------------------------------------
+0.9700 s: Imported packages
+1.0230 s: Created context on GeForce GTX 780
+0.7930 s: Generated initial conditions
+1.3730 s: Created CDKLM simulator
+1.0900 s: Spinup of simulator
+=== Running with domain size [4096 x 4096], block size [32 x 4] ===
+100 %
+ `-> 53.8660 s: Step, 311.4621 mcells/sec
+ `-> 57.1260 s: Download
+ `-> t_sim=9.5474, h_max=1.0000
+ === Maximum megacells: 311.46207291 ===
+
+=========================================
+
+CDKLM [4096 x 4096] completed in 116.52 s
+=========================================
+CDKLM [5192 x 5192]
+-----------------------------------------
+0.9710 s: Imported packages
+1.0250 s: Created context on GeForce GTX 780
+1.2380 s: Generated initial conditions
+Traceback (most recent call last):
+  File "run_benchmark.py", line 230, in <module>
+    sim = initCDKLM()
+  File "run_benchmark.py", line 139, in initCDKLM
+    **kwargs)
+  File "F:/windows/sintef/gpu-ocean/python\SWESimulators\CDKLM16.py", line 141, in __init__
+    self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
+  File "F:/windows/sintef/gpu-ocean/python\SWESimulators\Common.py", line 204, in __init__
+    self.hv1 = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, hv0)
+  File "F:/windows/sintef/gpu-ocean/python\SWESimulators\Common.py", line 91, in __init__
+    self.data = pyopencl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=host_data)
+  File "C:\Users\anbro\Anaconda2\lib\site-packages\pyopencl\cffi_cl.py", line 1127, in __init__
+    ptr_buffer, context.ptr, flags, size, c_hostbuf))
+  File "C:\Users\anbro\Anaconda2\lib\site-packages\pyopencl\cffi_cl.py", line 664, in _handle_error
+    raise e
+pyopencl.cffi_cl.RuntimeError: clCreateBuffer failed: OUT_OF_HOST_MEMORY
+Exception AttributeError: "'CDKLM16' object has no attribute 'cl_data'" in <bound method CDKLM16.__del__ of <SWESimulators.CDKLM16.CDKLM16 object at 0x0BB6C970>> ignored
+
+=========================================
+
+CDKLM [5192 x 5192] completed in 4.12 s
+=========================================
+CDKLM [6144 x 6144]
+-----------------------------------------
+0.9640 s: Imported packages
+1.0390 s: Created context on GeForce GTX 780
+Traceback (most recent call last):
+  File "run_benchmark.py", line 230, in <module>
+    sim = initCDKLM()
+  File "run_benchmark.py", line 117, in initCDKLM
+    eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+  File "C:\Users\anbro\Anaconda2\lib\site-packages\numpy\core\numeric.py", line 2132, in fromfunction
+    return function(*args, **kwargs)
+  File "run_benchmark.py", line 117, in <lambda>
+    eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+  File "run_benchmark.py", line 67, in my_exp
+    return np.exp(-10*(x*x/(size*size)+y*y/(size*size))) * (np.sqrt(x**2 + y**2) < size)
+MemoryError
+
+=========================================
+
+CDKLM [6144 x 6144] completed in 3.58 s
+
+
+
