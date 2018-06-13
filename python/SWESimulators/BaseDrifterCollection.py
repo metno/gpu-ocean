@@ -196,6 +196,41 @@ class BaseDrifterCollection(object):
             closestPositions[i,1] = obs[1] - closestPositions[i,1]
 
         return closestPositions
+
+    def getGaussianWeight(self, distances=None, normalize=True):
+        """
+        Calculates a weight associated to every particle, based on the distances from the observation, using 
+        Gaussian uncertainty for the observation.
+        """
+
+        if distances is None:
+            distances = self.getDistances()
+        observationVariance = self.getObservationVariance()
+        
+        weights = (1.0/np.sqrt(2*np.pi*observationVariance))* \
+                   np.exp(- (distances**2/(2*observationVariance)))
+
+        if normalize:
+            return weights/np.sum(weights)
+        return weights  
+    
+    def getCauchyWeight(self, distances=None, normalize=True):
+        """
+        Calculates a weight associated to every particle, based on its distance from the observation, 
+        using Cauchy distribution based on the uncertainty of the position of the observation.
+        This distribution should be used if wider tails of the distribution is beneficial.
+        """
+        
+        if distances is None:
+            distances = self.getDistances()
+        observationVariance = self.getObservationVariance()
+            
+        weights = 1.0/(np.pi*np.sqrt(observationVariance)*(1 + (distances**2/observationVariance)))
+        if normalize:
+            return weights/np.sum(weights)
+        return weights
+    
+    
     
     def _enforceBoundaryConditionsOnPosition(self, x, y):
         """
@@ -318,8 +353,8 @@ class BaseDrifterCollection(object):
         
         # With observation 
         x = np.linspace(0, max(self.getDomainSizeX(), self.getDomainSizeY()), num=100)
-        cauchy_pdf = dautils.getCauchyWeight(x, obs_var, normalize=False)
-        gauss_pdf = dautils.getGaussianWeight(x, obs_var, normalize=False)
+        cauchy_pdf = self.getCauchyWeight(x, normalize=False)
+        gauss_pdf = self.getGaussianWeight(x, normalize=False)
         plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
         plt.plot(x, gauss_pdf, 'g', label="obs Gauss pdf")
         plt.legend()
@@ -327,8 +362,8 @@ class BaseDrifterCollection(object):
         
         # PLOT SORTED DISTANCES FROM OBSERVATION
         ax0 = plt.subplot2grid((2,3), (1,0), colspan=3)
-        cauchyWeights = dautils.getCauchyWeight(distances, obs_var)
-        gaussWeights = dautils.getGaussianWeight(distances, obs_var)
+        cauchyWeights = self.getCauchyWeight()
+        gaussWeights = self.getGaussianWeight()
         indices_sorted_by_observation = distances.argsort()
         ax0.plot(cauchyWeights[indices_sorted_by_observation]/np.max(cauchyWeights), 'r', label="Cauchy weight")
         ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Gauss weight")

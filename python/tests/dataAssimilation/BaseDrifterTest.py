@@ -97,9 +97,9 @@ class BaseDrifterTest(unittest.TestCase):
 
         weight = 1.0/self.resampleNumDrifters
         weights = [weight]*self.resampleNumDrifters
-        assertListAlmostEqual(self, dautils.getGaussianWeight(defaultDrifterSet.getDistances(), defaultDrifterSet.getObservationVariance()).tolist(), weights, 6,
+        assertListAlmostEqual(self, defaultDrifterSet.getGaussianWeight().tolist(), weights, 6,
                               'default constructor, Gaussian weights')
-        assertListAlmostEqual(self, dautils.getCauchyWeight(defaultDrifterSet.getDistances(), defaultDrifterSet.getObservationVariance()).tolist(), weights, 6,
+        assertListAlmostEqual(self, defaultDrifterSet.getCauchyWeight(), weights, 6,
                               'default constructor, Cauchy weights')
         
         # Check boundary condition
@@ -370,7 +370,7 @@ class BaseDrifterTest(unittest.TestCase):
         
     def test_gaussian_weights(self):
         self.set_positions_resampling_set()
-        obtainedWeights = dautils.getGaussianWeight(self.resamplingDrifterSet.getDistances(), self.resamplingDrifterSet.getObservationVariance())
+        obtainedWeights = self.resamplingDrifterSet.getGaussianWeight()
         referenceWeights = [  3.77361928e-01,   1.22511481e-01,   1.26590824e-04,   3.77361928e-01, 1.22511481e-01,   1.26590824e-04]
         assertListAlmostEqual(self, obtainedWeights.tolist(),
                               referenceWeights, 6,
@@ -378,7 +378,7 @@ class BaseDrifterTest(unittest.TestCase):
 
     def test_cauchy_weights(self):
         self.set_positions_resampling_set()
-        obtainedWeights = dautils.getCauchyWeight(self.resamplingDrifterSet.getDistances(), self.resamplingDrifterSet.getObservationVariance())
+        obtainedWeights = self.resamplingDrifterSet.getCauchyWeight()
         referenceWeights = [0.28413284,  0.16789668,  0.04797048,  0.28413284,  0.16789668,  0.04797048]
         assertListAlmostEqual(self, obtainedWeights.tolist(),
                               referenceWeights, 6,

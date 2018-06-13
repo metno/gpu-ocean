@@ -68,14 +68,6 @@ class BaseOceanStateEnsemble(object):
         self.dy = dy
         self.dt = dt
         
-        # Default values for now:
-        self.initialization_variance = 10*dx
-        self.observation_variance = 5*self.dx
-        self.observation_cov = self.observation_variance*np.eye(2)
-        
-        self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
-        self.initialization_cov = np.eye(2)*self.initialization_variance
-        
         self.boundaryConditions = boundaryConditions
         
         assert(self.simType == 'CDKLM16'), 'CDKLM16 is currently the only supported scheme'
@@ -126,22 +118,47 @@ class BaseOceanStateEnsemble(object):
         self.wind = wind
     
     def setStochasticVariables(self, 
-                               observation_variance_factor=5,
-                               initialization_variance_factor=10,
-                               small_scale_perturbation_amplitude=0):
+                               observation_variance = None, 
+                               observation_variance_factor = 5.0,
+                               small_scale_perturbation_amplitude = 0.0,
+                               initialization_variance_factor_drifter_position = 0.0,
+                               initialization_variance_factor_ocean_field = 0.0 
+                              ):
 
-        # Observation_variance_per_drifter
-        self.observation_variance = observation_variance_factor*self.dx
-        self.observation_cov = self.observation_variance*np.eye(2)
-
-        self.initialization_variance = initialization_variance_factor*self.dx
+        # Setting observation variance:
+        self.observation_variance = observation_variance
+        if self.observation_variance is None:
+            self.observation_variance = (observation_variance_factor*self.dx)**2
+        
+        # Build observation covariance matrix:
+        self.observation_cov = None
+        self.observation_cov_inverse = None
+        if np.isscalar(self.observation_variance):
+            self.observation_cov = np.eye(2)*self.observation_variance
+            self.observation_cov_inverse = np.eye(2)*(1.0/self.observation_variance)
+        else:
+            print "type(self.observation_variance): ", type(self.observation_variance)
+            # Assume that we have a correctly shaped matrix here
+            self.observation_cov = self.observation_variance
+            self.observation_cov_inverse = np.linalg.inv(self.observation_cov)
+        
         
         # TODO: Check if this variable is used anywhere.
         # Should not be defined in the Base class.
-        self.initialization_cov = np.eye(2)*self.initialization_variance
+        self.initialization_variance_drifters = initialization_variance_factor_drifter_position*self.dx
+        self.initialization_cov_drifters = np.eye(2)*self.initialization_variance_drifters
+        self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
         
         self.small_scale_perturbation_amplitude = small_scale_perturbation_amplitude
     
+        # TODO:
+        # When initializing an ensemble, each member should be perturbed so that they 
+        # have slightly different starting point.
+        # This factor should be multiplied to the small_scale_perturbation_amplitude for that 
+        # perturbation
+        self.initialization_small_scal_perturbation_amplitude = self.small_scale_perturbation_amplitude * initialization_variance_factor_ocean_field
+        
+        
     @abc.abstractmethod
     def init(self, driftersPerOceanModel=1):
         # Initialize ocean models
@@ -254,7 +271,53 @@ class BaseOceanStateEnsemble(object):
             simNo = simNo + 1
     
 
-                    
+    def getGaussianWeight(self, innovations=None, normalize=True):
+        """
+        Calculates a weight associated to every particle, based on its innovation vector, using 
+        Gaussian uncertainty for the observation.
+        """
+        
+        if innovations is None:
+            innovations = self.getInnovations()
+        observationVariance = self.getObservationVariance()
+        Rinv = None
+
+        weights = np.zeros(innovations.shape[0])
+        if len(innovations.shape) == 1:
+            weights = (1.0/np.sqrt(2*np.pi*observationVariance))* \
+                    np.exp(- (innovations**2/(2*observationVariance)))
+
+        else:
+            Ne = self.getNumParticles()
+            Ny = innovations.shape[1]
+
+            Rinv = self.observation_cov_inverse
+
+            for i in range(Ne):
+                inn = innovations[i,:]
+                weights[i] = (1/(2*np.pi*np.linalg.det(Rinv)))*np.exp(-0.5*np.dot(inn, np.dot(Rinv, inn.transpose())))
+
+        if normalize:
+            return weights/np.sum(weights)
+        return weights
+    
+    def getCauchyWeight(self, distances=None, normalize=True):
+        """
+        Calculates a weight associated to every particle, based on its distance from the observation, 
+        using Cauchy distribution based on the uncertainty of the position of the observation.
+        This distribution should be used if wider tails of the distribution is beneficial.
+        """
+        
+        if distances is None:
+            distances = self.getDistances()
+        observationVariance = self.getObservationVariance()
+            
+        weights = 1.0/(np.pi*np.sqrt(observationVariance)*(1 + (distances**2/observationVariance)))
+        if normalize:
+            return weights/np.sum(weights)
+        return weights
+    
+    
             
     def getEnsembleMean(self):
         return None
@@ -512,8 +575,8 @@ class BaseOceanStateEnsemble(object):
         
         # With observation 
         x = np.linspace(0, max(self.getDomainSizeX(), self.getDomainSizeY()), num=100)
-        cauchy_pdf = dautils.getCauchyWeight(x, obs_var, normalize=False)
-        gauss_pdf = dautils.getGaussianWeight(x, obs_var, normalize=False)
+        cauchy_pdf = self.getCauchyWeight(x, normalize=False)
+        gauss_pdf = self.getGaussianWeight(x, normalize=False)
         plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
         plt.plot(x, gauss_pdf, 'g', label="obs Gauss pdf")
         plt.legend()
@@ -521,8 +584,8 @@ class BaseOceanStateEnsemble(object):
         
         # PLOT SORTED DISTANCES FROM OBSERVATION
         ax0 = plt.subplot2grid((2,3), (1,0), colspan=3)
-        cauchyWeights = dautils.getCauchyWeight(distances, obs_var)
-        gaussWeights = dautils.getGaussianWeight(distances, obs_var)
+        cauchyWeights = self.getCauchyWeight()
+        gaussWeights = self.getGaussianWeight()
         indices_sorted_by_observation = distances.argsort()
         ax0.plot(cauchyWeights[indices_sorted_by_observation]/np.max(cauchyWeights), 'r', label="Cauchy weight")
         ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Gauss weight")
