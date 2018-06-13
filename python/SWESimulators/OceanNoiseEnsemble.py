@@ -74,13 +74,18 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     
 
     def resample(self, newSampleIndices, reinitialization_variance):
+        obsTrueDrifter = self.observeTrueDrifters()
         positions = self.observeParticles()
         newPos = np.empty((self.driftersPerOceanModel, 2))
         newOceanStates = [None]*self.getNumParticles()
         for i in range(self.getNumParticles()):
             index = newSampleIndices[i]
             #print "(particle no, position, old direction, new direction): "
-            newPos[:,:] = positions[index,:]
+            if self.observation_type == dautils.ObservationType.UnderlyingFlow:
+                newPos[:,:] = obsTrueDrifter
+            else:
+                newPos[:,:] = positions[index,:]
+            
             #print "\t", (index, positions[index,:], newPos)
             
             # Download index's ocean state:

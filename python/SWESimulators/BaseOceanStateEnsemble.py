@@ -579,7 +579,11 @@ class BaseOceanStateEnsemble(object):
     def plotDistanceInfo(self, title=None):
         """
         Utility function for generating informative plots of the ensemble relative to the observation
-        """    
+        """
+        if self.observation_type == dautils.ObservationType.UnderlyingFlow:
+            self.plotVelocityInfo(title=title)
+            return
+            
         fig = plt.figure(figsize=(10,6))
         gridspec.GridSpec(2, 3)
         
@@ -608,6 +612,84 @@ class BaseOceanStateEnsemble(object):
         
         # With observation 
         x = np.linspace(0, max(self.getDomainSizeX(), self.getDomainSizeY()), num=100)
+        cauchy_pdf = self.getCauchyWeight(x, normalize=False)
+        gauss_pdf = self.getGaussianWeight(x, normalize=False)
+        plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
+        plt.plot(x, gauss_pdf, 'g', label="obs Gauss pdf")
+        plt.legend()
+        plt.title("Distribution of particle distances from observation")
+        
+        # PLOT SORTED DISTANCES FROM OBSERVATION
+        ax0 = plt.subplot2grid((2,3), (1,0), colspan=3)
+        cauchyWeights = self.getCauchyWeight()
+        gaussWeights = self.getGaussianWeight()
+        indices_sorted_by_observation = distances.argsort()
+        ax0.plot(cauchyWeights[indices_sorted_by_observation]/np.max(cauchyWeights), 'r', label="Cauchy weight")
+        ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Gauss weight")
+        ax0.set_ylabel('Relative weight')
+        ax0.grid()
+        ax0.set_ylim(0,1.4)
+        plt.legend(loc=7)
+        
+        ax1 = ax0.twinx()
+        ax1.plot(distances[indices_sorted_by_observation], label="distance")
+        ax1.set_ylabel('Distance from observation', color='b')
+        
+        plt.title("Sorted distances from observation")
+
+        if title is not None:
+            plt.suptitle(title, fontsize=16)
+            
+    def plotVelocityInfo(self, title=None):
+        """
+        Utility function for generating informative plots of the ensemble relative to the observation
+        """
+        
+        fig = plt.figure(figsize=(10,6))
+        gridspec.GridSpec(2, 3)
+        
+        # PLOT POSITIONS OF PARTICLES AND OBSERVATIONS
+        ax = plt.subplot2grid((2,3), (0,0), polar=True, axisbg='#ffffff')
+        
+        obs_u, obs_v = self.observeTrueState()[2],self.observeTrueState()[3]
+        print "obs_u, obs_v: ", (obs_u, obs_v)
+        obs_r = np.sqrt(obs_u**2 + obs_v**2)
+        obs_theta = np.arctan(obs_v/obs_u)
+        if (obs_u < 0):
+            obs_theta += np.pi
+        arr1 = plt.arrow(obs_theta, 0, 0, obs_r, alpha = 0.5, length_includes_head=True, 
+                 edgecolor = 'red', facecolor = 'red', zorder = 5)
+        
+        max_r = obs_r
+        observedParticles = self.observeParticles()
+        for p in range(self.numParticles):
+            u, v = observedParticles[p,0], observedParticles[p,1]
+            print "u, v: ", (u, v)
+            r = np.sqrt(u**2 + v**2)
+            max_r = max(max_r, r)
+            theta = np.arctan(v/u)
+            if (u < 0):
+                theta += np.pi
+            arr1 = plt.arrow(theta, 0, 0, r, alpha = 0.5, length_includes_head=True,
+                     edgecolor = 'green', facecolor = 'green', zorder = 5)
+            
+        #ax.plot(theta, r, color='#ee8d18', lw=3)
+        ax.set_rmax(max_r*1.2)
+        plt.grid(True)
+
+        
+        # PLOT DISCTRIBUTION OF PARTICLE DISTANCES AND THEORETIC OBSERVATION PDF
+        ax0 = plt.subplot2grid((2,3), (0,1), colspan=2)
+        innovations = self.getInnovations()
+        distances = np.linalg.norm(innovations, axis=1)
+        print "distances.shape", distances.shape
+        obs_var = self.getObservationVariance()
+        plt.hist(distances, bins=30, \
+                 range=(0, 0.4),\
+                 normed=True, label="particle distances")
+        
+        # With observation 
+        x = np.linspace(0, 0.4, num=100)
         cauchy_pdf = self.getCauchyWeight(x, normalize=False)
         gauss_pdf = self.getGaussianWeight(x, normalize=False)
         plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
