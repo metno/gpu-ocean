@@ -49,9 +49,16 @@ class BaseOceanStateEnsemble(object):
         
         self.simType = 'CDKLM16'
         
+        self.t = 0.0
+        
         dautils.ObservationType._assert_valid(observation_type)
         self.observation_type = observation_type
         self.prev_observation = None
+        
+        
+        # Observations are stored as [[t, x, y]]
+        self.observations = np.empty((0,3))
+        
         
     def cleanUp(self):
         for oceanState in self.particles:
@@ -172,6 +179,11 @@ class BaseOceanStateEnsemble(object):
         # Resample and possibly perturb
         pass
         
+        
+    def _addObservation(self, observedDrifterPosition):
+        print "Adding observation for time " + str(self.t)
+        self.observations = np.append(self.observations, np.array([[self.t, observedDrifterPosition[0], observedDrifterPosition[1]]]), axis=0)
+        
     def observeDrifters(self):
         """
         Observing the drifters in all particles
@@ -189,16 +201,21 @@ class BaseOceanStateEnsemble(object):
         """
         if self.observation_type == dautils.ObservationType.DrifterPosition:
             return self.observeDrifters()
-        
+
         elif self.observation_type == dautils.ObservationType.UnderlyingFlow:
-            print "ObservationType.UnderlyingFlow"
-            drifterPositions = np.empty((0,2))
-            for oceanState in self.particles[:-1]:
-                drifterPositions = np.append(drifterPositions, 
-                                             oceanState.drifters.getDrifterPositions(),
-                                             #np.array([[10, 10]]),
-                                             axis=0)
-            return drifterPositions
+            #print "ObservationType.UnderlyingFlow"
+            loc = self.observeTrueState()[:2]
+            id_x = np.int(np.floor(loc[0]/self.dx))
+            id_y = np.int(np.floor(loc[1]/self.dy))
+            
+            velocities = np.empty((self.numParticles,2))
+            depth = self.particles[0].downloadBathymetry()[1][id_y + 2, id_x + 2]
+            for p in range(self.numParticles):
+                eta, hu, hv = self.downloadParticleOceanState(p)
+                velocities[p,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
+                velocities[p,1] = hv[id_y, id_x]/(depth + eta[id_y, id_x])
+
+            return velocities
         
     def observeTrueDrifters(self):
         """
@@ -211,13 +228,20 @@ class BaseOceanStateEnsemble(object):
         """
         Applying the observation operator on the syntetic true state.
         """
+        if self.observations[-1,0] != self.t:
+            self._addObservation(self.observeTrueDrifters())
+        
         if self.observation_type == dautils.ObservationType.DrifterPosition:
-            return self.observeTrueDrifters()
-        
+            return self.observations[-1,1:]
+            
         elif self.observation_type == dautils.ObservationType.UnderlyingFlow:
-            observation = self.particles[self.obs_index].drifters.getDrifterPositions()
-            return observation[0,:]
-        
+            dt = self.observations[-1,0] - self.observations[-2,0]
+            dx = self.observations[-1,1] - self.observations[-2,1]
+            dy = self.observations[-1,2] - self.observations[-2,2]
+            u = dx/dt
+            v = dy/dt
+            return np.array([self.observations[-1,1], self.observations[-1,2], u, v])
+
     def step(self, t, apply_stochastic_term=True):
         """
         Function which makes all particles step until time t.
@@ -227,15 +251,15 @@ class BaseOceanStateEnsemble(object):
         simNo = 0
         for oceanState in self.particles:
             #print "Starting sim " + str(simNo)
-            output_t = oceanState.step(t, \
+            self.t = oceanState.step(t, \
                            apply_stochastic_term=apply_stochastic_term)
             #print "Finished sim " + str(simNo)      
             simNo = simNo + 1
-        return output_t
+        return self.t
     
     def getDistances(self, obs=None):
         if obs is None:
-            obs = self.observeTrueState()
+            obs = self.observeTrueDrifters()
         distances = np.empty(0)
         counter = 0
         for oceanState in self.particles[:-1]:
@@ -247,17 +271,26 @@ class BaseOceanStateEnsemble(object):
         return distances
     
     def getInnovations(self, obs=None):
+        """
+        Obtaining the observation vectors, y^m - H(\psi_i^m)
+        """
         if obs is None:
             obs = self.observeTrueState()
-        innovations = np.empty((0,2))
-        counter = 0
-        for oceanState in self.particles[:-1]:
-            innovationsFromOceanState = oceanState.drifters.getInnovations(obs)
-            innovations = np.append(innovations,
-                                    innovationsFromOceanState,
-                                    axis=0)
-            counter += 1
-        return innovations
+        if self.observation_type == dautils.ObservationType.DrifterPosition:
+            innovations = np.empty((0,2))
+            counter = 0
+            for oceanState in self.particles[:-1]:
+                innovationsFromOceanState = oceanState.drifters.getInnovations(obs)
+                innovations = np.append(innovations,
+                                        innovationsFromOceanState,
+                                        axis=0)
+                counter += 1
+            return innovations
+        elif self.observation_type == dautils.ObservationType.UnderlyingFlow:
+            observed_particles = self.observeParticles()
+            observed_velocity = obs[2:]
+            return observed_velocity - observed_particles
+            
             
     def printMaxOceanStates(self):
         simNo = 0

@@ -67,7 +67,10 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             #print "drifter particles: ", drifter.getParticlePositions()
             #print "drifter observations: ", drifter.getObservationPosition()
             self.particles[i].attachDrifters(drifters)
-        
+            
+        # Put the initial positions into the observation array
+        self._addObservation(self.observeTrueDrifters())
+
     
 
     def resample(self, newSampleIndices, reinitialization_variance):
