@@ -34,12 +34,11 @@ import WindStress
 import Common
 import DataAssimilationUtils as dautils
 
-
 class BaseOceanStateEnsemble(object):
 
     __metaclass__ = abc.ABCMeta
         
-    def __init__(self, numParticles, cl_ctx):
+    def __init__(self, numParticles, cl_ctx, observation_type=dautils.ObservationType.DrifterPosition):
         
         self.cl_ctx = cl_ctx
         
@@ -49,6 +48,10 @@ class BaseOceanStateEnsemble(object):
         self.obs_index = self.numParticles
         
         self.simType = 'CDKLM16'
+        
+        dautils.ObservationType._assert_valid(observation_type)
+        self.observation_type = observation_type
+        self.prev_observation = None
         
     def cleanUp(self):
         for oceanState in self.particles:
@@ -152,10 +155,9 @@ class BaseOceanStateEnsemble(object):
         # Resample and possibly perturb
         pass
         
-    
-    def observeParticles(self):
+    def observeDrifters(self):
         """
-        Applying the observation operator on each particle.
+        Observing the drifters in all particles
         """
         drifterPositions = np.empty((0,2))
         for oceanState in self.particles[:-1]:
@@ -164,13 +166,40 @@ class BaseOceanStateEnsemble(object):
                                          axis=0)
         return drifterPositions
     
-    def observeTrueState(self):
+    def observeParticles(self):
         """
-        Applying the observation operator on the syntetic true state,
-        adding an observation error.
+        Applying the observation operator on each particle.
+        """
+        if self.observation_type == dautils.ObservationType.DrifterPosition:
+            return self.observeDrifters()
+        
+        elif self.observation_type == dautils.ObservationType.UnderlyingFlow:
+            print "ObservationType.UnderlyingFlow"
+            drifterPositions = np.empty((0,2))
+            for oceanState in self.particles[:-1]:
+                drifterPositions = np.append(drifterPositions, 
+                                             oceanState.drifters.getDrifterPositions(),
+                                             #np.array([[10, 10]]),
+                                             axis=0)
+            return drifterPositions
+        
+    def observeTrueDrifters(self):
+        """
+        Observing the drifters in the syntetic true state.
         """
         observation = self.particles[self.obs_index].drifters.getDrifterPositions()
         return observation[0,:]
+        
+    def observeTrueState(self):
+        """
+        Applying the observation operator on the syntetic true state.
+        """
+        if self.observation_type == dautils.ObservationType.DrifterPosition:
+            return self.observeTrueDrifters()
+        
+        elif self.observation_type == dautils.ObservationType.UnderlyingFlow:
+            observation = self.particles[self.obs_index].drifters.getDrifterPositions()
+            return observation[0,:]
         
     def step(self, t, apply_stochastic_term=True):
         """

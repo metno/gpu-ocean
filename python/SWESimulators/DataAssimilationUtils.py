@@ -27,6 +27,20 @@ import time
 
 import Common
 
+class ObservationType:
+    """
+    An enum-type class for defining different types of observation operators.
+    """
+    DrifterPosition = 1
+    UnderlyingFlow = 2
+    
+    @staticmethod
+    def _assert_valid(obs_type):
+        assert(obs_type == ObservationType.DrifterPosition or \
+               obs_type == ObservationType.UnderlyingFlow), \
+        'Provided observation type ' + str(ot) + ' is invalid'
+
+
 
 def getGaussianWeight(distance, observationVariance, normalize=True):
     """
@@ -36,8 +50,8 @@ def getGaussianWeight(distance, observationVariance, normalize=True):
     observationVariance: the variance in the observation.
     """
     
-    weights = (1.0/np.sqrt(2*np.pi*observationVariance**2))* \
-            np.exp(- (distance**2/(2*observationVariance**2)))
+    weights = (1.0/np.sqrt(2*np.pi*observationVariance))* \
+            np.exp(- (distance**2/(2*observationVariance)))
     if normalize:
         return weights/np.sum(weights)
     return weights
@@ -52,7 +66,7 @@ def getCauchyWeight(distance, observationVariance, normalize=True):
     observationVariance: the variance in the observation.
     """
     
-    weights = 1.0/(np.pi*observationVariance*(1 + (distance/observationVariance)**2))
+    weights = 1.0/(np.pi*np.sqrt(observationVariance)*(1 + (distance**2/observationVariance)))
     if normalize:
         return weights/np.sum(weights)
     return weights
