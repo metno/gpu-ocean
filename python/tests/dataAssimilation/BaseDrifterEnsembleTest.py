@@ -27,7 +27,7 @@ class BaseDrifterEnsembleTest(unittest.TestCase):
         self.dt = 1.0
         
         self.numParticles = 3
-        self.observationVariance = 0.5
+        self.observationVariance = 0.25
         self.boundaryCondition = Common.BoundaryConditions(2,2,2,2)
         self.smallParticleSet = None
         # to be initialized by child class with above values
@@ -40,7 +40,7 @@ class BaseDrifterEnsembleTest(unittest.TestCase):
         
         self.resampleNumParticles = 6
         self.resamplingParticleArray = np.zeros((7,2))
-        self.resamplingObservationVariance = 0.1
+        self.resamplingObservationVariance = 0.01
         for i in range(2):
             self.resamplingParticleArray[3*i+0, :] = [0.25, 0.35+i*0.3]
             self.resamplingParticleArray[3*i+1, :] = [0.4,  0.35+i*0.3]

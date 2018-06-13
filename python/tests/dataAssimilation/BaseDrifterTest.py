@@ -20,7 +20,7 @@ class BaseDrifterTest(unittest.TestCase):
     
     def setUp(self):
         self.numDrifters = 3
-        self.observationVariance = 0.5
+        self.observationVariance = 0.25
         self.boundaryCondition = Common.BoundaryConditions(2,2,2,2)
         self.smallDrifterSet = None
         # to be initialized by child class with above values
@@ -80,7 +80,7 @@ class BaseDrifterTest(unittest.TestCase):
         defaultDrifterSet = self.resamplingDrifterSet
 
         self.assertEqual(defaultDrifterSet.getNumDrifters(), self.resampleNumDrifters)
-        self.assertEqual(defaultDrifterSet.getObservationVariance(), 0.1)
+        self.assertEqual(defaultDrifterSet.getObservationVariance(), 0.01)
 
         positions = defaultDrifterSet.getDrifterPositions()
         defaultPosition = [0.0, 0.0]
@@ -97,8 +97,10 @@ class BaseDrifterTest(unittest.TestCase):
 
         weight = 1.0/self.resampleNumDrifters
         weights = [weight]*self.resampleNumDrifters
-        self.assertEqual(dautils.getGaussianWeight(defaultDrifterSet.getDistances(), defaultDrifterSet.getObservationVariance()).tolist(), weights)
-        self.assertEqual(dautils.getCauchyWeight(defaultDrifterSet.getDistances(), defaultDrifterSet.getObservationVariance()).tolist(), weights)
+        assertListAlmostEqual(self, dautils.getGaussianWeight(defaultDrifterSet.getDistances(), defaultDrifterSet.getObservationVariance()).tolist(), weights, 6,
+                              'default constructor, Gaussian weights')
+        assertListAlmostEqual(self, dautils.getCauchyWeight(defaultDrifterSet.getDistances(), defaultDrifterSet.getObservationVariance()).tolist(), weights, 6,
+                              'default constructor, Cauchy weights')
         
         # Check boundary condition
         self.assertEqual(defaultDrifterSet.getBoundaryConditions().get(), [1,1,1,1])
