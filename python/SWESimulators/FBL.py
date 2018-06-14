@@ -79,14 +79,22 @@ class FBL(Simulator.Simulator):
         y_zero_reference_cell = y_zero_reference_cell
         self.asym_ghost_cells = [0, 0, 0, 0] # [N, E, S, W]
         
+        # Index range for interior domain (north, east, south, west)
+        # so that interior domain of eta is
+        # eta[self.interior_domain_indices[2]:self.interior_domain_indices[0], \
+        #     self.interior_domain_indices[3]:self.interior_domain_indices[1] ]
+        self.interior_domain_indices = np.array([None, None, 0, 0])
+        
         self.boundary_conditions = boundary_conditions
         # Add asym ghost cell if periodic boundary condition:
         if (self.boundary_conditions.north == 2) or \
            (self.boundary_conditions.south == 2):
             self.asym_ghost_cells[0] = 1
+            self.interior_domain_indices[0] = -1
         if (self.boundary_conditions.east == 2) or \
            (self.boundary_conditions.west == 2):
             self.asym_ghost_cells[1] = 1
+            self.interior_domain_indices[1] = -1
 
         if boundary_conditions.isSponge():
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3]# - self.asym_ghost_cells[1] - self.asym_ghost_cells[3]
@@ -111,6 +119,9 @@ class FBL(Simulator.Simulator):
                                   ignore_ghostcells, \
                                   offset_x, offset_y, \
                                   block_width, block_height)
+        
+        
+        self._set_interior_domain_from_sponge_cells()
         
         
         #Get kernels

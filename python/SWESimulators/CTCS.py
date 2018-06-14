@@ -32,6 +32,8 @@ import Common, SimWriter, SimReader
 import Simulator
 import WindStress
 
+import time
+
 class CTCS(Simulator.Simulator):
     """
     Class that solves the SW equations using the Centered in time centered in space scheme
@@ -110,6 +112,13 @@ class CTCS(Simulator.Simulator):
                                    ignore_ghostcells, \
                                    offset_x, offset_y, \
                                    block_width, block_height)
+            
+        # Index range for interior domain (north, east, south, west)
+        # so that interior domain of eta is
+        # eta[self.interior_domain_indices[2]:self.interior_domain_indices[0], \
+        #     self.interior_domain_indices[3]:self.interior_domain_indices[1] ]
+        self.interior_domain_indices = np.array([-1,-1,1,1])
+        self._set_interior_domain_from_sponge_cells()
             
         #Get kernels
         self.u_kernel = Common.get_kernel(self.cl_ctx, "CTCS_U_kernel.opencl", block_width, block_height)

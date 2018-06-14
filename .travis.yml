@@ -1,16 +1,49 @@
+sudo: required
+
 dist: trusty
-language: cpp
+
+language: python
+
+notifications:
+  email:
+    recipients:
+      - martinls@met.no
+      - havard.heitlo.holm@sintef.no 
+
+    on_success: change
+    on_failure: always
+
+# If testing for more than one python version, use the following 'trick' for C++-tests:
+# https://stackoverflow.com/questions/30404594/how-to-test-both-python-and-c-in-one-travis-yml-without-running-the-c-multi?noredirect=1&lq=1 
+python:
+  - "2.7"
 
 before_install:
   - sudo apt-get update -qq
-  - sudo apt-get install -qq lcov curl libboost-filesystem-dev libboost-system-dev libboost-thread-dev libboost-program-options-dev libboost-test-dev ocl-icd-opencl-dev opencl-headers libnetcdf-dev libhwloc-dev libltdl-dev pkg-config libedit-dev
-  - wget https://github.com/pocl/pocl/archive/v1.0.tar.gz
-  - tar xzf v1.0.tar.gz && cd pocl-1.0
-  - cmake -DENABLE_ICD=OFF .
-  - make -j2 && sudo make install
+  - sudo apt-get install -qq lcov curl libboost-filesystem-dev
+    libboost-system-dev libboost-thread-dev libboost-program-options-dev
+    libboost-test-dev ocl-icd-libopencl1 opencl-headers libnetcdf-dev
+    libhwloc-dev libltdl-dev pkg-config libedit-dev
+    google-perftools 
+  - wget https://github.com/pocl/pocl/archive/v1.1.tar.gz
+  - tar xzf v1.1.tar.gz && cd pocl-1.1
+  - cmake .
+  - sudo make -j2 && sudo make install
+  - cd ..
+
+install:
+  - cd python
+  - pip install -r requirements.txt
   - cd ..
 
 script:
+  - export LD_PRELOAD="/usr/lib/libtcmalloc.so.4"
+  - export OCL_ICD_VENDORS=/usr/local/etc/OpenCL/vendors/pocl.icd
+  - echo "=============== PYTHON TESTS ===============" 
+  - cd python/tests
+  - python -m unittest discover . "*_test.py"
+  - cd ../..
+  - echo "================ C++ TESTS ================"
   - mkdir build
   - cd build
   - export COVERALLS_SERVICE_NAME=travis-ci

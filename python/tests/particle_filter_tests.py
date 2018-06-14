@@ -7,11 +7,11 @@ import xmlrunner
 # $ sudo easy_install unittest-xml-reporting
 
 #import testUtils
-from dataAssimilation.CPUDrifterTest import CPUDrifterTest
-from dataAssimilation.GPUDrifterTest import GPUDrifterTest
-from dataAssimilation.OceanStateNoiseTest import OceanStateNoiseTest
-from dataAssimilation.DrifterEnsembleTest import DrifterEnsembleTest
-from dataAssimilation.CPUDrifterEnsembleTest import CPUDrifterEnsembleTest
+from dataAssimilation.CPUDrifter_test import CPUDrifterTest
+from dataAssimilation.GPUDrifter_test import GPUDrifterTest
+from dataAssimilation.OceanStateNoise_test import OceanStateNoiseTest
+from dataAssimilation.DrifterEnsemble_test import DrifterEnsembleTest
+from dataAssimilation.CPUDrifterEnsemble_test import CPUDrifterEnsembleTest
 
 def printSupportedTests():
     print ("Supported tests:")
@@ -65,4 +65,6 @@ for test_class in test_classes_to_run:
     suite_list.append(suite)
 
 big_suite = unittest.TestSuite(suite_list)
-unittest.TextTestRunner(verbosity=2).run(big_suite)
+results = unittest.TextTestRunner(verbosity=2).run(big_suite)
+
+sys.exit(not results.wasSuccessful())

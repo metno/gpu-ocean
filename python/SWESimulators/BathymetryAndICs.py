@@ -60,11 +60,9 @@ def initializeBalancedVelocityField(eta, H, hu, hv, f, beta, g, nx, ny, dx, dy, 
             h_mid = eta[j,i] + H[j,i]
             
             eta_diff_y = (eta[j+1, i] - eta[j-1, i])/(2.0*dy)
-            #eta_diff_y = (eta[j, i] - eta[j-1,i])/(dy)
             hu[j,i] = -(g/coriolis)*h_mid*eta_diff_y
             
             eta_diff_x = (eta[j, i+1] - eta[j, i-1])/(2.0*dx)
-            #eta_diff_x = (eta[j, i] - eta[j,i-1])/(dx)
             hv[j,i] = (g/coriolis)*h_mid*eta_diff_x            
             
 

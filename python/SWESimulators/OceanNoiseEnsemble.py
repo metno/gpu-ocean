@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class implements an ensemble of particles, each consisting of a single drifter in its own ocean state. Each ocean model is perturbed during each timestep, using small scale perturbations.
+This python class implements an ensemble of particles, each consisting
+of a single drifter in its own ocean state. Each ocean model is 
+perturbed during each timestep, using small scale perturbations.
 
 
 Copyright (C) 2018  SINTEF ICT
@@ -77,6 +79,11 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     
 
     def resample(self, newSampleIndices, reinitialization_variance):
+        """
+        Resampling the particles given by the newSampleIndicies input array.
+        Here, the reinitialization_variance input is ignored, meaning that exact
+        copies only are resampled.
+        """
         obsTrueDrifter = self.observeTrueDrifters()
         positions = self.observeParticles()
         newPos = np.empty((self.driftersPerOceanModel, 2))
@@ -90,12 +97,13 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                 newPos[:,:] = positions[index,:]
             
             #print "\t", (index, positions[index,:], newPos)
+
             
             # Download index's ocean state:
             eta0, hu0, hv0 = self.particles[index].download()
             eta1, hu1, hv1 = self.particles[index].downloadPrevTimestep()
             newOceanStates[i] = (eta0, hu0, hv0, eta1, hu1, hv1)
-            
+
             self.particles[i].drifters.setDrifterPositions(newPos)
 
         # New loop for transferring the correct ocean states back up to the GPU:

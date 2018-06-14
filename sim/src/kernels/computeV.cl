@@ -1,5 +1,4 @@
 #include "../computeV_types.h"
-#include "../windStress_types.h"
 #include "../config.h"
 #include "common.opencl"
 
@@ -15,7 +14,7 @@
   */
 __kernel void computeV(
 		computeV_args args,
-		windStress_args ws,
+		__global const wind_stress_params* ws,
         //Data
         __global float* H_ptr, int H_pitch,
         __global float* U_ptr, int U_pitch,
@@ -113,13 +112,7 @@ __kernel void computeV(
     float P = args.g*H_m*(eta_shared[ty][tx] - eta_shared[ty+1][tx])/args.dy;
 
     //Calculate the wind shear stress
-    float Y = windStressY(
-    	ws.wind_stress_type,
-		args.dx, args.dy, args.dt,
-		ws.tau0, ws.rho, ws.alpha, ws.xm, ws.Rc,
-		ws.x0, ws.y0,
-		ws.u0, ws.v0,
-		t);
+    float Y = windStressY(ws, args.dx, args.dy, args.dt, t);
 
     //Compute the V at the next timestep
     float V_next = B*(V_current + args.dt*(-args.f*U_m + P + Y) );
@@ -157,11 +150,7 @@ __kernel void computeVKernel(
         __global float* V_ptr, int V_pitch,
         __global float* eta_ptr, int eta_pitch,
 
-        // Wind stress parameters
-        int wind_stress_type,
-        float tau0, float rho, float alpha, float xm, float Rc,
-        float x0, float y0,
-        float u0, float v0,
+        __global const wind_stress_params* ws,
         float t) {
 
 	computeV_args args;
@@ -173,18 +162,6 @@ __kernel void computeVKernel(
 	args.r = r;
 	args.f = f;
 	args.g = g;
-
-	windStress_args ws;
-	ws.wind_stress_type = wind_stress_type;
-	ws.tau0 = tau0;
-	ws.rho = rho;
-	ws.alpha = alpha;
-	ws.xm = xm;
-	ws.Rc = Rc;
-	ws.x0 = x0;
-	ws.y0 = y0;
-	ws.u0 = u0;
-	ws.v0 = v0;
 
     computeV(args,
         ws,

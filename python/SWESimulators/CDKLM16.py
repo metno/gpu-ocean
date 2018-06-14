@@ -31,7 +31,6 @@ import Simulator
 import WindStress
 import OceanStateNoise
 
-#reload(Simulator)
 
 class CDKLM16(Simulator.Simulator):
     """
@@ -127,6 +126,13 @@ class CDKLM16(Simulator.Simulator):
                                       ignore_ghostcells, \
                                       offset_x, offset_y, \
                                       block_width, block_height)
+        
+        # Index range for interior domain (north, east, south, west)
+        # so that interior domain of eta is
+        # eta[self.interior_domain_indices[2]:self.interior_domain_indices[0], \
+        #     self.interior_domain_indices[3]:self.interior_domain_indices[1] ]
+        self.interior_domain_indices = np.array([-2,-2,2,2])
+        self._set_interior_domain_from_sponge_cells()
         
         #Get kernels
         self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)

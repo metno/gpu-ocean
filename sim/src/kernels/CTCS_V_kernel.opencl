@@ -120,8 +120,7 @@ __kernel void computeVKernel(
                 // "fake" global ghost cells by clamping
                 // const int k = clamp(bx + i - 1, 1, nx_);
                 const int k = bx + i - 1;
-                if (k >= 0 && k <= nx_+1) { 
-
+                if (k >= 0 && k <= nx_+1) {
                     H_shared[j][i] = H_row[k];
                     eta1_shared[j][i] = eta1_row[k];
                 }
@@ -226,12 +225,12 @@ __kernel void computeVKernel(
     const float fU_bar = 0.25f*( f_u_0*(U_m0 + U_00) + f_u_p*(U_mp + U_0p) );
 
     //Calculate the friction coefficient
-    const float C = 1.0 + 2*r_*dt_/H_y + 2*A_*dt_*(dx_*dx_ + dy_*dy_)/(dx_*dx_*dy_*dy_);
+    const float C = 1.0f + 2.0f*r_*dt_/H_y + 2.0f*A_*dt_*(dx_*dx_ + dy_*dy_)/(dx_*dx_*dy_*dy_);
 
     //Calculate the pressure/gravitational effect
     const float h_0p = H_0p + eta_0p;
     const float h_00 = H_00 + eta_00;
-    const float h_y = 0.5*(h_00 + h_0p); //Could possibly use h for pressure terms instead of H
+    const float h_y = 0.5f*(h_00 + h_0p); //Could possibly use h for pressure terms instead of H
     const float P_y_hat = -0.5f*g_*(eta_0p*eta_0p - eta_00*eta_00);
     const float P_y = -g_*h_y*(eta_0p - eta_00) + P_y_hat;
     
