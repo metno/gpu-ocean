@@ -31,8 +31,8 @@ double linear_coriolis_term(const double f, const double beta,
 			   const double tj, const double dy,
 			   const double y_zero_reference) {
     // y_zero_reference is the number of ghost cells
-    // and represent the tj so that y = 0.5*dy
-    double y = (tj-y_zero_reference + 0.5)*dy;
+    // and represent the tj so that y = 0.5f*dy
+    double y = (tj-y_zero_reference + 0.5f)*dy;
     return f + beta * y;
 }
 

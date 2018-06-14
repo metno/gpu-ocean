@@ -235,7 +235,7 @@ class EnsembleAnimator:
         # Obtain the following fields:
         eta_true, hu_true, hv_true = ensemble.downloadTrueOceanState()
         if not self.trueStateOnly:
-            eta_mean, hu_mean, hv_mean, eta_mrse, hu_mrse, hv_mrse = ensemble.downloadEnsembleStatisticalFields()
+            eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse = ensemble.downloadEnsembleStatisticalFields()
         
         domain_extent = [ 0.0, self.domain_size_x, 0.0, self.domain_size_y ]
         
@@ -297,30 +297,30 @@ class EnsembleAnimator:
             plt.colorbar()
             
             
-            ## MEAN ROOT SQUARE ERROR
+            ## ROOT MEAN-SQUARE ERROR
             ax = self.fig.add_subplot(self.gs[2, 0])
-            self.mrse_eta = plt.imshow(eta_mrse, interpolation=interpolation_type, origin='bottom', vmin=-eta_abs_lim, vmax=eta_abs_lim, extent=domain_extent)
+            self.rmse_eta = plt.imshow(eta_rmse, interpolation=interpolation_type, origin='bottom', vmin=-eta_abs_lim, vmax=eta_abs_lim, extent=domain_extent)
             plt.axis('tight')
             ax.set_aspect('equal')
-            plt.title('MRSE eta')
+            plt.title('RMSE eta')
             plt.colorbar()
             
-            self.mrse_drifters = plt.scatter(x=None, y=None, color='blue')
-            self.mrse_observations = plt.scatter(x=None, y=None, color='red')
-            self.mrse_driftersMean = plt.scatter(x=None, y=None, color='red', marker='+')
+            self.rmse_drifters = plt.scatter(x=None, y=None, color='blue')
+            self.rmse_observations = plt.scatter(x=None, y=None, color='red')
+            self.rmse_driftersMean = plt.scatter(x=None, y=None, color='red', marker='+')
 
             ax = self.fig.add_subplot(self.gs[2, 1])
-            self.mrse_hu = plt.imshow(hu_mrse, interpolation=interpolation_type, origin='bottom', vmin=-volume_transport_abs_lim, vmax=volume_transport_abs_lim, extent=domain_extent)
+            self.rmse_hu = plt.imshow(hu_rmse, interpolation=interpolation_type, origin='bottom', vmin=-volume_transport_abs_lim, vmax=volume_transport_abs_lim, extent=domain_extent)
             plt.axis('tight')
             ax.set_aspect('equal')
-            plt.title('MRSE hu')
+            plt.title('RMSE hu')
             plt.colorbar()
 
             ax = self.fig.add_subplot(self.gs[2, 2])
-            self.mrse_hv = plt.imshow(hv_mrse, interpolation=interpolation_type, origin='bottom', vmin=-volume_transport_abs_lim, vmax=volume_transport_abs_lim, extent=domain_extent)
+            self.rmse_hv = plt.imshow(hv_rmse, interpolation=interpolation_type, origin='bottom', vmin=-volume_transport_abs_lim, vmax=volume_transport_abs_lim, extent=domain_extent)
             plt.axis('tight')
             ax.set_aspect('equal')
-            plt.title('MRSE hv')
+            plt.title('RMSE hv')
             plt.colorbar()
 
     
@@ -329,7 +329,7 @@ class EnsembleAnimator:
             
         eta_true, hu_true, hv_true = ensemble.downloadTrueOceanState()
         if not self.trueStateOnly:
-            eta_mean, hu_mean, hv_mean, eta_mrse, hu_mrse, hv_mrse = ensemble.downloadEnsembleStatisticalFields()
+            eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse = ensemble.downloadEnsembleStatisticalFields()
         
         # TRUE STATE
         self.fig.add_subplot(self.gs[0, 0])
@@ -352,15 +352,15 @@ class EnsembleAnimator:
             self.fig.add_subplot(self.gs[1, 2])
             self.mean_hv.set_data(hv_mean)
             
-            # MEAN ROOT SQUARE ERROR
+            # ROOT MEAN-SQUARE ERROR
             self.fig.add_subplot(self.gs[2, 0])
-            self.mrse_eta.set_data(eta_mrse)
+            self.rmse_eta.set_data(eta_rmse)
 
             self.fig.add_subplot(self.gs[2, 1])
-            self.mrse_hu.set_data(hu_mrse)
+            self.rmse_hu.set_data(hu_rmse)
 
             self.fig.add_subplot(self.gs[2, 2])
-            self.mrse_hv.set_data(hv_mrse)
+            self.rmse_hv.set_data(hv_rmse)
 
         
         # Drifters
@@ -375,8 +375,8 @@ class EnsembleAnimator:
             self.mean_drifters.set_offsets(drifterPositions)
             self.mean_observations.set_offsets(trueDrifterPosition)
             
-            self.mrse_drifters.set_offsets(drifterPositions)
-            self.mrse_observations.set_offsets(trueDrifterPosition)
+            self.rmse_drifters.set_offsets(drifterPositions)
+            self.rmse_observations.set_offsets(trueDrifterPosition)
         
         
         plt.draw()

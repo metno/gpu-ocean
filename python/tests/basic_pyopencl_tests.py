@@ -7,7 +7,7 @@ import xmlrunner
 # $ sudo easy_install unittest-xml-reporting
 
 #import testUtils
-from pyopenclTests.OpenCLArray2DTest import OpenCLArray2DTest
+from pyopenclTests.OpenCLArray2D_test import OpenCLArray2DTest
 
 if (len(sys.argv) < 1):
     print ("Usage:")
@@ -36,4 +36,6 @@ for test_class in test_classes_to_run:
     suite_list.append(suite)
 
 big_suite = unittest.TestSuite(suite_list)
-unittest.TextTestRunner(verbosity=2).run(big_suite)
+results = unittest.TextTestRunner(verbosity=2).run(big_suite)
+
+sys.exit(not results.wasSuccessful())
