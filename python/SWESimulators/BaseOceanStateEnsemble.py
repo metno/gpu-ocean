@@ -581,8 +581,7 @@ class BaseOceanStateEnsemble(object):
         Utility function for generating informative plots of the ensemble relative to the observation
         """
         if self.observation_type == dautils.ObservationType.UnderlyingFlow:
-            self.plotVelocityInfo(title=title)
-            return
+            return self.plotVelocityInfo(title=title)
             
         fig = plt.figure(figsize=(10,6))
         gridspec.GridSpec(2, 3)
@@ -639,6 +638,7 @@ class BaseOceanStateEnsemble(object):
 
         if title is not None:
             plt.suptitle(title, fontsize=16)
+        return fig
             
     def plotVelocityInfo(self, title=None):
         """
@@ -717,4 +717,5 @@ class BaseOceanStateEnsemble(object):
 
         if title is not None:
             plt.suptitle(title, fontsize=16)
+        return fig
             
