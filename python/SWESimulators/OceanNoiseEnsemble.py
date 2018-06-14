@@ -51,6 +51,9 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                                 small_scale_perturbation=True, \
                                                 small_scale_perturbation_amplitude=self.small_scale_perturbation_amplitude)
             
+            if self.initialization_variance_factor_ocean_field != 0.0:
+                self.particles[i].perturbState(q0_scale=self.initialization_variance_factor_ocean_field)
+            
             if i == self.numParticles:
                 # All particles done, only the observation is left,
                 # and for the observation we only use one drifter, regardless of the

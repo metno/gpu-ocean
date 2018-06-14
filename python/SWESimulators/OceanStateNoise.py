@@ -172,19 +172,21 @@ class OceanStateNoise(object):
                                          self.seed.data, self.seed.pitch,
                                          self.random_numbers.data, self.random_numbers.pitch)
     
-    def perturbSim(self, sim):
+    def perturbSim(self, sim, q0_scale=1.0):
         assert(isinstance(sim, CDKLM16.CDKLM16))
-        
+         
         self.perturbOceanState(sim.cl_data.h0, sim.cl_data.hu0, sim.cl_data.hv0,
                                sim.bathymetry.Bi,
                                sim.f, beta=sim.coriolis_beta, g=sim.g, 
                                y0_reference_cell=sim.y_zero_reference_cell,
                                ghost_cells_x=sim.ghost_cells_x,
-                               ghost_cells_y=sim.ghost_cells_y)
+                               ghost_cells_y=sim.ghost_cells_y,
+                               q0_scale=q0_scale)
                                
     
     def perturbOceanState(self, eta, hu, hv, H, f, beta=0.0, g=9.81, 
-                          y0_reference_cell=0, ghost_cells_x=0, ghost_cells_y=0):
+                          y0_reference_cell=0, ghost_cells_x=0, ghost_cells_y=0,
+                          q0_scale=1.0):
         """
         Apply the SOAR Q covariance matrix on the random ocean field which is
         added to the provided buffers eta, hu and hv.
@@ -194,6 +196,8 @@ class OceanStateNoise(object):
         """
         # Need to update the random field, requiering a global sync
         self.generateNormalDistribution()
+        
+        soar_q0 = np.float32(self.soar_q0 * q0_scale)
         
         # Call applySOARQ_kernel and add to eta
         self.kernels.perturbOcean(self.cl_queue,
@@ -205,7 +209,7 @@ class OceanStateNoise(object):
                                   np.float32(g), np.float32(f),
                                   np.float32(beta), np.float32(y0_reference_cell),
                                   
-                                  self.soar_q0, self.soar_L,
+                                  soar_q0, self.soar_L,
                                   self.periodicNorthSouth, self.periodicEastWest,
                                   
                                   self.random_numbers.data, self.random_numbers.pitch,

@@ -386,6 +386,9 @@ class CDKLM16(Simulator.Simulator):
                            self.geoEq_Ly.data, self.geoEq_Ly.pitch )
             
     
+    def perturbState(self, q0_scale=None):
+        self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
+    
     def downloadBathymetry(self):
         return self.bathymetry.download(self.cl_queue)
 

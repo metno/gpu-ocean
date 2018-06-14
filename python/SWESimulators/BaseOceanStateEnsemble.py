@@ -158,12 +158,11 @@ class BaseOceanStateEnsemble(object):
         
         self.small_scale_perturbation_amplitude = small_scale_perturbation_amplitude
     
-        # TODO:
         # When initializing an ensemble, each member should be perturbed so that they 
         # have slightly different starting point.
         # This factor should be multiplied to the small_scale_perturbation_amplitude for that 
         # perturbation
-        self.initialization_small_scal_perturbation_amplitude = self.small_scale_perturbation_amplitude * initialization_variance_factor_ocean_field
+        self.initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field
         
         
     @abc.abstractmethod
