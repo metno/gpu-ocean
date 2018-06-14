@@ -651,20 +651,10 @@ class BaseOceanStateEnsemble(object):
         # PLOT POSITIONS OF PARTICLES AND OBSERVATIONS
         ax = plt.subplot2grid((2,3), (0,0), polar=True, axisbg='#ffffff')
         
-        obs_u, obs_v = self.observeTrueState()[2],self.observeTrueState()[3]
-        print "obs_u, obs_v: ", (obs_u, obs_v)
-        obs_r = np.sqrt(obs_u**2 + obs_v**2)
-        obs_theta = np.arctan(obs_v/obs_u)
-        if (obs_u < 0):
-            obs_theta += np.pi
-        arr1 = plt.arrow(obs_theta, 0, 0, obs_r, alpha = 0.5, length_includes_head=True, 
-                 edgecolor = 'red', facecolor = 'red', zorder = 5)
-        
-        max_r = obs_r
+        max_r = 0
         observedParticles = self.observeParticles()
         for p in range(self.numParticles):
             u, v = observedParticles[p,0], observedParticles[p,1]
-            print "u, v: ", (u, v)
             r = np.sqrt(u**2 + v**2)
             max_r = max(max_r, r)
             theta = np.arctan(v/u)
@@ -672,7 +662,17 @@ class BaseOceanStateEnsemble(object):
                 theta += np.pi
             arr1 = plt.arrow(theta, 0, 0, r, alpha = 0.5, length_includes_head=True,
                      edgecolor = 'green', facecolor = 'green', zorder = 5)
-            
+        
+        obs_u, obs_v = self.observeTrueState()[2],self.observeTrueState()[3]
+        obs_r = np.sqrt(obs_u**2 + obs_v**2)
+        max_r = max(max_r, obs_r)
+        obs_theta = np.arctan(obs_v/obs_u)
+        if (obs_u < 0):
+            obs_theta += np.pi
+        arr1 = plt.arrow(obs_theta, 0, 0, obs_r, alpha = 0.5, length_includes_head=True, 
+                 edgecolor = 'red', facecolor = 'red', zorder = 5)
+        
+        
         #ax.plot(theta, r, color='#ee8d18', lw=3)
         ax.set_rmax(max_r*1.2)
         plt.grid(True)
@@ -682,7 +682,6 @@ class BaseOceanStateEnsemble(object):
         ax0 = plt.subplot2grid((2,3), (0,1), colspan=2)
         innovations = self.getInnovations()
         distances = np.linalg.norm(innovations, axis=1)
-        print "distances.shape", distances.shape
         obs_var = self.getObservationVariance()
         plt.hist(distances, bins=30, \
                  range=(0, 0.4),\
