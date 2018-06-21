@@ -570,12 +570,12 @@ class BaseOceanStateEnsemble(object):
             
         plt.axis('tight')
     
-    def plotDistanceInfo(self, title=None):
+    def plotDistanceInfo(self, title=None, printInfo=False):
         """
         Utility function for generating informative plots of the ensemble relative to the observation
         """
         if self.observation_type == dautils.ObservationType.UnderlyingFlow:
-            return self.plotVelocityInfo(title=title)
+            return self.plotVelocityInfo(title=title, printInfo=printInfo)
             
         fig = plt.figure(figsize=(10,6))
         gridspec.GridSpec(2, 3)
@@ -634,7 +634,7 @@ class BaseOceanStateEnsemble(object):
             plt.suptitle(title, fontsize=16)
         return fig
             
-    def plotVelocityInfo(self, title=None):
+    def plotVelocityInfo(self, title=None, printInfo=False):
         """
         Utility function for generating informative plots of the ensemble relative to the observation
         """
@@ -647,6 +647,7 @@ class BaseOceanStateEnsemble(object):
         
         max_r = 0
         observedParticles = self.observeParticles()
+        if printInfo: print "observedParticles: \n", observedParticles
         for p in range(self.numParticles):
             u, v = observedParticles[p,0], observedParticles[p,1]
             r = np.sqrt(u**2 + v**2)
@@ -658,6 +659,7 @@ class BaseOceanStateEnsemble(object):
                      edgecolor = 'green', facecolor = 'green', zorder = 5)
         
         obs_u, obs_v = self.observeTrueState()[2],self.observeTrueState()[3]
+        if printInfo: print "observedTrueState: ", (obs_u, obs_v)
         obs_r = np.sqrt(obs_u**2 + obs_v**2)
         max_r = max(max_r, obs_r)
         obs_theta = np.arctan(obs_v/obs_u)
