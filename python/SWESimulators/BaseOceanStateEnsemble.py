@@ -241,19 +241,19 @@ class BaseOceanStateEnsemble(object):
             v = dy/dt
             return np.array([self.observations[-1,1], self.observations[-1,2], u, v])
 
-    def step(self, t, apply_stochastic_term=True):
+    def step(self, t, stochastic_particles=True, stochastic_truth=True):
         """
         Function which makes all particles step until time t.
         apply_stochastic_term: Boolean value for whether the stochastic
             perturbation (if any) should be applied.
         """
-        simNo = 0
-        for oceanState in self.particles:
-            #print "Starting sim " + str(simNo)
-            self.t = oceanState.step(t, \
-                           apply_stochastic_term=apply_stochastic_term)
-            #print "Finished sim " + str(simNo)      
-            simNo = simNo + 1
+        for p in range(self.getNumParticles()+1):
+            #print "Starting sim " + str(p)
+            if p == self.obs_index:
+                self.t = self.particles[p].step(t, apply_stochastic_term=stochastic_truth)
+            else:
+                self.t = self.particles[p].step(t, apply_stochastic_term=stochastic_particles)
+            #print "Finished sim " + str(p)      
         return self.t
     
     def getDistances(self, obs=None):
@@ -295,7 +295,10 @@ class BaseOceanStateEnsemble(object):
         simNo = 0
         for oceanState in self.particles:
             eta, hu, hv = oceanState.download()
-            print "------- simNo: " + str(simNo) + " -------"
+            if simNo == self.obs_index:
+                print "------- simNo: True state -------"
+            else:
+                print "------- simNo: " + str(simNo) + " -------"
             print "t = " + str(oceanState.t)
             print "Max eta: ", np.max(eta)
             print "Max hu:  ", np.max(hu)
