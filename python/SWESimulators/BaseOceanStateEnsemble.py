@@ -201,14 +201,15 @@ class BaseOceanStateEnsemble(object):
         if self.observation_type == dautils.ObservationType.DrifterPosition:
             return self.observeDrifters()
 
-        elif self.observation_type == dautils.ObservationType.UnderlyingFlow:
+        elif self.observation_type == dautils.ObservationType.UnderlyingFlow or \
+             self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
             #print "ObservationType.UnderlyingFlow"
             loc = self.observeTrueState()[:2]
-            id_x = np.int(np.floor(loc[0]/self.dx))
-            id_y = np.int(np.floor(loc[1]/self.dy))
+            id_x = np.int(np.floor(loc[0]/self.dx)) + 2
+            id_y = np.int(np.floor(loc[1]/self.dy)) + 2
             
             velocities = np.empty((self.numParticles,2))
-            depth = self.particles[0].downloadBathymetry()[1][id_y + 2, id_x + 2]
+            depth = self.particles[0].downloadBathymetry()[1][id_y, id_x]
             for p in range(self.numParticles):
                 eta, hu, hv = self.downloadParticleOceanState(p)
                 velocities[p,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
@@ -229,7 +230,7 @@ class BaseOceanStateEnsemble(object):
         """
         if self.observations[-1,0] != self.t:
             self._addObservation(self.observeTrueDrifters())
-        
+            
         if self.observation_type == dautils.ObservationType.DrifterPosition:
             return self.observations[-1,1:]
             
@@ -240,6 +241,17 @@ class BaseOceanStateEnsemble(object):
             u = dx/dt
             v = dy/dt
             return np.array([self.observations[-1,1], self.observations[-1,2], u, v])
+        
+        elif self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
+            id_x = np.int(np.floor(self.observations[-1,1]/self.dx)) + 2
+            id_y = np.int(np.floor(self.observations[-1,2]/self.dy)) + 2
+            
+            depth = self.particles[self.obs_index].downloadBathymetry()[1][id_y, id_x]
+            eta, hu, hv = self.downloadParticleOceanState(self.obs_index)
+            u = hu[id_y, id_x]/(depth + eta[id_y, id_x])
+            v = hv[id_y, id_x]/(depth + eta[id_y, id_x])
+            
+            return np.array([self.observations[-1, 1], self.observations[-1,2], u, v])
 
     def step(self, t, stochastic_particles=True, stochastic_truth=True):
         """
@@ -285,7 +297,8 @@ class BaseOceanStateEnsemble(object):
                                         axis=0)
                 counter += 1
             return innovations
-        elif self.observation_type == dautils.ObservationType.UnderlyingFlow:
+        elif self.observation_type == dautils.ObservationType.UnderlyingFlow or \
+             self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
             observed_particles = self.observeParticles()
             observed_velocity = obs[2:]
             return observed_velocity - observed_particles
@@ -577,7 +590,8 @@ class BaseOceanStateEnsemble(object):
         """
         Utility function for generating informative plots of the ensemble relative to the observation
         """
-        if self.observation_type == dautils.ObservationType.UnderlyingFlow:
+        if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
+           self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
             return self.plotVelocityInfo(title=title, printInfo=printInfo)
             
         fig = plt.figure(figsize=(10,6))
