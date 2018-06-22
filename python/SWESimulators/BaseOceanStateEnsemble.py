@@ -268,6 +268,15 @@ class BaseOceanStateEnsemble(object):
             #print "Finished sim " + str(p)      
         return self.t
     
+    def step_truth(self, t, stochastic=True):
+        self.t = self.particles[self.obs_index].step(t, apply_stochastic_term=stochastic)
+        return self.t
+    
+    def step_particles(self, t, stochastic=True):
+        for p in range(self.getNumParticles()):
+            dummy_t = self.particles[p].step(t, apply_stochastic_term=stochastic)
+        return self.t
+    
     def getDistances(self, obs=None):
         if obs is None:
             obs = self.observeTrueDrifters()
