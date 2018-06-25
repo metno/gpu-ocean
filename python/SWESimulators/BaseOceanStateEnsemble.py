@@ -706,11 +706,11 @@ class BaseOceanStateEnsemble(object):
         distances = np.linalg.norm(innovations, axis=1)
         obs_var = self.getObservationVariance()
         plt.hist(distances, bins=30, \
-                 range=(0, 0.4),\
+                 range=(0, 0.15),\
                  normed=True, label="particle distances")
         
         # With observation 
-        x = np.linspace(0, 0.4, num=100)
+        x = np.linspace(0, 0.15, num=100)
         cauchy_pdf = self.getCauchyWeight(x, normalize=False)
         gauss_pdf = self.getGaussianWeight(x, normalize=False)
         plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
