@@ -229,13 +229,16 @@ class EnsembleAnimator:
         if self.trueStateOnly:
             fig.set_figheight(4)
         else:
-            fig.set_figheight(12)
+            fig.set_figheight(16)
         fig.set_figwidth(12)
         
         # Obtain the following fields:
         eta_true, hu_true, hv_true = ensemble.downloadTrueOceanState()
         if not self.trueStateOnly:
-            eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse = ensemble.downloadEnsembleStatisticalFields()
+            eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse, eta_r, hu_r, hv_r = ensemble.downloadEnsembleStatisticalFields()
+        
+        r_deviation = 0.2
+        r_min, r_max = 1.0-r_deviation, 1.0+r_deviation
         
         domain_extent = [ 0.0, self.domain_size_x, 0.0, self.domain_size_y ]
         
@@ -243,7 +246,7 @@ class EnsembleAnimator:
         if self.trueStateOnly:
             self.gs = gridspec.GridSpec(1,3)
         else:
-            self.gs = gridspec.GridSpec(3, 3)
+            self.gs = gridspec.GridSpec(4, 3)
         
         ## TRUE STATE
         ax = self.fig.add_subplot(self.gs[0, 0])
@@ -322,6 +325,32 @@ class EnsembleAnimator:
             ax.set_aspect('equal')
             plt.title('RMSE hv')
             plt.colorbar()
+            
+            ## r = sigma / RMSE
+            ax = self.fig.add_subplot(self.gs[3, 0])
+            self.r_eta = plt.imshow(eta_r, interpolation=interpolation_type, origin='bottom', vmin=r_min, vmax=r_max, extent=domain_extent)
+            plt.axis('tight')
+            ax.set_aspect('equal')
+            plt.title('r = sigma/RMSE (eta)')
+            plt.colorbar()
+            
+            self.r_drifters = plt.scatter(x=None, y=None, color='blue')
+            self.r_observations = plt.scatter(x=None, y=None, color='red')
+            self.r_driftersMean = plt.scatter(x=None, y=None, color='red', marker='+')
+
+            ax = self.fig.add_subplot(self.gs[3, 1])
+            self.r_hu = plt.imshow(hu_r, interpolation=interpolation_type, origin='bottom', vmin=r_min, vmax=r_max, extent=domain_extent)
+            plt.axis('tight')
+            ax.set_aspect('equal')
+            plt.title('r = sigma/RMSE (hu)')
+            plt.colorbar()
+
+            ax = self.fig.add_subplot(self.gs[3, 2])
+            self.r_hv = plt.imshow(hv_r, interpolation=interpolation_type, origin='bottom', vmin=r_min, vmax=r_max, extent=domain_extent)
+            plt.axis('tight')
+            ax.set_aspect('equal')
+            plt.title('r = sigma/RMSE (hv)')
+            plt.colorbar()
 
     
     def plot(self, ensemble):
@@ -329,7 +358,7 @@ class EnsembleAnimator:
             
         eta_true, hu_true, hv_true = ensemble.downloadTrueOceanState()
         if not self.trueStateOnly:
-            eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse = ensemble.downloadEnsembleStatisticalFields()
+            eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse, eta_r, hu_r, hv_r = ensemble.downloadEnsembleStatisticalFields()
         
         # TRUE STATE
         self.fig.add_subplot(self.gs[0, 0])
@@ -362,6 +391,15 @@ class EnsembleAnimator:
             self.fig.add_subplot(self.gs[2, 2])
             self.rmse_hv.set_data(hv_rmse)
 
+            # ROOT MEAN-SQUARE ERROR
+            self.fig.add_subplot(self.gs[3, 0])
+            self.r_eta.set_data(eta_r)
+
+            self.fig.add_subplot(self.gs[3, 1])
+            self.r_hu.set_data(hu_r)
+
+            self.fig.add_subplot(self.gs[3, 2])
+            self.r_hv.set_data(hv_r)
         
         # Drifters
         drifterPositions = ensemble.observeDrifters()
@@ -377,6 +415,9 @@ class EnsembleAnimator:
             
             self.rmse_drifters.set_offsets(drifterPositions)
             self.rmse_observations.set_offsets(trueDrifterPosition)
+            
+            self.r_drifters.set_offsets(drifterPositions)
+            self.r_observations.set_offsets(trueDrifterPosition)
         
         
         plt.draw()
