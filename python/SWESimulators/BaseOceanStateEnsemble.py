@@ -59,6 +59,18 @@ class BaseOceanStateEnsemble(object):
         # Observations are stored as [[t, x, y]]
         self.observations = np.empty((0,3))
         
+        # Arrays to store statistical info for selected grid cells:
+        self.varianceUnderDrifter_eta = []
+        self.varianceUnderDrifter_hu = []
+        self.varianceUnderDrifter_hv = []
+        self.rmseUnderDrifter_eta = []
+        self.rmseUnderDrifter_hu = []
+        self.rmseUnderDrifter_hv = []
+        self.rUnderDrifter_eta = []
+        self.rUnderDrifter_hu = []
+        self.rUnderDrifter_hv = []
+        self.tArray = []
+
         
     def cleanUp(self):
         for oceanState in self.particles:
@@ -413,7 +425,78 @@ class BaseOceanStateEnsemble(object):
         return 0.25*min(self.dx/max_u, self.dy/max_v)
             
             
-    
+    def getEnsembleVarAndRMSEUnderDrifter(self, t):
+        """
+        Putting entries in the statistical arrays for single cells.
+        """
+        
+        drifter_pos = self.observeTrueDrifters()
+        cell_id_x = int(np.floor(drifter_pos[0]/self.dx) + 2)
+        cell_id_y = int(np.floor(drifter_pos[1]/self.dy) + 2)
+        
+        eta_true_array, hu_true_array, hv_true_array = self.downloadTrueOceanState()
+        
+        eta_true = eta_true_array[cell_id_y, cell_id_x]
+        hu_true  =  hu_true_array[cell_id_y, cell_id_x]
+        hv_true  =  hv_true_array[cell_id_y, cell_id_x]
+        
+        eta_mean = 0.0
+        hu_mean = 0.0
+        hv_mean = 0.0
+        eta_rmse = 0.0
+        hu_rmse = 0.0
+        hv_rmse = 0.0
+        eta_sigma = 0.0
+        hu_sigma = 0.0
+        hv_sigma = 0.0
+        
+        for p in range(self.getNumParticles()):
+            tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
+            eta_mean += tmp_eta[cell_id_y, cell_id_x]
+            hu_mean += tmp_hu[cell_id_y, cell_id_x]
+            hv_mean += tmp_hv[cell_id_y, cell_id_x]
+            eta_rmse += (eta_true - tmp_eta[cell_id_y, cell_id_x])**2
+            hu_rmse += (hu_true - tmp_hu[cell_id_y, cell_id_x])**2
+            hv_rmse += (hv_true - tmp_hv[cell_id_y, cell_id_x])**2
+        
+        eta_rmse = np.sqrt(eta_rmse/(self.getNumParticles()+1))
+        hu_rmse  = np.sqrt(hu_rmse /(self.getNumParticles()+1))
+        hv_rmse  = np.sqrt(hv_rmse /(self.getNumParticles()+1))
+        
+        eta_mean = eta_mean/self.getNumParticles()
+        hu_mean = hu_mean/self.getNumParticles()
+        hv_mean = hv_mean/self.getNumParticles()
+        
+        # RMSE according to the paper draft
+        #eta_rmse = np.sqrt((eta_true - eta_mean)**2)
+        #hu_rmse  = np.sqrt((hu_true  - hu_mean )**2)
+        #hv_rmse  = np.sqrt((hv_true  - hv_mean )**2)
+        
+        for p in range(self.getNumParticles()):
+            tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
+            eta_sigma += (tmp_eta[cell_id_y, cell_id_x] - eta_mean)**2
+            hu_sigma  += (tmp_hu[cell_id_y, cell_id_x]  - hu_mean )**2
+            hv_sigma  += (tmp_hv[cell_id_y, cell_id_x]  - hv_mean )**2
+        
+        eta_sigma = np.sqrt(eta_sigma/(1.0 + self.getNumParticles()))
+        hu_sigma  = np.sqrt( hu_sigma/(1.0 + self.getNumParticles()))
+        hv_sigma  = np.sqrt( hv_sigma/(1.0 + self.getNumParticles()))
+        
+        eta_r = eta_sigma/eta_rmse
+        hu_r  =  hu_sigma/hu_rmse
+        hv_r  =  hv_sigma/hv_rmse
+        
+        self.varianceUnderDrifter_eta.append(eta_sigma)
+        self.varianceUnderDrifter_hu.append(hu_sigma)
+        self.varianceUnderDrifter_hv.append(hv_sigma)
+        self.rmseUnderDrifter_eta.append(eta_rmse)
+        self.rmseUnderDrifter_hu.append(hu_rmse)
+        self.rmseUnderDrifter_hv.append(hv_rmse)
+        self.rUnderDrifter_eta.append(eta_r)
+        self.rUnderDrifter_hu.append(hu_r)
+        self.rUnderDrifter_hv.append(hv_r)
+        self.tArray.append(t)
+        
     
     def downloadEnsembleStatisticalFields(self):
         """
@@ -427,6 +510,9 @@ class BaseOceanStateEnsemble(object):
         eta_rmse = np.zeros_like(eta_true)
         hu_rmse = np.zeros_like(hu_true)
         hv_rmse = np.zeros_like(hv_true)
+        eta_r = np.zeros_like(eta_true)
+        hu_r = np.zeros_like(hu_true)
+        hv_r = np.zeros_like(hv_true)
         
         for p in range(self.getNumParticles()):
             tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
@@ -436,15 +522,35 @@ class BaseOceanStateEnsemble(object):
             eta_rmse += (eta_true - tmp_eta)**2
             hu_rmse += (hu_true - tmp_hu)**2
             hv_rmse += (hv_true - tmp_hv)**2
-            
+        
+        eta_rmse = np.sqrt(eta_rmse/(self.getNumParticles()))
+        hu_rmse  = np.sqrt(hu_rmse /(self.getNumParticles()))
+        hv_rmse  = np.sqrt(hv_rmse /(self.getNumParticles()))
+        
         eta_mean = eta_mean/self.getNumParticles()
         hu_mean = hu_mean/self.getNumParticles()
         hv_mean = hv_mean/self.getNumParticles()
-        eta_rmse = np.sqrt(eta_rmse/self.getNumParticles())
-        hu_rmse= np.sqrt(hu_rmse/self.getNumParticles())
-        hv_rmse = np.sqrt(hv_rmse/self.getNumParticles())
         
-        return eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse
+        # RMSE according to the paper draft
+        #eta_rmse = np.sqrt((eta_true - eta_mean)**2)
+        #hu_rmse  = np.sqrt((hu_true  - hu_mean )**2)
+        #hv_rmse  = np.sqrt((hv_true  - hv_mean )**2)
+        
+        for p in range(self.getNumParticles()):
+            tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
+            eta_r += (tmp_eta - eta_mean)**2
+            hu_r  += (tmp_hu  - hu_mean )**2
+            hv_r  += (tmp_hv  - hv_mean )**2
+            
+        eta_r = np.sqrt(eta_r/(1.0 + self.getNumParticles()))/eta_rmse
+        hu_r  = np.sqrt(hu_r /(1.0 + self.getNumParticles()))/hu_rmse
+        hv_r  = np.sqrt(hv_r /(1.0 + self.getNumParticles()))/hv_rmse
+        
+        print "min-max [eta, hu, hv]: ", [(np.min(eta_r), np.max(eta_r)), \
+                                          (np.min(hu_r ), np.max(hu_r )), \
+                                          (np.min(hv_r ), np.max(hv_r ))]
+        
+        return eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse, eta_r, hu_r, hv_r
     
     def downloadParticleOceanState(self, particleNo):
         assert(particleNo < self.getNumParticles()+1), "particle out of range"
