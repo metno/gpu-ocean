@@ -217,12 +217,13 @@ class BaseOceanStateEnsemble(object):
              self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
             #print "ObservationType.UnderlyingFlow"
             loc = self.observeTrueState()[:2]
-            id_x = np.int(np.floor(loc[0]/self.dx)) + 2
-            id_y = np.int(np.floor(loc[1]/self.dy)) + 2
+            id_x = np.int(np.floor(loc[0]/self.dx))
+            id_y = np.int(np.floor(loc[1]/self.dy))
             
             velocities = np.empty((self.numParticles,2))
             depth = self.particles[0].downloadBathymetry()[1][id_y, id_x]
-            for p in range(self.numParticles):
+            for p in range(self.numParticles):            
+                # Downloading ocean state without ghost cells
                 eta, hu, hv = self.downloadParticleOceanState(p)
                 velocities[p,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
                 velocities[p,1] = hv[id_y, id_x]/(depth + eta[id_y, id_x])
@@ -255,10 +256,12 @@ class BaseOceanStateEnsemble(object):
             return np.array([self.observations[-1,1], self.observations[-1,2], u, v])
         
         elif self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
-            id_x = np.int(np.floor(self.observations[-1,1]/self.dx)) + 2
-            id_y = np.int(np.floor(self.observations[-1,2]/self.dy)) + 2
+            id_x = np.int(np.floor(self.observations[-1,1]/self.dx))
+            id_y = np.int(np.floor(self.observations[-1,2]/self.dy))
             
             depth = self.particles[self.obs_index].downloadBathymetry()[1][id_y, id_x]
+            
+            # Downloading ocean state without ghost cells
             eta, hu, hv = self.downloadParticleOceanState(self.obs_index)
             u = hu[id_y, id_x]/(depth + eta[id_y, id_x])
             v = hv[id_y, id_x]/(depth + eta[id_y, id_x])
@@ -468,9 +471,9 @@ class BaseOceanStateEnsemble(object):
         hv_mean = hv_mean/self.getNumParticles()
         
         # RMSE according to the paper draft
-        #eta_rmse = np.sqrt((eta_true - eta_mean)**2)
-        #hu_rmse  = np.sqrt((hu_true  - hu_mean )**2)
-        #hv_rmse  = np.sqrt((hv_true  - hv_mean )**2)
+        eta_rmse = np.sqrt((eta_true - eta_mean)**2)
+        hu_rmse  = np.sqrt((hu_true  - hu_mean )**2)
+        hv_rmse  = np.sqrt((hv_true  - hv_mean )**2)
         
         for p in range(self.getNumParticles()):
             tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
@@ -532,9 +535,9 @@ class BaseOceanStateEnsemble(object):
         hv_mean = hv_mean/self.getNumParticles()
         
         # RMSE according to the paper draft
-        #eta_rmse = np.sqrt((eta_true - eta_mean)**2)
-        #hu_rmse  = np.sqrt((hu_true  - hu_mean )**2)
-        #hv_rmse  = np.sqrt((hv_true  - hv_mean )**2)
+        eta_rmse = np.sqrt((eta_true - eta_mean)**2)
+        hu_rmse  = np.sqrt((hu_true  - hu_mean )**2)
+        hv_rmse  = np.sqrt((hv_true  - hv_mean )**2)
         
         for p in range(self.getNumParticles()):
             tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
@@ -546,7 +549,7 @@ class BaseOceanStateEnsemble(object):
         hu_r  = np.sqrt(hu_r /(1.0 + self.getNumParticles()))/hu_rmse
         hv_r  = np.sqrt(hv_r /(1.0 + self.getNumParticles()))/hv_rmse
         
-        print "min-max [eta, hu, hv]: ", [(np.min(eta_r), np.max(eta_r)), \
+        print "min-max [eta, hu, hv]_r: ", [(np.min(eta_r), np.max(eta_r)), \
                                           (np.min(hu_r ), np.max(hu_r )), \
                                           (np.min(hv_r ), np.max(hv_r ))]
         
