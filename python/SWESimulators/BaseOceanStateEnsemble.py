@@ -434,8 +434,11 @@ class BaseOceanStateEnsemble(object):
         """
         
         drifter_pos = self.observeTrueDrifters()
-        cell_id_x = int(np.floor(drifter_pos[0]/self.dx) + 2)
-        cell_id_y = int(np.floor(drifter_pos[1]/self.dy) + 2)
+        
+        # downloadTrueOceanState and downloadParticleOceanState gives us interior domain only,
+        # and no ghost cells.
+        cell_id_x = int(np.floor(drifter_pos[0]/self.dx))
+        cell_id_y = int(np.floor(drifter_pos[1]/self.dy))
         
         eta_true_array, hu_true_array, hv_true_array = self.downloadTrueOceanState()
         
@@ -499,6 +502,8 @@ class BaseOceanStateEnsemble(object):
         self.rUnderDrifter_hu.append(hu_r)
         self.rUnderDrifter_hv.append(hv_r)
         self.tArray.append(t)
+        
+
         
     
     def downloadEnsembleStatisticalFields(self):
