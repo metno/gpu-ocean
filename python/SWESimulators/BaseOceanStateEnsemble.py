@@ -554,9 +554,9 @@ class BaseOceanStateEnsemble(object):
         hu_r  = np.sqrt(hu_r /(1.0 + self.getNumParticles()))/hu_rmse
         hv_r  = np.sqrt(hv_r /(1.0 + self.getNumParticles()))/hv_rmse
         
-        print "min-max [eta, hu, hv]_r: ", [(np.min(eta_r), np.max(eta_r)), \
-                                          (np.min(hu_r ), np.max(hu_r )), \
-                                          (np.min(hv_r ), np.max(hv_r ))]
+        #print "min-max [eta, hu, hv]_r: ", [(np.min(eta_r), np.max(eta_r)), \
+        #                                  (np.min(hu_r ), np.max(hu_r )), \
+        #                                  (np.min(hv_r ), np.max(hv_r ))]
         
         return eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse, eta_r, hu_r, hv_r
     
@@ -679,16 +679,16 @@ class BaseOceanStateEnsemble(object):
         plt.subplot(numPlots, plotCols, 9)
         plt.imshow(eta_mrse, origin='lower', vmin=-eta_lim, vmax=eta_lim)
         plt.contour(eta_mrse, levels=eta_levels, colors='black', alpha=0.5)
-        plt.title("MRSE eta")
+        plt.title("RMSE eta")
         plt.subplot(numPlots, plotCols, 10)
         plt.imshow(hu_mrse, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hu_mrse, levels=hu_levels, colors='black', alpha=0.5)
-        plt.title("MRSE hu")
+        plt.title("RMSE hu")
         plt.subplot(numPlots, plotCols, 11)
         plt.imshow(hv_mrse, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         #plt.colorbar() # TODO: Find a nice way to include colorbar to this plot...
         plt.contour(hv_mrse, levels=hv_levels, colors='black', alpha=0.5)
-        plt.title("MRSE hv")
+        plt.title("RMSE hv")
 
         for p in range(numParticlePlots):
             plt.subplot(numPlots, plotCols, 13+p*plotCols)
@@ -745,19 +745,15 @@ class BaseOceanStateEnsemble(object):
         
         # With observation 
         x = np.linspace(0, max(self.getDomainSizeX(), self.getDomainSizeY()), num=100)
-        cauchy_pdf = self.getCauchyWeight(x, normalize=False)
         gauss_pdf = self.getGaussianWeight(x, normalize=False)
-        plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
-        plt.plot(x, gauss_pdf, 'g', label="obs Gauss pdf")
+        plt.plot(x, gauss_pdf, 'g', label="pdf directly from distances")
         plt.legend()
-        plt.title("Distribution of particle distances from observation")
+        plt.title("Distribution of particle distances")
         
         # PLOT SORTED DISTANCES FROM OBSERVATION
         ax0 = plt.subplot2grid((2,3), (1,0), colspan=3)
-        cauchyWeights = self.getCauchyWeight()
         gaussWeights = self.getGaussianWeight()
         indices_sorted_by_observation = distances.argsort()
-        ax0.plot(cauchyWeights[indices_sorted_by_observation]/np.max(cauchyWeights), 'r', label="Cauchy weight")
         ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Gauss weight")
         ax0.set_ylabel('Relative weight')
         ax0.grid()
@@ -812,6 +808,7 @@ class BaseOceanStateEnsemble(object):
         #ax.plot(theta, r, color='#ee8d18', lw=3)
         ax.set_rmax(max_r*1.2)
         plt.grid(True)
+        plt.title("Observations from drifter 1")
 
         
         # PLOT DISCTRIBUTION OF PARTICLE DISTANCES AND THEORETIC OBSERVATION PDF
@@ -821,32 +818,29 @@ class BaseOceanStateEnsemble(object):
         obs_var = self.getObservationVariance()
         plt.hist(distances, bins=30, \
                  range=(0, 0.15),\
-                 normed=True, label="particle distances")
+                 normed=True, label="particle innovations (norm)")
         
         # With observation 
         x = np.linspace(0, 0.15, num=100)
-        cauchy_pdf = self.getCauchyWeight(x, normalize=False)
         gauss_pdf = self.getGaussianWeight(x, normalize=False)
-        plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
-        plt.plot(x, gauss_pdf, 'g', label="obs Gauss pdf")
+        plt.plot(x, gauss_pdf, 'g', label="pdf directly from inovations")
         plt.legend()
-        plt.title("Distribution of particle distances from observation")
+        plt.title("Distribution of particle innovations")
         
         # PLOT SORTED DISTANCES FROM OBSERVATION
         ax0 = plt.subplot2grid((2,3), (1,0), colspan=3)
-        cauchyWeights = self.getCauchyWeight()
         gaussWeights = self.getGaussianWeight()
         indices_sorted_by_observation = distances.argsort()
-        ax0.plot(cauchyWeights[indices_sorted_by_observation]/np.max(cauchyWeights), 'r', label="Cauchy weight")
-        ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Gauss weight")
-        ax0.set_ylabel('Relative weight')
+        ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Weight directly from innovations")
+        ax0.set_ylabel('Weights directly from innovations', color='g')
         ax0.grid()
         ax0.set_ylim(0,1.4)
-        plt.legend(loc=7)
+        #plt.legend(loc=7)
+        ax0.set_xlabel('Particle ID')
         
         ax1 = ax0.twinx()
         ax1.plot(distances[indices_sorted_by_observation], label="distance")
-        ax1.set_ylabel('Distance from observation', color='b')
+        ax1.set_ylabel('Innovations', color='b')
         
         plt.title("Sorted distances from observation")
 
