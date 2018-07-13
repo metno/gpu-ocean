@@ -41,6 +41,10 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     
     def init(self, driftersPerOceanModel=1):
         self.driftersPerOceanModel = driftersPerOceanModel
+        self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
+        
+        #TODO: if more than one dri, distribute drifters equally around in the domain.
+
         
         for i in range(self.numParticles+1):
             self.particles[i] = CDKLM16.CDKLM16(self.cl_ctx, \
