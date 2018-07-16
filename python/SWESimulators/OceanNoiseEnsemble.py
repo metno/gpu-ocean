@@ -99,6 +99,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
                 newPos[:,:] = obsTrueDrifter
             else:
+                # Copy the drifter position from the particle that is resampled
                 newPos[:,:] = positions[index,:]
             
             #print "\t", (index, positions[index,:], newPos)
