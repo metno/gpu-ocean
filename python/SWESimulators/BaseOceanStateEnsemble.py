@@ -56,8 +56,9 @@ class BaseOceanStateEnsemble(object):
         self.prev_observation = None
         
         
-        # Observations are stored as [[t, x, y]]
-        self.observations = np.empty((0,3))
+        # Observations are stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
+        # where n is time step and i is drifter
+        self.observedDrifterPositions = []
         
         # Arrays to store statistical info for selected grid cells:
         self.varianceUnderDrifter_eta = []
@@ -191,82 +192,116 @@ class BaseOceanStateEnsemble(object):
         pass
         
         
-    def _addObservation(self, observedDrifterPosition):
+    def _addObservation(self, observedDrifterPositions):
+        # Observations are stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
+        # where n is time step and i is drifter
+        
         print "Adding observation for time " + str(self.t)
-        self.observations = np.append(self.observations, np.array([[self.t, observedDrifterPosition[0], observedDrifterPosition[1]]]), axis=0)
+        self.observedDrifterPositions.append([self.t, observedDrifterPositions])
+
         
     def observeDrifters(self):
         """
         Observing the drifters in all particles
         """
-        drifterPositions = np.empty((0,2))
-        for oceanState in self.particles[:self.obs_index]:
-            drifterPositions = np.append(drifterPositions, 
-                                         oceanState.drifters.getDrifterPositions(),
-                                         axis=0)
+        drifterPositions = np.empty((self.getNumParticles(), self.driftersPerOceanModel, 2))
+        for p in range(self.getNumParticles()):
+            drifterPositions[p,:,:] = self.particles[p].drifters.getDrifterPositions()
         return drifterPositions
     
     def observeParticles(self):
         """
         Applying the observation operator on each particle.
+
+        Structure on the output:
+        [
+        particle 1:  [u_1, v_1], ... , [u_D, v_D],
+        particle 2:  [u_1, v_1], ... , [u_D, v_D],
+        particle Ne: [u_1, v_1], ... , [u_D, v_D]
+        ]
+        numpy array with dimensions (particles, drifters, 2)
+
+        The two values per particle drifter is either velocity or position, depending on 
+        the observation type.
         """
         if self.observation_type == dautils.ObservationType.DrifterPosition:
             return self.observeDrifters()
 
         elif self.observation_type == dautils.ObservationType.UnderlyingFlow or \
              self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
-            #print "ObservationType.UnderlyingFlow"
-            loc = self.observeTrueState()[:2]
-            id_x = np.int(np.floor(loc[0]/self.dx))
-            id_y = np.int(np.floor(loc[1]/self.dy))
-            
-            velocities = np.empty((self.numParticles,2))
-            depth = self.particles[0].downloadBathymetry()[1][id_y, id_x]
-            for p in range(self.numParticles):            
-                # Downloading ocean state without ghost cells
-                eta, hu, hv = self.downloadParticleOceanState(p)
-                velocities[p,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
-                velocities[p,1] = hv[id_y, id_x]/(depth + eta[id_y, id_x])
 
-            return velocities
+            observedState = np.empty((self.getNumParticles(), \
+                                      self.driftersPerOceanModel, 2))
+
+            trueState = self.observeTrueState()
+            # trueState = [[x1, y1, u1, v1], ..., [xD, yD, uD, vD]]
+
+            for p in range(self.numParticles):
+                # Downloading ocean state without ghost cells
+                Hi = self.particles[0].downloadBathymetry()[1]
+                eta, hu, hv = self.downloadParticleOceanState(p)
+
+                for d in range(self.driftersPerOceanModel):
+                    id_x = np.int(np.floor(trueState[d,2]/self.dx))
+                    id_y = np.int(np.floor(trueState[d,3]/self.dy))
+
+                    depth = Hi[id_y, id_x]
+                    observedState[p,d,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
+                    observedState[p,d,1] = hv[id_y, id_x]/(depth + eta[id_y, id_x])
+            return observedState
         
     def observeTrueDrifters(self):
         """
         Observing the drifters in the syntetic true state.
         """
-        observation = self.particles[self.obs_index].drifters.getDrifterPositions()
-        return observation[0,:]
+        return self.particles[self.obs_index].drifters.getDrifterPositions()
+        
         
     def observeTrueState(self):
         """
         Applying the observation operator on the syntetic true state.
+
+        Returns a numpy array with D drifter positions and drifter velocities
+        [[x_1, y_1, u_1, v_1], ... , [x_D, y_D, u_D, v_D]]
+        If the observation operator is drifter positions, u and v are not included.
         """
-        if self.observations[-1,0] != self.t:
+        #print "(Remember to comment in this one again) CHECKIFALREADYOBSERVED"
+        if self.observedDrifterPositions[-1][0] != self.t:
             self._addObservation(self.observeTrueDrifters())
-            
+
         if self.observation_type == dautils.ObservationType.DrifterPosition:
-            return self.observations[-1,1:]
-            
+            return self.observedDrifterPositions[-1][1]
+
         elif self.observation_type == dautils.ObservationType.UnderlyingFlow:
-            dt = self.observations[-1,0] - self.observations[-2,0]
-            dx = self.observations[-1,1] - self.observations[-2,1]
-            dy = self.observations[-1,2] - self.observations[-2,2]
-            u = dx/dt
-            v = dy/dt
-            return np.array([self.observations[-1,1], self.observations[-1,2], u, v])
-        
+            dt = self.observedDrifterPositions[-1][0] - self.observedDrifterPositions[-2][0]
+            trueState = np.empty((self.driftersPerOceanModel, 4))
+            for d in range(self.driftersPerOceanModel):
+                x = self.observedDrifterPositions[-1][1][d,0]
+                y = self.observedDrifterPositions[-1][1][d,1]
+                dx = x - self.observedDrifterPositions[-2][1][d, 0]
+                dy = y - self.observedDrifterPositions[-2][1][d, 1]
+                u = dx/dt
+                v = dy/dt
+                trueState[d,:] = np.array([x, y , u, v])
+            return trueState
+
         elif self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
-            id_x = np.int(np.floor(self.observations[-1,1]/self.dx))
-            id_y = np.int(np.floor(self.observations[-1,2]/self.dy))
-            
-            depth = self.particles[self.obs_index].downloadBathymetry()[1][id_y, id_x]
-            
-            # Downloading ocean state without ghost cells
-            eta, hu, hv = self.downloadParticleOceanState(self.obs_index)
-            u = hu[id_y, id_x]/(depth + eta[id_y, id_x])
-            v = hv[id_y, id_x]/(depth + eta[id_y, id_x])
-            
-            return np.array([self.observations[-1, 1], self.observations[-1,2], u, v])
+            trueState = np.empty((self.driftersPerOceanModel, 4))
+            for d in range(self.driftersPerOceanModel):
+                x = self.observedDrifterPositions[-1][1][d,0]
+                y = self.observedDrifterPositions[-1][1][d,1]
+                id_x = np.int(np.floor(x/self.dx))
+                id_y = np.int(np.floor(y/self.dy))
+
+                depth = self.particles[self.obs_index].downloadBathymetry()[1][id_y, id_x]
+
+                # Downloading ocean state without ghost cells
+                eta, hu, hv = self.downloadParticleOceanState(self.obs_index)
+                u = hu[id_y, id_x]/(depth + eta[id_y, id_x])
+                v = hv[id_y, id_x]/(depth + eta[id_y, id_x])
+
+                trueState[d,:] = np.array([x, y, u, v])
+            return trueState
 
     def step(self, t, stochastic_particles=True, stochastic_truth=True):
         """
@@ -293,40 +328,46 @@ class BaseOceanStateEnsemble(object):
         return self.t
     
     def getDistances(self, obs=None):
-        if obs is None:
-            obs = self.observeTrueDrifters()
-        distances = np.empty(0)
-        counter = 0
-        for oceanState in self.particles[:self.obs_index]:
-            distancesFromOceanState = oceanState.drifters.getDistances(obs)
-            distances = np.append(distances,
-                                  distancesFromOceanState,
-                                  axis=0)
-            counter += 1
-        return distances
+        """
+        Shows the distance that each drifter is from the observation in the following structure:
+        [
+        particle 1: [dist_drifter_1, ..., dist_drifter_D], 
+        ...
+        particle Ne: [dist_drifter_1, ..., dist_drifter_D], 
+        ]
+        """
+        return np.linalg.norm(self.observeTrueDrifters() - self.observeDrifters(),  axis=2)
     
     def getInnovations(self, obs=None):
         """
-        Obtaining the observation vectors, y^m - H(\psi_i^m)
+        Obtaining the innovation vectors, y^m - H(\psi_i^m)
+
+        Returns a numpy array with dimensions (particles, drifters, 2)
+
         """
         if obs is None:
-            obs = self.observeTrueState()
-        if self.observation_type == dautils.ObservationType.DrifterPosition:
-            innovations = np.empty((0,2))
-            counter = 0
-            for oceanState in self.particles[:-1]:
-                innovationsFromOceanState = oceanState.drifters.getInnovations(obs)
-                innovations = np.append(innovations,
-                                        innovationsFromOceanState,
-                                        axis=0)
-                counter += 1
-            return innovations
-        elif self.observation_type == dautils.ObservationType.UnderlyingFlow or \
-             self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
-            observed_particles = self.observeParticles()
-            observed_velocity = obs[2:]
-            return observed_velocity - observed_particles
+            trueState = self.observeTrueState()
+
+        if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
+           self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
+            # Change structure of trueState
+            # from: [[x1, y1, u1, v1], ..., [xD, yD, uD, vD]]
+            # to:   [[u1, v1], ..., [uD, vD]]
+            trueState = trueState[:, 2:]
+
+        #else, structure of trueState is already fine: [[x1, y1], ..., [xD, yD]]
+
+        innovations = trueState - self.observeParticles()
+        return innovations
             
+    def getInnovationNorms(self, obs=None):
+        
+        # Innovations have the structure 
+        # [ particle: [drifter: [x, y] ] ], or
+        # [ particle: [drifter: [u, v] ] ]
+        # We simply gather find the norm for each particle:
+        innovations = self.getInnovations(obs=obs)
+        return np.linalg.norm(np.linalg.norm(innovations, axis=2), axis=1)
             
     def printMaxOceanStates(self):
         simNo = 0

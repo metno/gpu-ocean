@@ -41,10 +41,6 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     
     def init(self, driftersPerOceanModel=1):
         self.driftersPerOceanModel = driftersPerOceanModel
-        self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
-        
-        #TODO: if more than one dri, distribute drifters equally around in the domain.
-
         
         for i in range(self.numParticles+1):
             self.particles[i] = CDKLM16.CDKLM16(self.cl_ctx, \
@@ -59,12 +55,6 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             
             if self.initialization_variance_factor_ocean_field != 0.0:
                 self.particles[i].perturbState(q0_scale=self.initialization_variance_factor_ocean_field)
-            
-            if i == self.numParticles:
-                # All particles done, only the observation is left,
-                # and for the observation we only use one drifter, regardless of the
-                # number in the other particles.
-                driftersPerOceanModel = 1
             
             drifters = GPUDrifterCollection.GPUDrifterCollection(self.cl_ctx, driftersPerOceanModel,
                                              observation_variance=self.observation_variance,
@@ -95,8 +85,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         for i in range(self.getNumParticles()):
             index = newSampleIndices[i]
             #print "(particle no, position, old direction, new direction): "
-            if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
-               self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
+            if self.observation_type == dautils.ObservationType.UnderlyingFlow:
                 newPos[:,:] = obsTrueDrifter
             else:
                 # Copy the drifter position from the particle that is resampled
