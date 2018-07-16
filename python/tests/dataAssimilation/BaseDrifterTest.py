@@ -27,7 +27,7 @@ class BaseDrifterTest(unittest.TestCase):
     
     def setUp(self):
         self.numDrifters = 3
-        self.observationVariance = 0.5
+        self.observationVariance = 0.25
         self.boundaryCondition = Common.BoundaryConditions(2,2,2,2)
         self.smallDrifterSet = None
         # to be initialized by child class with above values
@@ -87,7 +87,7 @@ class BaseDrifterTest(unittest.TestCase):
         defaultDrifterSet = self.resamplingDrifterSet
 
         self.assertEqual(defaultDrifterSet.getNumDrifters(), self.resampleNumDrifters)
-        self.assertEqual(defaultDrifterSet.getObservationVariance(), 0.1)
+        self.assertEqual(defaultDrifterSet.getObservationVariance(), 0.01)
 
         positions = defaultDrifterSet.getDrifterPositions()
         defaultPosition = [0.0, 0.0]
@@ -104,8 +104,10 @@ class BaseDrifterTest(unittest.TestCase):
 
         weight = 1.0/self.resampleNumDrifters
         weights = [weight]*self.resampleNumDrifters
-        self.assertEqual(dautils.getGaussianWeight(defaultDrifterSet.getDistances(), defaultDrifterSet.getObservationVariance()).tolist(), weights)
-        self.assertEqual(dautils.getCauchyWeight(defaultDrifterSet.getDistances(), defaultDrifterSet.getObservationVariance()).tolist(), weights)
+        assertListAlmostEqual(self, defaultDrifterSet.getGaussianWeight(), weights, 6,
+                              'default constructor, Gaussian weights')
+        assertListAlmostEqual(self, defaultDrifterSet.getCauchyWeight(), weights, 6,
+                              'default constructor, Cauchy weights')
         
         # Check boundary condition
         self.assertEqual(defaultDrifterSet.getBoundaryConditions().get(), [1,1,1,1])
@@ -242,6 +244,37 @@ class BaseDrifterTest(unittest.TestCase):
                               [semiDiag, longLine, shortLine], 6,
                               'distances with periodic boundaries in north-south')
 
+    def test_innovations(self):
+        self.set_positions_small_set()
+        zero = 0.0
+        close = 0.2
+        far = -0.8
+
+        fasit = [[close, close], [close, zero], [zero, close]]
+        # smallDrifterSet is initially with periodic boundary conditions
+        assert2DListAlmostEqual(self, self.smallDrifterSet.getInnovations().tolist(), \
+                              fasit, 6,
+                              'innovations with periodic boundaries')
+
+        fasit = [[far, far], [far, zero], [zero, far]]
+        self.smallDrifterSet.setBoundaryConditions(Common.BoundaryConditions(1,1,1,1))
+        assert2DListAlmostEqual(self, self.smallDrifterSet.getInnovations().tolist(), \
+                              fasit, 6,
+                              'innovations with non-periodic boundaries')
+
+        fasit = [[close, far], [close, zero], [zero, far]]
+        self.smallDrifterSet.setBoundaryConditions(Common.BoundaryConditions(1,2,1,2))
+        assert2DListAlmostEqual(self, self.smallDrifterSet.getInnovations().tolist(), \
+                              fasit, 6,
+                              'innovations with periodic boundaries in east-west')
+
+        fasit = [[far, close], [far, zero], [zero, close]]
+        self.smallDrifterSet.setBoundaryConditions(Common.BoundaryConditions(2,1,2,1))
+        assert2DListAlmostEqual(self, self.smallDrifterSet.getInnovations().tolist(), \
+                              fasit, 6,
+                              'innovations with periodic boundaries in north-south')
+        
+        
     def test_collection_mean(self):
         self.set_positions_small_set()
         periodicMean = [1-0.1/3, 1-0.1/3]
@@ -344,7 +377,9 @@ class BaseDrifterTest(unittest.TestCase):
         
     def test_gaussian_weights(self):
         self.set_positions_resampling_set()
-        obtainedWeights = dautils.getGaussianWeight(self.resamplingDrifterSet.getDistances(), self.resamplingDrifterSet.getObservationVariance())
+        obtainedWeights = self.resamplingDrifterSet.getGaussianWeight()
+
+        # ReferenceWeights based Bayes theorem with Gaussian likelihood and the positions selected for the resamplingDrifterSet.
         referenceWeights = [  3.77361928e-01,   1.22511481e-01,   1.26590824e-04,   3.77361928e-01, 1.22511481e-01,   1.26590824e-04]
         assertListAlmostEqual(self, obtainedWeights.tolist(),
                               referenceWeights, 6,
@@ -352,7 +387,8 @@ class BaseDrifterTest(unittest.TestCase):
 
     def test_cauchy_weights(self):
         self.set_positions_resampling_set()
-        obtainedWeights = dautils.getCauchyWeight(self.resamplingDrifterSet.getDistances(), self.resamplingDrifterSet.getObservationVariance())
+        obtainedWeights = self.resamplingDrifterSet.getCauchyWeight()
+        # ReferenceWeights based Bayes theorem with Cauchy likelihood and the positions selected for the resamplingDrifterSet.
         referenceWeights = [0.28413284,  0.16789668,  0.04797048,  0.28413284,  0.16789668,  0.04797048]
         assertListAlmostEqual(self, obtainedWeights.tolist(),
                               referenceWeights, 6,

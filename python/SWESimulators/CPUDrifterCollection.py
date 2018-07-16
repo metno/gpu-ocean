@@ -32,7 +32,7 @@ class CPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
     """
     Class holding the collection of drifters.
     """ 
-    def __init__(self, numDrifters, observation_variance=0.1,
+    def __init__(self, numDrifters, observation_variance=0.01,
                  boundaryConditions=Common.BoundaryConditions(), 
                  domain_size_x=1.0, domain_size_y=1.0):
         """

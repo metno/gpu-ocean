@@ -31,7 +31,7 @@ import BaseDrifterCollection
 
 class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
     def __init__(self, cl_ctx, numDrifters, \
-                 observation_variance=0.1, \
+                 observation_variance=0.01, \
                  boundaryConditions=Common.BoundaryConditions(), \
                  domain_size_x=1.0, domain_size_y=1.0, \
                  cl_queue=None, \

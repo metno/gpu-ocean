@@ -53,6 +53,9 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                                 small_scale_perturbation=True, \
                                                 small_scale_perturbation_amplitude=self.small_scale_perturbation_amplitude)
             
+            if self.initialization_variance_factor_ocean_field != 0.0:
+                self.particles[i].perturbState(q0_scale=self.initialization_variance_factor_ocean_field)
+            
             if i == self.numParticles:
                 # All particles done, only the observation is left,
                 # and for the observation we only use one drifter, regardless of the
@@ -64,12 +67,15 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                              boundaryConditions=self.boundaryConditions,
                                              domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
             
-            initPos = np.random.multivariate_normal(self.midPoint, self.initialization_cov, driftersPerOceanModel)
+            initPos = np.random.multivariate_normal(self.midPoint, self.initialization_cov_drifters, driftersPerOceanModel)
             drifters.setDrifterPositions(initPos)
             #print "drifter particles: ", drifter.getParticlePositions()
             #print "drifter observations: ", drifter.getObservationPosition()
             self.particles[i].attachDrifters(drifters)
-        
+            
+        # Put the initial positions into the observation array
+        self._addObservation(self.observeTrueDrifters())
+
     
 
     def resample(self, newSampleIndices, reinitialization_variance):
@@ -78,12 +84,21 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         Here, the reinitialization_variance input is ignored, meaning that exact
         copies only are resampled.
         """
+        obsTrueDrifter = self.observeTrueDrifters()
         positions = self.observeParticles()
         newPos = np.empty((self.driftersPerOceanModel, 2))
         newOceanStates = [None]*self.getNumParticles()
         for i in range(self.getNumParticles()):
             index = newSampleIndices[i]
-            newPos[:,:] = positions[index,:]
+            #print "(particle no, position, old direction, new direction): "
+            if self.observation_type == dautils.ObservationType.UnderlyingFlow:
+                newPos[:,:] = obsTrueDrifter
+            else:
+                # Copy the drifter position from the particle that is resampled
+                newPos[:,:] = positions[index,:]
+            
+            #print "\t", (index, positions[index,:], newPos)
+
             
             # Download index's ocean state:
             eta0, hu0, hv0 = self.particles[index].download()

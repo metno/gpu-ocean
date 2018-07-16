@@ -34,7 +34,7 @@ class BaseDrifterEnsembleTest(unittest.TestCase):
         self.dt = 1.0
         
         self.numParticles = 3
-        self.observationVariance = 0.5
+        self.observationVariance = 0.25
         self.boundaryCondition = Common.BoundaryConditions(2,2,2,2)
         self.smallParticleSet = None
         # to be initialized by child class with above values
@@ -47,7 +47,7 @@ class BaseDrifterEnsembleTest(unittest.TestCase):
         
         self.resampleNumParticles = 6
         self.resamplingParticleArray = np.zeros((7,2))
-        self.resamplingObservationVariance = 0.1
+        self.resamplingObservationVariance = 0.01
         for i in range(2):
             self.resamplingParticleArray[3*i+0, :] = [0.25, 0.35+i*0.3]
             self.resamplingParticleArray[3*i+1, :] = [0.4,  0.35+i*0.3]
@@ -121,8 +121,8 @@ class BaseDrifterEnsembleTest(unittest.TestCase):
 
         weight = 1.0/self.resampleNumParticles
         weights = [weight]*self.resampleNumParticles
-        self.assertEqual(dautils.getGaussianWeight(defaultParticleSet.getDistances(), defaultParticleSet.getObservationVariance()).tolist(), weights)
-        self.assertEqual(dautils.getCauchyWeight(defaultParticleSet.getDistances(), defaultParticleSet.getObservationVariance()).tolist(), weights)
+        self.assertEqual(defaultParticleSet.getGaussianWeight().tolist(), weights)
+        self.assertEqual(defaultParticleSet.getCauchyWeight().tolist(), weights)
         
         # Check boundary condition
         self.assertEqual(defaultParticleSet.getBoundaryConditions().get(), [1,1,1,1])
@@ -266,7 +266,7 @@ class BaseDrifterEnsembleTest(unittest.TestCase):
         
     def test_gaussian_weights(self):
         self.set_positions_resampling_set()
-        obtainedWeights = dautils.getGaussianWeight(self.resamplingParticleSet.getDistances(), self.resamplingParticleSet.getObservationVariance())
+        obtainedWeights = self.resamplingParticleSet.getGaussianWeight()
         referenceWeights = [  3.77361928e-01,   1.22511481e-01,   1.26590824e-04,   3.77361928e-01, 1.22511481e-01,   1.26590824e-04]
         assertListAlmostEqual(self, obtainedWeights.tolist(),
                               referenceWeights, 6,
@@ -274,7 +274,7 @@ class BaseDrifterEnsembleTest(unittest.TestCase):
 
     def test_cauchy_weights(self):
         self.set_positions_resampling_set()
-        obtainedWeights = dautils.getCauchyWeight(self.resamplingParticleSet.getDistances(), self.resamplingParticleSet.getObservationVariance())
+        obtainedWeights = self.resamplingParticleSet.getCauchyWeight()
         referenceWeights = [0.28413284,  0.16789668,  0.04797048,  0.28413284,  0.16789668,  0.04797048]
         assertListAlmostEqual(self, obtainedWeights.tolist(),
                               referenceWeights, 6,

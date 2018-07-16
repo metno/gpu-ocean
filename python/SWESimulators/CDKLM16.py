@@ -258,9 +258,11 @@ class CDKLM16(Simulator.Simulator):
     
     
     
-    def step(self, t_end=0.0):
+    def step(self, t_end=0.0, apply_stochastic_term=True):
         """
-        Function which steps n timesteps
+        Function which steps n timesteps.
+        apply_stochastic_term: Boolean value for whether the stochastic
+            perturbation (if any) should be applied.
         """
         n = int(t_end / self.dt + 1)
 
@@ -340,7 +342,7 @@ class CDKLM16(Simulator.Simulator):
                         self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
             
             # Perturb ocean state with model error
-            if self.small_scale_perturbation:
+            if self.small_scale_perturbation and apply_stochastic_term:
                 self.small_scale_model_error.perturbSim(self)
             
             # Evolve drifters
@@ -389,6 +391,9 @@ class CDKLM16(Simulator.Simulator):
                            self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
                            self.geoEq_Ly.data, self.geoEq_Ly.pitch )
             
+    
+    def perturbState(self, q0_scale=None):
+        self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
     def downloadBathymetry(self):
         return self.bathymetry.download(self.cl_queue)

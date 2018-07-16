@@ -364,8 +364,8 @@ class EnsembleAnimator:
 
         
         # Drifters
-        drifterPositions = ensemble.observeParticles()
-        trueDrifterPosition = ensemble.observeTrueState()
+        drifterPositions = ensemble.observeDrifters()
+        trueDrifterPosition = ensemble.observeTrueDrifters()
         
         self.true_drifters.set_offsets(drifterPositions)
         self.true_observations.set_offsets(trueDrifterPosition)

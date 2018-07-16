@@ -151,7 +151,16 @@ class BaseDrifterEnsemble(object):
         return self.sim.step(t)
     
     def getDistances(self, obs=None):
-        return self.drifters.getDistances()
+        return self.drifters.getDistances(obs)
+    
+    def getInnovations(self, obs=None):
+        return self.drifters.getInnovations(obs)
+    
+    def getGaussianWeight(self, distances=None, normalize=True):
+        return self.drifters.getGaussianWeight(distances=distances, normalize=normalize)
+    
+    def getCauchyWeight(self, distances=None, normalize=True):
+        return self.drifters.getCauchyWeight(distances=distances, normalize=normalize)
        
     def resample(self, newSampleIndices, reinitialization_variance):
         self.drifters.resample(newSampleIndices, reinitialization_variance)

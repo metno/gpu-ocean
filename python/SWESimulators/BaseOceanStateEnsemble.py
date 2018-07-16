@@ -34,12 +34,11 @@ import WindStress
 import Common
 import DataAssimilationUtils as dautils
 
-
 class BaseOceanStateEnsemble(object):
 
     __metaclass__ = abc.ABCMeta
         
-    def __init__(self, numParticles, cl_ctx):
+    def __init__(self, numParticles, cl_ctx, observation_type=dautils.ObservationType.DrifterPosition):
         
         self.cl_ctx = cl_ctx
         
@@ -49,6 +48,17 @@ class BaseOceanStateEnsemble(object):
         self.obs_index = self.numParticles
         
         self.simType = 'CDKLM16'
+        
+        self.t = 0.0
+        
+        dautils.ObservationType._assert_valid(observation_type)
+        self.observation_type = observation_type
+        self.prev_observation = None
+        
+        
+        # Observations are stored as [[t, x, y]]
+        self.observations = np.empty((0,3))
+        
         
     def cleanUp(self):
         for oceanState in self.particles:
@@ -64,14 +74,6 @@ class BaseOceanStateEnsemble(object):
         self.dx = dx
         self.dy = dy
         self.dt = dt
-        
-        # Default values for now:
-        self.initialization_variance = 10*dx
-        self.observation_variance = 5*self.dx
-        self.observation_cov = self.observation_variance*np.eye(2)
-        
-        self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
-        self.initialization_cov = np.eye(2)*self.initialization_variance
         
         self.boundaryConditions = boundaryConditions
         
@@ -123,22 +125,46 @@ class BaseOceanStateEnsemble(object):
         self.wind = wind
     
     def setStochasticVariables(self, 
-                               observation_variance_factor=5,
-                               initialization_variance_factor=10,
-                               small_scale_perturbation_amplitude=0):
+                               observation_variance = None, 
+                               observation_variance_factor = 5.0,
+                               small_scale_perturbation_amplitude = 0.0,
+                               initialization_variance_factor_drifter_position = 0.0,
+                               initialization_variance_factor_ocean_field = 0.0 
+                              ):
 
-        # Observation_variance_per_drifter
-        self.observation_variance = observation_variance_factor*self.dx
-        self.observation_cov = self.observation_variance*np.eye(2)
-
-        self.initialization_variance = initialization_variance_factor*self.dx
+        # Setting observation variance:
+        self.observation_variance = observation_variance
+        if self.observation_variance is None:
+            self.observation_variance = (observation_variance_factor*self.dx)**2
+        
+        # Build observation covariance matrix:
+        self.observation_cov = None
+        self.observation_cov_inverse = None
+        if np.isscalar(self.observation_variance):
+            self.observation_cov = np.eye(2)*self.observation_variance
+            self.observation_cov_inverse = np.eye(2)*(1.0/self.observation_variance)
+        else:
+            print "type(self.observation_variance): ", type(self.observation_variance)
+            # Assume that we have a correctly shaped matrix here
+            self.observation_cov = self.observation_variance
+            self.observation_cov_inverse = np.linalg.inv(self.observation_cov)
+        
         
         # TODO: Check if this variable is used anywhere.
         # Should not be defined in the Base class.
-        self.initialization_cov = np.eye(2)*self.initialization_variance
+        self.initialization_variance_drifters = initialization_variance_factor_drifter_position*self.dx
+        self.initialization_cov_drifters = np.eye(2)*self.initialization_variance_drifters
+        self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
         
         self.small_scale_perturbation_amplitude = small_scale_perturbation_amplitude
     
+        # When initializing an ensemble, each member should be perturbed so that they 
+        # have slightly different starting point.
+        # This factor should be multiplied to the small_scale_perturbation_amplitude for that 
+        # perturbation
+        self.initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field
+        
+        
     @abc.abstractmethod
     def init(self, driftersPerOceanModel=1):
         # Initialize ocean models
@@ -152,10 +178,14 @@ class BaseOceanStateEnsemble(object):
         # Resample and possibly perturb
         pass
         
-    
-    def observeParticles(self):
+        
+    def _addObservation(self, observedDrifterPosition):
+        print "Adding observation for time " + str(self.t)
+        self.observations = np.append(self.observations, np.array([[self.t, observedDrifterPosition[0], observedDrifterPosition[1]]]), axis=0)
+        
+    def observeDrifters(self):
         """
-        Applying the observation operator on each particle.
+        Observing the drifters in all particles
         """
         drifterPositions = np.empty((0,2))
         for oceanState in self.particles[:self.obs_index]:
@@ -164,25 +194,71 @@ class BaseOceanStateEnsemble(object):
                                          axis=0)
         return drifterPositions
     
-    def observeTrueState(self):
+    def observeParticles(self):
         """
-        Applying the observation operator on the syntetic true state
+        Applying the observation operator on each particle.
+        """
+        if self.observation_type == dautils.ObservationType.DrifterPosition:
+            return self.observeDrifters()
+
+        elif self.observation_type == dautils.ObservationType.UnderlyingFlow:
+            #print "ObservationType.UnderlyingFlow"
+            loc = self.observeTrueState()[:2]
+            id_x = np.int(np.floor(loc[0]/self.dx))
+            id_y = np.int(np.floor(loc[1]/self.dy))
+            
+            velocities = np.empty((self.numParticles,2))
+            depth = self.particles[0].downloadBathymetry()[1][id_y + 2, id_x + 2]
+            for p in range(self.numParticles):
+                eta, hu, hv = self.downloadParticleOceanState(p)
+                velocities[p,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
+                velocities[p,1] = hv[id_y, id_x]/(depth + eta[id_y, id_x])
+
+            return velocities
+        
+    def observeTrueDrifters(self):
+        """
+        Observing the drifters in the syntetic true state.
         """
         observation = self.particles[self.obs_index].drifters.getDrifterPositions()
         return observation[0,:]
         
-    def step(self, t):
+    def observeTrueState(self):
+        """
+        Applying the observation operator on the syntetic true state.
+        """
+        if self.observations[-1,0] != self.t:
+            self._addObservation(self.observeTrueDrifters())
+        
+        if self.observation_type == dautils.ObservationType.DrifterPosition:
+            return self.observations[-1,1:]
+            
+        elif self.observation_type == dautils.ObservationType.UnderlyingFlow:
+            dt = self.observations[-1,0] - self.observations[-2,0]
+            dx = self.observations[-1,1] - self.observations[-2,1]
+            dy = self.observations[-1,2] - self.observations[-2,2]
+            u = dx/dt
+            v = dy/dt
+            return np.array([self.observations[-1,1], self.observations[-1,2], u, v])
+
+    def step(self, t, apply_stochastic_term=True):
+        """
+        Function which makes all particles step until time t.
+        apply_stochastic_term: Boolean value for whether the stochastic
+            perturbation (if any) should be applied.
+        """
         simNo = 0
         for oceanState in self.particles:
             #print "Starting sim " + str(simNo)
-            output_t = oceanState.step(t)
+            self.t = oceanState.step(t, \
+                           apply_stochastic_term=apply_stochastic_term)
             #print "Finished sim " + str(simNo)      
             simNo = simNo + 1
-        return output_t
+        return self.t
     
     def getDistances(self, obs=None):
         if obs is None:
-            obs = self.observeTrueState()
+            obs = self.observeTrueDrifters()
         distances = np.empty(0)
         counter = 0
         for oceanState in self.particles[:self.obs_index]:
@@ -192,6 +268,28 @@ class BaseOceanStateEnsemble(object):
                                   axis=0)
             counter += 1
         return distances
+    
+    def getInnovations(self, obs=None):
+        """
+        Obtaining the observation vectors, y^m - H(\psi_i^m)
+        """
+        if obs is None:
+            obs = self.observeTrueState()
+        if self.observation_type == dautils.ObservationType.DrifterPosition:
+            innovations = np.empty((0,2))
+            counter = 0
+            for oceanState in self.particles[:-1]:
+                innovationsFromOceanState = oceanState.drifters.getInnovations(obs)
+                innovations = np.append(innovations,
+                                        innovationsFromOceanState,
+                                        axis=0)
+                counter += 1
+            return innovations
+        elif self.observation_type == dautils.ObservationType.UnderlyingFlow:
+            observed_particles = self.observeParticles()
+            observed_velocity = obs[2:]
+            return observed_velocity - observed_particles
+            
             
     def printMaxOceanStates(self):
         simNo = 0
@@ -205,7 +303,53 @@ class BaseOceanStateEnsemble(object):
             simNo = simNo + 1
     
 
-                    
+    def getGaussianWeight(self, innovations=None, normalize=True):
+        """
+        Calculates a weight associated to every particle, based on its innovation vector, using 
+        Gaussian uncertainty for the observation.
+        """
+        
+        if innovations is None:
+            innovations = self.getInnovations()
+        observationVariance = self.getObservationVariance()
+        Rinv = None
+
+        weights = np.zeros(innovations.shape[0])
+        if len(innovations.shape) == 1:
+            weights = (1.0/np.sqrt(2*np.pi*observationVariance))* \
+                    np.exp(- (innovations**2/(2*observationVariance)))
+
+        else:
+            Ne = self.getNumParticles()
+            Ny = innovations.shape[1]
+
+            Rinv = self.observation_cov_inverse
+
+            for i in range(Ne):
+                inn = innovations[i,:]
+                weights[i] = (1/(2*np.pi*np.linalg.det(Rinv)))*np.exp(-0.5*np.dot(inn, np.dot(Rinv, inn.transpose())))
+
+        if normalize:
+            return weights/np.sum(weights)
+        return weights
+    
+    def getCauchyWeight(self, distances=None, normalize=True):
+        """
+        Calculates a weight associated to every particle, based on its distance from the observation, 
+        using Cauchy distribution based on the uncertainty of the position of the observation.
+        This distribution should be used if wider tails of the distribution is beneficial.
+        """
+        
+        if distances is None:
+            distances = self.getDistances()
+        observationVariance = self.getObservationVariance()
+            
+        weights = 1.0/(np.pi*np.sqrt(observationVariance)*(1 + (distances**2/observationVariance)))
+        if normalize:
+            return weights/np.sum(weights)
+        return weights
+    
+    
             
     def getEnsembleMean(self):
         return None
@@ -303,12 +447,15 @@ class BaseOceanStateEnsemble(object):
 
         numParticlePlots = min(self.getNumParticles(), 5)
         numPlots = numParticlePlots + 3
-        fig = plt.figure(figsize=(5, 2*numPlots))
+        plotCols = 4
+        fig = plt.figure(figsize=(7, 2*numPlots))
 
         eta_true, hu_true, hv_true = self.downloadTrueOceanState()
         fieldRanges = np.zeros(6) # = [eta_min, eta_max, hu_min, hu_max, hv_min, hv_max]
         
         self._updateMinMax(eta_true, hu_true, hv_true, fieldRanges)
+        X,Y = np.meshgrid(np.arange(0, self.nx, 1.0), np.arange(0, self.ny, 1.0))
+
 
         eta_mean = np.zeros_like(eta_true)
         hu_mean = np.zeros_like(hu_true)
@@ -354,69 +501,82 @@ class BaseOceanStateEnsemble(object):
         eta_lim = np.max(np.abs(fieldRanges[:2]))
         huv_lim = np.max(np.abs(fieldRanges[2:]))
         
-        plt.subplot(numPlots, 3, 1)
+        plt.subplot(numPlots, plotCols, 1)
         plt.imshow(eta_true, origin='lower', vmin=-eta_lim, vmax=eta_lim)
         plt.contour(eta_true, levels=eta_levels, colors='black', alpha=0.5)
         plt.title("true eta")
-        plt.subplot(numPlots, 3, 2)
+        plt.subplot(numPlots, plotCols, 2)
         plt.imshow(hu_true, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hu_true, levels=hu_levels, colors='black', alpha=0.5)
         plt.title("true hu")
-        plt.subplot(numPlots, 3, 3)
+        plt.subplot(numPlots, plotCols, 3)
         plt.imshow(hv_true, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hv_true, levels=hv_levels, colors='black', alpha=0.5)
         plt.title("true hv")
-
-        plt.subplot(numPlots, 3, 4)
+        plt.subplot(numPlots, plotCols, 4)
+        plt.quiver(X, Y, hu_true, hv_true)
+        plt.title("velocity field")
+        
+        plt.subplot(numPlots, plotCols, 5)
         plt.imshow(eta_mean, origin='lower', vmin=-eta_lim, vmax=eta_lim)
         plt.contour(eta_mean, levels=eta_levels, colors='black', alpha=0.5)
         plt.title("mean eta")
-        plt.subplot(numPlots, 3, 5)
+        plt.subplot(numPlots, plotCols, 6)
         plt.imshow(hu_mean, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hu_mean, levels=hu_levels, colors='black', alpha=0.5)
         plt.title("mean hu")
-        plt.subplot(numPlots, 3, 6)
+        plt.subplot(numPlots, plotCols, 7)
         plt.imshow(hv_mean, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hv_mean, levels=hv_levels, colors='black', alpha=0.5)
         plt.title("mean hv")
+        plt.subplot(numPlots, plotCols, 8)
+        plt.quiver(X, Y, hu_mean, hv_mean)
+        plt.title("velocity field")
         
         mrse_max = max(np.max(eta_mrse), np.max(hu_mrse), np.max(hv_mrse))
         mrse_min = min(np.min(eta_mrse), np.min(hu_mrse), np.min(hv_mrse))
         mrse_levels = np.linspace(mrse_max, mrse_min, 10)
         
-        plt.subplot(numPlots, 3, 7)
+        plt.subplot(numPlots, plotCols, 9)
         plt.imshow(eta_mrse, origin='lower', vmin=-eta_lim, vmax=eta_lim)
         plt.contour(eta_mrse, levels=eta_levels, colors='black', alpha=0.5)
         plt.title("MRSE eta")
-        plt.subplot(numPlots, 3, 8)
+        plt.subplot(numPlots, plotCols, 10)
         plt.imshow(hu_mrse, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hu_mrse, levels=hu_levels, colors='black', alpha=0.5)
         plt.title("MRSE hu")
-        plt.subplot(numPlots, 3, 9)
+        plt.subplot(numPlots, plotCols, 11)
         plt.imshow(hv_mrse, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         #plt.colorbar() # TODO: Find a nice way to include colorbar to this plot...
         plt.contour(hv_mrse, levels=hv_levels, colors='black', alpha=0.5)
         plt.title("MRSE hv")
 
         for p in range(numParticlePlots):
-            plt.subplot(numPlots, 3, 10+p*3)
+            plt.subplot(numPlots, plotCols, 13+p*plotCols)
             plt.imshow(eta[p], origin='lower', vmin=-eta_lim, vmax=eta_lim)
             plt.contour(eta[p], levels=eta_levels, colors='black', alpha=0.5)
             plt.title("particle eta")
-            plt.subplot(numPlots, 3, 10+p*3 + 1)
+            plt.subplot(numPlots, plotCols, 13+p*plotCols + 1)
             plt.imshow(hu[p], origin='lower', vmin=-huv_lim, vmax=huv_lim)
             plt.contour(hu[p], levels=hu_levels, colors='black', alpha=0.5)
             plt.title("particle hu")
-            plt.subplot(numPlots, 3, 10+p*3 + 2)
+            plt.subplot(numPlots, plotCols, 13+p*plotCols + 2)
             plt.imshow(hv[p], origin='lower', vmin=-huv_lim, vmax=huv_lim)
             plt.contour(hv[p], levels=hv_levels, colors='black', alpha=0.5)
             plt.title("particle hv")
-
+            plt.subplot(numPlots, plotCols, 13+p*plotCols + 3)
+            plt.quiver(X, Y, hu[p], hv[p])
+            plt.title("velocity field")
+            
+        plt.axis('tight')
     
     def plotDistanceInfo(self, title=None):
         """
         Utility function for generating informative plots of the ensemble relative to the observation
-        """    
+        """
+        if self.observation_type == dautils.ObservationType.UnderlyingFlow:
+            return self.plotVelocityInfo(title=title)
+            
         fig = plt.figure(figsize=(10,6))
         gridspec.GridSpec(2, 3)
         
@@ -445,8 +605,8 @@ class BaseOceanStateEnsemble(object):
         
         # With observation 
         x = np.linspace(0, max(self.getDomainSizeX(), self.getDomainSizeY()), num=100)
-        cauchy_pdf = dautils.getCauchyWeight(x, obs_var, normalize=False)
-        gauss_pdf = dautils.getGaussianWeight(x, obs_var, normalize=False)
+        cauchy_pdf = self.getCauchyWeight(x, normalize=False)
+        gauss_pdf = self.getGaussianWeight(x, normalize=False)
         plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
         plt.plot(x, gauss_pdf, 'g', label="obs Gauss pdf")
         plt.legend()
@@ -454,8 +614,8 @@ class BaseOceanStateEnsemble(object):
         
         # PLOT SORTED DISTANCES FROM OBSERVATION
         ax0 = plt.subplot2grid((2,3), (1,0), colspan=3)
-        cauchyWeights = dautils.getCauchyWeight(distances, obs_var)
-        gaussWeights = dautils.getGaussianWeight(distances, obs_var)
+        cauchyWeights = self.getCauchyWeight()
+        gaussWeights = self.getGaussianWeight()
         indices_sorted_by_observation = distances.argsort()
         ax0.plot(cauchyWeights[indices_sorted_by_observation]/np.max(cauchyWeights), 'r', label="Cauchy weight")
         ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Gauss weight")
@@ -472,4 +632,83 @@ class BaseOceanStateEnsemble(object):
 
         if title is not None:
             plt.suptitle(title, fontsize=16)
+        return fig
+            
+    def plotVelocityInfo(self, title=None):
+        """
+        Utility function for generating informative plots of the ensemble relative to the observation
+        """
+        
+        fig = plt.figure(figsize=(10,6))
+        gridspec.GridSpec(2, 3)
+        
+        # PLOT POSITIONS OF PARTICLES AND OBSERVATIONS
+        ax = plt.subplot2grid((2,3), (0,0), polar=True, axisbg='#ffffff')
+        
+        max_r = 0
+        observedParticles = self.observeParticles()
+        for p in range(self.numParticles):
+            u, v = observedParticles[p,0], observedParticles[p,1]
+            r = np.sqrt(u**2 + v**2)
+            max_r = max(max_r, r)
+            theta = np.arctan(v/u)
+            if (u < 0):
+                theta += np.pi
+            arr1 = plt.arrow(theta, 0, 0, r, alpha = 0.5, length_includes_head=True,
+                     edgecolor = 'green', facecolor = 'green', zorder = 5)
+        
+        obs_u, obs_v = self.observeTrueState()[2],self.observeTrueState()[3]
+        obs_r = np.sqrt(obs_u**2 + obs_v**2)
+        max_r = max(max_r, obs_r)
+        obs_theta = np.arctan(obs_v/obs_u)
+        if (obs_u < 0):
+            obs_theta += np.pi
+        arr1 = plt.arrow(obs_theta, 0, 0, obs_r, alpha = 0.5, length_includes_head=True, 
+                 edgecolor = 'red', facecolor = 'red', zorder = 5)
+        
+        
+        #ax.plot(theta, r, color='#ee8d18', lw=3)
+        ax.set_rmax(max_r*1.2)
+        plt.grid(True)
+
+        
+        # PLOT DISCTRIBUTION OF PARTICLE DISTANCES AND THEORETIC OBSERVATION PDF
+        ax0 = plt.subplot2grid((2,3), (0,1), colspan=2)
+        innovations = self.getInnovations()
+        distances = np.linalg.norm(innovations, axis=1)
+        obs_var = self.getObservationVariance()
+        plt.hist(distances, bins=30, \
+                 range=(0, 0.4),\
+                 normed=True, label="particle distances")
+        
+        # With observation 
+        x = np.linspace(0, 0.4, num=100)
+        cauchy_pdf = self.getCauchyWeight(x, normalize=False)
+        gauss_pdf = self.getGaussianWeight(x, normalize=False)
+        plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
+        plt.plot(x, gauss_pdf, 'g', label="obs Gauss pdf")
+        plt.legend()
+        plt.title("Distribution of particle distances from observation")
+        
+        # PLOT SORTED DISTANCES FROM OBSERVATION
+        ax0 = plt.subplot2grid((2,3), (1,0), colspan=3)
+        cauchyWeights = self.getCauchyWeight()
+        gaussWeights = self.getGaussianWeight()
+        indices_sorted_by_observation = distances.argsort()
+        ax0.plot(cauchyWeights[indices_sorted_by_observation]/np.max(cauchyWeights), 'r', label="Cauchy weight")
+        ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Gauss weight")
+        ax0.set_ylabel('Relative weight')
+        ax0.grid()
+        ax0.set_ylim(0,1.4)
+        plt.legend(loc=7)
+        
+        ax1 = ax0.twinx()
+        ax1.plot(distances[indices_sorted_by_observation], label="distance")
+        ax1.set_ylabel('Distance from observation', color='b')
+        
+        plt.title("Sorted distances from observation")
+
+        if title is not None:
+            plt.suptitle(title, fontsize=16)
+        return fig
             

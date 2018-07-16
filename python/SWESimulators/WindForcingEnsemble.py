@@ -69,16 +69,19 @@ class WindForcingEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                              observation_variance=self.observation_variance,
                                              boundaryConditions=self.boundaryConditions,
                                              domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
-            initPos = np.random.multivariate_normal(self.midPoint, self.initialization_cov, driftersPerOceanModel)
+            initPos = np.random.multivariate_normal(self.midPoint, self.initialization_cov_drifters, driftersPerOceanModel)
             drifters.setDrifterPositions(initPos)
             #print "drifter particles: ", drifter.getParticlePositions()
             #print "drifter observations: ", drifter.getObservationPosition()
             self.particles[i].attachDrifters(drifters)
         
-    
+        # Put the initial positions into the observation array
+        self._addObservation(self.observeTrueDrifters())
+        print "Added init to observation array"
 
     def resample(self, newSampleIndices, reinitialization_variance):
-        positions = self.observeParticles()
+        obsTrueDrifter = self.observeTrueDrifters()
+        positions = self.observeDrifters()
         windDirection = self.directions
         newWindDirection = np.empty_like(windDirection)
         newPos = np.empty((self.driftersPerOceanModel, 2))
