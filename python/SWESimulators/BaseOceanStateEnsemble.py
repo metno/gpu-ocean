@@ -476,12 +476,12 @@ class BaseOceanStateEnsemble(object):
         return 0.25*min(self.dx/max_u, self.dy/max_v)
             
             
-    def getEnsembleVarAndRMSEUnderDrifter(self, t):
+    def getEnsembleVarAndRMSEUnderDrifter(self, t, allDrifters=False):
         """
         Putting entries in the statistical arrays for single cells.
         """
         
-        drifter_pos = self.observeTrueDrifters()
+        drifter_pos = self.observeTrueDrifters()[0,:]
         
         # downloadTrueOceanState and downloadParticleOceanState gives us interior domain only,
         # and no ghost cells.
@@ -913,8 +913,8 @@ class BaseOceanStateEnsemble(object):
                 ax = plt.subplot2grid((plotRows,3), (2,drifter_id), polar=True, axisbg='#ffffff')
                 self._fillPolarPlot(ax, drifter_id=drifter_id+1, printInfo=printInfo)
 
-        plt.tight_layout()
         if title is not None:
             plt.suptitle(title, fontsize=16)
+        plt.tight_layout()
         return fig
             
