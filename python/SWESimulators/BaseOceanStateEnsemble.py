@@ -764,16 +764,16 @@ class BaseOceanStateEnsemble(object):
         if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
            self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
             return self.plotVelocityInfo(title=title, printInfo=printInfo)
-            
+
         fig = plt.figure(figsize=(10,6))
         gridspec.GridSpec(2, 3)
-        
+
         # PLOT POSITIONS OF PARTICLES AND OBSERVATIONS
         ax0 = plt.subplot2grid((2,3), (0,0))
-        plt.plot(self.observeParticles()[:,0], \
-                 self.observeParticles()[:,1], 'b.')
-        plt.plot(self.observeTrueState()[0], \
-                 self.observeTrueState()[1], 'r.')
+        plt.plot(self.observeParticles()[:,:,0].flatten(), \
+                 self.observeParticles()[:,:,1].flatten(), 'b.')
+        plt.plot(self.observeTrueState()[:,0], \
+                 self.observeTrueState()[:,1], 'r.')
         ensembleMean = self.getEnsembleMean()
         if ensembleMean is not None:
             plt.plot(ensembleMean[0], ensembleMean[1], 'r+')
@@ -782,37 +782,37 @@ class BaseOceanStateEnsemble(object):
         plt.ylabel('y')
         plt.ylim(0, self.getDomainSizeY())
         plt.title("Particle positions")
-        
+
         # PLOT DISCTRIBUTION OF PARTICLE DISTANCES AND THEORETIC OBSERVATION PDF
         ax0 = plt.subplot2grid((2,3), (0,1), colspan=2)
-        distances = self.getDistances()
+        innovations = self.getInnovationNorms()
         obs_var = self.getObservationVariance()
-        plt.hist(distances, bins=30, \
-                 range=(0, max(min(self.getDomainSizeX(), self.getDomainSizeY()), np.max(distances))),\
-                 normed=True, label="particle distances")
-        
+        plt.hist(innovations, bins=30, \
+                 range=(0, max(min(self.getDomainSizeX(), self.getDomainSizeY()), np.max(innovations))),\
+                 normed=True, label="particle innovations")
+
         # With observation 
         x = np.linspace(0, max(self.getDomainSizeX(), self.getDomainSizeY()), num=100)
         gauss_pdf = self.getGaussianWeight(x, normalize=False)
-        plt.plot(x, gauss_pdf, 'g', label="pdf directly from distances")
+        plt.plot(x, gauss_pdf, 'g', label="pdf directly from innovations")
         plt.legend()
-        plt.title("Distribution of particle distances")
-        
+        plt.title("Distribution of particle innovations")
+
         # PLOT SORTED DISTANCES FROM OBSERVATION
         ax0 = plt.subplot2grid((2,3), (1,0), colspan=3)
         gaussWeights = self.getGaussianWeight()
-        indices_sorted_by_observation = distances.argsort()
+        indices_sorted_by_observation = innovations.argsort()
         ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Gauss weight")
         ax0.set_ylabel('Relative weight')
         ax0.grid()
         ax0.set_ylim(0,1.4)
         plt.legend(loc=7)
-        
+
         ax1 = ax0.twinx()
-        ax1.plot(distances[indices_sorted_by_observation], label="distance")
-        ax1.set_ylabel('Distance from observation', color='b')
-        
-        plt.title("Sorted distances from observation")
+        ax1.plot(innovations[indices_sorted_by_observation], label="innovations")
+        ax1.set_ylabel('Innovations from observation', color='b')
+
+        plt.title("Sorted innovations from observation")
 
         if title is not None:
             plt.suptitle(title, fontsize=16)
@@ -875,7 +875,7 @@ class BaseOceanStateEnsemble(object):
         ax0 = plt.subplot2grid((plotRows,3), (0,1), colspan=2)
         innovations = self.getInnovationNorms()
         obs_var = self.getObservationVariance()
-        range_x = np.sqrt(obs_var)*10
+        range_x = np.sqrt(obs_var)*20
 
         # With observation 
         x = np.linspace(0, range_x, num=100)
