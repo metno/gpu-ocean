@@ -242,8 +242,8 @@ class BaseOceanStateEnsemble(object):
                 eta, hu, hv = self.downloadParticleOceanState(p)
 
                 for d in range(self.driftersPerOceanModel):
-                    id_x = np.int(np.floor(trueState[d,2]/self.dx))
-                    id_y = np.int(np.floor(trueState[d,3]/self.dy))
+                    id_x = np.int(np.floor(trueState[d,0]/self.dx))
+                    id_y = np.int(np.floor(trueState[d,1]/self.dy))
 
                     depth = Hi[id_y, id_x]
                     observedState[p,d,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
@@ -389,7 +389,7 @@ class BaseOceanStateEnsemble(object):
         Calculates a weight associated to every particle, based on its innovation vector, using 
         Gaussian uncertainty for the observation.
         """
-        
+
         if innovations is None:
             innovations = self.getInnovations()
         observationVariance = self.getObservationVariance()
@@ -402,14 +402,21 @@ class BaseOceanStateEnsemble(object):
 
         else:
             Ne = self.getNumParticles()
-            Ny = innovations.shape[1]
+            Nd = innovations.shape[1] # number of drifters per particle
+            Ny = innovations.shape[2]
 
             Rinv = self.observation_cov_inverse
+            R = self.observation_cov
 
             for i in range(Ne):
-                inn = innovations[i,:]
-                weights[i] = (1/(2*np.pi*np.linalg.det(Rinv)))*np.exp(-0.5*np.dot(inn, np.dot(Rinv, inn.transpose())))
+                w = 0.0
+                for d in range(Nd):
+                    inn = innovations[i,d,:]
+                    w += np.dot(inn, np.dot(Rinv, inn.transpose()))
 
+                ## TODO: Restructure to do the normalization before applying
+                # the exponential function. The current version is sensitive to overflows.
+                weights[i] = (1.0/((2*np.pi)**Nd*np.linalg.det(R)**(Nd/2.0)))*np.exp(-0.5*w)
         if normalize:
             return weights/np.sum(weights)
         return weights
@@ -811,19 +818,9 @@ class BaseOceanStateEnsemble(object):
             plt.suptitle(title, fontsize=16)
         return fig
             
-    def plotVelocityInfo(self, title=None, printInfo=False):
-        """
-        Utility function for generating informative plots of the ensemble relative to the observation
-        """
-        
-        fig = plt.figure(figsize=(10,6))
-        gridspec.GridSpec(2, 3)
-        
-        # PLOT POSITIONS OF PARTICLES AND OBSERVATIONS
-        ax = plt.subplot2grid((2,3), (0,0), polar=True, axisbg='#ffffff')
-        
+    def _fillPolarPlot(self, ax, drifter_id=0, printInfo=False):
         max_r = 0
-        observedParticles = self.observeParticles()
+        observedParticles = self.observeParticles()[:, drifter_id, :]
         if printInfo: print "observedParticles: \n", observedParticles
         for p in range(self.numParticles):
             u, v = observedParticles[p,0], observedParticles[p,1]
@@ -832,59 +829,91 @@ class BaseOceanStateEnsemble(object):
             theta = np.arctan(v/u)
             if (u < 0):
                 theta += np.pi
-            arr1 = plt.arrow(theta, 0, 0, r, alpha = 0.5, length_includes_head=True,
-                     edgecolor = 'green', facecolor = 'green', zorder = 5)
-        
-        obs_u, obs_v = self.observeTrueState()[2],self.observeTrueState()[3]
+            arr1 = plt.arrow(theta, 0, 0, r, alpha = 0.5, \
+                             length_includes_head=True, \
+                             edgecolor = 'green', facecolor = 'green', zorder = 5)
+
+        obs_u = self.observeTrueState()[drifter_id, 2]
+        obs_v = self.observeTrueState()[drifter_id, 3]
         if printInfo: print "observedTrueState: ", (obs_u, obs_v)
         obs_r = np.sqrt(obs_u**2 + obs_v**2)
         max_r = max(max_r, obs_r)
         obs_theta = np.arctan(obs_v/obs_u)
         if (obs_u < 0):
             obs_theta += np.pi
-        arr1 = plt.arrow(obs_theta, 0, 0, obs_r, alpha = 0.5, length_includes_head=True, 
-                 edgecolor = 'red', facecolor = 'red', zorder = 5)
-        
-        
+        arr1 = plt.arrow(obs_theta, 0, 0, obs_r, alpha = 0.5,\
+                         length_includes_head=True, \
+                         edgecolor = 'red', facecolor = 'red', zorder = 5)
+
+
         #ax.plot(theta, r, color='#ee8d18', lw=3)
         ax.set_rmax(max_r*1.2)
         plt.grid(True)
-        plt.title("Observations from drifter 1")
+        plt.title("Observations from drifter " + str(drifter_id))
 
-        
+
+    def plotVelocityInfo(self, title=None, printInfo=False):
+        """
+        Utility function for generating informative plots of the ensemble relative to the observation
+        """
+
+        fig = None
+        plotRows = 2
+        if self.driftersPerOceanModel == 1:
+            fig = plt.figure(figsize=(10,6))
+        else:
+            fig = plt.figure(figsize=(10,9))
+            plotRows = 3
+        gridspec.GridSpec(plotRows, 3)
+
+
+        # PLOT POSITIONS OF PARTICLES AND OBSERVATIONS
+        ax = plt.subplot2grid((plotRows,3), (0,0), polar=True, axisbg='#ffffff')
+        self._fillPolarPlot(ax, drifter_id=0, printInfo=printInfo)
+
         # PLOT DISCTRIBUTION OF PARTICLE DISTANCES AND THEORETIC OBSERVATION PDF
-        ax0 = plt.subplot2grid((2,3), (0,1), colspan=2)
-        innovations = self.getInnovations()
-        distances = np.linalg.norm(innovations, axis=1)
+        ax0 = plt.subplot2grid((plotRows,3), (0,1), colspan=2)
+        innovations = self.getInnovationNorms()
         obs_var = self.getObservationVariance()
-        plt.hist(distances, bins=30, \
-                 range=(0, 0.15),\
-                 normed=True, label="particle innovations (norm)")
-        
+        range_x = np.sqrt(obs_var)*10
+
         # With observation 
-        x = np.linspace(0, 0.15, num=100)
+        x = np.linspace(0, range_x, num=100)
         gauss_pdf = self.getGaussianWeight(x, normalize=False)
-        plt.plot(x, gauss_pdf, 'g', label="pdf directly from inovations")
+        plt.plot(x, gauss_pdf, 'g', label="pdf directly from innovations")
         plt.legend()
         plt.title("Distribution of particle innovations")
-        
+
+        #hisograms:
+        ax1 = ax0.twinx()
+        ax1.hist(innovations, bins=30, \
+                 range=(0, range_x),\
+                 normed=True, label="particle innovations (norm)")
+
         # PLOT SORTED DISTANCES FROM OBSERVATION
-        ax0 = plt.subplot2grid((2,3), (1,0), colspan=3)
+        ax0 = plt.subplot2grid((plotRows,3), (1,0), colspan=3)
         gaussWeights = self.getGaussianWeight()
-        indices_sorted_by_observation = distances.argsort()
-        ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Weight directly from innovations")
+        indices_sorted_by_observation = innovations.argsort()
+        ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights),\
+                 'g', label="Weight directly from innovations")
         ax0.set_ylabel('Weights directly from innovations', color='g')
         ax0.grid()
         ax0.set_ylim(0,1.4)
         #plt.legend(loc=7)
         ax0.set_xlabel('Particle ID')
-        
+
         ax1 = ax0.twinx()
-        ax1.plot(distances[indices_sorted_by_observation], label="distance")
+        ax1.plot(innovations[indices_sorted_by_observation], label="innovations")
         ax1.set_ylabel('Innovations', color='b')
-        
+
         plt.title("Sorted distances from observation")
 
+        if self.driftersPerOceanModel > 1:
+            for drifter_id in range(3):
+                ax = plt.subplot2grid((plotRows,3), (2,drifter_id), polar=True, axisbg='#ffffff')
+                self._fillPolarPlot(ax, drifter_id=drifter_id+1, printInfo=printInfo)
+
+        plt.tight_layout()
         if title is not None:
             plt.suptitle(title, fontsize=16)
         return fig
