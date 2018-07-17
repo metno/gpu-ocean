@@ -153,6 +153,7 @@ class CDKLM16(Simulator.Simulator):
         if self.h0AsWaterElevation:
             self.bathymetry.waterElevationToDepth(self.cl_data.h0)
         
+        self.constant_equilibrium_depth = np.max(Hi)
         
         self.bc_kernel = Common.BoundaryConditionsArakawaA(self.cl_ctx, \
                                                            self.nx, \
@@ -348,7 +349,8 @@ class CDKLM16(Simulator.Simulator):
             # Evolve drifters
             if self.hasDrifters:
                 self.drifters.drift(self.cl_data.h0, self.cl_data.hu0, \
-                                    self.cl_data.hv0, np.float32(10), \
+                                    self.cl_data.hv0, \
+                                    np.float32(self.constant_equilibrium_depth), \
                                     self.nx, self.ny, self.dx, self.dy, \
                                     local_dt, \
                                     np.int32(2), np.int32(2))
