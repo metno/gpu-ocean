@@ -39,15 +39,17 @@ install:
 script:
   - export LD_PRELOAD="/usr/lib/libtcmalloc.so.4"
   - export OCL_ICD_VENDORS=/usr/local/etc/OpenCL/vendors/pocl.icd
+  - export COVERALLS_SERVICE_NAME=travis-ci
+  - export COVERALLS_REPO_TOKEN=N5DQzXpRwmJg84M0xfeFlDV2D6Zz4yUVt
   - echo "=============== PYTHON TESTS ===============" 
   - cd python/tests
   - python -m unittest discover . "*_test.py"
+#  - python -m pytest -v --cov .. --cov-report term-missing
+#  - coveralls
   - cd ../..
   - echo "================ C++ TESTS ================"
   - mkdir build
   - cd build
-  - export COVERALLS_SERVICE_NAME=travis-ci
-  - export COVERALLS_REPO_TOKEN=N5DQzXpRwmJg84M0xfeFlDV2D6Zz4yUVt
   - cmake -DCOVERALLS=ON -DCMAKE_BUILD_TYPE=Debug ..
   - make
   - export KERNELDIR=../../sim/src/kernels/
