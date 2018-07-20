@@ -909,7 +909,7 @@ class BaseOceanStateEnsemble(object):
         plt.title("Sorted distances from observation")
 
         if self.driftersPerOceanModel > 1:
-            for drifter_id in range(1,min(3, self.driftersPerOceanModel)):
+            for drifter_id in range(1,min(4, self.driftersPerOceanModel)):
                 ax = plt.subplot2grid((plotRows,3), (2,drifter_id-1), polar=True, axisbg='#ffffff')
                 self._fillPolarPlot(ax, drifter_id=drifter_id, printInfo=printInfo)
 
