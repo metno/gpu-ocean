@@ -159,7 +159,7 @@ class Simulator(object):
         Download the latest time step from the GPU
         """
         if interior_domain_only:
-            eta, hu, hv = self.cl_data.download()
+            eta, hu, hv = self.gpu_data.download()
             return eta[self.interior_domain_indices[2]:self.interior_domain_indices[0],  \
                        self.interior_domain_indices[3]:self.interior_domain_indices[1]], \
                    hu[self.interior_domain_indices[2]:self.interior_domain_indices[0],   \
@@ -167,14 +167,14 @@ class Simulator(object):
                    hv[self.interior_domain_indices[2]:self.interior_domain_indices[0],   \
                       self.interior_domain_indices[3]:self.interior_domain_indices[1]]
         else:
-            return self.cl_data.download()
+            return self.gpu_data.download()
     
     
     def downloadPrevTimestep(self):
         """
         Download the second-latest time step from the GPU
         """
-        return self.cl_data.downloadPrevTimestep()
+        return self.gpu_data.downloadPrevTimestep()
         
     def copyState(self, otherSim):
         """
@@ -190,13 +190,13 @@ class Simulator(object):
         
         assert (self.ny, self.nx) == (otherSim.ny, otherSim.nx), "Simulators differ in computational domain. Self (ny, nx): " + str((self.ny, self.nx)) + ", vs other: " + ((otherSim.ny, otherSim.nx))
         
-        self.cl_data.h0.copyBuffer(otherSim.cl_data.h0)
-        self.cl_data.hu0.copyBuffer(otherSim.cl_data.hu0)
-        self.cl_data.hv0.copyBuffer(otherSim.cl_data.hv0)
+        self.gpu_data.h0.copyBuffer(otherSim.gpu_data.h0)
+        self.gpu_data.hu0.copyBuffer(otherSim.gpu_data.hu0)
+        self.gpu_data.hv0.copyBuffer(otherSim.gpu_data.hv0)
         
-        self.cl_data.h1.copyBuffer(otherSim.cl_data.h1)
-        self.cl_data.hu1.copyBuffer(otherSim.cl_data.hu1)
-        self.cl_data.hv1.copyBuffer(otherSim.cl_data.hv1)
+        self.gpu_data.h1.copyBuffer(otherSim.gpu_data.h1)
+        self.gpu_data.hu1.copyBuffer(otherSim.gpu_data.hu1)
+        self.gpu_data.hv1.copyBuffer(otherSim.gpu_data.hv1)
         
         # Question: Which parameters should we require equal, and which 
         # should become equal?
@@ -212,18 +212,18 @@ class Simulator(object):
         """
         Reinitialize simulator with a new ocean state.
         """
-        self.cl_data.h0.upload(eta0)
-        self.cl_data.hu0.upload(hu0)
-        self.cl_data.hv0.upload(hv0)
+        self.gpu_data.h0.upload(eta0)
+        self.gpu_data.hu0.upload(hu0)
+        self.gpu_data.hv0.upload(hv0)
         
         if eta1 is None:
-            self.cl_data.h1.upload(eta0)
-            self.cl_data.hu1.upload(hu0)
-            self.cl_data.hv1.upload(hv0)
+            self.gpu_data.h1.upload(eta0)
+            self.gpu_data.hu1.upload(hu0)
+            self.gpu_data.hv1.upload(hv0)
         else:
-            self.cl_data.h1.upload(eta1)
-            self.cl_data.hu1.upload(hu1)
-            self.cl_data.hv1.upload(hv1)
+            self.gpu_data.h1.upload(eta1)
+            self.gpu_data.hu1.upload(hu1)
+            self.gpu_data.hv1.upload(hv1)
             
     def _set_interior_domain_from_sponge_cells(self):
         """

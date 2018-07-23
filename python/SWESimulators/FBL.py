@@ -135,7 +135,7 @@ class FBL(Simulator.Simulator):
         self.computeEtaKernel.prepare("iiffffffffPiPiPiPi")
         
         self.H = Common.CUDAArray2D(nx, ny, ghost_cells_x, ghost_cells_y, H, self.asym_ghost_cells)
-        self.cl_data = Common.SWEDataArakawaC(nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, self.asym_ghost_cells)
+        self.gpu_data = Common.SWEDataArakawaC(nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, self.asym_ghost_cells)
         
         # Overwrite halo with asymetric ghost cells
         self.nx_halo = np.int32(nx + self.asym_ghost_cells[1] + self.asym_ghost_cells[3])
@@ -216,7 +216,7 @@ class FBL(Simulator.Simulator):
         """
         self.closeNetCDF()
         
-        self.cl_data.release()
+        self.gpu_data.release()
         
         self.H.release()
         gc.collect()
@@ -229,9 +229,9 @@ class FBL(Simulator.Simulator):
                 
         ## Populate all ghost cells before we start
         if self.t == 0:
-            self.bc_kernel.boundaryConditionU(self.cl_data.hu0)
-            self.bc_kernel.boundaryConditionV(self.cl_data.hv0)
-            self.bc_kernel.boundaryConditionEta(self.cl_data.h0)
+            self.bc_kernel.boundaryConditionU(self.gpu_data.hu0)
+            self.bc_kernel.boundaryConditionV(self.gpu_data.hv0)
+            self.bc_kernel.boundaryConditionEta(self.gpu_data.h0)
             
 
         for i in range(0, n):        
@@ -251,39 +251,39 @@ class FBL(Simulator.Simulator):
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
                     self.H.data.gpudata, self.H.pitch, \
-                    self.cl_data.hu0.data.gpudata, self.cl_data.hu0.pitch, \
-                    self.cl_data.hv0.data.gpudata, self.cl_data.hv0.pitch, \
-                    self.cl_data.h0.data.gpudata, self.cl_data.h0.pitch, \
+                    self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
+                    self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
+                    self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch, \
                     self.wind_stress_dev, \
                     self.t)
 
             # Fix U boundary
-            self.bc_kernel.boundaryConditionU(self.cl_data.hu0)
+            self.bc_kernel.boundaryConditionU(self.gpu_data.hu0)
             
             self.computeVKernel.prepared_call(self.global_size, self.local_size, \
                     self.nx, self.ny_halo, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
                     self.H.data.gpudata, self.H.pitch, \
-                    self.cl_data.hu0.data.gpudata, self.cl_data.hu0.pitch, \
-                    self.cl_data.hv0.data.gpudata, self.cl_data.hv0.pitch, \
-                    self.cl_data.h0.data.gpudata, self.cl_data.h0.pitch, \
+                    self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
+                    self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
+                    self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch, \
                     self.wind_stress_dev, \
                     self.t)
 
             # Fix V boundary
-            self.bc_kernel.boundaryConditionV(self.cl_data.hv0)
+            self.bc_kernel.boundaryConditionV(self.gpu_data.hv0)
             
             self.computeEtaKernel.prepared_call(self.global_size, self.local_size, \
                     self.nx, self.ny, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
                     self.H.data.gpudata, self.H.pitch, \
-                    self.cl_data.hu0.data.gpudata, self.cl_data.hu0.pitch, \
-                    self.cl_data.hv0.data.gpudata, self.cl_data.hv0.pitch, \
-                    self.cl_data.h0.data.gpudata, self.cl_data.h0.pitch)
+                    self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
+                    self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
+                    self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch)
 
-            self.bc_kernel.boundaryConditionEta(self.cl_data.h0)
+            self.bc_kernel.boundaryConditionEta(self.gpu_data.h0)
    
             self.t += local_dt
             self.totalNumIterations += 1
