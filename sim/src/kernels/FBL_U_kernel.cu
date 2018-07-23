@@ -20,19 +20,12 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "common.opencl"
+#include "common.cu"
 #include "../config.h"
-
-#ifndef __OPENCL_VERSION__
-#define __kernel
-#define __global
-#define __local
-#define CLK_LOCAL_MEM_FENCE
-#endif
 
 // Finds the coriolis term based on the linear Coriolis force
 // f = \tilde{f} + beta*(y-y0)
-float linear_coriolis_term(const float f, const float beta,
+__device__ float linear_coriolis_term(const float f, const float beta,
 			   const float tj, const float dy,
 			   const float y_zero_reference_cell) {
     // y_0 is at the southern face of the row y_zero_reference_cell.
@@ -45,7 +38,7 @@ float linear_coriolis_term(const float f, const float beta,
 /**
   * Kernel that evolves U one step in time.
   */
-__kernel void computeUKernel(
+__global__ void computeUKernel(
         //Discretization parameters
         int nx_, int ny_,
         float dx_, float dy_, float dt_,
@@ -58,34 +51,34 @@ __kernel void computeUKernel(
         float r_, //< Bottom friction coefficient
     
         //Data
-        __global float* H_ptr_, int H_pitch_,
-        __global float* U_ptr_, int U_pitch_,
-        __global float* V_ptr_, int V_pitch_,
-        __global float* eta_ptr_, int eta_pitch_,
+        float* H_ptr_, int H_pitch_,
+        float* U_ptr_, int U_pitch_,
+        float* V_ptr_, int V_pitch_,
+        float* eta_ptr_, int eta_pitch_,
     
         // Wind stress parameters
-        __global const wind_stress_params *wind_stress_,
+        const wind_stress_params *wind_stress_,
 
         float t_) {
     
-    __local float H_shared[block_height][block_width+1];
-    __local float V_shared[block_height+1][block_width+1];
-    __local float eta_shared[block_height][block_width+1];
+    __shared__ float H_shared[block_height][block_width+1];
+    __shared__ float V_shared[block_height+1][block_width+1];
+    __shared__ float eta_shared[block_height][block_width+1];
 
     //Index of thread within block
-    const int tx = get_local_id(0);
-    const int ty = get_local_id(1);
-    
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+
     //Index of block within domain
-    const int bx = get_local_size(0) * get_group_id(0);
-    const int by = get_local_size(1) * get_group_id(1); 
+    const int bx = blockDim.x * blockIdx.x;
+    const int by = blockDim.y * blockIdx.y;
 
     //Index of cell within domain
-    const int ti = get_global_id(0); 
-    const int tj = get_global_id(1);
+    const int ti = bx + tx;
+    const int tj = by + ty;
     
     //Compute pointer to row "tj" in the U array
-    __global float* const U_row = (__global float*) ((__global char*) U_ptr_ + U_pitch_*tj);
+    float* const U_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);
 
     //Read current U
     float U_current = 0.0f;
@@ -94,14 +87,14 @@ __kernel void computeUKernel(
     }
 
     //Read H and eta into local memory
-    for (int j=ty; j<block_height; j+=get_local_size(1)) {
+    for (int j=ty; j<block_height; j+=blockDim.y) {
         const int l = by + j;
         
         //Compute the pointer to row "l" in the H and eta arrays
-        __global float* const H_row = (__global float*) ((__global char*) H_ptr_ + H_pitch_*l);
-        __global float* const eta_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*l);
+        float* const H_row = (float*) ((char*) H_ptr_ + H_pitch_*l);
+        float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*l);
         
-        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+        for (int i=tx; i<block_width+1; i+=blockDim.x) {
             const int k = bx + i - 1;
             
             if (k >= 0 && k < nx_ && l < ny_) {
@@ -116,13 +109,13 @@ __kernel void computeUKernel(
     }
 
     //Read V into shared memory
-    for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
+    for (int j=ty; j<block_height+1; j+=blockDim.y) {
         const int l = by + j;
         
         //Compute the pointer to current row in the V array
-        __global float* const V_row = (__global float*) ((__global char*) V_ptr_ + V_pitch_*l);
+        float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*l);
         
-        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+        for (int i=tx; i<block_width+1; i+=blockDim.x) {
             const int k = bx + i - 1;
             
             if (k >= 0 && k < nx_ && l < ny_+1) {
@@ -135,7 +128,7 @@ __kernel void computeUKernel(
     }
 
     //Make sure all threads have read into shared mem
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
 
     //Reconstruct H at the U position
     float H_m = 0.5f*(H_shared[ty][tx] + H_shared[ty][tx+1]);

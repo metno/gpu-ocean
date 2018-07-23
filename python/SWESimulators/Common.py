@@ -1,4 +1,6 @@
-import pyopencl
+from pycuda.compiler import SourceModule
+import pycuda.gpuarray
+import pycuda.driver as cuda
 import os
 import numpy as np
 
@@ -23,9 +25,9 @@ def deprecated(func):
         return func(*args, **kwargs)
     return new_func
 
-def get_kernel(cl_ctx, kernel_filename, block_width, block_height):
+def get_kernel(kernel_filename, block_width, block_height):
     """
-    Static function which reads a text file and creates an OpenCL kernel from that
+    Static function which reads a text file and creates an CUDA kernel from that
     """
     #Create define string
     define_string = "#define block_width " + str(block_width) + "\n"
@@ -37,32 +39,28 @@ def get_kernel(cl_ctx, kernel_filename, block_width, block_height):
     module_path = os.path.dirname(os.path.realpath(__file__))
     fullpath = os.path.join(module_path, "../../sim/src/kernels", kernel_filename)
     
-    options = ['-I', "../sim/src/kernels", '-I', "../../sim/src/kernels"]
+    options = [os.path.join(module_path, "../../sim/src/kernels")]
     with open(fullpath, "r") as kernel_file:
         kernel_string = define_string + kernel_file.read()
-        kernel = pyopencl.Program(cl_ctx, kernel_string).build(options)
+        kernel = SourceModule(kernel_string, include_dirs=options)
         
     return kernel
     
-    
         
         
         
         
         
         
-        
-
-
-class OpenCLArray2D:
+class CUDAArray2D:
     """
     Class that holds data 
     """
     
-    def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, data, \
+    def __init__(self, nx, ny, halo_x, halo_y, data, \
                  asymHalo=None, double_precision=False, integers=False):
         """
-        Uploads initial data to the CL device
+        Uploads initial data to the CUDA device
         """
         self.double_precision = double_precision
         self.integers = integers
@@ -87,8 +85,7 @@ class OpenCLArray2D:
         assert(data.shape == (self.ny_halo, self.nx_halo))
 
         #Upload data to the device
-        mf = pyopencl.mem_flags
-        self.data = pyopencl.Buffer(cl_ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=host_data)
+        self.data = pycuda.gpuarray.to_gpu_async(host_data)
         self.holds_data = True
         
         self.bytes_per_float = host_data.itemsize
@@ -97,7 +94,7 @@ class OpenCLArray2D:
         self.pitch = np.int32((self.nx_halo)*self.bytes_per_float)
         
         
-    def upload(self, cl_queue, data):
+    def upload(self, data):
         """
         Filling the allocated buffer with new data
         """
@@ -117,37 +114,37 @@ class OpenCLArray2D:
         assert(host_data.itemsize == self.bytes_per_float), "Host data itemsize is " + str(host_data.itemsize) + ", but should have been " + str(self.bytes_per_float)
         
         # Okay, everything is fine, now upload:
-        pyopencl.enqueue_copy(cl_queue, self.data, host_data)
+        self.data.set_async(host_data)
         
     
-    def copyBuffer(self, cl_queue, cl_buffer):
+    def copyBuffer(self, buffer):
         """
         Copying the given device buffer into the already allocated memory
         """
         if not self.holds_data:
-            raise RuntimeError('The buffer has been freed before copyBuffer is called')
+            raise RuntimeError('The buffer has been freed before copying buffer')
         
-        if not cl_buffer.holds_data:
-            raise RuntimeError('The provided cl_buffer is either not allocated, or has been freed before copyBuffer is called')
+        if not buffer.holds_data:
+            raise RuntimeError('The provided buffer is either not allocated, or has been freed before copying buffer')
         
         # Make sure that the input is of correct size:
-        assert(cl_buffer.nx_halo == self.nx_halo), str(cl_buffer.nx_halo) + " vs " + str(self.nx_halo)
-        assert(cl_buffer.ny_halo == self.ny_halo), str(cl_buffer.ny_halo) + " vs " + str(self.ny_halo)
+        assert(buffer.nx_halo == self.nx_halo), str(buffer.nx_halo) + " vs " + str(self.nx_halo)
+        assert(buffer.ny_halo == self.ny_halo), str(buffer.ny_halo) + " vs " + str(self.ny_halo)
         
-        assert(cl_buffer.bytes_per_float == self.bytes_per_float), "Provided cl_buffer itemsize is " + str(cl_buffer.bytes_per_float) + ", but should have been " + str(self.bytes_per_float)
+        assert(buffer.bytes_per_float == self.bytes_per_float), "Provided buffer itemsize is " + str(buffer.bytes_per_float) + ", but should have been " + str(self.bytes_per_float)
         
         # Okay, everything is fine - issue device-to-device-copy:
         total_num_bytes = self.bytes_per_float*self.nx_halo*self.ny_halo
-        pyopencl.enqueue_copy_buffer(cl_queue, cl_buffer.data, self.data, total_num_bytes)
+        cuda.memcpy_dtod_async(self.data.ptr(), buffer.data.ptr(), total_num_bytes)
         
         
         
-    def download(self, cl_queue):
+    def download(self):
         """
-        Enables downloading data from CL device to Python
+        Enables downloading data from CUDA device to Python
         """
         if not self.holds_data:
-            raise RuntimeError('OpenCL buffer has been freed')
+            raise RuntimeError('CUDA buffer has been freed')
         
         #Allocate data on the host for result
         host_data = np.empty((self.ny_halo, self.nx_halo), dtype=np.float32, order='C')
@@ -156,8 +153,8 @@ class OpenCLArray2D:
         if self.double_precision and self.integers:
             host_data = np.empty((self.ny_halo, self.nx_halo), dtype=np.uint64, order='C')
         
-        #Copy data from device to host
-        pyopencl.enqueue_copy(cl_queue, host_data, self.data)
+        #Copy data from device to host (synchronize/barrier!)
+        self.data.get(host_data)
         
         #Return
         return host_data
@@ -168,22 +165,19 @@ class OpenCLArray2D:
         Frees the allocated memory buffers on the GPU 
         """
         if self.holds_data:
-            self.data.release()
+            del self.data
             self.holds_data = False
 
     
     @staticmethod
     def convert_to_float32(data):
         """
-        Converts to C-style float 32 array suitable for the GPU/OpenCL
+        Converts to C-style float 32 array suitable for the GPU/CUDA
         """
         if (not np.issubdtype(data.dtype, np.float32) or np.isfortran(data)):
-            #print "Converting H0"
             return data.astype(np.float32, order='C')
         else:
             return data
-
-
 
     
 class SWEDataArakawaA:
@@ -191,17 +185,17 @@ class SWEDataArakawaA:
     A class representing an Arakawa A type (unstaggered, logically Cartesian) grid
     """
 
-    def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, h0, hu0, hv0):
+    def __init__(self, nx, ny, halo_x, halo_y, h0, hu0, hv0):
         """
-        Uploads initial data to the CL device
+        Uploads initial data to the CUDA device
         """
-        self.h0  = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0)
-        self.hu0 = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, hu0)
-        self.hv0 = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, hv0)
+        self.h0  = CUDAArray2D(nx, ny, halo_x, halo_y, h0)
+        self.hu0 = CUDAArray2D(nx, ny, halo_x, halo_y, hu0)
+        self.hv0 = CUDAArray2D(nx, ny, halo_x, halo_y, hv0)
         
-        self.h1  = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0)
-        self.hu1 = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, hu0)
-        self.hv1 = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, hv0)
+        self.h1  = CUDAArray2D(nx, ny, halo_x, halo_y, h0)
+        self.hu1 = CUDAArray2D(nx, ny, halo_x, halo_y, hu0)
+        self.hv1 = CUDAArray2D(nx, ny, halo_x, halo_y, hv0)
 
     def swap(self):
         """
@@ -211,24 +205,24 @@ class SWEDataArakawaA:
         self.hu1, self.hu0 = self.hu0, self.hu1
         self.hv1, self.hv0 = self.hv0, self.hv1
         
-    def download(self, cl_queue):
+    def download(self):
         """
-        Enables downloading data from CL device to Python
+        Enables downloading data from CUDA device to Python
         """
-        h_cpu  = self.h0.download(cl_queue)
-        hu_cpu = self.hu0.download(cl_queue)
-        hv_cpu = self.hv0.download(cl_queue)
+        h_cpu  = self.h0.download()
+        hu_cpu = self.hu0.download()
+        hv_cpu = self.hv0.download()
         
         return h_cpu, hu_cpu, hv_cpu
     
 
-    def downloadPrevTimestep(self, cl_queue):
+    def downloadPrevTimestep(self):
         """
-        Enables downloading data from the additional buffer of CL device to Python
+        Enables downloading data from the additional buffer of CUDA device to Python
         """
-        h_cpu  = self.h1.download(cl_queue)
-        hu_cpu = self.hu1.download(cl_queue)
-        hv_cpu = self.hv1.download(cl_queue)
+        h_cpu  = self.h1.download()
+        hu_cpu = self.hu1.download()
+        hv_cpu = self.hv1.download()
         
         return h_cpu, hu_cpu, hv_cpu
 
@@ -251,10 +245,10 @@ class SWEDataArakawaC:
     A class representing an Arakawa C type (staggered, u fluxes on east/west faces, v fluxes on north/south faces) grid
     We use h as cell centers
     """
-    def __init__(self, cl_ctx, nx, ny, halo_x, halo_y, h0, hu0, hv0, \
+    def __init__(self, nx, ny, halo_x, halo_y, h0, hu0, hv0, \
                  asymHalo=None):
         """
-        Uploads initial data to the CL device
+        Uploads initial data to the CUDA device
         asymHalo needs to be on the form [north, east, south, west]
         """
         #FIXME: This at least works for 0 and 1 ghost cells, but not convinced it generalizes
@@ -273,13 +267,13 @@ class SWEDataArakawaC:
         #print "(hu0.shape, (nx, ny), asymHalo, (halo_x, halo_y)): ", (hu0.shape, (nx+1, ny), asymHaloU,  (halo_x, halo_y))
         #print "(hv0.shape, (nx, ny), asymHalo,  (halo_x, halo_y)): ", (hv0.shape, (nx, ny+1), asymHaloV, (halo_x, halo_y))
 
-        self.h0   = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0, asymHalo)
-        self.hu0  = OpenCLArray2D(cl_ctx, nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
-        self.hv0  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
+        self.h0   = CUDAArray2D(nx, ny, halo_x, halo_y, h0, asymHalo)
+        self.hu0  = CUDAArray2D(nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
+        self.hv0  = CUDAArray2D(nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
         
-        self.h1   = OpenCLArray2D(cl_ctx, nx, ny, halo_x, halo_y, h0, asymHalo)
-        self.hu1  = OpenCLArray2D(cl_ctx, nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
-        self.hv1  = OpenCLArray2D(cl_ctx, nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
+        self.h1   = CUDAArray2D(nx, ny, halo_x, halo_y, h0, asymHalo)
+        self.hu1  = CUDAArray2D(nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
+        self.hv1  = CUDAArray2D(nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
                    
         
     def swap(self):
@@ -291,23 +285,23 @@ class SWEDataArakawaC:
         self.hu1, self.hu0 = self.hu0, self.hu1
         self.hv1, self.hv0 = self.hv0, self.hv1
         
-    def download(self, cl_queue):
+    def download(self):
         """
-        Enables downloading data from CL device to Python
+        Enables downloading data from CUDA device to Python
         """
-        h_cpu  = self.h0.download(cl_queue)
-        hu_cpu = self.hu0.download(cl_queue)
-        hv_cpu = self.hv0.download(cl_queue)
+        h_cpu  = self.h0.download()
+        hu_cpu = self.hu0.download()
+        hv_cpu = self.hv0.download()
         
         return h_cpu, hu_cpu, hv_cpu
 
-    def downloadPrevTimestep(self, cl_queue):
+    def downloadPrevTimestep(self):
         """
-        Enables downloading data from the additional buffer of CL device to Python
+        Enables downloading data from the additional buffer of CUDA device to Python
         """
-        h_cpu  = self.h1.download(cl_queue)
-        hu_cpu = self.hu1.download(cl_queue)
-        hv_cpu = self.hv1.download(cl_queue)
+        h_cpu  = self.h1.download()
+        hu_cpu = self.hu1.download()
+        hv_cpu = self.hv1.download()
         
         return h_cpu, hu_cpu, hv_cpu
     
@@ -447,12 +441,11 @@ class BoundaryConditionsArakawaA:
     Class that checks boundary conditions and calls the required kernels for Arakawa A type grids.
     """
 
-    def __init__(self, cl_ctx, nx, ny, \
+    def __init__(self, nx, ny, \
                  halo_x, halo_y, \
                  boundary_conditions, \
                  block_width = 16, block_height = 16):
 
-        self.cl_ctx = cl_ctx
         self.boundary_conditions = boundary_conditions
         
         self.nx = np.int32(nx) 
@@ -463,9 +456,18 @@ class BoundaryConditionsArakawaA:
         #print("boundary (halo_y, halo_x): ", (self.halo_y, self.halo_x))
         #print("numerical sponge cells (n,e,s,w): ", self.boundary_conditions.spongeCells)
         
-        # Load kernel for periodic boundary
-        self.boundaryKernels = get_kernel(self.cl_ctx,\
-            "boundary_kernels.opencl", block_width, block_height)
+        # Load CUDA module for periodic boundary
+        self.boundaryKernels = get_kernel("boundary_kernels.opencl", block_width, block_height)
+
+        # Get CUDA functions
+        self.periodicBoundary_NS = self.boundaryKernels.get_function("periodicBoundary_NS")
+        self.periodic_boundary_EW = self.boundaryKernels.get_function("periodic_boundary_EW")
+        self.flow_relaxation_NS = self.boundaryKernels.get_function("flow_relaxation_NS")
+        self.flow_relaxation_EW = self.boundaryKernels.get_function("flow_relaxation_EW")
+        self.linear_interpolation_NS = self.boundaryKernels.get_function("linear_interpolation_NS")
+        self.linear_interpolation_EW = self.boundaryKernels.get_function("linear_interpolation_EW")
+        self.flowRelaxationScheme_NS = self.boundaryKernels.get_function("flowRelaxationScheme_NS")
+        self.flowRelaxationScheme_EW = self.boundaryKernels.get_function("flowRelaxationScheme_EW")
        
         # Set kernel launch parameters
         self.local_size = (block_width, block_height)
@@ -475,32 +477,31 @@ class BoundaryConditionsArakawaA:
 
 
         
-    def boundaryCondition(self, cl_queue, h, u, v):
-                 
+    def boundaryCondition(self, h, u, v):
         if self.boundary_conditions.north == 2:
-            self.periodic_boundary_NS(cl_queue, h, u, v)
+            self.periodic_boundary_NS(h, u, v)
         else:
             if (self.boundary_conditions.north == 3 or \
                 self.boundary_conditions.south == 3):
-                self.flow_relaxation_NS(cl_queue, h, u, v)
+                self.flow_relaxation_NS(h, u, v)
             if (self.boundary_conditions.north == 4 or \
                 self.boundary_conditions.south == 4):
-                self.linear_interpolation_NS(cl_queue, h, u, v)
+                self.linear_interpolation_NS(h, u, v)
             
             
         if self.boundary_conditions.east == 2:
-            self.periodic_boundary_EW(cl_queue, h, u, v)
+            self.periodic_boundary_EW(h, u, v)
         else:
             if (self.boundary_conditions.east == 3 or \
                 self.boundary_conditions.west == 3):
-                self.flow_relaxation_EW(cl_queue, h, u, v)
+                self.flow_relaxation_EW(h, u, v)
             if (self.boundary_conditions.east == 4 or \
                 self.boundary_conditions.west == 4):
-                self.linear_interpolation_EW(cl_queue, h, u, v)
+                self.linear_interpolation_EW(h, u, v)
              
-    def periodic_boundary_NS(self, cl_queue, h, u, v):
-        self.boundaryKernels.periodicBoundary_NS( \
-            cl_queue, self.global_size, self.local_size, \
+    def periodic_boundary_NS(self, h, u, v):
+        self.periodicBoundary_NS( \
+            self.global_size, self.local_size, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
             h.data, h.pitch, \
@@ -508,9 +509,9 @@ class BoundaryConditionsArakawaA:
             v.data, v.pitch)
         
 
-    def periodic_boundary_EW(self, cl_queue, h, v, u):
-        self.boundaryKernels.periodicBoundary_EW( \
-            cl_queue, self.global_size, self.local_size, \
+    def periodic_boundary_EW(self, h, v, u):
+        self.periodicBoundary_EW( \
+            self.global_size, self.local_size, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
             h.data, h.pitch, \
@@ -518,9 +519,9 @@ class BoundaryConditionsArakawaA:
             v.data, v.pitch)
 
 
-    def linear_interpolation_NS(self, cl_queue, h, u, v):
-        self.boundaryKernels.linearInterpolation_NS( \
-            cl_queue, self.global_size, self.local_size, \
+    def linear_interpolation_NS(self, h, u, v):
+        self.linearInterpolation_NS( \
+            self.global_size, self.local_size, \
             self.boundary_conditions.north, self.boundary_conditions.south, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
@@ -530,9 +531,9 @@ class BoundaryConditionsArakawaA:
             u.data, u.pitch, \
             v.data, v.pitch)                                   
 
-    def linear_interpolation_EW(self, cl_queue, h, u, v):
-        self.boundaryKernels.linearInterpolation_EW( \
-            cl_queue, self.global_size, self.local_size, \
+    def linear_interpolation_EW(self, h, u, v):
+        self.linearInterpolation_EW( \
+            self.global_size, self.local_size, \
             self.boundary_conditions.east, self.boundary_conditions.west, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
@@ -542,9 +543,9 @@ class BoundaryConditionsArakawaA:
             u.data, u.pitch, \
             v.data, v.pitch)
 
-    def flow_relaxation_NS(self, cl_queue, h, u, v):
-        self.boundaryKernels.flowRelaxationScheme_NS( \
-            cl_queue, self.global_size, self.local_size, \
+    def flow_relaxation_NS(self, h, u, v):
+        self.flowRelaxationScheme_NS( \
+            self.global_size, self.local_size, \
             self.boundary_conditions.north, self.boundary_conditions.south, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
@@ -554,9 +555,9 @@ class BoundaryConditionsArakawaA:
             u.data, u.pitch, \
             v.data, v.pitch)   
 
-    def flow_relaxation_EW(self, cl_queue, h, u, v):
-        self.boundaryKernels.flowRelaxationScheme_EW( \
-            cl_queue, self.global_size, self.local_size, \
+    def flow_relaxation_EW(self, h, u, v):
+        self.flowRelaxationScheme_EW( \
+            self.global_size, self.local_size, \
             self.boundary_conditions.east, self.boundary_conditions.west, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
@@ -574,11 +575,9 @@ class Bathymetry:
     cell mid-points.
     """
     
-    def __init__(self, cl_ctx, cl_queue, nx, ny, halo_x, halo_y, Bi_host, \
+    def __init__(self, nx, ny, halo_x, halo_y, Bi_host, \
                  boundary_conditions=BoundaryConditions(), \
                  block_width=16, block_height=16):
-        self.cl_queue = cl_queue
-        self.cl_ctx = cl_ctx
         # Convert scalar data to int32
         self.nx = np.int32(nx)
         self.ny = np.int32(ny)
@@ -595,7 +594,7 @@ class Bathymetry:
                 str((BiShapeX, BiShapeY)) + " vs " + str((nx+1+2*halo_x, ny+1+2*halo_y))
         
         # Upload Bi to device
-        self.Bi = OpenCLArray2D(cl_ctx, nx+1, ny+1, halo_x, halo_y, Bi_host)
+        self.Bi = CUDAArray2D(nx+1, ny+1, halo_x, halo_y, Bi_host)
 
         # Define OpenCL parameters
         self.local_size = (block_width, block_height) 
@@ -605,27 +604,38 @@ class Bathymetry:
         ) 
         
         # Check boundary conditions and make Bi periodic if necessary
-        self.bi_boundary_kernel = get_kernel(self.cl_ctx, "boundary_kernels.opencl", block_width, block_height)
+        # Load CUDA module for periodic boundary
+        self.boundaryKernels = get_kernel("boundary_kernels.opencl", block_width, block_height)
+
+        # Get CUDA functions
+        self.periodic_boundary_intersections_NS = self.boundaryKernels.get_function("periodic_boundary_intersections_NS")
+        self.periodic_boundary_intersections_EW = self.boundaryKernels.get_function("periodic_boundary_intersections_EW")
+        self.closed_boundary_intersections_NS = self.boundaryKernels.get_function("closed_boundary_intersections_NS")
+        self.closed_boundary_intersections_EW = self.boundaryKernels.get_function("closed_boundary_intersections_EW")
+
         self._boundaryConditions()
         
         # Allocate Bm
         Bm_host = np.zeros((self.halo_ny, self.halo_nx), dtype=np.float32, order='C')
-        self.Bm = OpenCLArray2D(self.cl_ctx, nx, ny, halo_x, halo_y, Bm_host)
-        
+        self.Bm = CUDAArray2D(nx, ny, halo_x, halo_y, Bm_host)
+
         # Load kernel for finding Bm from Bi
-        self.initBm_kernel = get_kernel(self.cl_ctx, "initBm_kernel.opencl", block_width, block_height)
-      
-        
+        self.initBm_kernel = get_kernel("initBm_kernel.opencl", block_width, block_height)
+
+        # Get CUDA functions
+        self.initBm = self.initBm_kernel.get_function("initBm")
+        self.waterElevationToDepth = self.initBm_kernel.get_function("waterElevationToDepth")
+
         # Call kernel
-        self.initBm_kernel.initBm(self.cl_queue, self.global_size, self.local_size, \
+        self.initBm(self.global_size, self.local_size, \
                                    self.halo_nx, self.halo_ny, \
                                    self.Bi.data, self.Bi.pitch, \
                                    self.Bm.data, self.Bm.pitch)
 
                  
-    def download(self, cl_queue):
-        Bm_cpu = self.Bm.download(cl_queue)
-        Bi_cpu = self.Bi.download(cl_queue)
+    def download(self):
+        Bm_cpu = self.Bm.download()
+        Bi_cpu = self.Bi.download()
 
         return Bi_cpu, Bm_cpu
 
@@ -643,7 +653,7 @@ class Bathymetry:
             "h0 not the correct shape: " + str(h0.shape) + ", but should be " + str((self.halo_ny, self.halo_nx))
 
         # Call kernel        
-        self.initBm_kernel.waterElevationToDepth(self.cl_queue, self.global_size, self.local_size, \
+        self.waterElevationToDepth(self.global_size, self.local_size, \
                                    self.halo_nx, self.halo_ny, \
                                    h.data, h.pitch, \
                                    self.Bm.data, self.Bm.pitch)
@@ -656,7 +666,7 @@ class Bathymetry:
         assert ((w.ny_halo, w.nx_halo) == (self.halo_ny, self.halo_nx)), \
             "w not the correct shape: " + str(w.shape) + ", but should be " + str((self.halo_ny, self.halo_nx))
         # Call kernel        
-        self.initBm_kernel.waterDepthToElevation(self.cl_queue, self.global_size, self.local_size, \
+        self.waterDepthToElevation(self.global_size, self.local_size, \
                                    self.halo_nx, self.halo_ny, \
                                    w.data, w.pitch, \
                                    h.data, h.pitch, \
@@ -665,25 +675,25 @@ class Bathymetry:
     def _boundaryConditions(self):
         # North-south:
         if (self.boundary_conditions.north == 2) and (self.boundary_conditions.south == 2):
-            self.bi_boundary_kernel.periodic_boundary_intersections_NS( \
-                self.cl_queue, self.global_size, self.local_size, \
+            self.periodic_boundary_intersections_NS( \
+                self.global_size, self.local_size, \
                 self.nx, self.ny, self.halo_x, self.halo_y, \
                 self.Bi.data, self.Bi.pitch)
         else:
-            self.bi_boundary_kernel.closed_boundary_intersections_NS( \
-                self.cl_queue, self.global_size, self.local_size, \
+            self.closed_boundary_intersections_NS( \
+                self.global_size, self.local_size, \
                 self.nx, self.ny, self.halo_x, self.halo_y, \
                 self.Bi.data, self.Bi.pitch)
 
         # East-west:
         if (self.boundary_conditions.east == 2) and (self.boundary_conditions.west == 2):
-            self.bi_boundary_kernel.periodic_boundary_intersections_EW( \
-                self.cl_queue, self.global_size, self.local_size, \
+            self.periodic_boundary_intersections_EW( \
+                self.global_size, self.local_size, \
                 self.nx, self.ny, self.halo_x, self.halo_y, \
                 self.Bi.data, self.Bi.pitch)
         else:
-            self.bi_boundary_kernel.closed_boundary_intersections_EW( \
-                self.cl_queue, self.global_size, self.local_size, \
+            self.closed_boundary_intersections_EW( \
+                self.global_size, self.local_size, \
                 self.nx, self.ny, self.halo_x, self.halo_y, \
                 self.Bi.data, self.Bi.pitch)
                  

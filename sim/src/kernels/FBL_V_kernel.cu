@@ -20,19 +20,12 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "common.opencl"
+#include "common.cu"
 #include "../config.h"
-
-#ifndef __OPENCL_VERSION__
-#define __kernel
-#define __global
-#define __local
-#define CLK_LOCAL_MEM_FENCE
-#endif
 
 // Finds the coriolis term based on the linear Coriolis force
 // f = \tilde{f} + beta*(y-y0)
-float linear_coriolis_term(const float f, const float beta,
+__device__ float linear_coriolis_term(const float f, const float beta,
 			   const float tj, const float dy,
 			   const float y_zero_reference_cell) {
     // y_0 is at the southern face of the row y_zero_reference_cell.
@@ -44,7 +37,7 @@ float linear_coriolis_term(const float f, const float beta,
 /**
   * Kernel that evolves V one step in time.
   */
-__kernel void computeVKernel(
+__global__ void computeVKernel(
         //Discretization parameters
         int nx_, int ny_,
         float dx_, float dy_, float dt_,
@@ -52,39 +45,39 @@ __kernel void computeVKernel(
         //Physical parameters
         float g_, //< Gravitational constant
         float f_, //< Coriolis coefficient
-		float beta_, //< Coriolis force f_ + beta_*(y-y0)
-		float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
+	float beta_, //< Coriolis force f_ + beta_*(y-y0)
+	float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
         float r_, //< Bottom friction coefficient
     
         //Data
-        __global float* H_ptr_, int H_pitch_,
-        __global float* U_ptr_, int U_pitch_,
-        __global float* V_ptr_, int V_pitch_,
-        __global float* eta_ptr_, int eta_pitch_,
+        float* H_ptr_, int H_pitch_,
+        float* U_ptr_, int U_pitch_,
+        float* V_ptr_, int V_pitch_,
+        float* eta_ptr_, int eta_pitch_,
     
         // Wind stress parameters
-		__global const wind_stress_params *wind_stress_,
+	const wind_stress_params *wind_stress_,
 
         float t_) {
         
-    __local float H_shared[block_height+1][block_width];
-    __local float U_shared[block_height+1][block_width+1];
-    __local float eta_shared[block_height+1][block_width];
+    __shared__ float H_shared[block_height+1][block_width];
+    __shared__ float U_shared[block_height+1][block_width+1];
+    __shared__ float eta_shared[block_height+1][block_width];
 
     //Index of thread within block
-    const int tx = get_local_id(0);
-    const int ty = get_local_id(1);
-    
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+
     //Index of block within domain
-    const int bx = get_local_size(0) * get_group_id(0);
-    const int by = get_local_size(1) * get_group_id(1);
+    const int bx = blockDim.x * blockIdx.x;
+    const int by = blockDim.y * blockIdx.y;
 
     //Index of cell within domain
-    const int ti = get_global_id(0); 
-    const int tj = get_global_id(1);
-    
+    const int ti = bx + tx;
+    const int tj = by + ty;
+
     //Compute pointer to current row in the V array
-    __global float* const V_row = (__global float*) ((__global char*) V_ptr_ + V_pitch_*tj);
+    float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
 
     //Read current V
     float V_current = 0.0f;
@@ -93,14 +86,14 @@ __kernel void computeVKernel(
     }
 
     //Read H and eta into shared memory
-    for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
+    for (int j=ty; j<block_height+1; j+=blockDim.y) {
         const int l = by + j - 1;
         
         //Compute the pointer to current row in the H and eta arrays
-        __global float* const H_row = (__global float*) ((__global char*) H_ptr_ + H_pitch_*l);
-        __global float* const eta_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*l);
+        float* const H_row = (float*) ((char*) H_ptr_ + H_pitch_*l);
+        float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*l);
         
-        for (int i=tx; i<block_width; i+=get_local_size(0)) {
+        for (int i=tx; i<block_width; i+=blockDim.x) {
             const int k = bx + i;
             if (k < nx_ && l >= 0 && l < ny_) {
                 H_shared[j][i] = H_row[k];
@@ -114,13 +107,13 @@ __kernel void computeVKernel(
     }
 
     //Read U into shared memory
-    for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
+    for (int j=ty; j<block_height+1; j+=blockDim.y) {
         const int l = by + j - 1;
         
         //Compute the pointer to current row in the V array
-        __global float* const U_row = (__global float*) ((__global char*) U_ptr_ + U_pitch_*l);
+        float* const U_row = (float*) ((char*) U_ptr_ + U_pitch_*l);
         
-        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+        for (int i=tx; i<block_width+1; i+=blockDim.x) {
             const int k = bx + i;
             if (k < nx_+1 && l >= 0 && l < ny_) {
                 U_shared[j][i] = U_row[k];
@@ -132,7 +125,7 @@ __kernel void computeVKernel(
     }
 
     //Make sure all threads have read into shared mem
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
 
     //Reconstruct H at the V position
     float H_m = 0.5f*(H_shared[ty][tx] + H_shared[ty+1][tx]);

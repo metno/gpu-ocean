@@ -19,7 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #Import packages we need
 import numpy as np
-import pyopencl as cl #OpenCL in Python
+import pycuda.driver as cuda
 import Common, SimWriter
 import gc
 from abc import ABCMeta, abstractmethod
@@ -34,7 +34,6 @@ class Simulator(object):
     
     
     def __init__(self, \
-                 cl_ctx, \
                  nx, ny, \
                  ghost_cells_x, \
                  ghost_cells_y, \
@@ -52,13 +51,10 @@ class Simulator(object):
         """
         Setting all parameters that are common for all simulators
         """
-        self.cl_ctx = cl_ctx
-        #Create an OpenCL command queue
-        self.cl_queue = cl.CommandQueue(self.cl_ctx)
         
         #Save input parameters
         #Notice that we need to specify them in the correct dataformat for the
-        #OpenCL kernel
+        #CUDA kernel
         self.nx = np.int32(nx)
         self.ny = np.int32(ny)
         self.ghost_cells_x = np.int32(ghost_cells_x)
@@ -77,8 +73,8 @@ class Simulator(object):
         self.offset_y = offset_y
         
         # Upload wind stress params to device
-        self.wind_stress_dev = cl.Buffer(self.cl_ctx, cl.mem_flags.WRITE_ONLY, wind_stress.csize())
-        cl.enqueue_copy(self.cl_queue, self.wind_stress_dev, wind_stress.tostruct())
+        self.wind_stress_dev = cuda.mem_alloc(wind_stress.csize())
+        cuda.memcpy_htod(int(self.wind_stress_dev), wind_stress.tostruct()) # synchronize/barrier!
         
         #Initialize time
         self.t = np.float32(t)
@@ -108,7 +104,7 @@ class Simulator(object):
         self.sim_writer = None
         
         # Compute kernel launch parameters
-        self.local_size = (block_width, block_height) 
+        self.local_size = (block_width, block_height, 1) 
         self.global_size = ( \
                        int(np.ceil(self.nx / float(self.local_size[0])) * self.local_size[0]), \
                        int(np.ceil(self.ny / float(self.local_size[1])) * self.local_size[1]) \
@@ -122,7 +118,7 @@ class Simulator(object):
         pass
     
     @abstractmethod
-    def fromfilename(cls, cl_ctx, filename, cont_write_netcdf=True):
+    def fromfilename(cls, filename, cont_write_netcdf=True):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
@@ -156,14 +152,14 @@ class Simulator(object):
         
         self.drifters = drifters
         self.hasDrifters = True
-        self.drifters.setCLQueue(self.cl_queue)
+        self.drifters.setCLQueue()
     
     def download(self, interior_domain_only=False):
         """
         Download the latest time step from the GPU
         """
         if interior_domain_only:
-            eta, hu, hv = self.cl_data.download(self.cl_queue)
+            eta, hu, hv = self.cl_data.download()
             return eta[self.interior_domain_indices[2]:self.interior_domain_indices[0],  \
                        self.interior_domain_indices[3]:self.interior_domain_indices[1]], \
                    hu[self.interior_domain_indices[2]:self.interior_domain_indices[0],   \
@@ -171,14 +167,14 @@ class Simulator(object):
                    hv[self.interior_domain_indices[2]:self.interior_domain_indices[0],   \
                       self.interior_domain_indices[3]:self.interior_domain_indices[1]]
         else:
-            return self.cl_data.download(self.cl_queue)
+            return self.cl_data.download()
     
     
     def downloadPrevTimestep(self):
         """
         Download the second-latest time step from the GPU
         """
-        return self.cl_data.downloadPrevTimestep(self.cl_queue)
+        return self.cl_data.downloadPrevTimestep()
         
     def copyState(self, otherSim):
         """
@@ -194,13 +190,13 @@ class Simulator(object):
         
         assert (self.ny, self.nx) == (otherSim.ny, otherSim.nx), "Simulators differ in computational domain. Self (ny, nx): " + str((self.ny, self.nx)) + ", vs other: " + ((otherSim.ny, otherSim.nx))
         
-        self.cl_data.h0.copyBuffer( self.cl_queue, otherSim.cl_data.h0)
-        self.cl_data.hu0.copyBuffer(self.cl_queue, otherSim.cl_data.hu0)
-        self.cl_data.hv0.copyBuffer(self.cl_queue, otherSim.cl_data.hv0)
+        self.cl_data.h0.copyBuffer(otherSim.cl_data.h0)
+        self.cl_data.hu0.copyBuffer(otherSim.cl_data.hu0)
+        self.cl_data.hv0.copyBuffer(otherSim.cl_data.hv0)
         
-        self.cl_data.h1.copyBuffer( self.cl_queue, otherSim.cl_data.h1)
-        self.cl_data.hu1.copyBuffer(self.cl_queue, otherSim.cl_data.hu1)
-        self.cl_data.hv1.copyBuffer(self.cl_queue, otherSim.cl_data.hv1)
+        self.cl_data.h1.copyBuffer(otherSim.cl_data.h1)
+        self.cl_data.hu1.copyBuffer(otherSim.cl_data.hu1)
+        self.cl_data.hv1.copyBuffer(otherSim.cl_data.hv1)
         
         # Question: Which parameters should we require equal, and which 
         # should become equal?
@@ -216,18 +212,18 @@ class Simulator(object):
         """
         Reinitialize simulator with a new ocean state.
         """
-        self.cl_data.h0.upload(self.cl_queue, eta0)
-        self.cl_data.hu0.upload(self.cl_queue, hu0)
-        self.cl_data.hv0.upload(self.cl_queue, hv0)
+        self.cl_data.h0.upload(eta0)
+        self.cl_data.hu0.upload(hu0)
+        self.cl_data.hv0.upload(hv0)
         
         if eta1 is None:
-            self.cl_data.h1.upload(self.cl_queue, eta0)
-            self.cl_data.hu1.upload(self.cl_queue, hu0)
-            self.cl_data.hv1.upload(self.cl_queue, hv0)
+            self.cl_data.h1.upload(eta0)
+            self.cl_data.hu1.upload(hu0)
+            self.cl_data.hv1.upload(hv0)
         else:
-            self.cl_data.h1.upload(self.cl_queue, eta1)
-            self.cl_data.hu1.upload(self.cl_queue, hu1)
-            self.cl_data.hv1.upload(self.cl_queue, hv1)
+            self.cl_data.h1.upload(eta1)
+            self.cl_data.hu1.upload(hu1)
+            self.cl_data.hv1.upload(hv1)
             
     def _set_interior_domain_from_sponge_cells(self):
         """
