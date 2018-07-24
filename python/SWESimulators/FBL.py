@@ -126,7 +126,7 @@ class FBL(Simulator.Simulator):
         self.v_kernel = Common.get_kernel("FBL_V_kernel.cu", block_width, block_height)
         self.eta_kernel = Common.get_kernel("FBL_eta_kernel.cu", block_width, block_height)
 
-        # Get CUDA functions
+        # Get CUDA functions and define data types for prepared_{async_}call()
         self.computeUKernel = self.u_kernel.get_function("computeUKernel")
         self.computeUKernel.prepare("iiffffffffPiPiPiPiPf")
         self.computeVKernel = self.v_kernel.get_function("computeVKernel")
@@ -326,7 +326,7 @@ class FBL_periodic_boundary:
         # Load kernel for periodic boundary.
         self.periodicBoundaryKernel \
             = Common.get_kernel("FBL_periodic_boundary.cu", block_width, block_height)
-        # Get CUDA functions
+        # Get CUDA functions and define data types for prepared_{async_}call()
         self.closedBoundaryUKernel = self.periodicBoundaryKernel.get_function("closedBoundaryUKernel")
         self.closedBoundaryUKernel.prepare("iiiiPi")
         self.periodicBoundaryUKernel = self.periodicBoundaryKernel.get_function("periodicBoundaryUKernel")
@@ -344,7 +344,7 @@ class FBL_periodic_boundary:
 
         # Reuse CTCS kernels for Flow Relaxation Scheme
         self.CTCSBoundaryKernels = Common.get_kernel("CTCS_boundary.cu", block_width, block_height)
-        # Get CUDA functions
+        # Get CUDA functions and define data types for prepared_{async_}call()
         self.boundary_flowRelaxationScheme_NS = self.CTCSBoundaryKernels.get_function("boundary_flowRelaxationScheme_NS")
         self.boundary_flowRelaxationScheme_NS.prepare("iiiiiiiiiiPi")
         self.boundary_flowRelaxationScheme_EW = self.CTCSBoundaryKernels.get_function("boundary_flowRelaxationScheme_EW")
@@ -395,7 +395,7 @@ class FBL_periodic_boundary:
                         hu0.data.gpudata, hu0.pitch)
         
         
-        # Nonthereless: If there are ghost cells in north-south direction, update them!
+        # If there are ghost cells in north-south direction, update them!
         # TODO: Generalize to both ghost_north and ghost_south
         # Updating northern ghost cells
         if (self.ny_halo > self.ny):

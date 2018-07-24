@@ -60,7 +60,7 @@ __global__ void initBm(const int nx_, const int ny_,
     }
 
     // Sync so that all threads have written to shared memory
-    __syncthreads();
+    __threadfence();
 
     // Calculate Bm and write to main memory
     if (ti < nx_ && tj < ny_) {

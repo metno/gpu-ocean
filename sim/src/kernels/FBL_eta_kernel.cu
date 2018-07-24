@@ -101,7 +101,7 @@ __global__ void computeEtaKernel(
     }
 
     //Make sure all threads have read into shared mem
-    __syncthreads();
+    __threadfence();
 
     //Compute the eta at the next timestep
     float eta_next = eta_current - dt_/dx_ * (U_shared[ty][tx+1] - U_shared[ty][tx])

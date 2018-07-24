@@ -452,7 +452,7 @@ class BoundaryConditionsArakawaA:
         # Load CUDA module for periodic boundary
         self.boundaryKernels = get_kernel("boundary_kernels.cu", block_width, block_height)
 
-        # Get CUDA functions
+        # Get CUDA functions and define data types for prepared_{async_}call()
         self.periodicBoundary_NS = self.boundaryKernels.get_function("periodicBoundary_NS")
         self.periodicBoundary_NS.prepare("iiiiPiPiPi")
         self.periodic_boundary_EW = self.boundaryKernels.get_function("periodic_boundary_EW")
@@ -605,7 +605,7 @@ class Bathymetry:
         # Load CUDA module for periodic boundary
         self.boundaryKernels = get_kernel("boundary_kernels.cu", block_width, block_height)
 
-        # Get CUDA functions
+        # Get CUDA functions and define data types for prepared_{async_}call()
         self.periodic_boundary_intersections_NS = self.boundaryKernels.get_function("periodic_boundary_intersections_NS")
         self.periodic_boundary_intersections_NS.prepare("iiiiPi")
         self.periodic_boundary_intersections_EW = self.boundaryKernels.get_function("periodic_boundary_intersections_EW")

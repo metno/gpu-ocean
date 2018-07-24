@@ -125,7 +125,7 @@ __global__ void computeVKernel(
     }
 
     //Make sure all threads have read into shared mem
-    __syncthreads();
+    __threadfence();
 
     //Reconstruct H at the V position
     float H_m = 0.5f*(H_shared[ty][tx] + H_shared[ty+1][tx]);

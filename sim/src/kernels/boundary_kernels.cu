@@ -70,12 +70,12 @@ __global__ void periodicBoundary_NS(
 __global__ void periodicBoundary_EW(
 	// Discretization parameters
         int nx_, int ny_,
-	int halo_x, int halo_y,
+        int halo_x, int halo_y,
 
-	// Data
+        // Data
         __device__ float* h_ptr_, int h_pitch_,
         __device__ float* u_ptr_, int u_pitch_,
-	__device__ float* v_ptr_, int v_pitch_) {
+        __device__ float* v_ptr_, int v_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -140,12 +140,12 @@ __global__ void periodic_boundary_intersections_NS(
 
 // Fix north-south boundary before east-west (to get the corners right)
 __global__ void periodic_boundary_intersections_EW(
-	// Discretization parameters
+        // Discretization parameters
         int nx_, int ny_,
-	int halo_x, int halo_y,
+        int halo_x, int halo_y,
 
-	// Data
-	__device__ float* data_ptr_, int data_pitch_) {
+        // Data
+        __device__ float* data_ptr_, int data_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -175,9 +175,9 @@ __global__ void periodic_boundary_intersections_EW(
  */
 
 __global__ void closed_boundary_intersections_EW(
-	// Discretization parameters
+        // Discretization parameters
         int nx_, int ny_,
-	int halo_x_, int halo_y_,
+        int halo_x_, int halo_y_,
 	
         // Data
         __device__ float* data_ptr_, int data_pitch_) {
@@ -201,12 +201,12 @@ __global__ void closed_boundary_intersections_EW(
 }
 
 __global__ void closed_boundary_intersections_NS(
-	// Discretization parameters
+        // Discretization parameters
         int nx_, int ny_,
-	int halo_x_, int halo_y_,
+        int halo_x_, int halo_y_,
 
-	// Data
-	__device__ float* data_ptr_, int data_pitch_) {
+        // Data
+        __device__ float* data_ptr_, int data_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -250,17 +250,17 @@ __global__ void closed_boundary_intersections_NS(
  */
 
 __global__ void linearInterpolation_NS(
-	// Discretization parameters
-	int boundary_condition_north_, int boundary_condition_south_,
-	int nx_, int ny_,
-	int halo_x_, int halo_y_,
-	int sponge_cells_north_,
-	int sponge_cells_south_,
+        // Discretization parameters
+        int boundary_condition_north_, int boundary_condition_south_,
+        int nx_, int ny_,
+        int halo_x_, int halo_y_,
+        int sponge_cells_north_,
+        int sponge_cells_south_,
 	
         // Data
         __device__ float* h_ptr_, int h_pitch_,
         __device__ float* u_ptr_, int u_pitch_,
-	__device__ float* v_ptr_, int v_pitch_) {
+        __device__ float* v_ptr_, int v_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -313,17 +313,17 @@ __global__ void linearInterpolation_NS(
 
     
 __global__ void linearInterpolation_EW(
-	// Discretization parameters
-	int boundary_condition_east_, int boundary_condition_west_,
+        // Discretization parameters
+        int boundary_condition_east_, int boundary_condition_west_,
         int nx_, int ny_,
-	int halo_x_, int halo_y_,
-	int sponge_cells_east_,
-	int sponge_cells_west_,
+        int halo_x_, int halo_y_,
+        int sponge_cells_east_,
+        int sponge_cells_west_,
 	
         // Data
         __device__ float* h_ptr_, int h_pitch_,
         __device__ float* u_ptr_, int u_pitch_,
-	__device__ float* v_ptr_, int v_pitch_) {
+        __device__ float* v_ptr_, int v_pitch_) {
     
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
