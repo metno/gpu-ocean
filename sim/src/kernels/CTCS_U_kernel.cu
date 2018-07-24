@@ -23,19 +23,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "../config.h"
 
-#ifndef __OPENCL_VERSION__
-#define __kernel
-#define __global
-#define __local
-#define CLK_LOCAL_MEM_FENCE
-#endif
-
-#include "common.opencl"
+#include "common.cu"
 
 
 // Finds the coriolis term based on the linear Coriolis force
 // f = \tilde{f} + beta*(y-y0)
-float linear_coriolis_term(const float f, const float beta,
+__device__ float linear_coriolis_term(const float f, const float beta,
 			   const float tj, const float dy,
 			   const float y_zero_reference_cell) {
     // y_0 is at the southern face of the row y_zero_reference_cell.
@@ -46,7 +39,7 @@ float linear_coriolis_term(const float f, const float beta,
 /**
   * Kernel that evolves U one step in time.
   */
-__kernel void computeUKernel(
+__global__ void computeUKernel(
         //Discretization parameters
         int nx_, int ny_,
         int bc_east_, int bc_west_,
@@ -63,39 +56,39 @@ __kernel void computeUKernel(
         float A_,
     
         //Data
-        __global float* H_ptr_, int H_pitch_,
-        __global float* eta1_ptr_, int eta1_pitch_, // eta^n
-        __global float* U0_ptr_, int U0_pitch_, // U^n-1, also output, U^n+1
-        __global float* U1_ptr_, int U1_pitch_, // U^n
-        __global float* V1_ptr_, int V1_pitch_, // V^n
+        float* H_ptr_, int H_pitch_,
+        float* eta1_ptr_, int eta1_pitch_, // eta^n
+        float* U0_ptr_, int U0_pitch_, // U^n-1, also output, U^n+1
+        float* U1_ptr_, int U1_pitch_, // U^n
+        float* V1_ptr_, int V1_pitch_, // V^n
     
         // Wind stress parameters
-        __global const wind_stress_params *wind_stress_,
+        const wind_stress_params *wind_stress_,
 
         float t_) {
         
-    __local float H_shared[block_height+2][block_width+1];
-    __local float eta1_shared[block_height+2][block_width+1];
-    __local float U1_shared[block_height+2][block_width+2];
-    __local float V1_shared[block_height+1][block_width+1];
+    __shared__ float H_shared[block_height+2][block_width+1];
+    __shared__ float eta1_shared[block_height+2][block_width+1];
+    __shared__ float U1_shared[block_height+2][block_width+2];
+    __shared__ float V1_shared[block_height+1][block_width+1];
 
     //Index of thread within block
-    const int tx = get_local_id(0);
-    const int ty = get_local_id(1);
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
 
     const int closed_boundary_cell_east = (int)(bc_east_ == 1);
     const int closed_boundary_cell_west = (int)(bc_west_ == 1);
     
     //Start of block within domain
-    const int bx = get_local_size(0) * get_group_id(0) + 1 + closed_boundary_cell_west; //Skip global ghost cells
-    const int by = get_local_size(1) * get_group_id(1) + 1; //Skip global ghost cells
+    const int bx = blockDim.x * blockIdx.x + 1 + closed_boundary_cell_west; //Skip global ghost cells
+    const int by = blockDim.y * blockIdx.y + 1; //Skip global ghost cells
 
     //Index of cell within domain
     const int ti = bx + tx;
     const int tj = by + ty;
     
     //Compute pointer to current row in the U array
-    __global float* const U0_row = (__global float*) ((__global char*) U0_ptr_ + U0_pitch_*tj);
+    float* const U0_row = (float*) ((char*) U0_ptr_ + U0_pitch_*tj);
 
     //Read current U
     float U0 = 0.0f;
@@ -107,7 +100,7 @@ __kernel void computeUKernel(
     }
 
     //Read H and eta into shared memory: (nx+1)*(ny+2) cells
-    for (int j=ty; j<block_height+2; j+=get_local_size(1)) {
+    for (int j=ty; j<block_height+2; j+=blockDim.y) {
         // "fake" global ghost cells by clamping
         // const int l = clamp(by + j - 1, 1, ny_);
         
@@ -116,10 +109,10 @@ __kernel void computeUKernel(
         if (l >= 0 && l <= ny_+1) {
         
             //Compute the pointer to current row in the H and eta arrays
-            __global float* const H_row = (__global float*) ((__global char*) H_ptr_ + H_pitch_*l);
-            __global float* const eta1_row = (__global float*) ((__global char*) eta1_ptr_ + eta1_pitch_*l);
+            float* const H_row = (float*) ((char*) H_ptr_ + H_pitch_*l);
+            float* const eta1_row = (float*) ((char*) eta1_ptr_ + eta1_pitch_*l);
 
-            for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+            for (int i=tx; i<block_width+1; i+=blockDim.x) {
                 // "fake" global ghost cells by clamping
                 //const int k = clamp(bx + i, 1, nx_);
                 
@@ -133,7 +126,7 @@ __kernel void computeUKernel(
     }
 
     //Read U into shared memory: (nx+2)*(ny+2) cells
-    for (int j=ty; j<block_height+2; j+=get_local_size(1)) {
+    for (int j=ty; j<block_height+2; j+=blockDim.y) {
         // "fake" ghost cells by clamping
         // const int l = clamp(by + j - 1, 1, ny_);
         
@@ -141,9 +134,9 @@ __kernel void computeUKernel(
         if (l >= 0 && l <= ny_+1) {
 
             //Compute the pointer to current row in the U array
-            __global float* const U1_row = (__global float*) ((__global char*) U1_ptr_ + U1_pitch_*l);
+            float* const U1_row = (float*) ((char*) U1_ptr_ + U1_pitch_*l);
 
-            for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
+            for (int i=tx; i<block_width+2; i+=blockDim.x) {
                 // Prevent out-of-bounds
                 // const int k = clamp(bx + i - 1, halo_x_, nx_+halo_x_);
                 
@@ -157,7 +150,7 @@ __kernel void computeUKernel(
     
 
     //Read V into shared memory: (nx+1)*(ny+1) cells
-    for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
+    for (int j=ty; j<block_height+1; j+=blockDim.y) {
         // Prevent out-of-bounds
         // const int l = clamp(by + j - 1, 0, ny_);
         
@@ -165,9 +158,9 @@ __kernel void computeUKernel(
         if (l >= 0 && l <= ny_+2) {
 
             //Compute the pointer to current row in the U array
-            __global float* const V1_row = (__global float*) ((__global char*) V1_ptr_ + V1_pitch_*l);
+            float* const V1_row = (float*) ((char*) V1_ptr_ + V1_pitch_*l);
 
-            for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+            for (int i=tx; i<block_width+1; i+=blockDim.x) {
                 // "fake" ghost cells by clamping
                 // const int k = clamp(bx + i, halo_x_, nx_+halo_x_);
 
@@ -180,7 +173,7 @@ __kernel void computeUKernel(
     }
     
     //Make sure all threads have read into shared mem
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
     
     /**
       * Now get all our required variables as short-hands
@@ -216,7 +209,7 @@ __kernel void computeUKernel(
     const float eta_pp = eta1_shared[ty+2][tx+1];
 
     // Coriolis at U positions:
-    const float glob_thread_y = get_global_id(1);
+    const float glob_thread_y = blockIdx.y * blockDim.y + threadIdx.y;
     float f_v_0 = linear_coriolis_term(f_, beta_, glob_thread_y+0.5f, dy_, y_zero_reference_cell_);
     float f_v_m = linear_coriolis_term(f_, beta_, glob_thread_y-0.5f, dy_, y_zero_reference_cell_);
     
@@ -256,7 +249,7 @@ __kernel void computeUKernel(
     float X = windStressX(wind_stress_, dx_, dy_, dt_, t_);
 
     // Finding the contribution from Coriolis
-    float global_thread_y = get_global_id(1);
+    float global_thread_y = blockIdx.y * blockDim.y + threadIdx.y;
     float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_, y_zero_reference_cell_);
     
     //Compute the V at the next timestep

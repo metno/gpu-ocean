@@ -25,7 +25,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #Import packages we need
 import numpy as np
-import pyopencl as cl #OpenCL in Python
 import gc
 
 import Common, SimWriter, SimReader
@@ -40,7 +39,6 @@ class CTCS(Simulator.Simulator):
     """
 
     def __init__(self, \
-                 cl_ctx, \
                  H, eta0, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
@@ -53,7 +51,7 @@ class CTCS(Simulator.Simulator):
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0, \
-                 block_width=32, block_height=32):
+                 block_width=16, block_height=16):
         """
         Initialization routine
         H: Water depth incl ghost cells, (nx+2)*(ny+2) cells
@@ -97,8 +95,7 @@ class CTCS(Simulator.Simulator):
         # self.<parameters> are sat in parent constructor:
         rk_order = None
         theta = None
-        super(CTCS, self).__init__(cl_ctx, \
-                                   nx, ny, \
+        super(CTCS, self).__init__(nx, ny, \
                                    ghost_cells_x, \
                                    ghost_cells_y, \
                                    dx, dy, dt, \
@@ -119,21 +116,23 @@ class CTCS(Simulator.Simulator):
         #     self.interior_domain_indices[3]:self.interior_domain_indices[1] ]
         self.interior_domain_indices = np.array([-1,-1,1,1])
         self._set_interior_domain_from_sponge_cells()
-            
-        #Get kernels
-        self.u_kernel = Common.get_kernel(self.cl_ctx, "CTCS_U_kernel.opencl", block_width, block_height)
-        self.v_kernel = Common.get_kernel(self.cl_ctx, "CTCS_V_kernel.opencl", block_width, block_height)
-        self.eta_kernel = Common.get_kernel(self.cl_ctx, "CTCS_eta_kernel.opencl", block_width, block_height)
 
-        # In PyOpenCL version 2, it would be more efficient to store the
-        # exectutional kernel functions rather than the kernel object 
-        # currently used.
-        # So, instead of self.u_kernel, we would like to use:
-        # self.u_kernel_exec = self.u_kernel.computeUKernel
+        #Get kernels
+        self.u_kernel = Common.get_kernel("CTCS_U_kernel.cu", block_width, block_height)
+        self.v_kernel = Common.get_kernel("CTCS_V_kernel.cu", block_width, block_height)
+        self.eta_kernel = Common.get_kernel("CTCS_eta_kernel.cu", block_width, block_height)
+        
+        # Get CUDA functions
+        self.computeUKernel = self.u_kernel.get_function("computeUKernel")
+        self.computeUKernel.prepare("iiiifffffffffPiPiPiPiPiPf")
+        self.computeVKernel = self.v_kernel.get_function("computeVKernel")
+        self.computeVKernel.prepare("iiiifffffffffPiPiPiPiPiPf")
+        self.computeEtaKernel = self.eta_kernel.get_function("computeEtaKernel")
+        self.computeEtaKernel.prepare("iiffffffffPiPiPi")
         
         #Create data by uploading to device     
-        self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, halo_x, halo_y, H)
-        self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, halo_x, halo_y, eta0, hu0, hv0)
+        self.H = Common.CUDAArray2D(nx, ny, halo_x, halo_y, H)
+        self.gpu_data = Common.SWEDataArakawaC(nx, ny, halo_x, halo_y, eta0, hu0, hv0)
         
         # Global size needs to be larger than the default from parent.__init__
         self.global_size = ( \
@@ -141,8 +140,7 @@ class CTCS(Simulator.Simulator):
                        int(np.ceil((self.ny+2*halo_y) / float(self.local_size[1])) * self.local_size[1]) \
                       ) 
     
-        self.bc_kernel = CTCS_boundary_condition(self.cl_ctx, \
-                                                 self.nx, \
+        self.bc_kernel = CTCS_boundary_condition(self.nx, \
                                                  self.ny, \
                                                  self.boundary_conditions, \
                                                  halo_x, halo_y \
@@ -153,7 +151,7 @@ class CTCS(Simulator.Simulator):
                                     staggered_grid=True, offset_x=self.offset_x, offset_y=self.offset_y)
         
     @classmethod
-    def fromfilename(cls, cl_ctx, filename, cont_write_netcdf=True):
+    def fromfilename(cls, filename, cont_write_netcdf=True):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
@@ -200,8 +198,7 @@ class CTCS(Simulator.Simulator):
         # get last timestep (including simulation time of last timestep)
         eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
         
-        return cls(cl_ctx, \
-                h0, eta0, hu0, hv0, \
+        return cls(h0, eta0, hu0, hv0, \
                 nx, ny, \
                 dx, dy, dt, \
                 g, f, r, \
@@ -216,7 +213,7 @@ class CTCS(Simulator.Simulator):
         """
         self.closeNetCDF()
         
-        self.cl_data.release()
+        self.gpu_data.release()
         
         self.H.release()
         gc.collect()
@@ -231,20 +228,20 @@ class CTCS(Simulator.Simulator):
             #print "np.float(min(self.dt, t_end-n*self.dt))", np.float32(min(self.dt, t_end-(n-1)*self.dt))
         
             # Ensure that the boundary conditions are satisfied before starting simulation
-            self.bc_kernel.boundaryConditionEta(self.cl_queue, self.cl_data.h0)
-            self.bc_kernel.boundaryConditionU(self.cl_queue, self.cl_data.hu0)
-            self.bc_kernel.boundaryConditionV(self.cl_queue, self.cl_data.hv0)
-            self.bc_kernel.boundaryConditionEta(self.cl_queue, self.cl_data.h1)
-            self.bc_kernel.boundaryConditionU(self.cl_queue, self.cl_data.hu1)
-            self.bc_kernel.boundaryConditionV(self.cl_queue, self.cl_data.hv1)
+            self.bc_kernel.boundaryConditionEta(self.gpu_data.h0)
+            self.bc_kernel.boundaryConditionU(self.gpu_data.hu0)
+            self.bc_kernel.boundaryConditionV(self.gpu_data.hv0)
+            self.bc_kernel.boundaryConditionEta(self.gpu_data.h1)
+            self.bc_kernel.boundaryConditionU(self.gpu_data.hu1)
+            self.bc_kernel.boundaryConditionV(self.gpu_data.hv1)
         
         for i in range(0, n):
             #Notation: 
-            # cl_data.u0 => U^{n-1} before U kernel, U^{n+1} after U kernel
-            # cl_data.u1 => U^{n}
-            # When we call cl_data.swap(), we swap these, so that
-            # cl_data.u0 => U^{n}
-            # cl_data.u1 => U^{n+1} (U kernel has been executed)
+            # gpu_data.u0 => U^{n-1} before U kernel, U^{n+1} after U kernel
+            # gpu_data.u1 => U^{n}
+            # When we call gpu_data.swap(), we swap these, so that
+            # gpu_data.u0 => U^{n}
+            # gpu_data.u1 => U^{n+1} (U kernel has been executed)
             # Now we are ready for the next time step
             
             local_dt = np.float32(min(self.dt, t_end-i*self.dt))
@@ -252,51 +249,50 @@ class CTCS(Simulator.Simulator):
             if (local_dt <= 0.0):
                 break
             
-            self.eta_kernel.computeEtaKernel(self.cl_queue, self.global_size, self.local_size, \
+            self.computeEtaKernel.prepared_call(self.global_size, self.local_size, \
                     self.nx, self.ny, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
-                    self.cl_data.h0.data, self.cl_data.h0.pitch,     # eta^{n-1} => eta^{n+1} \
-                    self.cl_data.hu1.data, self.cl_data.hu1.pitch,   # U^{n} \
-                    self.cl_data.hv1.data, self.cl_data.hv1.pitch)   # V^{n}
+                    self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch,     # eta^{n-1} => eta^{n+1} \
+                    self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch,   # U^{n} \
+                    self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch)   # V^{n}
 
-            self.bc_kernel.boundaryConditionEta(self.cl_queue, self.cl_data.h0)
+            self.bc_kernel.boundaryConditionEta(self.gpu_data.h0)
             
-            self.u_kernel.computeUKernel(self.cl_queue, self.global_size, self.local_size, \
-            #self.u_kernel_exec(self.cl_queue, self.global_size, self.local_size, \
+            self.computeUKernel.prepared_call(self.global_size, self.local_size, \
                     self.nx, self.ny, \
                     self.boundary_conditions.east, self.boundary_conditions.west, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, \
                     self.r, self.A,\
-                    self.H.data, self.H.pitch, \
-                    self.cl_data.h1.data, self.cl_data.h1.pitch,      # eta^{n} \
-                    self.cl_data.hu0.data, self.cl_data.hu0.pitch,    # U^{n-1} => U^{n+1} \
-                    self.cl_data.hu1.data, self.cl_data.hu1.pitch,    # U^{n} \
-                    self.cl_data.hv1.data, self.cl_data.hv1.pitch,    # V^{n} \
+                    self.H.data.gpudata, self.H.pitch, \
+                    self.gpu_data.h1.data.gpudata, self.gpu_data.h1.pitch,      # eta^{n} \
+                    self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch,    # U^{n-1} => U^{n+1} \
+                    self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch,    # U^{n} \
+                    self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch,    # V^{n} \
                     self.wind_stress_dev, \
                     self.t)
 
-            self.bc_kernel.boundaryConditionU(self.cl_queue, self.cl_data.hu0)
+            self.bc_kernel.boundaryConditionU(self.gpu_data.hu0)
             
-            self.v_kernel.computeVKernel(self.cl_queue, self.global_size, self.local_size, \
+            self.computeVKernel.prepared_call(self.global_size, self.local_size, \
                     self.nx, self.ny, \
                     self.boundary_conditions.north, self.boundary_conditions.south, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, \
                     self.r, self.A,\
-                    self.H.data, self.H.pitch, \
-                    self.cl_data.h1.data, self.cl_data.h1.pitch,     # eta^{n} \
-                    self.cl_data.hu1.data, self.cl_data.hu1.pitch,   # U^{n} \
-                    self.cl_data.hv0.data, self.cl_data.hv0.pitch,   # V^{n-1} => V^{n+1} \
-                    self.cl_data.hv1.data, self.cl_data.hv1.pitch,   # V^{n} \
+                    self.H.data.gpudata, self.H.pitch, \
+                    self.gpu_data.h1.data.gpudata, self.gpu_data.h1.pitch,     # eta^{n} \
+                    self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch,   # U^{n} \
+                    self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch,   # V^{n-1} => V^{n+1} \
+                    self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch,   # V^{n} \
                     self.wind_stress_dev, \
                     self.t)
 
-            self.bc_kernel.boundaryConditionV(self.cl_queue, self.cl_data.hv0)
+            self.bc_kernel.boundaryConditionV(self.gpu_data.hv0)
             
             #After the kernels, swap the data pointers
-            self.cl_data.swap()
+            self.gpu_data.swap()
             
             self.t += local_dt
         
@@ -307,11 +303,10 @@ class CTCS(Simulator.Simulator):
 
         
 class CTCS_boundary_condition:
-    def __init__(self, cl_ctx, nx, ny, \
+    def __init__(self, nx, ny, \
                  boundary_conditions, halo_x, halo_y, \
                  block_width=16, block_height=16):
 
-        self.cl_ctx = cl_ctx
         self.boundary_conditions = boundary_conditions
 
         self.bc_north = np.int32(boundary_conditions.north)
@@ -327,94 +322,115 @@ class CTCS_boundary_condition:
         self.ny_halo = np.int32(ny + 2*halo_y)
 
         # Load kernel for periodic boundary
-        self.boundaryKernels = Common.get_kernel(self.cl_ctx,\
-            "CTCS_boundary.opencl", block_width, block_height)
+        self.boundaryKernels = Common.get_kernel("CTCS_boundary.cu", block_width, block_height)
+        
+        # Get CUDA functions
+        self.boundaryUKernel_NS = self.boundaryKernels.get_function("boundaryUKernel_NS")
+        self.boundaryUKernel_NS.prepare("iiiiiiPi")
+        self.boundaryUKernel_EW = self.boundaryKernels.get_function("boundaryUKernel_EW")
+        self.boundaryUKernel_EW.prepare("iiiiiiPi")
+        self.boundaryVKernel_NS = self.boundaryKernels.get_function("boundaryVKernel_NS")
+        self.boundaryVKernel_NS.prepare("iiiiiiPi")
+        self.boundaryVKernel_EW = self.boundaryKernels.get_function("boundaryVKernel_EW")
+        self.boundaryVKernel_EW.prepare("iiiiiiPi")
+        self.boundaryEtaKernel_NS = self.boundaryKernels.get_function("boundaryEtaKernel_NS")
+        self.boundaryEtaKernel_NS.prepare("iiiiiiPi")
+        self.boundaryEtaKernel_EW = self.boundaryKernels.get_function("boundaryEtaKernel_EW")
+        self.boundaryEtaKernel_EW.prepare("iiiiiiPi")
+        self.boundary_linearInterpol_NS = self.boundaryKernels.get_function("boundary_linearInterpol_NS")
+        self.boundary_linearInterpol_NS.prepare("iiiiiiiiiiPi")
+        self.boundary_linearInterpol_EW = self.boundaryKernels.get_function("boundary_linearInterpol_EW")
+        self.boundary_linearInterpol_EW.prepare("iiiiiiiiiiPi")
+        self.boundary_flowRelaxationScheme_NS = self.boundaryKernels.get_function("boundary_flowRelaxationScheme_NS")
+        self.boundary_flowRelaxationScheme_NS.prepare("iiiiiiiiiiPi")
+        self.boundary_flowRelaxationScheme_EW = self.boundaryKernels.get_function("boundary_flowRelaxationScheme_EW")
+        self.boundary_flowRelaxationScheme_EW.prepare("iiiiiiiiiiPi")
 
         # Set kernel launch parameters
-        self.local_size = (block_width, block_height)
+        self.local_size = (block_width, block_height, 1)
         self.global_size = ( \
                              int(np.ceil((self.nx_halo + 1)/float(self.local_size[0])) * self.local_size[0]), \
                              int(np.ceil((self.ny_halo + 1)/float(self.local_size[1])) * self.local_size[1]) )
 
         
        
-    def boundaryConditionU(self, cl_queue, hu0):
+    def boundaryConditionU(self, hu0):
         """
         Updates hu according periodic boundary conditions
         """
        
         if (self.bc_north < 3) or (self.bc_south < 3):
-            self.boundaryKernels.boundaryUKernel_NS( \
-                cl_queue, self.global_size, self.local_size, \
+            self.boundaryUKernel_NS.prepared_call( \
+                self.global_size, self.local_size, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 self.bc_north, self.bc_south, \
-                hu0.data, hu0.pitch)
-        #self.callSpongeNS(cl_queue, hu0, 0, 0)
-        self.callSpongeNS(cl_queue, hu0, 1, 0)
+                hu0.data.gpudata, hu0.pitch)
+        #self.callSpongeNS(hu0, 0, 0)
+        self.callSpongeNS(hu0, 1, 0)
         
         if (self.bc_east < 3) or (self.bc_west < 3):
-            self.boundaryKernels.boundaryUKernel_EW( \
-                cl_queue, self.global_size, self.local_size, \
+            self.boundaryUKernel_EW.prepared_call( \
+                self.global_size, self.local_size, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 self.bc_east, self.bc_west, \
-                hu0.data, hu0.pitch)
-        self.callSpongeEW(cl_queue, hu0, 1, 0)
-        #self.callSpongeEW(cl_queue, hu0, 0, 0)
+                hu0.data.gpudata, hu0.pitch)
+        self.callSpongeEW(hu0, 1, 0)
+        #self.callSpongeEW(hu0, 0, 0)
         
         
         
-    def boundaryConditionV(self, cl_queue, hv0):
+    def boundaryConditionV(self, hv0):
         """
         Updates hv according to periodic boundary conditions
         """
 
         if (self.bc_north < 3) or (self.bc_south < 3):
-            self.boundaryKernels.boundaryVKernel_NS( \
-                cl_queue, self.global_size, self.local_size, \
+            self.boundaryVKernel_NS.prepared_call( \
+                self.global_size, self.local_size, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 self.bc_north, self.bc_south, \
-                hv0.data, hv0.pitch)
-        self.callSpongeNS(cl_queue, hv0, 0, 1)
-        #self.callSpongeNS(cl_queue, hv0, 0, 0)
+                hv0.data.gpudata, hv0.pitch)
+        self.callSpongeNS(hv0, 0, 1)
+        #self.callSpongeNS(hv0, 0, 0)
         
         if (self.bc_east < 3) or (self.bc_west < 3):
-            self.boundaryKernels.boundaryVKernel_EW( \
-                cl_queue, self.global_size, self.local_size, \
+            self.boundaryVKernel_EW.prepared_call( \
+                self.global_size, self.local_size, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 self.bc_east, self.bc_west, \
-                hv0.data, hv0.pitch)
-        self.callSpongeEW(cl_queue, hv0, 0, 1)
-        #self.callSpongeEW(cl_queue, hv0, 0, 0)
+                hv0.data.gpudata, hv0.pitch)
+        self.callSpongeEW(hv0, 0, 1)
+        #self.callSpongeEW(hv0, 0, 0)
 
-    def boundaryConditionEta(self, cl_queue, eta0):
+    def boundaryConditionEta(self, eta0):
         """
         Updates eta boundary conditions (ghost cells)
         """
 
         if (self.bc_north < 3) or (self.bc_south < 3):
-            self.boundaryKernels.boundaryEtaKernel_NS( \
-                cl_queue, self.global_size, self.local_size, \
+            self.boundaryEtaKernel_NS.prepared_call( \
+                self.global_size, self.local_size, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 self.bc_north, self.bc_south, \
-                eta0.data, eta0.pitch)
-        self.callSpongeNS(cl_queue, eta0, 0, 0)
+                eta0.data.gpudata, eta0.pitch)
+        self.callSpongeNS(eta0, 0, 0)
             
         if (self.bc_east < 3) or (self.bc_west < 3):
-            self.boundaryKernels.boundaryEtaKernel_EW( \
-                cl_queue, self.global_size, self.local_size, \
+            self.boundaryEtaKernel_EW.prepared_call( \
+                self.global_size, self.local_size, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 self.bc_east, self.bc_west, \
-                eta0.data, eta0.pitch)
-        self.callSpongeEW(cl_queue, eta0, 0, 0)
+                eta0.data.gpudata, eta0.pitch)
+        self.callSpongeEW(eta0, 0, 0)
             
               
-    def callSpongeNS(self, cl_queue, data, staggered_x, staggered_y):
+    def callSpongeNS(self, data, staggered_x, staggered_y):
         """
         Call othe approporary sponge-like boundary condition with the given data
         """
@@ -423,49 +439,49 @@ class CTCS_boundary_condition:
 
         #print "callSpongeNS"
         if (self.bc_north == 3) or (self.bc_south == 3):
-            self.boundaryKernels.boundary_flowRelaxationScheme_NS( \
-                cl_queue, self.global_size, self.local_size, \
+            self.boundary_flowRelaxationScheme_NS.prepared_call( \
+                self.global_size, self.local_size, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 staggered_x_int32, staggered_y_int32, \
                 self.boundary_conditions.spongeCells[0], \
                 self.boundary_conditions.spongeCells[2], \
                 self.bc_north, self.bc_south, \
-                data.data, data.pitch) 
+                data.data.gpudata, data.pitch) 
         if (self.bc_north == 4 ) or (self.bc_south == 4):
-            self.boundaryKernels.boundary_linearInterpol_NS( \
-                cl_queue, self.global_size, self.local_size, \
+            self.boundary_linearInterpol_NS.prepared_call( \
+                self.global_size, self.local_size, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 staggered_x_int32, staggered_y_int32, \
                 self.boundary_conditions.spongeCells[0], \
                 self.boundary_conditions.spongeCells[2], \
                 self.bc_north, self.bc_south, \
-                data.data, data.pitch)                                
+                data.data.gpudata, data.pitch)                                
 
-    def callSpongeEW(self, cl_queue, data, staggered_x, staggered_y):
+    def callSpongeEW(self, data, staggered_x, staggered_y):
         staggered_x_int32 = np.int32(staggered_x)
         staggered_y_int32 = np.int32(staggered_y)
 
         #print "CallSpongeEW"
         if (self.bc_east == 3) or (self.bc_west == 3):
-            self.boundaryKernels.boundary_flowRelaxationScheme_EW( \
-                cl_queue, self.global_size, self.local_size, \
+            self.boundary_flowRelaxationScheme_EW.prepared_call( \
+                self.global_size, self.local_size, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 staggered_x_int32, staggered_y_int32, \
                 self.boundary_conditions.spongeCells[1], \
                 self.boundary_conditions.spongeCells[3], \
                 self.bc_east, self.bc_west, \
-                data.data, data.pitch)   
+                data.data.gpudata, data.pitch)   
 
         if (self.bc_east == 4 ) or (self.bc_west == 4):
-            self.boundaryKernels.boundary_linearInterpol_EW( \
-                cl_queue, self.global_size, self.local_size, \
+            self.boundary_linearInterpol_EW.prepared_call( \
+                self.global_size, self.local_size, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 staggered_x_int32, staggered_y_int32, \
                 self.boundary_conditions.spongeCells[1], \
                 self.boundary_conditions.spongeCells[3], \
                 self.bc_east, self.bc_west, \
-                data.data, data.pitch)   
+                data.data.gpudata, data.pitch)   
