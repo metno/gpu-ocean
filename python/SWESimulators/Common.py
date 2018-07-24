@@ -85,7 +85,7 @@ class CUDAArray2D:
         assert(data.shape == (self.ny_halo, self.nx_halo))
 
         #Upload data to the device
-        self.data = pycuda.gpuarray.to_gpu_async(host_data)
+        self.data = pycuda.gpuarray.to_gpu_async(host_data) # potentially blocking/synchronous!
         self.holds_data = True
         
         self.bytes_per_float = host_data.itemsize
