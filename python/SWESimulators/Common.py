@@ -94,7 +94,7 @@ class CUDAArray2D:
         self.pitch = np.int32((self.nx_halo)*self.bytes_per_float)
         
         
-    def upload(self, data):
+    def upload(self, gpu_stream, data):
         """
         Filling the allocated buffer with new data
         """
@@ -114,10 +114,10 @@ class CUDAArray2D:
         assert(host_data.itemsize == self.bytes_per_float), "Host data itemsize is " + str(host_data.itemsize) + ", but should have been " + str(self.bytes_per_float)
         
         # Okay, everything is fine, now upload:
-        self.data.set_async(host_data)
+        self.data.set_async(host_data, stream=gpu_stream)
         
     
-    def copyBuffer(self, buffer):
+    def copyBuffer(self, gpu_stream, buffer):
         """
         Copying the given device buffer into the already allocated memory
         """
@@ -135,26 +135,19 @@ class CUDAArray2D:
         
         # Okay, everything is fine - issue device-to-device-copy:
         total_num_bytes = self.bytes_per_float*self.nx_halo*self.ny_halo
-        cuda.memcpy_dtod_async(self.data.ptr(), buffer.data.ptr(), total_num_bytes)
+        cuda.memcpy_dtod_async(self.data.ptr(), buffer.data.ptr(), total_num_bytes, stream=gpu_stream)
         
         
         
-    def download(self):
+    def download(self, gpu_stream):
         """
         Enables downloading data from CUDA device to Python
         """
         if not self.holds_data:
             raise RuntimeError('CUDA buffer has been freed')
         
-        #Allocate data on the host for result
-        host_data = np.empty((self.ny_halo, self.nx_halo), dtype=np.float32, order='C')
-        if self.double_precision and not self.integers:
-            host_data = np.empty((self.ny_halo, self.nx_halo), dtype=np.float64, order='C')
-        if self.double_precision and self.integers:
-            host_data = np.empty((self.ny_halo, self.nx_halo), dtype=np.uint64, order='C')
-        
-        #Copy data from device to host (synchronize/barrier!)
-        self.data.get(host_data)
+        #Copy data from device to host
+        host_data = self.data.get(stream=gpu_stream)
         
         #Return
         return host_data
@@ -205,24 +198,24 @@ class SWEDataArakawaA:
         self.hu1, self.hu0 = self.hu0, self.hu1
         self.hv1, self.hv0 = self.hv0, self.hv1
         
-    def download(self):
+    def download(self, gpu_stream):
         """
         Enables downloading data from CUDA device to Python
         """
-        h_cpu  = self.h0.download()
-        hu_cpu = self.hu0.download()
-        hv_cpu = self.hv0.download()
+        h_cpu  = self.h0.download(gpu_stream)
+        hu_cpu = self.hu0.download(gpu_stream)
+        hv_cpu = self.hv0.download(gpu_stream)
         
         return h_cpu, hu_cpu, hv_cpu
     
 
-    def downloadPrevTimestep(self):
+    def downloadPrevTimestep(self, gpu_stream):
         """
         Enables downloading data from the additional buffer of CUDA device to Python
         """
-        h_cpu  = self.h1.download()
-        hu_cpu = self.hu1.download()
-        hv_cpu = self.hv1.download()
+        h_cpu  = self.h1.download(gpu_stream)
+        hu_cpu = self.hu1.download(gpu_stream)
+        hv_cpu = self.hv1.download(gpu_stream)
         
         return h_cpu, hu_cpu, hv_cpu
 
@@ -285,23 +278,23 @@ class SWEDataArakawaC:
         self.hu1, self.hu0 = self.hu0, self.hu1
         self.hv1, self.hv0 = self.hv0, self.hv1
         
-    def download(self):
+    def download(self, gpu_stream):
         """
         Enables downloading data from CUDA device to Python
         """
-        h_cpu  = self.h0.download()
-        hu_cpu = self.hu0.download()
-        hv_cpu = self.hv0.download()
+        h_cpu  = self.h0.download(gpu_stream)
+        hu_cpu = self.hu0.download(gpu_stream)
+        hv_cpu = self.hv0.download(gpu_stream)
         
         return h_cpu, hu_cpu, hv_cpu
 
-    def downloadPrevTimestep(self):
+    def downloadPrevTimestep(self, gpu_stream):
         """
         Enables downloading data from the additional buffer of CUDA device to Python
         """
-        h_cpu  = self.h1.download()
-        hu_cpu = self.hu1.download()
-        hv_cpu = self.hv1.download()
+        h_cpu  = self.h1.download(gpu_stream)
+        hu_cpu = self.hu1.download(gpu_stream)
+        hv_cpu = self.hv1.download(gpu_stream)
         
         return h_cpu, hu_cpu, hv_cpu
     
@@ -457,51 +450,55 @@ class BoundaryConditionsArakawaA:
         #print("numerical sponge cells (n,e,s,w): ", self.boundary_conditions.spongeCells)
         
         # Load CUDA module for periodic boundary
-        self.boundaryKernels = get_kernel("boundary_kernels.opencl", block_width, block_height)
+        self.boundaryKernels = get_kernel("boundary_kernels.cu", block_width, block_height)
 
         # Get CUDA functions
         self.periodicBoundary_NS = self.boundaryKernels.get_function("periodicBoundary_NS")
+        self.periodicBoundary_NS.prepare("iiiiPiPiPi")
         self.periodic_boundary_EW = self.boundaryKernels.get_function("periodic_boundary_EW")
-        self.flow_relaxation_NS = self.boundaryKernels.get_function("flow_relaxation_NS")
-        self.flow_relaxation_EW = self.boundaryKernels.get_function("flow_relaxation_EW")
+        self.periodic_boundary_EW.prepare("iiiiPiPiPi")
         self.linear_interpolation_NS = self.boundaryKernels.get_function("linear_interpolation_NS")
+        self.linear_interpolation_NS.prepare("iiiiiiiiPiPiPi")
         self.linear_interpolation_EW = self.boundaryKernels.get_function("linear_interpolation_EW")
+        self.linear_interpolation_EW.prepare("iiiiiiiiPiPiPi")
         self.flowRelaxationScheme_NS = self.boundaryKernels.get_function("flowRelaxationScheme_NS")
+        self.flowRelaxationScheme_NS.prepare("iiiiiiiiPiPiPi")
         self.flowRelaxationScheme_EW = self.boundaryKernels.get_function("flowRelaxationScheme_EW")
+        self.flowRelaxationScheme_EW.prepare("iiiiiiiiPiPiPi")
        
         # Set kernel launch parameters
-        self.local_size = (block_width, block_height)
+        self.local_size = (block_width, block_height, 1)
         self.global_size = ( \
                              int(np.ceil((self.nx + 2*self.halo_x + 1)/float(self.local_size[0])) * self.local_size[0]), \
                              int(np.ceil((self.ny + 2*self.halo_y + 1)/float(self.local_size[1])) * self.local_size[1]) )
 
 
         
-    def boundaryCondition(self, h, u, v):
+    def boundaryCondition(self, gpu_stream, h, u, v):
         if self.boundary_conditions.north == 2:
-            self.periodic_boundary_NS(h, u, v)
+            self.periodic_boundary_NS(gpu_stream, h, u, v)
         else:
             if (self.boundary_conditions.north == 3 or \
                 self.boundary_conditions.south == 3):
-                self.flow_relaxation_NS(h, u, v)
+                self.flow_relaxation_NS(gpu_stream, h, u, v)
             if (self.boundary_conditions.north == 4 or \
                 self.boundary_conditions.south == 4):
-                self.linear_interpolation_NS(h, u, v)
+                self.linear_interpolation_NS(gpu_stream, h, u, v)
             
             
         if self.boundary_conditions.east == 2:
-            self.periodic_boundary_EW(h, u, v)
+            self.periodic_boundary_EW(gpu_stream, h, u, v)
         else:
             if (self.boundary_conditions.east == 3 or \
                 self.boundary_conditions.west == 3):
-                self.flow_relaxation_EW(h, u, v)
+                self.flow_relaxation_EW(gpu_stream, h, u, v)
             if (self.boundary_conditions.east == 4 or \
                 self.boundary_conditions.west == 4):
-                self.linear_interpolation_EW(h, u, v)
+                self.linear_interpolation_EW(gpu_stream, h, u, v)
              
-    def periodic_boundary_NS(self, h, u, v):
-        self.periodicBoundary_NS( \
-            self.global_size, self.local_size, \
+    def periodic_boundary_NS(self, gpu_stream, h, u, v):
+        self.periodicBoundary_NS.prepared_async_call( \
+            self.global_size, self.local_size, gpu_stream, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
             h.data, h.pitch, \
@@ -509,9 +506,9 @@ class BoundaryConditionsArakawaA:
             v.data, v.pitch)
         
 
-    def periodic_boundary_EW(self, h, v, u):
-        self.periodicBoundary_EW( \
-            self.global_size, self.local_size, \
+    def periodic_boundary_EW(self, gpu_stream, h, v, u):
+        self.periodicBoundary_EW.prepared_async_call( \
+            self.global_size, self.local_size, gpu_stream, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
             h.data, h.pitch, \
@@ -519,9 +516,9 @@ class BoundaryConditionsArakawaA:
             v.data, v.pitch)
 
 
-    def linear_interpolation_NS(self, h, u, v):
-        self.linearInterpolation_NS( \
-            self.global_size, self.local_size, \
+    def linear_interpolation_NS(self, gpu_stream, h, u, v):
+        self.linearInterpolation_NS.prepared_async_call( \
+            self.global_size, self.local_size, gpu_stream, \
             self.boundary_conditions.north, self.boundary_conditions.south, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
@@ -531,9 +528,9 @@ class BoundaryConditionsArakawaA:
             u.data, u.pitch, \
             v.data, v.pitch)                                   
 
-    def linear_interpolation_EW(self, h, u, v):
-        self.linearInterpolation_EW( \
-            self.global_size, self.local_size, \
+    def linear_interpolation_EW(self, gpu_stream, h, u, v):
+        self.linearInterpolation_EW.prepared_async_call( \
+            self.global_size, self.local_size, gpu_stream, \
             self.boundary_conditions.east, self.boundary_conditions.west, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
@@ -543,9 +540,9 @@ class BoundaryConditionsArakawaA:
             u.data, u.pitch, \
             v.data, v.pitch)
 
-    def flow_relaxation_NS(self, h, u, v):
-        self.flowRelaxationScheme_NS( \
-            self.global_size, self.local_size, \
+    def flow_relaxation_NS(self, gpu_stream, h, u, v):
+        self.flowRelaxationScheme_NS.prepared_async_call( \
+            self.global_size, self.local_size, gpu_stream, \
             self.boundary_conditions.north, self.boundary_conditions.south, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
@@ -555,9 +552,9 @@ class BoundaryConditionsArakawaA:
             u.data, u.pitch, \
             v.data, v.pitch)   
 
-    def flow_relaxation_EW(self, h, u, v):
-        self.flowRelaxationScheme_EW( \
-            self.global_size, self.local_size, \
+    def flow_relaxation_EW(self, gpu_stream, h, u, v):
+        self.flowRelaxationScheme_EW.prepared_async_call( \
+            self.global_size, self.local_size, gpu_stream, \
             self.boundary_conditions.east, self.boundary_conditions.west, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
@@ -575,10 +572,11 @@ class Bathymetry:
     cell mid-points.
     """
     
-    def __init__(self, nx, ny, halo_x, halo_y, Bi_host, \
+    def __init__(self, gpu_stream, nx, ny, halo_x, halo_y, Bi_host, \
                  boundary_conditions=BoundaryConditions(), \
                  block_width=16, block_height=16):
         # Convert scalar data to int32
+        self.gpu_stream = gpu_stream
         self.nx = np.int32(nx)
         self.ny = np.int32(ny)
         self.halo_x = np.int32(halo_x)
@@ -605,13 +603,17 @@ class Bathymetry:
         
         # Check boundary conditions and make Bi periodic if necessary
         # Load CUDA module for periodic boundary
-        self.boundaryKernels = get_kernel("boundary_kernels.opencl", block_width, block_height)
+        self.boundaryKernels = get_kernel("boundary_kernels.cu", block_width, block_height)
 
         # Get CUDA functions
         self.periodic_boundary_intersections_NS = self.boundaryKernels.get_function("periodic_boundary_intersections_NS")
+        self.periodic_boundary_intersections_NS.prepare("iiiiPi")
         self.periodic_boundary_intersections_EW = self.boundaryKernels.get_function("periodic_boundary_intersections_EW")
+        self.periodic_boundary_intersections_EW.prepare("iiiiPi")
         self.closed_boundary_intersections_NS = self.boundaryKernels.get_function("closed_boundary_intersections_NS")
+        self.closed_boundary_intersections_NS.prepare("iiiiPi")
         self.closed_boundary_intersections_EW = self.boundaryKernels.get_function("closed_boundary_intersections_EW")
+        self.closed_boundary_intersections_EW.prepare("iiiiPi")
 
         self._boundaryConditions()
         
@@ -620,22 +622,24 @@ class Bathymetry:
         self.Bm = CUDAArray2D(nx, ny, halo_x, halo_y, Bm_host)
 
         # Load kernel for finding Bm from Bi
-        self.initBm_kernel = get_kernel("initBm_kernel.opencl", block_width, block_height)
+        self.initBm_kernel = get_kernel("initBm_kernel.cu", block_width, block_height)
 
         # Get CUDA functions
         self.initBm = self.initBm_kernel.get_function("initBm")
+        self.initBm.prepare("iiPiPi")
         self.waterElevationToDepth = self.initBm_kernel.get_function("waterElevationToDepth")
+        self.waterElevationToDepth.prepare("iiPiPi")
 
         # Call kernel
-        self.initBm(self.global_size, self.local_size, \
+        self.initBm.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                                    self.halo_nx, self.halo_ny, \
                                    self.Bi.data, self.Bi.pitch, \
                                    self.Bm.data, self.Bm.pitch)
 
                  
-    def download(self):
-        Bm_cpu = self.Bm.download()
-        Bi_cpu = self.Bi.download()
+    def download(self, gpu_stream):
+        Bm_cpu = self.Bm.download(gpu_stream)
+        Bi_cpu = self.Bi.download(gpu_stream)
 
         return Bi_cpu, Bm_cpu
 
@@ -653,7 +657,7 @@ class Bathymetry:
             "h0 not the correct shape: " + str(h0.shape) + ", but should be " + str((self.halo_ny, self.halo_nx))
 
         # Call kernel        
-        self.waterElevationToDepth(self.global_size, self.local_size, \
+        self.waterElevationToDepth.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                                    self.halo_nx, self.halo_ny, \
                                    h.data, h.pitch, \
                                    self.Bm.data, self.Bm.pitch)
@@ -666,7 +670,7 @@ class Bathymetry:
         assert ((w.ny_halo, w.nx_halo) == (self.halo_ny, self.halo_nx)), \
             "w not the correct shape: " + str(w.shape) + ", but should be " + str((self.halo_ny, self.halo_nx))
         # Call kernel        
-        self.waterDepthToElevation(self.global_size, self.local_size, \
+        self.waterDepthToElevation.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                                    self.halo_nx, self.halo_ny, \
                                    w.data, w.pitch, \
                                    h.data, h.pitch, \
@@ -675,25 +679,25 @@ class Bathymetry:
     def _boundaryConditions(self):
         # North-south:
         if (self.boundary_conditions.north == 2) and (self.boundary_conditions.south == 2):
-            self.periodic_boundary_intersections_NS( \
-                self.global_size, self.local_size, \
+            self.periodic_boundary_intersections_NS.prepared_async_call( \
+                self.global_size, self.local_size, self.gpu_stream, \
                 self.nx, self.ny, self.halo_x, self.halo_y, \
                 self.Bi.data, self.Bi.pitch)
         else:
-            self.closed_boundary_intersections_NS( \
-                self.global_size, self.local_size, \
+            self.closed_boundary_intersections_NS.prepared_async_call( \
+                self.global_size, self.local_size, self.gpu_stream, \
                 self.nx, self.ny, self.halo_x, self.halo_y, \
                 self.Bi.data, self.Bi.pitch)
 
         # East-west:
         if (self.boundary_conditions.east == 2) and (self.boundary_conditions.west == 2):
-            self.periodic_boundary_intersections_EW( \
-                self.global_size, self.local_size, \
+            self.periodic_boundary_intersections_EW.prepared_async_call( \
+                self.global_size, self.local_size, self.gpu_stream, \
                 self.nx, self.ny, self.halo_x, self.halo_y, \
                 self.Bi.data, self.Bi.pitch)
         else:
-            self.closed_boundary_intersections_EW( \
-                self.global_size, self.local_size, \
+            self.closed_boundary_intersections_EW.prepared_async_call( \
+                self.global_size, self.local_size, self.gpu_stream, \
                 self.nx, self.ny, self.halo_x, self.halo_y, \
                 self.Bi.data, self.Bi.pitch)
                  

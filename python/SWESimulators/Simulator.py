@@ -51,6 +51,7 @@ class Simulator(object):
         """
         Setting all parameters that are common for all simulators
         """
+        self.gpu_stream = cuda.Stream()
         
         #Save input parameters
         #Notice that we need to specify them in the correct dataformat for the
@@ -74,7 +75,7 @@ class Simulator(object):
         
         # Upload wind stress params to device
         self.wind_stress_dev = cuda.mem_alloc(wind_stress.csize())
-        cuda.memcpy_htod(int(self.wind_stress_dev), wind_stress.tostruct()) # synchronize/barrier!
+        cuda.memcpy_htod_async(int(self.wind_stress_dev), wind_stress.tostruct(), stream=self.gpu_stream)
         
         #Initialize time
         self.t = np.float32(t)
@@ -152,14 +153,14 @@ class Simulator(object):
         
         self.drifters = drifters
         self.hasDrifters = True
-        self.drifters.setCLQueue()
+        self.drifters.setCLQueue(self.gpu_stream)
     
     def download(self, interior_domain_only=False):
         """
         Download the latest time step from the GPU
         """
         if interior_domain_only:
-            eta, hu, hv = self.gpu_data.download()
+            eta, hu, hv = self.gpu_data.download(self.gpu_stream)
             return eta[self.interior_domain_indices[2]:self.interior_domain_indices[0],  \
                        self.interior_domain_indices[3]:self.interior_domain_indices[1]], \
                    hu[self.interior_domain_indices[2]:self.interior_domain_indices[0],   \
@@ -167,14 +168,14 @@ class Simulator(object):
                    hv[self.interior_domain_indices[2]:self.interior_domain_indices[0],   \
                       self.interior_domain_indices[3]:self.interior_domain_indices[1]]
         else:
-            return self.gpu_data.download()
+            return self.gpu_data.download(self.gpu_stream)
     
     
     def downloadPrevTimestep(self):
         """
         Download the second-latest time step from the GPU
         """
-        return self.gpu_data.downloadPrevTimestep()
+        return self.gpu_data.downloadPrevTimestep(self.gpu_stream)
         
     def copyState(self, otherSim):
         """
@@ -190,13 +191,13 @@ class Simulator(object):
         
         assert (self.ny, self.nx) == (otherSim.ny, otherSim.nx), "Simulators differ in computational domain. Self (ny, nx): " + str((self.ny, self.nx)) + ", vs other: " + ((otherSim.ny, otherSim.nx))
         
-        self.gpu_data.h0.copyBuffer(otherSim.gpu_data.h0)
-        self.gpu_data.hu0.copyBuffer(otherSim.gpu_data.hu0)
-        self.gpu_data.hv0.copyBuffer(otherSim.gpu_data.hv0)
+        self.gpu_data.h0.copyBuffer(self.gpu_stream, otherSim.gpu_data.h0)
+        self.gpu_data.hu0.copyBuffer(self.gpu_stream, otherSim.gpu_data.hu0)
+        self.gpu_data.hv0.copyBuffer(self.gpu_stream, otherSim.gpu_data.hv0)
         
-        self.gpu_data.h1.copyBuffer(otherSim.gpu_data.h1)
-        self.gpu_data.hu1.copyBuffer(otherSim.gpu_data.hu1)
-        self.gpu_data.hv1.copyBuffer(otherSim.gpu_data.hv1)
+        self.gpu_data.h1.copyBuffer(self.gpu_stream, otherSim.gpu_data.h1)
+        self.gpu_data.hu1.copyBuffer(self.gpu_stream, otherSim.gpu_data.hu1)
+        self.gpu_data.hv1.copyBuffer(self.gpu_stream, otherSim.gpu_data.hv1)
         
         # Question: Which parameters should we require equal, and which 
         # should become equal?
@@ -212,18 +213,18 @@ class Simulator(object):
         """
         Reinitialize simulator with a new ocean state.
         """
-        self.gpu_data.h0.upload(eta0)
-        self.gpu_data.hu0.upload(hu0)
-        self.gpu_data.hv0.upload(hv0)
+        self.gpu_data.h0.upload(self.gpu_stream, eta0)
+        self.gpu_data.hu0.upload(self.gpu_stream, hu0)
+        self.gpu_data.hv0.upload(self.gpu_stream, hv0)
         
         if eta1 is None:
-            self.gpu_data.h1.upload(eta0)
-            self.gpu_data.hu1.upload(hu0)
-            self.gpu_data.hv1.upload(hv0)
+            self.gpu_data.h1.upload(self.gpu_stream, eta0)
+            self.gpu_data.hu1.upload(self.gpu_stream, hu0)
+            self.gpu_data.hv1.upload(self.gpu_stream, hv0)
         else:
-            self.gpu_data.h1.upload(eta1)
-            self.gpu_data.hu1.upload(hu1)
-            self.gpu_data.hv1.upload(hv1)
+            self.gpu_data.h1.upload(self.gpu_stream, eta1)
+            self.gpu_data.hu1.upload(self.gpu_stream, hu1)
+            self.gpu_data.hv1.upload(self.gpu_stream, hv1)
             
     def _set_interior_domain_from_sponge_cells(self):
         """

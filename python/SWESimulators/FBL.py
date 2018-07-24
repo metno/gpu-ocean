@@ -229,9 +229,9 @@ class FBL(Simulator.Simulator):
                 
         ## Populate all ghost cells before we start
         if self.t == 0:
-            self.bc_kernel.boundaryConditionU(self.gpu_data.hu0)
-            self.bc_kernel.boundaryConditionV(self.gpu_data.hv0)
-            self.bc_kernel.boundaryConditionEta(self.gpu_data.h0)
+            self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu0)
+            self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv0)
+            self.bc_kernel.boundaryConditionEta(self.gpu_stream, self.gpu_data.h0)
             
 
         for i in range(0, n):        
@@ -246,7 +246,7 @@ class FBL(Simulator.Simulator):
             if (local_dt <= 0.0):
                 break
 
-            self.computeUKernel.prepared_call(self.global_size, self.local_size, \
+            self.computeUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                     self.nx_halo, self.ny, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
@@ -258,9 +258,9 @@ class FBL(Simulator.Simulator):
                     self.t)
 
             # Fix U boundary
-            self.bc_kernel.boundaryConditionU(self.gpu_data.hu0)
+            self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu0)
             
-            self.computeVKernel.prepared_call(self.global_size, self.local_size, \
+            self.computeVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                     self.nx, self.ny_halo, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
@@ -272,9 +272,9 @@ class FBL(Simulator.Simulator):
                     self.t)
 
             # Fix V boundary
-            self.bc_kernel.boundaryConditionV(self.gpu_data.hv0)
+            self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv0)
             
-            self.computeEtaKernel.prepared_call(self.global_size, self.local_size, \
+            self.computeEtaKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                     self.nx, self.ny, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
@@ -283,7 +283,7 @@ class FBL(Simulator.Simulator):
                     self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
                     self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch)
 
-            self.bc_kernel.boundaryConditionEta(self.gpu_data.h0)
+            self.bc_kernel.boundaryConditionEta(self.gpu_stream, self.gpu_data.h0)
    
             self.t += local_dt
             self.totalNumIterations += 1
@@ -358,13 +358,13 @@ class FBL_periodic_boundary:
 
     
 
-    def boundaryConditionU(self, hu0):
+    def boundaryConditionU(self, gpu_stream, hu0):
         """
         Updates hu according periodic boundary conditions
         """
 
         # Start with fixing the potential sponge
-        self.callSpongeNS(hu0, 1, 0)
+        self.callSpongeNS(gpu_stream, hu0, 1, 0)
         
         if (self.boundary_conditions.east == 1 and \
             self.boundary_conditions.west == 1):
@@ -372,7 +372,7 @@ class FBL_periodic_boundary:
                 print("Closed east-west boundary, but nx_halo > nx")
                 return
             
-            self.closedBoundaryUKernel.prepared_call(self.global_size, self.local_size, \
+            self.closedBoundaryUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hu0.data.gpudata, hu0.pitch)
@@ -389,7 +389,7 @@ class FBL_periodic_boundary:
                 print("[nx, ny, nx_halo, ny_halo]")
                 print([self.nx, self.ny, self.nx_halo, self.ny_halo])
                 
-            self.periodicBoundaryUKernel.prepared_call(self.global_size, self.local_size, \
+            self.periodicBoundaryUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hu0.data.gpudata, hu0.pitch)
@@ -403,26 +403,26 @@ class FBL_periodic_boundary:
                 print("Updating U ghosts in north-south")
                 self.firstGhostU = False
             
-            self.updateGhostCellsUKernel.prepared_call(self.global_size, self.local_size, \
+            self.updateGhostCellsUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hu0.data.gpudata, hu0.pitch)
             
 
-    def boundaryConditionV(self, hv0):
+    def boundaryConditionV(self, gpu_stream, hv0):
         """
         Updates hv according to periodic boundary conditions
         """
 
         # Start with fixing the potential sponge
-        self.callSpongeNS(hv0, 0, 1)
+        self.callSpongeNS(gpu_stream, hv0, 0, 1)
         
         if (self.boundary_conditions.north == 1 and \
             self.boundary_conditions.south == 1):
             if (self.ny_halo > self.ny):
                 print("Closed north-south boundary, but ny_halo > ny")
                 return
-            self.closedBoundaryVKernel.prepared_call(self.global_size, self.local_size, \
+            self.closedBoundaryVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hv0.data.gpudata, hv0.pitch)
@@ -441,7 +441,7 @@ class FBL_periodic_boundary:
                 print("[nx, ny, nx_halo, ny_halo]")
                 print([self.nx, self.ny, self.nx_halo, self.ny_halo])
                 
-            self.periodicBoundaryVKernel.prepared_call(self.global_size, self.local_size, \
+            self.periodicBoundaryVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hv0.data.gpudata, hv0.pitch)
@@ -455,18 +455,18 @@ class FBL_periodic_boundary:
                 print("Updating V ghosts in east-west")
                 self.firstGhostV = False
             
-            self.updateGhostCellsVKernel.prepared_call(self.global_size, self.local_size, \
+            self.updateGhostCellsVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hv0.data.gpudata, hv0.pitch)
         
 
-    def boundaryConditionEta(self, eta0):
+    def boundaryConditionEta(self, gpu_stream, eta0):
         """
         Updates eta boundary conditions (ghost cells)
         """
         # Start with fixing the potential sponge
-        self.callSpongeNS(eta0, 0, 0)
+        self.callSpongeNS(gpu_stream, eta0, 0, 0)
         
         if (self.boundary_conditions.north == 2 or
             self.boundary_conditions.east == 2):
@@ -480,19 +480,19 @@ class FBL_periodic_boundary:
                     
             ## Call kernel that swaps the boundaries.
             #print("Periodic boundary conditions")
-            self.periodicBoundaryEtaKernel.prepared_call(self.global_size, self.local_size, \
+            self.periodicBoundaryEtaKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         eta0.data.gpudata, eta0.pitch)
 
         
-    def callSpongeNS(self, data, staggered_x, staggered_y):
+    def callSpongeNS(self, gpu_stream, data, staggered_x, staggered_y):
         staggered_x_int32 = np.int32(staggered_x)
         staggered_y_int32 = np.int32(staggered_y)
         
         if (self.bc_north == 3) or (self.bc_south ==3):
-            self.boundary_flowRelaxationScheme_NS.prepared_call( \
-                self.global_size, self.local_size, \
+            self.boundary_flowRelaxationScheme_NS.prepared_async_call( \
+                self.global_size, self.local_size, self.gpu_stream, \
                 self.nx, self.ny, \
                 self.ghostsX, self.ghostsY, \
                 staggered_x_int32, staggered_y_int32, \
@@ -502,8 +502,8 @@ class FBL_periodic_boundary:
                 data.data.gpudata, data.pitch)
 
         if (self.bc_east == 3) or (self.bc_west == 3):
-            self.boundary_flowRelaxationScheme_EW.prepared_call( \
-                self.global_size, self.local_size, \
+            self.boundary_flowRelaxationScheme_EW.prepared_async_call( \
+                self.global_size, self.local_size, self.gpu_stream, \
                 self.nx, self.ny, \
                 self.ghostsX, self.ghostsY, \
                 staggered_x_int32, staggered_y_int32, \
