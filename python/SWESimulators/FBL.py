@@ -372,7 +372,7 @@ class FBL_periodic_boundary:
                 print("Closed east-west boundary, but nx_halo > nx")
                 return
             
-            self.closedBoundaryUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.closedBoundaryUKernel.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hu0.data.gpudata, hu0.pitch)
@@ -389,7 +389,7 @@ class FBL_periodic_boundary:
                 print("[nx, ny, nx_halo, ny_halo]")
                 print([self.nx, self.ny, self.nx_halo, self.ny_halo])
                 
-            self.periodicBoundaryUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.periodicBoundaryUKernel.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hu0.data.gpudata, hu0.pitch)
@@ -403,7 +403,7 @@ class FBL_periodic_boundary:
                 print("Updating U ghosts in north-south")
                 self.firstGhostU = False
             
-            self.updateGhostCellsUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.updateGhostCellsUKernel.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hu0.data.gpudata, hu0.pitch)
@@ -422,7 +422,7 @@ class FBL_periodic_boundary:
             if (self.ny_halo > self.ny):
                 print("Closed north-south boundary, but ny_halo > ny")
                 return
-            self.closedBoundaryVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.closedBoundaryVKernel.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hv0.data.gpudata, hv0.pitch)
@@ -441,7 +441,7 @@ class FBL_periodic_boundary:
                 print("[nx, ny, nx_halo, ny_halo]")
                 print([self.nx, self.ny, self.nx_halo, self.ny_halo])
                 
-            self.periodicBoundaryVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.periodicBoundaryVKernel.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hv0.data.gpudata, hv0.pitch)
@@ -455,7 +455,7 @@ class FBL_periodic_boundary:
                 print("Updating V ghosts in east-west")
                 self.firstGhostV = False
             
-            self.updateGhostCellsVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.updateGhostCellsVKernel.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         hv0.data.gpudata, hv0.pitch)
@@ -480,7 +480,7 @@ class FBL_periodic_boundary:
                     
             ## Call kernel that swaps the boundaries.
             #print("Periodic boundary conditions")
-            self.periodicBoundaryEtaKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.periodicBoundaryEtaKernel.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
                         self.nx, self.ny, \
                         self.nx_halo, self.ny_halo, \
                         eta0.data.gpudata, eta0.pitch)
