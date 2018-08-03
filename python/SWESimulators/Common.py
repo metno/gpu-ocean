@@ -2,6 +2,7 @@ from pycuda.compiler import SourceModule
 import pycuda.gpuarray
 import pycuda.driver as cuda
 import os
+import re
 import numpy as np
 
 import warnings
@@ -25,38 +26,111 @@ def deprecated(func):
         return func(*args, **kwargs)
     return new_func
 
-def get_kernel(kernel_filename, block_width, block_height):
+class CUDAContext(object):
     """
-    Static function which reads a text file and creates an CUDA kernel from that
+    Class which keeps track of the CUDA context and some helper functions
     """
-    #Create define string
-    define_string = "#define block_width " + str(block_width) + "\n"
-    define_string += "#define block_height " + str(block_height) + "\n"
-    #print ("define_string:\n" + define_string)
+    def __init__(self, verbose=True, blocking=False):
+        self.verbose = verbose
+        self.blocking = blocking
+        self.kernels = {}
 
-    #Read the proper program
-    # Kernels reside in gpu-ocean/sim/src/kernels
-    module_path = os.path.dirname(os.path.realpath(__file__))
-    fullpath = os.path.join(module_path, "../../sim/src/kernels", kernel_filename)
+        cuda.init(flags=0)
+
+        if (self.verbose):
+            print("CUDA version " + str(cuda.get_version()))
+            print("Driver version " + str(cuda.get_driver_version()))
+
+        self.cuda_device = cuda.Device(0)
+        if (self.verbose):
+            print("Using " + self.cuda_device.name())
+            print(" => compute capability: " + str(self.cuda_device.compute_capability()))
+            print(" => memory: " + str(self.cuda_device.total_memory() / (1024*1024)) + " MB")
+
+        if (self.blocking):
+            self.cuda_context = self.cuda_device.make_context(flags=cuda.ctx_flags.SCHED_BLOCKING_SYNC)
+            if (self.verbose):
+                print("=== WARNING ===")
+                print("Using blocking context")
+                print("=== WARNING ===")
+        else:
+            self.cuda_context = self.cuda_device.make_context(flags=cuda.ctx_flags.SCHED_AUTO)
+
+        if (self.verbose):
+            print("Created context <" + str(self.cuda_context) + ">")
+
+    def __del__(self, *args):
+        if self.verbose:
+            print("Cleaning up CUDA context <" + str(self.cuda_context) + ">")
+
+        # Loop over all contexts in stack, and remove "this"
+        other_contexts = []
+        while (cuda.Context.get_current() != None):
+            context = cuda.Context.get_current()
+            if (self.verbose):
+                if (context != self.cuda_context):
+                    print(" `-> <" + str(self.cuda_context) + "> Popping context <" + str(context) + "> which we do not own")
+                    other_contexts = [context] + other_contexts
+                    cuda.Context.pop()
+                else:
+                    print(" `-> <" + str(self.cuda_context) + "> Popping context <" + str(context) + "> (ourselves)")
+                    cuda.Context.pop()
+
+        # Add all the contexts we popped that were not our own
+        for context in other_contexts:
+            if (self.verbose):
+                print(" `-> <" + str(self.cuda_context) + "> Pushing <" + str(context) + ">")
+            cuda.Context.push(context)
+
+        if (self.verbose):
+            print(" `-> <" + str(self.cuda_context) + "> Detaching context")
+        self.cuda_context.detach()
+
+    def get_kernel(self, kernel_filename, block_width, block_height):
+        """
+        Reads a text file and creates a CUDA kernel from that
+        """
+        # Generate a kernel ID for our cache
+        module_path = os.path.dirname(os.path.realpath(__file__))
+        module_path = os.path.join(module_path, "../../sim/src/kernels") # current kernel directory
+
+        kernel_hash = ""
+
+        # Loop over file and includes, and check if something has changed
+        files = [kernel_filename]
+        while len(files):
+            filename = os.path.join(module_path, files.pop())
+            modified = os.path.getmtime(filename)
+            with open(filename, "r") as file:
+                file_str = file.read()
+                file_hash = filename + "_" + str(hash(file_str)) + ":" + str(modified) + "--"
+                includes = re.findall('^\W*#include\W+(.+?\.cu)\W*$', file_str, re.M)
+                files = files + includes #WARNING FIXME This will not work with circular includes
+
+            kernel_hash = kernel_hash + file_hash
     
-    options = [os.path.join(module_path, "../../sim/src/kernels")]
-    with open(fullpath, "r") as kernel_file:
-        kernel_string = define_string + kernel_file.read()
-        kernel = SourceModule(kernel_string, include_dirs=options)
-        
-    return kernel
-    
-        
-        
-        
-        
-        
-        
+        # Recompile kernel if file or includes have changed
+        if (kernel_hash not in self.kernels.keys()):
+            #Create define string
+            define_string = "#define block_width " + str(block_width) + "\n"
+            define_string += "#define block_height " + str(block_height) + "\n\n"
+
+            kernel_string = define_string + '#include "' + os.path.join(module_path, kernel_filename) + '"'
+            self.kernels[kernel_hash] = SourceModule(kernel_string, include_dirs=[module_path, "../../sim/src/kernels"])
+
+        return self.kernels[kernel_hash]
+
+    def clear_kernel_cache(self):
+        """
+        Clears the kernel cache (useful for debugging & development)
+        """
+        self.kernels = {}
+
 class CUDAArray2D:
     """
     Class that holds data 
     """
-    
+
     def __init__(self, nx, ny, halo_x, halo_y, data, \
                  asymHalo=None, double_precision=False, integers=False):
         """

@@ -34,6 +34,7 @@ class Simulator(object):
     
     
     def __init__(self, \
+                 gpu_ctx, \
                  nx, ny, \
                  ghost_cells_x, \
                  ghost_cells_y, \
@@ -56,6 +57,7 @@ class Simulator(object):
         #Save input parameters
         #Notice that we need to specify them in the correct dataformat for the
         #CUDA kernel
+        self.gpu_ctx = gpu_ctx
         self.nx = np.int32(nx)
         self.ny = np.int32(ny)
         self.ghost_cells_x = np.int32(ghost_cells_x)

@@ -37,6 +37,7 @@ class FBL(Simulator.Simulator):
     """
 
     def __init__(self, \
+                 gpu_ctx, \
                  H, eta0, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
@@ -102,7 +103,8 @@ class FBL(Simulator.Simulator):
         rk_order = None
         theta = None
         A = None
-        super(FBL, self).__init__(nx, ny, \
+        super(FBL, self).__init__(gpu_ctx, \
+                                  nx, ny, \
                                   ghost_cells_x, \
                                   ghost_cells_y, \
                                   dx, dy, dt, \
@@ -122,9 +124,9 @@ class FBL(Simulator.Simulator):
         
         
         #Get kernels
-        self.u_kernel = Common.get_kernel("FBL_U_kernel.cu", block_width, block_height)
-        self.v_kernel = Common.get_kernel("FBL_V_kernel.cu", block_width, block_height)
-        self.eta_kernel = Common.get_kernel("FBL_eta_kernel.cu", block_width, block_height)
+        self.u_kernel = gpu_ctx.get_kernel("FBL_U_kernel.cu", block_width, block_height)
+        self.v_kernel = gpu_ctx.get_kernel("FBL_V_kernel.cu", block_width, block_height)
+        self.eta_kernel = gpu_ctx.get_kernel("FBL_eta_kernel.cu", block_width, block_height)
 
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.computeUKernel = self.u_kernel.get_function("computeUKernel")
@@ -141,7 +143,8 @@ class FBL(Simulator.Simulator):
         self.nx_halo = np.int32(nx + self.asym_ghost_cells[1] + self.asym_ghost_cells[3])
         self.ny_halo = np.int32(ny + self.asym_ghost_cells[0] + self.asym_ghost_cells[2])
        
-        self.bc_kernel = FBL_periodic_boundary(self.nx, \
+        self.bc_kernel = FBL_periodic_boundary(self.gpu_ctx, \
+                                               self.nx, \
                                                self.ny, \
                                                self.boundary_conditions, \
                                                self.asym_ghost_cells
@@ -153,7 +156,7 @@ class FBL(Simulator.Simulator):
                                     staggered_grid=True, offset_x=self.offset_x, offset_y=self.offset_y)
             
     @classmethod
-    def fromfilename(cls, filename, cont_write_netcdf=True):
+    def fromfilename(cls, filename, gpu_ctx, cont_write_netcdf=True):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
@@ -201,7 +204,8 @@ class FBL(Simulator.Simulator):
         # get last timestep (including simulation time of last timestep)
         eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
         
-        return cls(h0, eta0, hu0, hv0, \
+        return cls(gpu_ctx, \
+                h0, eta0, hu0, hv0, \
                 nx, ny, \
                 dx, dy, dt, \
                 g, f, r, \
@@ -296,6 +300,7 @@ class FBL(Simulator.Simulator):
 
 class FBL_periodic_boundary:
     def __init__(self, \
+                 gpu_ctx, \
                  nx, ny, \
                  boundary_conditions, asym_ghost_cells, \
                  block_width=16, block_height=16 ):
@@ -325,7 +330,7 @@ class FBL_periodic_boundary:
         
         # Load kernel for periodic boundary.
         self.periodicBoundaryKernel \
-            = Common.get_kernel("FBL_periodic_boundary.cu", block_width, block_height)
+            = gpu_ctx.get_kernel("FBL_periodic_boundary.cu", block_width, block_height)
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.closedBoundaryUKernel = self.periodicBoundaryKernel.get_function("closedBoundaryUKernel")
         self.closedBoundaryUKernel.prepare("iiiiPi")
@@ -343,7 +348,7 @@ class FBL_periodic_boundary:
         self.periodicBoundaryEtaKernel.prepare("iiiiPi")
 
         # Reuse CTCS kernels for Flow Relaxation Scheme
-        self.CTCSBoundaryKernels = Common.get_kernel("CTCS_boundary.cu", block_width, block_height)
+        self.CTCSBoundaryKernels = gpu_ctx.get_kernel("CTCS_boundary.cu", block_width, block_height)
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.boundary_flowRelaxationScheme_NS = self.CTCSBoundaryKernels.get_function("boundary_flowRelaxationScheme_NS")
         self.boundary_flowRelaxationScheme_NS.prepare("iiiiiiiiiiPi")
