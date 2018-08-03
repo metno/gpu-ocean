@@ -154,7 +154,7 @@ class CTCS(Simulator.Simulator):
                                     staggered_grid=True, offset_x=self.offset_x, offset_y=self.offset_y)
         
     @classmethod
-    def fromfilename(cls, filename, cont_write_netcdf=True):
+    def fromfilename(cls, filename, gpu_ctx, cont_write_netcdf=True):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
@@ -201,7 +201,8 @@ class CTCS(Simulator.Simulator):
         # get last timestep (including simulation time of last timestep)
         eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
         
-        return cls(h0, eta0, hu0, hv0, \
+        return cls(gpu_ctx, \
+                h0, eta0, hu0, hv0, \
                 nx, ny, \
                 dx, dy, dt, \
                 g, f, r, \
