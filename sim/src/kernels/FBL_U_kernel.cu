@@ -128,7 +128,7 @@ __global__ void computeUKernel(
     }
 
     //Make sure all threads have read into shared mem
-    __threadfence();
+    __syncthreads();
 
     //Reconstruct H at the U position
     float H_m = 0.5f*(H_shared[ty][tx] + H_shared[ty][tx+1]);
