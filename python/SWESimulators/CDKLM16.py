@@ -23,7 +23,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #Import packages we need
 import numpy as np
-import pyopencl as cl #OpenCL in Python
 import gc
 
 import Common, SimWriter, SimReader
@@ -38,7 +37,7 @@ class CDKLM16(Simulator.Simulator):
     """
 
     def __init__(self, \
-                 cl_ctx, \
+                 gpu_ctx, \
                  eta0, hu0, hv0, Hi, \
                  nx, ny, \
                  dx, dy, dt, \
@@ -111,7 +110,7 @@ class CDKLM16(Simulator.Simulator):
         
         A = None
         self.max_wind_direction_perturbation = max_wind_direction_perturbation
-        super(CDKLM16, self).__init__(cl_ctx, \
+        super(CDKLM16, self).__init__(gpu_ctx, \
                                       nx, ny, \
                                       ghost_cells_x, \
                                       ghost_cells_y, \
@@ -135,26 +134,30 @@ class CDKLM16(Simulator.Simulator):
         self._set_interior_domain_from_sponge_cells()
         
         #Get kernels
-        self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
+        self.kernel = gpu_ctx.get_kernel("CDKLM16_kernel.cu", block_width, block_height)
+        
+        # Get CUDA functions and define data types for prepared_{async_}call()
+        self.swe_2D = self.kernel.get_function("swe_2D")
+        self.swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPiPfiiiiiPiPiPi")
         
         #Create data by uploading to device
-        self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
+        self.gpu_data = Common.SWEDataArakawaA(nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
 
         ## Allocating memory for geostrophical equilibrium variables
         self.reportGeostrophicEquilibrium = np.int32(reportGeostrophicEquilibrium)
         dummy_zero_array = np.zeros((ny+2*ghost_cells_y, nx+2*ghost_cells_x), dtype=np.float32, order='C') 
-        self.geoEq_uxpvy = Common.OpenCLArray2D(cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
-        self.geoEq_Kx = Common.OpenCLArray2D(cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
-        self.geoEq_Ly = Common.OpenCLArray2D(cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+        self.geoEq_uxpvy = Common.CUDAArray2D(nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+        self.geoEq_Kx = Common.CUDAArray2D(nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+        self.geoEq_Ly = Common.CUDAArray2D(nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
 
         #Bathymetry
-        self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Hi, boundary_conditions)
+        self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, Hi, boundary_conditions)
         self.h0AsWaterElevation = h0AsWaterElevation
         if self.h0AsWaterElevation:
-            self.bathymetry.waterElevationToDepth(self.cl_data.h0)
+            self.bathymetry.waterElevationToDepth(self.gpu_data.h0)
         
         
-        self.bc_kernel = Common.BoundaryConditionsArakawaA(self.cl_ctx, \
+        self.bc_kernel = Common.BoundaryConditionsArakawaA(gpu_ctx, \
                                                            self.nx, \
                                                            self.ny, \
                                                            ghost_cells_x, \
@@ -182,7 +185,7 @@ class CDKLM16(Simulator.Simulator):
         """
         self.closeNetCDF()
         
-        self.cl_data.release()
+        self.gpu_data.release()
         
         if self.small_scale_model_error is not None:
             self.small_scale_model_error.cleanUp()
@@ -195,7 +198,7 @@ class CDKLM16(Simulator.Simulator):
         gc.collect()
            
     @classmethod
-    def fromfilename(cls, cl_ctx, filename, cont_write_netcdf=True):
+    def fromfilename(cls, filename, gpu_ctx, cont_write_netcdf=True):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
@@ -242,7 +245,7 @@ class CDKLM16(Simulator.Simulator):
         # get last timestep (including simulation time of last timestep)
         eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
         
-        return cls(cl_ctx, \
+        return cls(gpu_ctx, \
                  eta0, hu0, hv0, \
                  Hi, \
                  nx, ny, \
@@ -267,8 +270,8 @@ class CDKLM16(Simulator.Simulator):
         n = int(t_end / self.dt + 1)
 
         if self.t == 0:
-            self.bc_kernel.boundaryCondition(self.cl_queue, \
-                self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+            self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                                             self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
         
         for i in range(0, n):
             # Get new random wind direction (emulationg large-scale model error)
@@ -280,7 +283,7 @@ class CDKLM16(Simulator.Simulator):
                     wind_speed=self.wind_stress.wind_speed, \
                     wind_direction=self.wind_stress.wind_direction + perturbation)
                 # Upload new wind stress params to device
-                cl.enqueue_copy(self.cl_queue, self.wind_stress_dev, new_wind_stress.tostruct())
+                #cl.enqueue_copy(self.cl_queue, self.wind_stress_dev, new_wind_stress.tostruct()) # FIXME! CL->CUDA
                 
             local_dt = np.float32(min(self.dt, t_end-i*self.dt))
             
@@ -288,58 +291,58 @@ class CDKLM16(Simulator.Simulator):
                 break
 
             #self.bc_kernel.boundaryCondition(self.cl_queue, \
-            #            self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+            #            self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1)
             
             # 2nd order Runge Kutta
             if (self.rk_order == 2):
 
-                self.callKernel(self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0, \
-                                self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1, \
+                self.callKernel(self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
+                                self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1, \
                                 local_dt, 0)
 
-                self.bc_kernel.boundaryCondition(self.cl_queue, \
-                        self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+                self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                        self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1)
 
-                self.callKernel(self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1, \
-                                self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0, \
+                self.callKernel(self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1, \
+                                self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
                                 local_dt, 1)
 
-                self.bc_kernel.boundaryCondition(self.cl_queue, \
-                        self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+                self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
                 
             elif (self.rk_order == 1):
-                self.callKernel(self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0, \
-                                self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1, \
+                self.callKernel(self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
+                                self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1, \
                                 local_dt, 0)
                                 
-                self.cl_data.swap()
+                self.gpu_data.swap()
 
-                self.bc_kernel.boundaryCondition(self.cl_queue, \
-                        self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+                self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
 
             # 3rd order RK method:
             elif (self.rk_order == 3):
 
-                self.callKernel(self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0, \
-                                self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1, \
+                self.callKernel(self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
+                                self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1, \
                                 local_dt, 0)
                 
-                self.bc_kernel.boundaryCondition(self.cl_queue, \
-                        self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+                self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                        self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1)
 
-                self.callKernel(self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1, \
-                                self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0, \
+                self.callKernel(self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1, \
+                                self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
                                 local_dt, 1)
 
-                self.bc_kernel.boundaryCondition(self.cl_queue, \
-                        self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+                self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                        self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1)
 
-                self.callKernel(self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1, \
-                                self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0, \
+                self.callKernel(self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1, \
+                                self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
                                 local_dt, 2)
                 
-                self.bc_kernel.boundaryCondition(self.cl_queue, \
-                        self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+                self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
             
             # Perturb ocean state with model error
             if self.small_scale_perturbation and apply_stochastic_term:
@@ -347,8 +350,8 @@ class CDKLM16(Simulator.Simulator):
             
             # Evolve drifters
             if self.hasDrifters:
-                self.drifters.drift(self.cl_data.h0, self.cl_data.hu0, \
-                                    self.cl_data.hv0, np.float32(10), \
+                self.drifters.drift(self.gpu_data.h0, self.gpu_data.hu0, \
+                                    self.gpu_data.hv0, np.float32(10), \
                                     self.nx, self.ny, self.dx, self.dy, \
                                     local_dt, \
                                     np.int32(2), np.int32(2))
@@ -364,7 +367,7 @@ class CDKLM16(Simulator.Simulator):
                    h_in, hu_in, hv_in, \
                    h_out, hu_out, hv_out, \
                    local_dt, rk_step):
-        self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
+        self.swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                            self.nx, self.ny, \
                            self.dx, self.dy, local_dt, \
                            self.g, \
@@ -375,34 +378,34 @@ class CDKLM16(Simulator.Simulator):
                            self.r, \
                            self.rk_order, \
                            np.int32(rk_step), \
-                           h_in.data, h_in.pitch, \
-                           hu_in.data, hu_in.pitch, \
-                           hv_in.data, hv_in.pitch, \
-                           h_out.data, h_out.pitch, \
-                           hu_out.data, hu_out.pitch, \
-                           hv_out.data, hv_out.pitch, \
-                           self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
-                           self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
+                           h_in.data.gpudata, h_in.pitch, \
+                           hu_in.data.gpudata, hu_in.pitch, \
+                           hv_in.data.gpudata, hv_in.pitch, \
+                           h_out.data.gpudata, h_out.pitch, \
+                           hu_out.data.gpudata, hu_out.pitch, \
+                           hv_out.data.gpudata, hv_out.pitch, \
+                           self.bathymetry.Bi.data.gpudata, self.bathymetry.Bi.pitch, \
+                           self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
                            self.wind_stress_dev, \
                            self.t, \
                            self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                            self.reportGeostrophicEquilibrium, \
-                           self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
-                           self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
-                           self.geoEq_Ly.data, self.geoEq_Ly.pitch )
+                           self.geoEq_uxpvy.data.gpudata, self.geoEq_uxpvy.pitch, \
+                           self.geoEq_Kx.data.gpudata, self.geoEq_Kx.pitch, \
+                           self.geoEq_Ly.data.gpudata, self.geoEq_Ly.pitch )
             
     
     def perturbState(self, q0_scale=None):
         self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
     def downloadBathymetry(self):
-        return self.bathymetry.download(self.cl_queue)
+        return self.bathymetry.download(self.gpu_stream)
 
     def downloadGeoEqNorm(self):
         
-        uxpvy_cpu = self.geoEq_uxpvy.download(self.cl_queue)
-        Kx_cpu = self.geoEq_Kx.download(self.cl_queue)
-        Ly_cpu = self.geoEq_Ly.download(self.cl_queue)
+        uxpvy_cpu = self.geoEq_uxpvy.download(self.gpu_stream)
+        Kx_cpu = self.geoEq_Kx.download(self.gpu_stream)
+        Ly_cpu = self.geoEq_Ly.download(self.gpu_stream)
 
         uxpvy_norm = np.linalg.norm(uxpvy_cpu)
         Kx_norm = np.linalg.norm(Kx_cpu)
