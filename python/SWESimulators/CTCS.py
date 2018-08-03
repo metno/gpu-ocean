@@ -39,10 +39,11 @@ class CTCS(Simulator.Simulator):
     """
 
     def __init__(self, \
+                 gpu_ctx, \
                  H, eta0, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
-                 g, f, r, A=0.0, \
+                 g, f, r, A, \
                  t=0.0, \
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
@@ -95,7 +96,8 @@ class CTCS(Simulator.Simulator):
         # self.<parameters> are sat in parent constructor:
         rk_order = None
         theta = None
-        super(CTCS, self).__init__(nx, ny, \
+        super(CTCS, self).__init__(gpu_ctx, \
+                                   nx, ny, \
                                    ghost_cells_x, \
                                    ghost_cells_y, \
                                    dx, dy, dt, \
@@ -118,9 +120,9 @@ class CTCS(Simulator.Simulator):
         self._set_interior_domain_from_sponge_cells()
 
         #Get kernels
-        self.u_kernel = Common.get_kernel("CTCS_U_kernel.cu", block_width, block_height)
-        self.v_kernel = Common.get_kernel("CTCS_V_kernel.cu", block_width, block_height)
-        self.eta_kernel = Common.get_kernel("CTCS_eta_kernel.cu", block_width, block_height)
+        self.u_kernel = gpu_ctx.get_kernel("CTCS_U_kernel.cu", block_width, block_height)
+        self.v_kernel = gpu_ctx.get_kernel("CTCS_V_kernel.cu", block_width, block_height)
+        self.eta_kernel = gpu_ctx.get_kernel("CTCS_eta_kernel.cu", block_width, block_height)
         
         # Get CUDA functions
         self.computeUKernel = self.u_kernel.get_function("computeUKernel")
@@ -140,7 +142,8 @@ class CTCS(Simulator.Simulator):
                        int(np.ceil((self.ny+2*halo_y) / float(self.local_size[1])) * self.local_size[1]) \
                       ) 
     
-        self.bc_kernel = CTCS_boundary_condition(self.nx, \
+        self.bc_kernel = CTCS_boundary_condition(gpu_ctx, \
+                                                 self.nx, \
                                                  self.ny, \
                                                  self.boundary_conditions, \
                                                  halo_x, halo_y \
@@ -303,7 +306,7 @@ class CTCS(Simulator.Simulator):
 
         
 class CTCS_boundary_condition:
-    def __init__(self, nx, ny, \
+    def __init__(self, gpu_ctx, nx, ny, \
                  boundary_conditions, halo_x, halo_y, \
                  block_width=16, block_height=16):
 
@@ -322,7 +325,7 @@ class CTCS_boundary_condition:
         self.ny_halo = np.int32(ny + 2*halo_y)
 
         # Load kernel for periodic boundary
-        self.boundaryKernels = Common.get_kernel("CTCS_boundary.cu", block_width, block_height)
+        self.boundaryKernels = gpu_ctx.get_kernel("CTCS_boundary.cu", block_width, block_height)
         
         # Get CUDA functions
         self.boundaryUKernel_NS = self.boundaryKernels.get_function("boundaryUKernel_NS")
