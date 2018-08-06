@@ -666,13 +666,13 @@ class Bathymetry:
                 str((BiShapeX, BiShapeY)) + " vs " + str((nx+1+2*halo_x, ny+1+2*halo_y))
         
         # Upload Bi to device
-        self.Bi = CUDAArray2D(nx+1, ny+1, halo_x, halo_y, Bi_host)
+        self.Bi = CUDAArray2D(gpu_stream, nx+1, ny+1, halo_x, halo_y, Bi_host)
 
         # Define OpenCL parameters
         self.local_size = (block_width, block_height, 1) 
         self.global_size = ( \
-                       int(np.ceil( (self.halo_nx+1) / float(self.local_size[0])) * self.local_size[0]), \
-                       int(np.ceil( (self.halo_ny+1) / float(self.local_size[1])) * self.local_size[1]) \
+                       int(np.ceil( (self.halo_nx+1) / float(self.local_size[0]))), \
+                       int(np.ceil( (self.halo_ny+1) / float(self.local_size[1]))) \
         ) 
         
         # Check boundary conditions and make Bi periodic if necessary
@@ -693,7 +693,7 @@ class Bathymetry:
         
         # Allocate Bm
         Bm_host = np.zeros((self.halo_ny, self.halo_nx), dtype=np.float32, order='C')
-        self.Bm = CUDAArray2D(nx, ny, halo_x, halo_y, Bm_host)
+        self.Bm = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, Bm_host)
 
         # Load kernel for finding Bm from Bi
         self.initBm_kernel = gpu_ctx.get_kernel("initBm_kernel.cu", block_width, block_height)

@@ -141,14 +141,14 @@ class CDKLM16(Simulator.Simulator):
         self.swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPiPfiiiiiPiPiPi")
         
         #Create data by uploading to device
-        self.gpu_data = Common.SWEDataArakawaA(nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
+        self.gpu_data = Common.SWEDataArakawaA(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
 
         ## Allocating memory for geostrophical equilibrium variables
         self.reportGeostrophicEquilibrium = np.int32(reportGeostrophicEquilibrium)
         dummy_zero_array = np.zeros((ny+2*ghost_cells_y, nx+2*ghost_cells_x), dtype=np.float32, order='C') 
-        self.geoEq_uxpvy = Common.CUDAArray2D(nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
-        self.geoEq_Kx = Common.CUDAArray2D(nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
-        self.geoEq_Ly = Common.CUDAArray2D(nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+        self.geoEq_uxpvy = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+        self.geoEq_Kx = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+        self.geoEq_Ly = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
 
         #Bathymetry
         self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, Hi, boundary_conditions)

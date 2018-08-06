@@ -133,13 +133,13 @@ class CTCS(Simulator.Simulator):
         self.computeEtaKernel.prepare("iiffffffffPiPiPi")
         
         #Create data by uploading to device     
-        self.H = Common.CUDAArray2D(nx, ny, halo_x, halo_y, H)
-        self.gpu_data = Common.SWEDataArakawaC(nx, ny, halo_x, halo_y, eta0, hu0, hv0)
+        self.H = Common.CUDAArray2D(self.gpu_stream, nx, ny, halo_x, halo_y, H)
+        self.gpu_data = Common.SWEDataArakawaC(self.gpu_stream, nx, ny, halo_x, halo_y, eta0, hu0, hv0)
         
         # Global size needs to be larger than the default from parent.__init__
         self.global_size = ( \
-                       int(np.ceil((self.nx+2*halo_x) / float(self.local_size[0])) * self.local_size[0]), \
-                       int(np.ceil((self.ny+2*halo_y) / float(self.local_size[1])) * self.local_size[1]) \
+                       int(np.ceil((self.nx+2*halo_x) / float(self.local_size[0]))), \
+                       int(np.ceil((self.ny+2*halo_y) / float(self.local_size[1]))) \
                       ) 
     
         self.bc_kernel = CTCS_boundary_condition(gpu_ctx, \
