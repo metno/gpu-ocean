@@ -198,7 +198,7 @@ class CDKLM16(Simulator.Simulator):
         gc.collect()
            
     @classmethod
-    def fromfilename(cls, filename, gpu_ctx, cont_write_netcdf=True):
+    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
@@ -283,7 +283,7 @@ class CDKLM16(Simulator.Simulator):
                     wind_speed=self.wind_stress.wind_speed, \
                     wind_direction=self.wind_stress.wind_direction + perturbation)
                 # Upload new wind stress params to device
-                #cl.enqueue_copy(self.cl_queue, self.wind_stress_dev, new_wind_stress.tostruct()) # FIXME! CL->CUDA
+                cuda.memcpy_htod_async(int(self.wind_stress_dev), new_wind_stress.tostruct(), stream=self.gpu_stream)
                 
             local_dt = np.float32(min(self.dt, t_end-i*self.dt))
             

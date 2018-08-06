@@ -152,7 +152,7 @@ class KP07(Simulator.Simulator):
                                     offset_x=self.offset_x, offset_y=self.offset_y)
             
     @classmethod
-    def fromfilename(cls, filename, gpu_ctx, cont_write_netcdf=True):
+    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file

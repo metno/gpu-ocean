@@ -43,7 +43,7 @@ class CTCS(Simulator.Simulator):
                  H, eta0, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
-                 g, f, r, A, \
+                 g, f, r, A=0.0, \
                  t=0.0, \
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
@@ -154,7 +154,7 @@ class CTCS(Simulator.Simulator):
                                     staggered_grid=True, offset_x=self.offset_x, offset_y=self.offset_y)
         
     @classmethod
-    def fromfilename(cls, filename, gpu_ctx, cont_write_netcdf=True):
+    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
