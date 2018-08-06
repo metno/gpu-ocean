@@ -136,8 +136,8 @@ class FBL(Simulator.Simulator):
         self.computeEtaKernel = self.eta_kernel.get_function("computeEtaKernel")
         self.computeEtaKernel.prepare("iiffffffffPiPiPiPi")
         
-        self.H = Common.CUDAArray2D(nx, ny, ghost_cells_x, ghost_cells_y, H, self.asym_ghost_cells)
-        self.gpu_data = Common.SWEDataArakawaC(nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, self.asym_ghost_cells)
+        self.H = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H, self.asym_ghost_cells)
+        self.gpu_data = Common.SWEDataArakawaC(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, self.asym_ghost_cells)
         
         # Overwrite halo with asymetric ghost cells
         self.nx_halo = np.int32(nx + self.asym_ghost_cells[1] + self.asym_ghost_cells[3])

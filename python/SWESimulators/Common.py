@@ -131,7 +131,7 @@ class CUDAArray2D:
     Class that holds data 
     """
 
-    def __init__(self, nx, ny, halo_x, halo_y, data, \
+    def __init__(self, gpu_stream, nx, ny, halo_x, halo_y, data, \
                  asymHalo=None, double_precision=False, integers=False):
         """
         Uploads initial data to the CUDA device
@@ -159,7 +159,7 @@ class CUDAArray2D:
         assert(data.shape == (self.ny_halo, self.nx_halo))
 
         #Upload data to the device
-        self.data = pycuda.gpuarray.to_gpu_async(host_data) # potentially blocking/synchronous!
+        self.data = pycuda.gpuarray.to_gpu_async(host_data, stream=gpu_stream)
         self.holds_data = True
         
         self.bytes_per_float = host_data.itemsize
@@ -252,17 +252,17 @@ class SWEDataArakawaA:
     A class representing an Arakawa A type (unstaggered, logically Cartesian) grid
     """
 
-    def __init__(self, nx, ny, halo_x, halo_y, h0, hu0, hv0):
+    def __init__(self, gpu_stream, nx, ny, halo_x, halo_y, h0, hu0, hv0):
         """
         Uploads initial data to the CUDA device
         """
-        self.h0  = CUDAArray2D(nx, ny, halo_x, halo_y, h0)
-        self.hu0 = CUDAArray2D(nx, ny, halo_x, halo_y, hu0)
-        self.hv0 = CUDAArray2D(nx, ny, halo_x, halo_y, hv0)
+        self.h0  = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, h0)
+        self.hu0 = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, hu0)
+        self.hv0 = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, hv0)
         
-        self.h1  = CUDAArray2D(nx, ny, halo_x, halo_y, h0)
-        self.hu1 = CUDAArray2D(nx, ny, halo_x, halo_y, hu0)
-        self.hv1 = CUDAArray2D(nx, ny, halo_x, halo_y, hv0)
+        self.h1  = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, h0)
+        self.hu1 = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, hu0)
+        self.hv1 = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, hv0)
 
     def swap(self):
         """
@@ -312,7 +312,7 @@ class SWEDataArakawaC:
     A class representing an Arakawa C type (staggered, u fluxes on east/west faces, v fluxes on north/south faces) grid
     We use h as cell centers
     """
-    def __init__(self, nx, ny, halo_x, halo_y, h0, hu0, hv0, \
+    def __init__(self, gpu_stream, nx, ny, halo_x, halo_y, h0, hu0, hv0, \
                  asymHalo=None):
         """
         Uploads initial data to the CUDA device
@@ -334,13 +334,13 @@ class SWEDataArakawaC:
         #print "(hu0.shape, (nx, ny), asymHalo, (halo_x, halo_y)): ", (hu0.shape, (nx+1, ny), asymHaloU,  (halo_x, halo_y))
         #print "(hv0.shape, (nx, ny), asymHalo,  (halo_x, halo_y)): ", (hv0.shape, (nx, ny+1), asymHaloV, (halo_x, halo_y))
 
-        self.h0   = CUDAArray2D(nx, ny, halo_x, halo_y, h0, asymHalo)
-        self.hu0  = CUDAArray2D(nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
-        self.hv0  = CUDAArray2D(nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
+        self.h0   = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, h0, asymHalo)
+        self.hu0  = CUDAArray2D(gpu_stream, nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
+        self.hv0  = CUDAArray2D(gpu_stream, nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
         
-        self.h1   = CUDAArray2D(nx, ny, halo_x, halo_y, h0, asymHalo)
-        self.hu1  = CUDAArray2D(nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
-        self.hv1  = CUDAArray2D(nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
+        self.h1   = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, h0, asymHalo)
+        self.hu1  = CUDAArray2D(gpu_stream, nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
+        self.hv1  = CUDAArray2D(gpu_stream, nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
                    
         
     def swap(self):
@@ -543,8 +543,8 @@ class BoundaryConditionsArakawaA:
         # Set kernel launch parameters
         self.local_size = (block_width, block_height, 1)
         self.global_size = ( \
-                             int(np.ceil((self.nx + 2*self.halo_x + 1)/float(self.local_size[0])) * self.local_size[0]), \
-                             int(np.ceil((self.ny + 2*self.halo_y + 1)/float(self.local_size[1])) * self.local_size[1]) )
+                             int(np.ceil((self.nx + 2*self.halo_x + 1)/float(self.local_size[0]))), \
+                             int(np.ceil((self.ny + 2*self.halo_y + 1)/float(self.local_size[1]))) )
 
 
         
