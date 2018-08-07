@@ -23,14 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "../config.h"
 
-#ifndef __OPENCL_VERSION__
-#define __kernel
-#define __global
-#define __local
-#define CLK_LOCAL_MEM_FENCE
-#endif
-
-#include "common.opencl"
+#include "common.cu"
 
 // Boundary conditions are defined as
 // 1: Closed wall
@@ -39,17 +32,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // 4: Open (Linear interpolation)
 
  // Fix north-south boundary before east-west (to get the corners right)
-__kernel void boundaryEtaKernel_NS(
+__global__ void boundaryEtaKernel_NS(
 	// Discretization parameters
         int nx_, int ny_,
         int halo_x_, int halo_y_,
 	int bc_north_, int bc_south_,
 	
         // Data
-        __global float* eta_ptr_, int eta_pitch_) {
+        float* eta_ptr_, int eta_pitch_) {
     // Index of cell within domain
-    const int ti = get_global_id(0);
-    const int tj = get_global_id(1);
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     int opposite_row_index = ny_;
     //if (tj == ny_+1) {
@@ -61,25 +54,25 @@ __kernel void boundaryEtaKernel_NS(
     if (((tj == 0     && bc_south_ < 3)  ||
 	 (tj == ny_+1 && bc_north_ < 3)) &&
 	ti > 0 && ti < nx_+1) {
-	__global float* ghost_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*tj);
-	__global float* opposite_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*opposite_row_index);
+	float* ghost_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);
+	float* opposite_row = (float*) ((char*) eta_ptr_ + eta_pitch_*opposite_row_index);
 	ghost_row[ti] = opposite_row[ti];
     }
     // TODO: USE HALO PARAMS
 }
 
 // Fix north-south boundary before east-west (to get the corners right)
-__kernel void boundaryEtaKernel_EW(
+__global__ void boundaryEtaKernel_EW(
 	// Discretization parameters
         int nx_, int ny_,
         int halo_x_, int halo_y_,
 	int bc_east_, int bc_west_,
 
         // Data
-        __global float* eta_ptr_, int eta_pitch_) {
+        float* eta_ptr_, int eta_pitch_) {
     // Index of cell within domain
-    const int ti = get_global_id(0);
-    const int tj = get_global_id(1);
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     int opposite_col_index = nx_;
     if ( (ti == nx_+1 && bc_east_ == 2) || (ti == 0 && bc_west_ == 1) ) {
@@ -90,30 +83,30 @@ __kernel void boundaryEtaKernel_EW(
     if (((ti == 0     && bc_west_ < 3)  ||
 	 (ti == nx_+1 && bc_east_ < 3)) &&
 	tj > -1 && tj < ny_+2) {
-	__global float* eta_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*tj);
+	float* eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);
 	eta_row[ti] = eta_row[opposite_col_index];
     }
     // TODO: USE HALO PARAMS
 }
 
 // NS need to be called before EW!
-__kernel void boundaryUKernel_NS(
+__global__ void boundaryUKernel_NS(
         // Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
 	int bc_north_, int bc_south_,
 
         // Data
-        __global float* U_ptr_, int U_pitch_) {
+        float* U_ptr_, int U_pitch_) {
 
     // Index of cell within domain
-    const int ti = get_global_id(0);
-    const int tj = get_global_id(1);
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     // Check if thread is in the domain:
     if (ti <= nx_+2 && tj <= ny_+1) {
 	// The thread's row:
-	__global float* u_row = (__global float*) ((__global char*) U_ptr_ + U_pitch_*tj);
+	float* u_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);
 
 	 int opposite_row_index = ny_;
 	 if ( (tj == ny_+1 && bc_north_ == 2) || (tj == 0 && bc_south_ == 1) ) {
@@ -123,28 +116,28 @@ __kernel void boundaryUKernel_NS(
 	 if ( ((tj == 0     && bc_south_ < 3)  ||
 	       (tj == ny_+1 && bc_north_ < 3)) &&
 	      ti > 0 && ti < nx_+1 ) {
-	    __global float* u_opposite_row = (__global float*) ((__global char*) U_ptr_ + U_pitch_*opposite_row_index);
+	    float* u_opposite_row = (float*) ((char*) U_ptr_ + U_pitch_*opposite_row_index);
 	    u_row[ti] = u_opposite_row[ti];
 	}
     } 
 }
 
-__kernel void boundaryUKernel_EW(
+__global__ void boundaryUKernel_EW(
         // Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
 	int bc_east_, int bc_west_,
 	
         // Data
-        __global float* U_ptr_, int U_pitch_) {
+        float* U_ptr_, int U_pitch_) {
 
     // Index of cell within domain
-    const int ti = get_global_id(0);
-    const int tj = get_global_id(1);
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     // Check if thread is in the domain:
     if (ti <= nx_+2 && tj <= ny_+1) {	
-	__global float* u_row = (__global float*) ((__global char*) U_ptr_ + U_pitch_*tj);
+	float* u_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);
 
 	if ( (ti < 2 && bc_west_ == 1) || (ti > nx_ && bc_east_ == 1) ) {
 	    u_row[ti] = 0;
@@ -168,22 +161,22 @@ __kernel void boundaryUKernel_EW(
 
 
 // NS need to be called before EW!
-__kernel void boundaryVKernel_NS(
+__global__ void boundaryVKernel_NS(
         // Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
 	int bc_north_, int bc_south_,
 
         // Data
-        __global float* V_ptr_, int V_pitch_) {
+        float* V_ptr_, int V_pitch_) {
 
     // Index of cell within domain
-    const int ti = get_global_id(0);
-    const int tj = get_global_id(1);
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     // Check if thread is in the domain:
     if (ti <= nx_+1 && tj <= ny_+2) {	
-	__global float* v_row = (__global float*) ((__global char*) V_ptr_ + V_pitch_*tj);
+	float* v_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
 
 	
 	if ( (tj < 2 && bc_south_ == 1 ) || (tj > ny_ && bc_north_ == 1) ) {
@@ -197,29 +190,29 @@ __kernel void boundaryVKernel_NS(
 	    }
 	    
 	    if ( (tj == 0 || tj == ny_+2) && ti > 0 && ti < nx_+1 ) {
-		__global float* v_opposite_row = (__global float*) ((__global char*) V_ptr_ + V_pitch_*opposite_row_index);
+		float* v_opposite_row = (float*) ((char*) V_ptr_ + V_pitch_*opposite_row_index);
 		v_row[ti] = v_opposite_row[ti];
 	    }
 	}
     }
 }
 
-__kernel void boundaryVKernel_EW(
+__global__ void boundaryVKernel_EW(
         // Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
 	int bc_east_, int bc_west_,
 
         // Data
-        __global float* V_ptr_, int V_pitch_) {
+        float* V_ptr_, int V_pitch_) {
 
     // Index of cell within domain
-    const int ti = get_global_id(0);
-    const int tj = get_global_id(1);
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     // Check if thread is in the domain:
     if (ti <= nx_+1 && tj <= ny_+2) {	
-	__global float* v_row = (__global float*) ((__global char*) V_ptr_ + V_pitch_*tj);
+	float* v_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
 
 	 int opposite_col_index = nx_;
 	 if ( (ti == nx_+1 && bc_east_ == 2) || (ti == 0 && bc_west_ == 1) ) {
@@ -236,7 +229,7 @@ __kernel void boundaryVKernel_EW(
 }
 
 
-__kernel void boundary_linearInterpol_NS(
+__global__ void boundary_linearInterpol_NS(
 	// Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
@@ -247,11 +240,11 @@ __kernel void boundary_linearInterpol_NS(
 	int bc_north_, int bc_south_,
 		
         // Data
-        __global float* data_ptr_, int data_pitch_) {
+        float* data_ptr_, int data_pitch_) {
 
     // Index of cell within domain
-    const int ti = get_global_id(0);
-    const int tj = get_global_id(1);
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (( ((bc_south_ == 4) &&
 	   (tj < sponge_cells_south_) && (tj > 0)) ||
@@ -269,15 +262,15 @@ __kernel void boundary_linearInterpol_NS(
 	    }
 
 	    // Get outer value
-	    __global float* outer_row_ptr = (__global float*) ((__global char*) data_ptr_ + data_pitch_*outer_row);
+	    float* outer_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*outer_row);
 	    float outer_value = outer_row_ptr[ti];
 
 	    // Get inner value
-	    __global float* inner_row_ptr = (__global float*) ((__global char*) data_ptr_ + data_pitch_*inner_row);
+	    float* inner_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*inner_row);
 	    float inner_value = inner_row_ptr[ti];
 
 	    // Find target cell
-	    __global float* target_row_ptr = (__global float*) ((__global char*) data_ptr_ + data_pitch_*tj);
+	    float* target_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*tj);
 
 	    // Interpolate:
 	    float ratio = ((float)(tj - outer_row))/(inner_row - outer_row);
@@ -287,7 +280,7 @@ __kernel void boundary_linearInterpol_NS(
 
 
 
-__kernel void boundary_linearInterpol_EW(
+__global__ void boundary_linearInterpol_EW(
 	// Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
@@ -298,11 +291,11 @@ __kernel void boundary_linearInterpol_EW(
 	int bc_east_, int bc_west_,
 		
         // Data
-        __global float* data_ptr_, int data_pitch_) {
+        float* data_ptr_, int data_pitch_) {
 
     // Index of cell within domain
-    const int ti = get_global_id(0);
-    const int tj = get_global_id(1);
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (( ((bc_west_ == 4) &&
 	   (ti < sponge_cells_west_) && (ti > 0)) ||
@@ -321,7 +314,7 @@ __kernel void boundary_linearInterpol_EW(
 	    }
 
 	    // Get row:
-	    __global float* data_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*tj);
+	    float* data_row = (float*) ((char*) data_ptr_ + data_pitch_*tj);
 
 	    // Get inner value
 	    float inner_value = data_row[inner_col];
@@ -338,7 +331,7 @@ __kernel void boundary_linearInterpol_EW(
 
 
 
-__kernel void boundary_flowRelaxationScheme_NS(
+__global__ void boundary_flowRelaxationScheme_NS(
 	// Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
@@ -349,11 +342,11 @@ __kernel void boundary_flowRelaxationScheme_NS(
 	int bc_north_, int bc_south_,
 		
         // Data
-        __global float* data_ptr_, int data_pitch_) {
+        float* data_ptr_, int data_pitch_) {
 
     // Index of cell within domain
-    const int ti = get_global_id(0);
-    const int tj = get_global_id(1);
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (( ((bc_south_ == 3) &&
 	   (tj < sponge_cells_south_) && (tj > 0)) ||
@@ -372,11 +365,11 @@ __kernel void boundary_flowRelaxationScheme_NS(
 	    float alpha = 1.0f - tanh((j-1.0f)/2.0f);
 
 	    // Get exterior value
-	    __global float* exterior_row_ptr = (__global float*) ((__global char*) data_ptr_ + data_pitch_*exterior_row);
+	    float* exterior_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*exterior_row);
 	    float exterior_value = exterior_row_ptr[ti];
 
 	    // Find target cell
-	    __global float* target_row_ptr = (__global float*) ((__global char*) data_ptr_ + data_pitch_*tj);
+	    float* target_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*tj);
 
 	    // Interpolate:
 	    target_row_ptr[ti] = (1.0f - alpha)*target_row_ptr[ti] + alpha*exterior_value;
@@ -384,7 +377,7 @@ __kernel void boundary_flowRelaxationScheme_NS(
 }
 
 
-__kernel void boundary_flowRelaxationScheme_EW(
+__global__ void boundary_flowRelaxationScheme_EW(
 	// Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
@@ -395,11 +388,11 @@ __kernel void boundary_flowRelaxationScheme_EW(
 	int bc_east_, int bc_west_,
 		
         // Data
-        __global float* data_ptr_, int data_pitch_) {
+        float* data_ptr_, int data_pitch_) {
 
     // Index of cell within domain
-    const int ti = get_global_id(0);
-    const int tj = get_global_id(1);
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (( ((bc_west_ == 3) &&
 	   (ti < sponge_cells_west_) && (ti > 0)) ||
@@ -418,7 +411,7 @@ __kernel void boundary_flowRelaxationScheme_EW(
 	    float alpha = 1.0f - tanh((j-1.0f)/2.0f);
 
 	    // Get row:
-	    __global float* data_row = (__global float*) ((__global char*) data_ptr_ + data_pitch_*tj);
+	    float* data_row = (float*) ((char*) data_ptr_ + data_pitch_*tj);
 
 	    // Get exterior value
 	    float exterior_value = data_row[exterior_col];

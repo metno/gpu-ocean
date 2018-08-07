@@ -22,17 +22,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "../config.h"
 
-#ifndef __OPENCL_VERSION__
-#define __kernel
-#define __global
-#define __local
-#define CLK_LOCAL_MEM_FENCE
-#endif
-
 /**
   * Kernel that evolves eta one step in time.
   */
-__kernel void computeEtaKernel(
+__global__ void computeEtaKernel(
         //Discretization parameters
         int nx_, int ny_,
         float dx_, float dy_, float dt_,
@@ -45,27 +38,27 @@ __kernel void computeEtaKernel(
         float r_, //< Bottom friction coefficient
     
         //Data
-        __global float* H_ptr_, int H_pitch_,
-        __global float* U_ptr_, int U_pitch_,
-        __global float* V_ptr_, int V_pitch_,
-        __global float* eta_ptr_, int eta_pitch_) {
+        float* H_ptr_, int H_pitch_,
+        float* U_ptr_, int U_pitch_,
+        float* V_ptr_, int V_pitch_,
+        float* eta_ptr_, int eta_pitch_) {
     //Index of thread within block
-    const int tx = get_local_id(0);
-    const int ty = get_local_id(1);
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
     
     //Index of block within domain
-    const int bx = get_local_size(0) * get_group_id(0);
-    const int by = get_local_size(1) * get_group_id(1);
+    const int bx = blockDim.x * blockIdx.x;
+    const int by = blockDim.y * blockIdx.y;
 
     //Index of cell within domain
-    const int ti = get_global_id(0); 
-    const int tj = get_global_id(1);
+    const int ti = bx + tx; 
+    const int tj = by + ty;
     
-    __local float U_shared[block_height][block_width+1];
-    __local float V_shared[block_height+1][block_width];
+    __shared__ float U_shared[block_height][block_width+1];
+    __shared__ float V_shared[block_height+1][block_width];
     
     //Compute pointer to current row in the U array
-    __global float* const eta_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*tj);
+    float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);
 
     //Read current eta
     float eta_current = 0.0f;
@@ -74,13 +67,13 @@ __kernel void computeEtaKernel(
     }
     
     //Read U into shared memory
-    for (int j=ty; j<block_height; j+=get_local_size(1)) {
+    for (int j=ty; j<block_height; j+=blockDim.y) {
         const unsigned int l = by + j;
         
         //Compute the pointer to current row in the V array
-        __global float* const U_row = (__global float*) ((__global char*) U_ptr_ + U_pitch_*l);
+        float* const U_row = (float*) ((char*) U_ptr_ + U_pitch_*l);
         
-        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+        for (int i=tx; i<block_width+1; i+=blockDim.x) {
             const unsigned int k = bx + i;
             if (k < nx_+1 && l < ny_) {
                 U_shared[j][i] = U_row[k];
@@ -92,11 +85,11 @@ __kernel void computeEtaKernel(
     }
     
     //Read V into shared memory
-    for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
+    for (int j=ty; j<block_height+1; j+=blockDim.y) {
         const unsigned int l = by + j;
         //Compute the pointer to current row in the V array
-        __global float* const V_row = (__global float*) ((__global char*) V_ptr_ + V_pitch_*l);
-        for (int i=tx; i<block_width; i+=get_local_size(0)) {
+        float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*l);
+        for (int i=tx; i<block_width; i+=blockDim.x) {
             const unsigned int k = bx + i;
             if (k < nx_ && l < ny_+1) {
                 V_shared[j][i] = V_row[k];
@@ -108,7 +101,7 @@ __kernel void computeEtaKernel(
     }
 
     //Make sure all threads have read into shared mem
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
 
     //Compute the eta at the next timestep
     float eta_next = eta_current - dt_/dx_ * (U_shared[ty][tx+1] - U_shared[ty][tx])
