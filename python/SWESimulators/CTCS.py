@@ -353,8 +353,8 @@ class CTCS_boundary_condition:
         # Set kernel launch parameters
         self.local_size = (block_width, block_height, 1)
         self.global_size = ( \
-                             int(np.ceil((self.nx_halo + 1)/float(self.local_size[0])) * self.local_size[0]), \
-                             int(np.ceil((self.ny_halo + 1)/float(self.local_size[1])) * self.local_size[1]) )
+                             int(np.ceil((self.nx_halo + 1)/float(self.local_size[0]))), \
+                             int(np.ceil((self.ny_halo + 1)/float(self.local_size[1]))) )
 
         
        
