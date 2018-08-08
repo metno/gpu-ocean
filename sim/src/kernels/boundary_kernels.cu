@@ -33,9 +33,9 @@ __global__ void periodicBoundary_NS(
 	int halo_x, int halo_y,
 	
         // Data
-        __device__ float* h_ptr_, int h_pitch_,
-        __device__ float* u_ptr_, int u_pitch_,
-	__device__ float* v_ptr_, int v_pitch_) {
+        float* h_ptr_, int h_pitch_,
+        float* u_ptr_, int u_pitch_,
+	float* v_ptr_, int v_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -49,14 +49,14 @@ __global__ void periodicBoundary_NS(
     // Set ghost cells equal to inner neighbour's value
     if ((tj < halo_y || tj >  ny_+halo_y-1)
 	&& tj > -1  && tj < ny_+(2*halo_y) && ti > -1 && ti < nx_+(2*halo_x) ) {
-	__device__ float* ghost_row_h = (__device__ float*) ((__device__ char*) h_ptr_ + h_pitch_*tj);
-	__device__ float* opposite_row_h = (__device__ float*) ((__device__ char*) h_ptr_ + h_pitch_*opposite_row_index);
+	float* ghost_row_h = (float*) ((char*) h_ptr_ + h_pitch_*tj);
+	float* opposite_row_h = (float*) ((char*) h_ptr_ + h_pitch_*opposite_row_index);
 
-	__device__ float* ghost_row_u = (__device__ float*) ((__device__ char*) u_ptr_ + u_pitch_*tj);
-	__device__ float* opposite_row_u = (__device__ float*) ((__device__ char*) u_ptr_ + u_pitch_*opposite_row_index);
+	float* ghost_row_u = (float*) ((char*) u_ptr_ + u_pitch_*tj);
+	float* opposite_row_u = (float*) ((char*) u_ptr_ + u_pitch_*opposite_row_index);
 
-	__device__ float* ghost_row_v = (__device__ float*) ((__device__ char*) v_ptr_ + v_pitch_*tj);
-	__device__ float* opposite_row_v = (__device__ float*) ((__device__ char*) v_ptr_ + v_pitch_*opposite_row_index);
+	float* ghost_row_v = (float*) ((char*) v_ptr_ + v_pitch_*tj);
+	float* opposite_row_v = (float*) ((char*) v_ptr_ + v_pitch_*opposite_row_index);
 
 	ghost_row_h[ti] = opposite_row_h[ti];
 	ghost_row_u[ti] = opposite_row_u[ti];
@@ -73,9 +73,9 @@ __global__ void periodicBoundary_EW(
         int halo_x, int halo_y,
 
         // Data
-        __device__ float* h_ptr_, int h_pitch_,
-        __device__ float* u_ptr_, int u_pitch_,
-        __device__ float* v_ptr_, int v_pitch_) {
+        float* h_ptr_, int h_pitch_,
+        float* u_ptr_, int u_pitch_,
+        float* v_ptr_, int v_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -91,9 +91,9 @@ __global__ void periodicBoundary_EW(
 	 (tj > -1) && (tj < ny_+(2*halo_y))    ) {
 
 	if ( (ti < halo_x) || (ti > nx_+halo_x-1) ) {
-	    __device__ float* h_row = (__device__ float*) ((__device__ char*) h_ptr_ + h_pitch_*tj);
-	    __device__ float* u_row = (__device__ float*) ((__device__ char*) u_ptr_ + u_pitch_*tj);
-	    __device__ float* v_row = (__device__ float*) ((__device__ char*) v_ptr_ + v_pitch_*tj);
+	    float* h_row = (float*) ((char*) h_ptr_ + h_pitch_*tj);
+	    float* u_row = (float*) ((char*) u_ptr_ + u_pitch_*tj);
+	    float* v_row = (float*) ((char*) v_ptr_ + v_pitch_*tj);
 	    
 	    h_row[ti] = h_row[opposite_col_index];
 	    u_row[ti] = u_row[opposite_col_index];
@@ -117,7 +117,7 @@ __global__ void periodic_boundary_intersections_NS(
 	int halo_x, int halo_y,
 	
         // Data
-        __device__ float* data_ptr_, int data_pitch_) {
+        float* data_ptr_, int data_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -131,8 +131,8 @@ __global__ void periodic_boundary_intersections_NS(
     // Set ghost cells equal to inner opposite's value
     if ((tj < halo_y || tj >  ny_+halo_y-1)
 	&& tj > -1  && tj < ny_+(2*halo_y)+1 && ti > -1 && ti < nx_+(2*halo_x)+1 ) {
-	__device__ float* ghost_row = (__device__ float*) ((__device__ char*) data_ptr_ + data_pitch_*tj);
-	__device__ float* opposite_row = (__device__ float*) ((__device__ char*) data_ptr_ + data_pitch_*opposite_row_index);
+	float* ghost_row = (float*) ((char*) data_ptr_ + data_pitch_*tj);
+	float* opposite_row = (float*) ((char*) data_ptr_ + data_pitch_*opposite_row_index);
 
 	ghost_row[ti] = opposite_row[ti];
     }
@@ -145,7 +145,7 @@ __global__ void periodic_boundary_intersections_EW(
         int halo_x, int halo_y,
 
         // Data
-        __device__ float* data_ptr_, int data_pitch_) {
+        float* data_ptr_, int data_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -161,7 +161,7 @@ __global__ void periodic_boundary_intersections_EW(
 	 (tj > -1) && (tj < ny_+2*halo_y + 1)    ) {
 
 	if ( (ti < halo_x) || (ti > nx_+halo_x-1) ) {
-	    __device__ float* data_row = (__device__ float*) ((__device__ char*) data_ptr_ + data_pitch_*tj);
+	    float* data_row = (float*) ((char*) data_ptr_ + data_pitch_*tj);
 	    
 	    data_row[ti] = data_row[opposite_col_index];
 	}
@@ -180,7 +180,7 @@ __global__ void closed_boundary_intersections_EW(
         int halo_x_, int halo_y_,
 	
         // Data
-        __device__ float* data_ptr_, int data_pitch_) {
+        float* data_ptr_, int data_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -188,7 +188,7 @@ __global__ void closed_boundary_intersections_EW(
 
     
     if ( ti == 0 && tj < ny_ + (2*halo_x_) + 1) {
-	__device__ float* data_row = (__device__ float*) ((__device__ char*) data_ptr_ + data_pitch_*tj);
+	float* data_row = (float*) ((char*) data_ptr_ + data_pitch_*tj);
 	// Western boundary:
 	for (int i = 0; i < halo_x_; ++i) {
 	    data_row[i] = data_row[2*halo_x_ - i];
@@ -206,7 +206,7 @@ __global__ void closed_boundary_intersections_NS(
         int halo_x_, int halo_y_,
 
         // Data
-        __device__ float* data_ptr_, int data_pitch_) {
+        float* data_ptr_, int data_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -216,16 +216,16 @@ __global__ void closed_boundary_intersections_NS(
 	// Southern boundary:
 	for (int j = 0; j < halo_y_; ++j) {
 	    const int inner_index = 2*halo_y_ - j;
-	    __device__ float* ghost_row = (__device__ float*) ((__device__ char*) data_ptr_ + data_pitch_*j);
-	    __device__ float* inner_row = (__device__ float*) ((__device__ char*) data_ptr_ + data_pitch_*inner_index);
+	    float* ghost_row = (float*) ((char*) data_ptr_ + data_pitch_*j);
+	    float* inner_row = (float*) ((char*) data_ptr_ + data_pitch_*inner_index);
 	    ghost_row[ti] = inner_row[ti];
 	}
 	// Northern boundary:
 	for (int j = 0; j < halo_y_; ++j) {
 	    const int ghost_index = ny_ + 2*halo_y_ - j;
 	    const int inner_index = ny_ + j;
-	    __device__ float* ghost_row = (__device__ float*) ((__device__ char*) data_ptr_ + data_pitch_*ghost_index);
-	    __device__ float* inner_row = (__device__ float*) ((__device__ char*) data_ptr_ + data_pitch_*inner_index);
+	    float* ghost_row = (float*) ((char*) data_ptr_ + data_pitch_*ghost_index);
+	    float* inner_row = (float*) ((char*) data_ptr_ + data_pitch_*inner_index);
 	    ghost_row[ti] = inner_row[ti];
 	}
 	
@@ -258,9 +258,9 @@ __global__ void linearInterpolation_NS(
         int sponge_cells_south_,
 	
         // Data
-        __device__ float* h_ptr_, int h_pitch_,
-        __device__ float* u_ptr_, int u_pitch_,
-        __device__ float* v_ptr_, int v_pitch_) {
+        float* h_ptr_, int h_pitch_,
+        float* u_ptr_, int u_pitch_,
+        float* v_ptr_, int v_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -283,25 +283,25 @@ __global__ void linearInterpolation_NS(
 	}
 	
 	// Get inner value
-	__device__ float* inner_row_h = (__device__ float*) ((__device__ char*) h_ptr_ + h_pitch_*inner_row);
-	__device__ float* inner_row_u = (__device__ float*) ((__device__ char*) u_ptr_ + u_pitch_*inner_row);
-	__device__ float* inner_row_v = (__device__ float*) ((__device__ char*) v_ptr_ + v_pitch_*inner_row);
+	float* inner_row_h = (float*) ((char*) h_ptr_ + h_pitch_*inner_row);
+	float* inner_row_u = (float*) ((char*) u_ptr_ + u_pitch_*inner_row);
+	float* inner_row_v = (float*) ((char*) v_ptr_ + v_pitch_*inner_row);
 	float inner_value_h = inner_row_h[ti];
 	float inner_value_u = inner_row_u[ti];
 	float inner_value_v = inner_row_v[ti];
 
 	// Get outer value
-	__device__ float* outer_row_h = (__device__ float*) ((__device__ char*) h_ptr_ + h_pitch_*outer_row);
-	__device__ float* outer_row_u = (__device__ float*) ((__device__ char*) u_ptr_ + u_pitch_*outer_row);
-	__device__ float* outer_row_v = (__device__ float*) ((__device__ char*) v_ptr_ + v_pitch_*outer_row);
+	float* outer_row_h = (float*) ((char*) h_ptr_ + h_pitch_*outer_row);
+	float* outer_row_u = (float*) ((char*) u_ptr_ + u_pitch_*outer_row);
+	float* outer_row_v = (float*) ((char*) v_ptr_ + v_pitch_*outer_row);
 	float outer_value_h = outer_row_h[ti];
 	float outer_value_u = outer_row_u[ti];
 	float outer_value_v = outer_row_v[ti];
 
 	// Find target cell
-	__device__ float* target_row_h = (__device__ float*) ((__device__ char*) h_ptr_ + h_pitch_*tj);
-	__device__ float* target_row_u = (__device__ float*) ((__device__ char*) u_ptr_ + u_pitch_*tj);
-	__device__ float* target_row_v = (__device__ float*) ((__device__ char*) v_ptr_ + v_pitch_*tj);
+	float* target_row_h = (float*) ((char*) h_ptr_ + h_pitch_*tj);
+	float* target_row_u = (float*) ((char*) u_ptr_ + u_pitch_*tj);
+	float* target_row_v = (float*) ((char*) v_ptr_ + v_pitch_*tj);
 	
 	// Interpolate:
 	float ratio = ((float)(tj - outer_row))/(inner_row - outer_row);
@@ -321,9 +321,9 @@ __global__ void linearInterpolation_EW(
         int sponge_cells_west_,
 	
         // Data
-        __device__ float* h_ptr_, int h_pitch_,
-        __device__ float* u_ptr_, int u_pitch_,
-        __device__ float* v_ptr_, int v_pitch_) {
+        float* h_ptr_, int h_pitch_,
+        float* u_ptr_, int u_pitch_,
+        float* v_ptr_, int v_pitch_) {
     
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -346,9 +346,9 @@ __global__ void linearInterpolation_EW(
 	}
 
 	// Get rows
-	__device__ float* h_row = (__device__ float*) ((__device__ char*) h_ptr_ + h_pitch_*tj);
-	__device__ float* u_row = (__device__ float*) ((__device__ char*) u_ptr_ + u_pitch_*tj);
-	__device__ float* v_row = (__device__ float*) ((__device__ char*) v_ptr_ + v_pitch_*tj);
+	float* h_row = (float*) ((char*) h_ptr_ + h_pitch_*tj);
+	float* u_row = (float*) ((char*) u_ptr_ + u_pitch_*tj);
+	float* v_row = (float*) ((char*) v_ptr_ + v_pitch_*tj);
 	
 	// Get inner value
 	float inner_value_h = h_row[inner_col];
@@ -392,9 +392,9 @@ __global__ void flowRelaxationScheme_NS(
 	int sponge_cells_south_,
 	
         // Data
-        __device__ float* h_ptr_, int h_pitch_,
-        __device__ float* u_ptr_, int u_pitch_,
-	__device__ float* v_ptr_, int v_pitch_) {
+        float* h_ptr_, int h_pitch_,
+        float* u_ptr_, int u_pitch_,
+	float* v_ptr_, int v_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -419,17 +419,17 @@ __global__ void flowRelaxationScheme_NS(
 	
 	
 	// Get exterior value
-	__device__ float* exterior_row_h = (__device__ float*) ((__device__ char*) h_ptr_ + h_pitch_*exterior_row);
-	__device__ float* exterior_row_u = (__device__ float*) ((__device__ char*) u_ptr_ + u_pitch_*exterior_row);
-	__device__ float* exterior_row_v = (__device__ float*) ((__device__ char*) v_ptr_ + v_pitch_*exterior_row);
+	float* exterior_row_h = (float*) ((char*) h_ptr_ + h_pitch_*exterior_row);
+	float* exterior_row_u = (float*) ((char*) u_ptr_ + u_pitch_*exterior_row);
+	float* exterior_row_v = (float*) ((char*) v_ptr_ + v_pitch_*exterior_row);
 	float exterior_value_h = exterior_row_h[ti];
 	float exterior_value_u = exterior_row_u[ti];
 	float exterior_value_v = exterior_row_v[ti];
 
 	// Find target cell
-	__device__ float* target_row_h = (__device__ float*) ((__device__ char*) h_ptr_ + h_pitch_*tj);
-	__device__ float* target_row_u = (__device__ float*) ((__device__ char*) u_ptr_ + u_pitch_*tj);
-	__device__ float* target_row_v = (__device__ float*) ((__device__ char*) v_ptr_ + v_pitch_*tj);
+	float* target_row_h = (float*) ((char*) h_ptr_ + h_pitch_*tj);
+	float* target_row_u = (float*) ((char*) u_ptr_ + u_pitch_*tj);
+	float* target_row_v = (float*) ((char*) v_ptr_ + v_pitch_*tj);
 	
 	// Interpolate:
 	target_row_h[ti] = (1.0f-alpha)*target_row_h[ti] + alpha*exterior_value_h;
@@ -449,9 +449,9 @@ __global__ void flowRelaxationScheme_EW(
 	int sponge_cells_west_,
 	
         // Data
-        __device__ float* h_ptr_, int h_pitch_,
-        __device__ float* u_ptr_, int u_pitch_,
-	__device__ float* v_ptr_, int v_pitch_) {
+        float* h_ptr_, int h_pitch_,
+        float* u_ptr_, int u_pitch_,
+	float* v_ptr_, int v_pitch_) {
     
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -475,9 +475,9 @@ __global__ void flowRelaxationScheme_EW(
 	float alpha = 1.0f - tanh((j-1.0f)/2.0f);
 	
 	// Get rows
-	__device__ float* h_row = (__device__ float*) ((__device__ char*) h_ptr_ + h_pitch_*tj);
-	__device__ float* u_row = (__device__ float*) ((__device__ char*) u_ptr_ + u_pitch_*tj);
-	__device__ float* v_row = (__device__ float*) ((__device__ char*) v_ptr_ + v_pitch_*tj);
+	float* h_row = (float*) ((char*) h_ptr_ + h_pitch_*tj);
+	float* u_row = (float*) ((char*) u_ptr_ + u_pitch_*tj);
+	float* v_row = (float*) ((char*) v_ptr_ + v_pitch_*tj);
 
 	// Get exterior value
 	float exterior_value_h = h_row[exterior_col];

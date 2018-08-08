@@ -50,7 +50,7 @@ class FBL(Simulator.Simulator):
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0, \
-                 block_width=32, block_height=32):
+                 block_width=16, block_height=16):
         """
         Initialization routine
         H: Water depth incl ghost cells, (nx+2)*(ny+2) cells
@@ -156,7 +156,7 @@ class FBL(Simulator.Simulator):
                                     staggered_grid=True, offset_x=self.offset_x, offset_y=self.offset_y)
             
     @classmethod
-    def fromfilename(cls, filename, gpu_ctx, cont_write_netcdf=True):
+    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
@@ -358,8 +358,8 @@ class FBL_periodic_boundary:
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height, 1) # WARNING::: MUST MATCH defines of block_width/height in kernels!
         self.global_size = ( \
-                int(np.ceil((self.nx_halo+1) / float(self.local_size[0])) * self.local_size[0]), \
-                int(np.ceil((self.ny_halo+1) / float(self.local_size[1])) * self.local_size[1]) )
+                int(np.ceil((self.nx_halo+1) / float(self.local_size[0]))), \
+                int(np.ceil((self.ny_halo+1) / float(self.local_size[1]))) )
 
     
 

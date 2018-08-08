@@ -1,5 +1,5 @@
 /*
-This OpenCL kernel implements the Kurganov-Petrova numerical scheme 
+This CUDA kernel implements the Kurganov-Petrova numerical scheme 
 for the shallow water equations, described in 
 A. Chertock, M. Dudzinski, A. Kurganov & M. Lukacova-Medvidova
 Well-Balanced Schemes for the Shallow Water Equations with Coriolis Forces,
@@ -21,19 +21,12 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "common.opencl"
+#include "common.cu"
 #include "../config.h"
-
-#ifndef __OPENCL_VERSION__
-#define __kernel
-#define __global
-#define __local
-#define CLK_LOCAL_MEM_FENCE
-#endif
 
 // Finds the coriolis term based on the linear Coriolis force
 // f = \tilde{f} + beta*(y-y0)
-float linear_coriolis_term(const float f, const float beta,
+__device__ float linear_coriolis_term(const float f, const float beta,
 			   const float tj, const float dy,
 			   const float y_zero_reference_cell) {
     // y_0 is at the southern face of the row y_zero_reference_cell.
@@ -42,7 +35,7 @@ float linear_coriolis_term(const float f, const float beta,
 }
 
 
-float3 CDKLM16_F_func(const float3 Q, const float g) {
+__device__ float3 CDKLM16_F_func(const float3 Q, const float g) {
     float3 F;
 
     F.x = Q.x*Q.y;                        //h*u
@@ -62,7 +55,7 @@ float3 CDKLM16_F_func(const float3 Q, const float g) {
   * Note that the input vectors are (h, u, v), thus not the regular
   * (h, hu, hv)
   */
-float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
+__device__ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
     const float3 Fp = CDKLM16_F_func(Qp, g);
     const float up = Qp.y;         // u
     const float cp = sqrt(g*Qp.x); // sqrt(g*h)
@@ -99,7 +92,7 @@ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
 
 
 
-__kernel void swe_2D(
+__global__ void swe_2D(
         int nx_, int ny_,
         float dx_, float dy_, float dt_,
         float g_,
@@ -116,21 +109,21 @@ __kernel void swe_2D(
         int step_,    // runge kutta step
         
         //Input h^n
-        __global float* eta0_ptr_, int eta0_pitch_,
-        __global float* hu0_ptr_, int hu0_pitch_,
-        __global float* hv0_ptr_, int hv0_pitch_,
+        float* eta0_ptr_, int eta0_pitch_,
+        float* hu0_ptr_, int hu0_pitch_,
+        float* hv0_ptr_, int hv0_pitch_,
         
         //Output h^{n+1}
-        __global float* eta1_ptr_, int eta1_pitch_,
-        __global float* hu1_ptr_, int hu1_pitch_,
-        __global float* hv1_ptr_, int hv1_pitch_,
+        float* eta1_ptr_, int eta1_pitch_,
+        float* hu1_ptr_, int hu1_pitch_,
+        float* hv1_ptr_, int hv1_pitch_,
 
         //Bathymery
-        __global float* Hi_ptr_, int Hi_pitch_,
-        __global float* Hm_ptr_, int Hm_pitch_,
+        float* Hi_ptr_, int Hi_pitch_,
+        float* Hm_ptr_, int Hm_pitch_,
 	
         //Wind stress parameters
-        __global const wind_stress_params *wind_stress_,
+        const wind_stress_params *wind_stress_,
 	
         float t_, 
     
@@ -140,56 +133,56 @@ __kernel void swe_2D(
 	// Geostrophic Equilibrium memory buffers
 	// The buffers have the same size as input/output
 	int report_geostrophical_equilibrium,
-	__global float* uxpvy_ptr_, int uxpvy_pitch_,
-	__global float* Kx_ptr_, int Kx_pitch_,
-	__global float* Ly_ptr_, int Ly_pitch_
+	float* uxpvy_ptr_, int uxpvy_pitch_,
+	float* Kx_ptr_, int Kx_pitch_,
+	float* Ly_ptr_, int Ly_pitch_
 
     ) {
         
     //Index of thread within block
-    const int tx = get_local_id(0);
-    const int ty = get_local_id(1);
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
     
     //Index of block within domain
-    const int bx = get_local_size(0) * get_group_id(0);
-    const int by = get_local_size(1) * get_group_id(1);
+    const int bx = blockDim.x * blockIdx.x;
+    const int by = blockDim.y * blockIdx.y;
 
     //Index of cell within domain
-    const int ti = get_global_id(0) + 2; //Skip global ghost cells, i.e., +2
-    const int tj = get_global_id(1) + 2;
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x + 2; //Skip global ghost cells, i.e., +2
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y + 2;
     
     // Our physical variables
-    __local float R[3][block_height+4][block_width+4];
+    __shared__ float R[3][block_height+4][block_width+4];
     
     // Our reconstruction variables
-    __local float Q[2][block_height+4][block_width+4];
-    __local float Qx[3][block_height][block_width+2];
-    __local float Qy[3][block_height+2][block_width];
+    __shared__ float Q[2][block_height+4][block_width+4];
+    __shared__ float Qx[3][block_height][block_width+2];
+    __shared__ float Qy[3][block_height+2][block_width];
     
     // Our fluxes
-    __local float F[3][block_height][block_width+1];
-    __local float G[3][block_height+1][block_width];
+    __shared__ float F[3][block_height][block_width+1];
+    __shared__ float G[3][block_height+1][block_width];
     
     
     // Bathymetry
-    __local float  Hi[block_height+1][block_width+1];
-    __local float  Hm[block_height+4][block_width+4];
-    __local float RHx[block_height  ][block_width+1];
-    __local float RHy[block_height+1][block_width  ];
+    __shared__ float  Hi[block_height+1][block_width+1];
+    __shared__ float  Hm[block_height+4][block_width+4];
+    __shared__ float RHx[block_height  ][block_width+1];
+    __shared__ float RHy[block_height+1][block_width  ];
 
 
     // theta_ = 1.5f;
     
     //Read into shared memory
-    for (int j=ty; j<block_height+4; j+=get_local_size(1)) {
+    for (int j=ty; j<block_height+4; j+=blockDim.y) {
         const int l = clamp(by + j, 0, ny_+3); // Out of bounds
         
         //Compute the pointer to current row in the arrays
-        __global float* const eta_row = (__global float*) ((__global char*) eta0_ptr_ + eta0_pitch_*l);
-        __global float* const hu_row = (__global float*) ((__global char*) hu0_ptr_ + hu0_pitch_*l);
-        __global float* const hv_row = (__global float*) ((__global char*) hv0_ptr_ + hv0_pitch_*l);
+        float* const eta_row = (float*) ((char*) eta0_ptr_ + eta0_pitch_*l);
+        float* const hu_row = (float*) ((char*) hu0_ptr_ + hu0_pitch_*l);
+        float* const hv_row = (float*) ((char*) hv0_ptr_ + hv0_pitch_*l);
         
-        for (int i=tx; i<block_width+4; i+=get_local_size(0)) {
+        for (int i=tx; i<block_width+4; i+=blockDim.x) {
             const int k = clamp(bx + i, 0, nx_+3); // Out of bounds
             
             R[0][j][i] = eta_row[k];
@@ -197,16 +190,16 @@ __kernel void swe_2D(
             R[2][j][i] = hv_row[k];
         }
     }
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
     
 
     // Read Hm into shared memory with 4x4 halo
-    for (int j=ty; j < block_height+4; j+=get_local_size(1)) {
+    for (int j=ty; j < block_height+4; j+=blockDim.y) {
 	// Ensure that we read from correct domain
 	// We never read outermost halo of Bm
 	const int l = clamp(by+j, 0, ny_+3); 
-	__global float* const Hm_row = (__global float*) ((__global char*) Hm_ptr_ + Hm_pitch_*l);
-	for(int i=tx; i < block_width+4; i+=get_local_size(0)) {
+	float* const Hm_row = (float*) ((char*) Hm_ptr_ + Hm_pitch_*l);
+	for(int i=tx; i < block_width+4; i+=blockDim.x) {
 	    const int k = clamp(bx+i, 0, nx_+3);
 
 	    Hm[j][i] = Hm_row[k];
@@ -215,33 +208,33 @@ __kernel void swe_2D(
 
     // Read Hi into shared memory
     // Read intersections on all non-ghost cells
-    for(int j=ty; j < block_height+1; j+=get_local_size(1)) {
+    for(int j=ty; j < block_height+1; j+=blockDim.y) {
 	// Skip ghost cells and 
 	const int l = clamp(by+j+2, 2, ny_+2);
-	__global float* const Hi_row = (__global float*) ((__global char*) Hi_ptr_ + Hi_pitch_*l);
-	for(int i=tx; i < block_width+1; i+=get_local_size(0)) {
+	float* const Hi_row = (float*) ((char*) Hi_ptr_ + Hi_pitch_*l);
+	for(int i=tx; i < block_width+1; i+=blockDim.x) {
 	    const int k = clamp(bx+i+2, 2, nx_+2);
 
 	    Hi[j][i] = Hi_row[k];
 	}
     }
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
 
     
     // Evaluate piecewise bi-linear for RHx
     // RHx and RHy is then the equilibrium depth on faces
-    for (int j=ty; j<block_height; j+=get_local_size(1)) {
-        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+    for (int j=ty; j<block_height; j+=blockDim.y) {
+        for (int i=tx; i<block_width+1; i+=blockDim.x) {
             RHx[j][i] = 0.5f*( Hi[j][i] + Hi[j+1][i] );
 	}
     }
     // Evaluate piecewise bi-linear for RHy
-    for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
-        for (int i=tx; i<block_width; i+=get_local_size(0)) {
+    for (int j=ty; j<block_height+1; j+=blockDim.y) {
+        for (int i=tx; i<block_width; i+=blockDim.x) {
             RHy[j][i] = 0.5f*( Hi[j][i] + Hi[j][i+1] );
 	}
     }
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
     
     //Fix boundary conditions
     if (bc_north_ == 1 || bc_east_ == 1 || bc_south_ == 1 || bc_west_ == 1)
@@ -293,13 +286,13 @@ __kernel void swe_2D(
         }
     }
     
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
         
     
     //Create our "steady state" reconstruction variables (u, v)
     // K and L are never stored, but computed where needed.
-    for (int j=ty; j<block_height+4; j+=get_local_size(1)) {
-        for (int i=tx; i<block_width+4; i+=get_local_size(0)) {
+    for (int j=ty; j<block_height+4; j+=blockDim.y) {
+        for (int i=tx; i<block_width+4; i+=blockDim.x) {
             
             const float h = R[0][j][i] + Hm[j][i]; // h = eta + H
             const float u = R[1][j][i] / h;
@@ -309,7 +302,7 @@ __kernel void swe_2D(
             Q[1][j][i] = v;
         }
     }
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
     
     
     
@@ -317,9 +310,9 @@ __kernel void swe_2D(
     
     
     //Reconstruct slopes along x axis
-    for (int j=ty; j<block_height; j+=get_local_size(1)) {
+    for (int j=ty; j<block_height; j+=blockDim.y) {
         const int l = j + 2; //Skip ghost cells
-        for (int i=tx; i<block_width+2; i+=get_local_size(0)) {
+        for (int i=tx; i<block_width+2; i+=blockDim.x) {
             const int k = i + 1;
             for (int p=0; p<2; ++p) {
                 Qx[p][j][i] = minmodSlope(Q[p][l][k-1], Q[p][l][k], Q[p][l][k+1], theta_);
@@ -349,9 +342,9 @@ __kernel void swe_2D(
     }
     
     //Reconstruct slopes along y axis
-    for (int j=ty; j<block_height+2; j+=get_local_size(1)) {
+    for (int j=ty; j<block_height+2; j+=blockDim.y) {
         const int l = j + 1;
-        for (int i=tx; i<block_width; i+=get_local_size(0)) {            
+        for (int i=tx; i<block_width; i+=blockDim.x) {            
             const int k = i + 2; //Skip ghost cells
             for (int p=0; p<2; ++p) {
                 Qy[p][j][i] = minmodSlope(Q[p][l-1][k], Q[p][l][k], Q[p][l+1][k], theta_);
@@ -383,21 +376,21 @@ __kernel void swe_2D(
 	    Qy[2][j][i] = minmodRaw(backward, central, forward); 
         }
     }
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
 
 
 
 	
     //Compute fluxes along the x axis
-    for (int j=ty; j<block_height; j+=get_local_size(1)) {
+    for (int j=ty; j<block_height; j+=blockDim.y) {
         const int l = j + 2; //Skip ghost cells (be consistent with reconstruction offsets)
-        for (int i=tx; i<block_width+1; i+=get_local_size(0)) {
+        for (int i=tx; i<block_width+1; i+=blockDim.x) {
             const int k = i + 1;
 
             // (u, v) reconstructed at a cell interface from the right (p) and left (m)
-	    const float2 Rp = (float2)(Q[0][l][k+1] - 0.5f*Qx[0][j][i+1],
+	    const float2 Rp = make_float2(Q[0][l][k+1] - 0.5f*Qx[0][j][i+1],
                                        Q[1][l][k+1] - 0.5f*Qx[1][j][i+1]);
-            const float2 Rm = (float2)(Q[0][l][k  ] + 0.5f*Qx[0][j][i  ],
+            const float2 Rm = make_float2(Q[0][l][k  ] + 0.5f*Qx[0][j][i  ],
                                        Q[1][l][k  ] + 0.5f*Qx[1][j][i  ]);
 
             // Variables to reconstruct h from u, v, K, L
@@ -427,8 +420,8 @@ __kernel void swe_2D(
 	    const float hm = eta_bar_m + H_face + (Kx_m + dx_*coriolis_f*vm)/(2.0f*g_);
 	    
             // Our flux variables Q=(h, u, v)
-            const float3 Qp = (float3)(hp, Rp.x, Rp.y);
-            const float3 Qm = (float3)(hm, Rm.x, Rm.y);
+            const float3 Qp = make_float3(hp, Rp.x, Rp.y);
+            const float3 Qm = make_float3(hm, Rm.x, Rm.y);
                                        
             // Computed flux
             const float3 flux = CDKLM16_flux(Qm, Qp, g_);
@@ -439,14 +432,14 @@ __kernel void swe_2D(
     }
         
     //Compute fluxes along the y axis
-    for (int j=ty; j<block_height+1; j+=get_local_size(1)) {
+    for (int j=ty; j<block_height+1; j+=blockDim.y) {
         const int l = j + 1;
-        for (int i=tx; i<block_width; i+=get_local_size(0)) {
+        for (int i=tx; i<block_width; i+=blockDim.x) {
             const int k = i + 2; //Skip ghost cells
             // Q at interface from the right and left
-	    const float2 Rp = (float2)(Q[0][l+1][k] - 0.5f*Qy[0][j+1][i],
+	    const float2 Rp = make_float2(Q[0][l+1][k] - 0.5f*Qy[0][j+1][i],
                                        Q[1][l+1][k] - 0.5f*Qy[1][j+1][i]);
-	    const float2 Rm = (float2)(Q[0][l  ][k] + 0.5f*Qy[0][j  ][i],
+	    const float2 Rm = make_float2(Q[0][l  ][k] + 0.5f*Qy[0][j  ][i],
 				       Q[1][l  ][k] + 0.5f*Qy[1][j  ][i]);
               
             // Variables to reconstruct h from u, v, K, L
@@ -479,8 +472,8 @@ __kernel void swe_2D(
 
 	    // Our flux variables Q=(h, v, u)
             // Note that we swap u and v
-            const float3 Qp = (float3)(hp, Rp.y, Rp.x);
-            const float3 Qm = (float3)(hm, Rm.y, Rm.x);
+            const float3 Qp = make_float3(hp, Rp.y, Rp.x);
+            const float3 Qm = make_float3(hm, Rm.y, Rm.x);
             
             // Computed flux
             // Note that we swap back u and v
@@ -490,7 +483,7 @@ __kernel void swe_2D(
             G[2][j][i] = flux.y;
         }
     }
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
     
     
     
@@ -523,9 +516,9 @@ __kernel void swe_2D(
 	                  + (Y - coriolis_f*R[1][j][i] + st2/dy_);
 	
         
-	__global float* const eta_row = (__global float*) ((__global char*) eta1_ptr_ + eta1_pitch_*tj);
-        __global float* const hu_row  = (__global float*) ((__global char*) hu1_ptr_  +  hu1_pitch_*tj);
-        __global float* const hv_row  = (__global float*) ((__global char*) hv1_ptr_  +  hv1_pitch_*tj);
+	float* const eta_row = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
+        float* const hu_row  = (float*) ((char*) hu1_ptr_  +  hu1_pitch_*tj);
+        float* const hv_row  = (float*) ((char*) hv1_ptr_  +  hv1_pitch_*tj);
 
 	if (rk_order < 3) {
          
@@ -590,9 +583,9 @@ __kernel void swe_2D(
 		const float hv_b  = 0.75f* hv_a + 0.25f*(R[2][j][i] + dt_*L3);
 
 		// Write output to the input buffer:
-		__global float* const eta_out_row = (__global float*) ((__global char*) eta0_ptr_ + eta0_pitch_*tj);
-		__global float* const hu_out_row  = (__global float*) ((__global char*)  hu0_ptr_ +  hu0_pitch_*tj);
-		__global float* const hv_out_row  = (__global float*) ((__global char*)  hv0_ptr_ +  hv0_pitch_*tj);
+		float* const eta_out_row = (float*) ((char*) eta0_ptr_ + eta0_pitch_*tj);
+		float* const hu_out_row  = (float*) ((char*)  hu0_ptr_ +  hu0_pitch_*tj);
+		float* const hv_out_row  = (float*) ((char*)  hv0_ptr_ +  hv0_pitch_*tj);
 		eta_out_row[ti] = eta_b;
 		hu_out_row[ti]  =  hu_b;
 		hv_out_row[ti]  =  hv_b;
@@ -616,7 +609,7 @@ __kernel void swe_2D(
 		hu_row[ti]  =  hu_b;
 		hv_row[ti]  =  hv_b;
 
-		__global float* const Kx_row = (__global float*) ((__global char*) Kx_ptr_ + Kx_pitch_*tj);	    
+		float* const Kx_row = (float*) ((char*) Kx_ptr_ + Kx_pitch_*tj);	    
 		//Kx_row[ti]    = 4;  // K_x
 	    }
 	}
@@ -624,9 +617,9 @@ __kernel void swe_2D(
 	// Write geostrophical equilibrium variables:
 	if (report_geostrophical_equilibrium) {
 
-	    __global float* const uxpvy_row  = (__global float*) ((__global char*) uxpvy_ptr_ + uxpvy_pitch_*tj);
-	    __global float* const Kx_row = (__global float*) ((__global char*) Kx_ptr_ + Kx_pitch_*tj);
-	    __global float* const Ly_row = (__global float*) ((__global char*) Ly_ptr_ + Ly_pitch_*tj);
+	    float* const uxpvy_row  = (float*) ((char*) uxpvy_ptr_ + uxpvy_pitch_*tj);
+	    float* const Kx_row = (float*) ((char*) Kx_ptr_ + Kx_pitch_*tj);
+	    float* const Ly_row = (float*) ((char*) Ly_ptr_ + Ly_pitch_*tj);
 
 	    uxpvy_row[ti] = Qx[0][ty][tx+1] + Qy[1][ty+1][tx]; // u_x + v_y
 	    Kx_row[ti]    = Qx[2][ty][tx+1];  // K_x
