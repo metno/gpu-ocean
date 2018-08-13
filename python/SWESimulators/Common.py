@@ -232,7 +232,7 @@ class CUDAArray2D:
         Frees the allocated memory buffers on the GPU 
         """
         if self.holds_data:
-            del self.data
+            self.data.gpudata.free()
             self.holds_data = False
 
     
