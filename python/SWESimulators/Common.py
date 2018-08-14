@@ -211,7 +211,7 @@ class CUDAArray2D:
         
         # Okay, everything is fine - issue device-to-device-copy:
         total_num_bytes = self.bytes_per_float*self.nx_halo*self.ny_halo
-        cuda.memcpy_dtod_async(self.data.ptr(), buffer.data.ptr(), total_num_bytes, stream=gpu_stream)
+        cuda.memcpy_dtod_async(self.data.ptr, buffer.data.ptr, total_num_bytes, stream=gpu_stream)
         
         
         
