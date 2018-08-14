@@ -30,6 +30,9 @@ import Simulator
 import WindStress
 import OceanStateNoise
 
+# Needed for the random perturbation of the wind forcing:
+import pycuda.driver as cuda
+
 
 class CDKLM16(Simulator.Simulator):
     """
