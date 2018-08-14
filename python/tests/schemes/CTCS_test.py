@@ -32,12 +32,12 @@ class CTCStest(unittest.TestCase):
         self.v0 = np.zeros((self.ny+1+2, self.nx+2), dtype=np.float32);
 
         self.ghosts = [1,1,1,1] # north, east, south, west
-        self.refEtaRange = [-1, -1, 1, 1]
-        self.refURange = [-1, -1, 1, 1]
-        self.refVRange = [-1, -1, 1, 1]
         self.etaRange = [-1, -1, 1, 1]
         self.uRange = [-1, -2, 1, 2]
         self.vRange = [-2, -1, 2, 1]
+        self.refEtaRange = self.etaRange
+        self.refURange = self.uRange
+        self.refVRange = self.vRange
         self.boundaryConditions = None
 
         self.T = 50.0
@@ -94,11 +94,11 @@ class CTCStest(unittest.TestCase):
                           vRef[ self.refVRange[2]:self.refVRange[0],
                                 self.refVRange[3]:self.refVRange[1]])
         
-        self.assertAlmostEqual(maxDiffEta, 0.0, places=0,
+        self.assertAlmostEqual(maxDiffEta, 0.0, places=5,
                                msg='Unexpected eta difference! Max diff: ' + str(maxDiffEta) + ', L2 diff: ' + str(diffEta))
-        self.assertAlmostEqual(maxDiffU, 0.0, places=0,
+        self.assertAlmostEqual(maxDiffU, 0.0, places=5,
                                msg='Unexpected U difference: ' + str(maxDiffU) + ', L2 diff: ' + str(diffU))
-        self.assertAlmostEqual(maxDiffV, 0.0, places=0,
+        self.assertAlmostEqual(maxDiffV, 0.0, places=5,
                                msg='Unexpected V difference: ' + str(maxDiffV) + ', L2 diff: ' + str(diffV))
     ## Wall boundary conditions
     
