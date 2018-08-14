@@ -3,7 +3,6 @@ import time
 import numpy as np
 import sys
 import gc
-import pyopencl
 
 import abc
 
@@ -49,8 +48,6 @@ class BaseDrifterTest(unittest.TestCase):
         
     def tearDown(self):
         pass
-        #self.cl_ctx = None
-        #self.smallDrifterSet.cleanUp()
     
     ### set observation and drifter positions to the test cases
     def set_positions_small_set(self):
