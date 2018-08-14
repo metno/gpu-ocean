@@ -27,9 +27,7 @@ class CDKLM16test(unittest.TestCase):
         self.r = 0.0
         self.A = 1
         
-        #self.h0 = np.ones((self.ny+2, self.nx+2), dtype=np.float32) * 60;
         self.waterHeight = 60
-        self.h0 = None
         self.eta0 = None
         self.u0 = None
         self.v0 = None
@@ -49,7 +47,6 @@ class CDKLM16test(unittest.TestCase):
             self.sim.cleanUp()
             self.sim = None
 
-        self.h0 = None
         self.eta0 = None
         self.u0 = None
         self.v0 = None
@@ -63,7 +60,6 @@ class CDKLM16test(unittest.TestCase):
     def allocData(self):
         dataShape = (self.ny + self.ghosts[0]+self.ghosts[2], 
                      self.nx + self.ghosts[1]+self.ghosts[3])
-        self.h0 = np.ones( dataShape, dtype=np.float32) * self.waterHeight
         self.eta0 = np.zeros(dataShape, dtype=np.float32);
         self.u0 = np.zeros(dataShape, dtype=np.float32)
         self.v0 = np.zeros(dataShape, dtype=np.float32)
@@ -112,22 +108,18 @@ class CDKLM16test(unittest.TestCase):
                           vRef[ self.refRange[2]:self.refRange[0],
                                 self.refRange[3]:self.refRange[1]])
         
-        self.assertAlmostEqual(maxDiffEta, 0.0, places=0,
+        self.assertAlmostEqual(maxDiffEta, 0.0, places=4,
                                msg='Unexpected eta difference! Max diff: ' + str(maxDiffEta) + ', L2 diff: ' + str(diffEta))
-        #
-        # W A R N I N G ! ! ! W A R N I N G ! ! ! W A R N I N G ! ! !
-        #                             Disabled tests for u and v
-        #
-        #self.assertAlmostEqual(maxDiffU, 0.0, places=0,
-        #                       msg='Unexpected U difference: ' + str(maxDiffU) + ', L2 diff: ' + str(diffU))
-        #self.assertAlmostEqual(maxDiffV, 0.0, places=0,
-        #                       msg='Unexpected V difference: ' + str(maxDiffV) + ', L2 diff: ' + str(diffV))
+        self.assertAlmostEqual(maxDiffU, 0.0, places=4,
+                               msg='Unexpected U difference: ' + str(maxDiffU) + ', L2 diff: ' + str(diffU))
+        self.assertAlmostEqual(maxDiffV, 0.0, places=4,
+                               msg='Unexpected V difference: ' + str(maxDiffV) + ', L2 diff: ' + str(diffV))
     ## Wall boundary conditions
     
     def test_wall_central(self):
         self.setBoundaryConditions()
         self.allocData()
-        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
@@ -145,7 +137,7 @@ class CDKLM16test(unittest.TestCase):
     def test_wall_corner(self):
         self.setBoundaryConditions()
         self.allocData()
-        addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        addCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
@@ -161,7 +153,7 @@ class CDKLM16test(unittest.TestCase):
     def test_wall_upperCorner(self):
         self.setBoundaryConditions()
         self.allocData()
-        addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        addUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
@@ -180,7 +172,7 @@ class CDKLM16test(unittest.TestCase):
     def test_periodic_central(self):
         self.setBoundaryConditions(bcSettings=2)
         self.allocData()
-        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
@@ -197,7 +189,7 @@ class CDKLM16test(unittest.TestCase):
     def test_periodic_corner(self):
         self.setBoundaryConditions(bcSettings=2)
         self.allocData()
-        addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        addCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
@@ -213,7 +205,7 @@ class CDKLM16test(unittest.TestCase):
     def test_periodic_upperCorner(self):
         self.setBoundaryConditions(bcSettings=2)
         self.allocData()
-        addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        addUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
@@ -232,7 +224,7 @@ class CDKLM16test(unittest.TestCase):
     def test_periodicNS_central(self):
         self.setBoundaryConditions(bcSettings=3)
         self.allocData()
-        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
@@ -249,7 +241,7 @@ class CDKLM16test(unittest.TestCase):
     def test_periodicNS_corner(self):
         self.setBoundaryConditions(bcSettings=3)
         self.allocData()
-        addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        addCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
@@ -270,7 +262,7 @@ class CDKLM16test(unittest.TestCase):
     def test_periodicNS_upperCorner(self):
         self.setBoundaryConditions(bcSettings=3)
         self.allocData()
-        addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        addUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
@@ -288,7 +280,7 @@ class CDKLM16test(unittest.TestCase):
     def test_periodicEW_central(self):
         self.setBoundaryConditions(bcSettings=4)
         self.allocData()
-        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
@@ -305,7 +297,7 @@ class CDKLM16test(unittest.TestCase):
     def test_periodicEW_corner(self):
         self.setBoundaryConditions(bcSettings=4)
         self.allocData()
-        addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        addCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
@@ -321,7 +313,7 @@ class CDKLM16test(unittest.TestCase):
     def test_periodicEW_upperCorner(self):
         self.setBoundaryConditions(bcSettings=4)
         self.allocData()
-        addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        addUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
         self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
