@@ -7,7 +7,7 @@ import xmlrunner
 # $ sudo easy_install unittest-xml-reporting
 
 #import testUtils
-from pyopenclTests.OpenCLArray2D_test import OpenCLArray2DTest
+from pycudaTests.CUDAArray2D_test import CUDAArray2DTest
 
 if (len(sys.argv) < 1):
     print ("Usage:")
@@ -26,7 +26,7 @@ if (jenkins):
 
 # Define the tests that will be part of our test suite:
 test_classes_to_run = None
-test_classes_to_run = [OpenCLArray2DTest]
+test_classes_to_run = [CUDAArray2DTest]
 
 
 loader = unittest.TestLoader()
