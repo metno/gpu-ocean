@@ -152,7 +152,8 @@ class KP07test(unittest.TestCase):
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
-    def test_wall_central_with_nonzero_flat_bottom(self):
+    # Skipping the following test:
+    def notest_wall_central_with_nonzero_flat_bottom(self):
         self.setBoundaryConditions()
         self.allocData()
         addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)

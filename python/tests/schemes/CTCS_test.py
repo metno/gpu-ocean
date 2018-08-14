@@ -32,12 +32,12 @@ class CTCStest(unittest.TestCase):
         self.v0 = np.zeros((self.ny+1+2, self.nx+2), dtype=np.float32);
 
         self.ghosts = [1,1,1,1] # north, east, south, west
-        self.refEtaRange = [-1, -1, 1, 1]
-        self.refURange = [-1, -1, 1, 1]
-        self.refVRange = [-1, -1, 1, 1]
         self.etaRange = [-1, -1, 1, 1]
         self.uRange = [-1, -2, 1, 2]
         self.vRange = [-2, -1, 2, 1]
+        self.refEtaRange = self.etaRange
+        self.refURange = self.uRange
+        self.refVRange = self.vRange
         self.boundaryConditions = None
 
         self.T = 50.0

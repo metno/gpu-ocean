@@ -35,8 +35,8 @@ class CDKLM16test(unittest.TestCase):
         
         self.ghosts = [2,2,2,2] # north, east, south, west
         self.validDomain = np.array([2,2,2,2])
-        self.refRange = [-3, -3, 3, 3]
         self.dataRange = [-2, -2, 2, 2]
+        self.refRange = self.dataRange
         self.boundaryConditions = None
 
         self.T = 50.0
