@@ -59,6 +59,18 @@ class BaseOceanStateEnsemble(object):
         # Observations are stored as [[t, x, y]]
         self.observations = np.empty((0,3))
         
+        # Arrays to store statistical info for selected grid cells:
+        self.varianceUnderDrifter_eta = []
+        self.varianceUnderDrifter_hu = []
+        self.varianceUnderDrifter_hv = []
+        self.rmseUnderDrifter_eta = []
+        self.rmseUnderDrifter_hu = []
+        self.rmseUnderDrifter_hv = []
+        self.rUnderDrifter_eta = []
+        self.rUnderDrifter_hu = []
+        self.rUnderDrifter_hv = []
+        self.tArray = []
+
         
     def cleanUp(self):
         for oceanState in self.particles:
@@ -201,15 +213,17 @@ class BaseOceanStateEnsemble(object):
         if self.observation_type == dautils.ObservationType.DrifterPosition:
             return self.observeDrifters()
 
-        elif self.observation_type == dautils.ObservationType.UnderlyingFlow:
+        elif self.observation_type == dautils.ObservationType.UnderlyingFlow or \
+             self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
             #print "ObservationType.UnderlyingFlow"
             loc = self.observeTrueState()[:2]
             id_x = np.int(np.floor(loc[0]/self.dx))
             id_y = np.int(np.floor(loc[1]/self.dy))
             
             velocities = np.empty((self.numParticles,2))
-            depth = self.particles[0].downloadBathymetry()[1][id_y + 2, id_x + 2]
-            for p in range(self.numParticles):
+            depth = self.particles[0].downloadBathymetry()[1][id_y, id_x]
+            for p in range(self.numParticles):            
+                # Downloading ocean state without ghost cells
                 eta, hu, hv = self.downloadParticleOceanState(p)
                 velocities[p,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
                 velocities[p,1] = hv[id_y, id_x]/(depth + eta[id_y, id_x])
@@ -229,7 +243,7 @@ class BaseOceanStateEnsemble(object):
         """
         if self.observations[-1,0] != self.t:
             self._addObservation(self.observeTrueDrifters())
-        
+            
         if self.observation_type == dautils.ObservationType.DrifterPosition:
             return self.observations[-1,1:]
             
@@ -240,20 +254,42 @@ class BaseOceanStateEnsemble(object):
             u = dx/dt
             v = dy/dt
             return np.array([self.observations[-1,1], self.observations[-1,2], u, v])
+        
+        elif self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
+            id_x = np.int(np.floor(self.observations[-1,1]/self.dx))
+            id_y = np.int(np.floor(self.observations[-1,2]/self.dy))
+            
+            depth = self.particles[self.obs_index].downloadBathymetry()[1][id_y, id_x]
+            
+            # Downloading ocean state without ghost cells
+            eta, hu, hv = self.downloadParticleOceanState(self.obs_index)
+            u = hu[id_y, id_x]/(depth + eta[id_y, id_x])
+            v = hv[id_y, id_x]/(depth + eta[id_y, id_x])
+            
+            return np.array([self.observations[-1, 1], self.observations[-1,2], u, v])
 
-    def step(self, t, apply_stochastic_term=True):
+    def step(self, t, stochastic_particles=True, stochastic_truth=True):
         """
         Function which makes all particles step until time t.
         apply_stochastic_term: Boolean value for whether the stochastic
             perturbation (if any) should be applied.
         """
-        simNo = 0
-        for oceanState in self.particles:
-            #print "Starting sim " + str(simNo)
-            self.t = oceanState.step(t, \
-                           apply_stochastic_term=apply_stochastic_term)
-            #print "Finished sim " + str(simNo)      
-            simNo = simNo + 1
+        for p in range(self.getNumParticles()+1):
+            #print "Starting sim " + str(p)
+            if p == self.obs_index:
+                self.t = self.particles[p].step(t, apply_stochastic_term=stochastic_truth)
+            else:
+                self.t = self.particles[p].step(t, apply_stochastic_term=stochastic_particles)
+            #print "Finished sim " + str(p)      
+        return self.t
+    
+    def step_truth(self, t, stochastic=True):
+        self.t = self.particles[self.obs_index].step(t, apply_stochastic_term=stochastic)
+        return self.t
+    
+    def step_particles(self, t, stochastic=True):
+        for p in range(self.getNumParticles()):
+            dummy_t = self.particles[p].step(t, apply_stochastic_term=stochastic)
         return self.t
     
     def getDistances(self, obs=None):
@@ -285,7 +321,8 @@ class BaseOceanStateEnsemble(object):
                                         axis=0)
                 counter += 1
             return innovations
-        elif self.observation_type == dautils.ObservationType.UnderlyingFlow:
+        elif self.observation_type == dautils.ObservationType.UnderlyingFlow or \
+             self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
             observed_particles = self.observeParticles()
             observed_velocity = obs[2:]
             return observed_velocity - observed_particles
@@ -295,7 +332,10 @@ class BaseOceanStateEnsemble(object):
         simNo = 0
         for oceanState in self.particles:
             eta, hu, hv = oceanState.download()
-            print "------- simNo: " + str(simNo) + " -------"
+            if simNo == self.obs_index:
+                print "------- simNo: True state -------"
+            else:
+                print "------- simNo: " + str(simNo) + " -------"
             print "t = " + str(oceanState.t)
             print "Max eta: ", np.max(eta)
             print "Max hu:  ", np.max(hu)
@@ -388,7 +428,83 @@ class BaseOceanStateEnsemble(object):
         return 0.25*min(self.dx/max_u, self.dy/max_v)
             
             
-    
+    def getEnsembleVarAndRMSEUnderDrifter(self, t):
+        """
+        Putting entries in the statistical arrays for single cells.
+        """
+        
+        drifter_pos = self.observeTrueDrifters()
+        
+        # downloadTrueOceanState and downloadParticleOceanState gives us interior domain only,
+        # and no ghost cells.
+        cell_id_x = int(np.floor(drifter_pos[0]/self.dx))
+        cell_id_y = int(np.floor(drifter_pos[1]/self.dy))
+        
+        eta_true_array, hu_true_array, hv_true_array = self.downloadTrueOceanState()
+        
+        eta_true = eta_true_array[cell_id_y, cell_id_x]
+        hu_true  =  hu_true_array[cell_id_y, cell_id_x]
+        hv_true  =  hv_true_array[cell_id_y, cell_id_x]
+        
+        eta_mean = 0.0
+        hu_mean = 0.0
+        hv_mean = 0.0
+        eta_rmse = 0.0
+        hu_rmse = 0.0
+        hv_rmse = 0.0
+        eta_sigma = 0.0
+        hu_sigma = 0.0
+        hv_sigma = 0.0
+        
+        for p in range(self.getNumParticles()):
+            tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
+            eta_mean += tmp_eta[cell_id_y, cell_id_x]
+            hu_mean += tmp_hu[cell_id_y, cell_id_x]
+            hv_mean += tmp_hv[cell_id_y, cell_id_x]
+            eta_rmse += (eta_true - tmp_eta[cell_id_y, cell_id_x])**2
+            hu_rmse += (hu_true - tmp_hu[cell_id_y, cell_id_x])**2
+            hv_rmse += (hv_true - tmp_hv[cell_id_y, cell_id_x])**2
+        
+        eta_rmse = np.sqrt(eta_rmse/(self.getNumParticles()+1))
+        hu_rmse  = np.sqrt(hu_rmse /(self.getNumParticles()+1))
+        hv_rmse  = np.sqrt(hv_rmse /(self.getNumParticles()+1))
+        
+        eta_mean = eta_mean/self.getNumParticles()
+        hu_mean = hu_mean/self.getNumParticles()
+        hv_mean = hv_mean/self.getNumParticles()
+        
+        # RMSE according to the paper draft
+        eta_rmse = np.sqrt((eta_true - eta_mean)**2)
+        hu_rmse  = np.sqrt((hu_true  - hu_mean )**2)
+        hv_rmse  = np.sqrt((hv_true  - hv_mean )**2)
+        
+        for p in range(self.getNumParticles()):
+            tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
+            eta_sigma += (tmp_eta[cell_id_y, cell_id_x] - eta_mean)**2
+            hu_sigma  += (tmp_hu[cell_id_y, cell_id_x]  - hu_mean )**2
+            hv_sigma  += (tmp_hv[cell_id_y, cell_id_x]  - hv_mean )**2
+        
+        eta_sigma = np.sqrt(eta_sigma/(1.0 + self.getNumParticles()))
+        hu_sigma  = np.sqrt( hu_sigma/(1.0 + self.getNumParticles()))
+        hv_sigma  = np.sqrt( hv_sigma/(1.0 + self.getNumParticles()))
+        
+        eta_r = eta_sigma/eta_rmse
+        hu_r  =  hu_sigma/hu_rmse
+        hv_r  =  hv_sigma/hv_rmse
+        
+        self.varianceUnderDrifter_eta.append(eta_sigma)
+        self.varianceUnderDrifter_hu.append(hu_sigma)
+        self.varianceUnderDrifter_hv.append(hv_sigma)
+        self.rmseUnderDrifter_eta.append(eta_rmse)
+        self.rmseUnderDrifter_hu.append(hu_rmse)
+        self.rmseUnderDrifter_hv.append(hv_rmse)
+        self.rUnderDrifter_eta.append(eta_r)
+        self.rUnderDrifter_hu.append(hu_r)
+        self.rUnderDrifter_hv.append(hv_r)
+        self.tArray.append(t)
+        
+
+        
     
     def downloadEnsembleStatisticalFields(self):
         """
@@ -402,6 +518,9 @@ class BaseOceanStateEnsemble(object):
         eta_rmse = np.zeros_like(eta_true)
         hu_rmse = np.zeros_like(hu_true)
         hv_rmse = np.zeros_like(hv_true)
+        eta_r = np.zeros_like(eta_true)
+        hu_r = np.zeros_like(hu_true)
+        hv_r = np.zeros_like(hv_true)
         
         for p in range(self.getNumParticles()):
             tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
@@ -411,15 +530,35 @@ class BaseOceanStateEnsemble(object):
             eta_rmse += (eta_true - tmp_eta)**2
             hu_rmse += (hu_true - tmp_hu)**2
             hv_rmse += (hv_true - tmp_hv)**2
-            
+        
+        eta_rmse = np.sqrt(eta_rmse/(self.getNumParticles()))
+        hu_rmse  = np.sqrt(hu_rmse /(self.getNumParticles()))
+        hv_rmse  = np.sqrt(hv_rmse /(self.getNumParticles()))
+        
         eta_mean = eta_mean/self.getNumParticles()
         hu_mean = hu_mean/self.getNumParticles()
         hv_mean = hv_mean/self.getNumParticles()
-        eta_rmse = np.sqrt(eta_rmse/self.getNumParticles())
-        hu_rmse= np.sqrt(hu_rmse/self.getNumParticles())
-        hv_rmse = np.sqrt(hv_rmse/self.getNumParticles())
         
-        return eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse
+        # RMSE according to the paper draft
+        eta_rmse = np.sqrt((eta_true - eta_mean)**2)
+        hu_rmse  = np.sqrt((hu_true  - hu_mean )**2)
+        hv_rmse  = np.sqrt((hv_true  - hv_mean )**2)
+        
+        for p in range(self.getNumParticles()):
+            tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
+            eta_r += (tmp_eta - eta_mean)**2
+            hu_r  += (tmp_hu  - hu_mean )**2
+            hv_r  += (tmp_hv  - hv_mean )**2
+            
+        eta_r = np.sqrt(eta_r/(1.0 + self.getNumParticles()))/eta_rmse
+        hu_r  = np.sqrt(hu_r /(1.0 + self.getNumParticles()))/hu_rmse
+        hv_r  = np.sqrt(hv_r /(1.0 + self.getNumParticles()))/hv_rmse
+        
+        #print "min-max [eta, hu, hv]_r: ", [(np.min(eta_r), np.max(eta_r)), \
+        #                                  (np.min(hu_r ), np.max(hu_r )), \
+        #                                  (np.min(hv_r ), np.max(hv_r ))]
+        
+        return eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse, eta_r, hu_r, hv_r
     
     def downloadParticleOceanState(self, particleNo):
         assert(particleNo < self.getNumParticles()+1), "particle out of range"
@@ -540,16 +679,16 @@ class BaseOceanStateEnsemble(object):
         plt.subplot(numPlots, plotCols, 9)
         plt.imshow(eta_mrse, origin='lower', vmin=-eta_lim, vmax=eta_lim)
         plt.contour(eta_mrse, levels=eta_levels, colors='black', alpha=0.5)
-        plt.title("MRSE eta")
+        plt.title("RMSE eta")
         plt.subplot(numPlots, plotCols, 10)
         plt.imshow(hu_mrse, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hu_mrse, levels=hu_levels, colors='black', alpha=0.5)
-        plt.title("MRSE hu")
+        plt.title("RMSE hu")
         plt.subplot(numPlots, plotCols, 11)
         plt.imshow(hv_mrse, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         #plt.colorbar() # TODO: Find a nice way to include colorbar to this plot...
         plt.contour(hv_mrse, levels=hv_levels, colors='black', alpha=0.5)
-        plt.title("MRSE hv")
+        plt.title("RMSE hv")
 
         for p in range(numParticlePlots):
             plt.subplot(numPlots, plotCols, 13+p*plotCols)
@@ -570,12 +709,13 @@ class BaseOceanStateEnsemble(object):
             
         plt.axis('tight')
     
-    def plotDistanceInfo(self, title=None):
+    def plotDistanceInfo(self, title=None, printInfo=False):
         """
         Utility function for generating informative plots of the ensemble relative to the observation
         """
-        if self.observation_type == dautils.ObservationType.UnderlyingFlow:
-            return self.plotVelocityInfo(title=title)
+        if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
+           self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
+            return self.plotVelocityInfo(title=title, printInfo=printInfo)
             
         fig = plt.figure(figsize=(10,6))
         gridspec.GridSpec(2, 3)
@@ -605,19 +745,15 @@ class BaseOceanStateEnsemble(object):
         
         # With observation 
         x = np.linspace(0, max(self.getDomainSizeX(), self.getDomainSizeY()), num=100)
-        cauchy_pdf = self.getCauchyWeight(x, normalize=False)
         gauss_pdf = self.getGaussianWeight(x, normalize=False)
-        plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
-        plt.plot(x, gauss_pdf, 'g', label="obs Gauss pdf")
+        plt.plot(x, gauss_pdf, 'g', label="pdf directly from distances")
         plt.legend()
-        plt.title("Distribution of particle distances from observation")
+        plt.title("Distribution of particle distances")
         
         # PLOT SORTED DISTANCES FROM OBSERVATION
         ax0 = plt.subplot2grid((2,3), (1,0), colspan=3)
-        cauchyWeights = self.getCauchyWeight()
         gaussWeights = self.getGaussianWeight()
         indices_sorted_by_observation = distances.argsort()
-        ax0.plot(cauchyWeights[indices_sorted_by_observation]/np.max(cauchyWeights), 'r', label="Cauchy weight")
         ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Gauss weight")
         ax0.set_ylabel('Relative weight')
         ax0.grid()
@@ -634,7 +770,7 @@ class BaseOceanStateEnsemble(object):
             plt.suptitle(title, fontsize=16)
         return fig
             
-    def plotVelocityInfo(self, title=None):
+    def plotVelocityInfo(self, title=None, printInfo=False):
         """
         Utility function for generating informative plots of the ensemble relative to the observation
         """
@@ -647,6 +783,7 @@ class BaseOceanStateEnsemble(object):
         
         max_r = 0
         observedParticles = self.observeParticles()
+        if printInfo: print "observedParticles: \n", observedParticles
         for p in range(self.numParticles):
             u, v = observedParticles[p,0], observedParticles[p,1]
             r = np.sqrt(u**2 + v**2)
@@ -658,6 +795,7 @@ class BaseOceanStateEnsemble(object):
                      edgecolor = 'green', facecolor = 'green', zorder = 5)
         
         obs_u, obs_v = self.observeTrueState()[2],self.observeTrueState()[3]
+        if printInfo: print "observedTrueState: ", (obs_u, obs_v)
         obs_r = np.sqrt(obs_u**2 + obs_v**2)
         max_r = max(max_r, obs_r)
         obs_theta = np.arctan(obs_v/obs_u)
@@ -670,6 +808,7 @@ class BaseOceanStateEnsemble(object):
         #ax.plot(theta, r, color='#ee8d18', lw=3)
         ax.set_rmax(max_r*1.2)
         plt.grid(True)
+        plt.title("Observations from drifter 1")
 
         
         # PLOT DISCTRIBUTION OF PARTICLE DISTANCES AND THEORETIC OBSERVATION PDF
@@ -678,33 +817,30 @@ class BaseOceanStateEnsemble(object):
         distances = np.linalg.norm(innovations, axis=1)
         obs_var = self.getObservationVariance()
         plt.hist(distances, bins=30, \
-                 range=(0, 0.4),\
-                 normed=True, label="particle distances")
+                 range=(0, 0.15),\
+                 normed=True, label="particle innovations (norm)")
         
         # With observation 
-        x = np.linspace(0, 0.4, num=100)
-        cauchy_pdf = self.getCauchyWeight(x, normalize=False)
+        x = np.linspace(0, 0.15, num=100)
         gauss_pdf = self.getGaussianWeight(x, normalize=False)
-        plt.plot(x, cauchy_pdf, 'r', label="obs Cauchy pdf")
-        plt.plot(x, gauss_pdf, 'g', label="obs Gauss pdf")
+        plt.plot(x, gauss_pdf, 'g', label="pdf directly from inovations")
         plt.legend()
-        plt.title("Distribution of particle distances from observation")
+        plt.title("Distribution of particle innovations")
         
         # PLOT SORTED DISTANCES FROM OBSERVATION
         ax0 = plt.subplot2grid((2,3), (1,0), colspan=3)
-        cauchyWeights = self.getCauchyWeight()
         gaussWeights = self.getGaussianWeight()
         indices_sorted_by_observation = distances.argsort()
-        ax0.plot(cauchyWeights[indices_sorted_by_observation]/np.max(cauchyWeights), 'r', label="Cauchy weight")
-        ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Gauss weight")
-        ax0.set_ylabel('Relative weight')
+        ax0.plot(gaussWeights[indices_sorted_by_observation]/np.max(gaussWeights), 'g', label="Weight directly from innovations")
+        ax0.set_ylabel('Weights directly from innovations', color='g')
         ax0.grid()
         ax0.set_ylim(0,1.4)
-        plt.legend(loc=7)
+        #plt.legend(loc=7)
+        ax0.set_xlabel('Particle ID')
         
         ax1 = ax0.twinx()
         ax1.plot(distances[indices_sorted_by_observation], label="distance")
-        ax1.set_ylabel('Distance from observation', color='b')
+        ax1.set_ylabel('Innovations', color='b')
         
         plt.title("Sorted distances from observation")
 

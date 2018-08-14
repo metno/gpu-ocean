@@ -366,13 +366,19 @@ class OceanStateNoise(object):
                 # This is a OpenCL thread (a_x, a_y)
                 local_a_x = a_x + self.cutoff
                 local_a_y = a_y + self.cutoff
-
+                
+                #############
+                #Qxi[a_y, a_x] = local_xi[local_a_y, local_a_x]
+                #continue
+                #############
+                
+                
                 start_b_y = local_a_y - self.cutoff
                 end_b_y =  local_a_y + self.cutoff+1
                 start_b_x = local_a_x - self.cutoff
                 end_b_x =  local_a_x + self.cutoff+1
 
-                Qx = 0
+                Qx = 0.0
                 for b_y in range(start_b_y, end_b_y):
                     for b_x in range(start_b_x, end_b_x):
                         Q = self._SOAR_Q_CPU(local_a_x, local_a_y, b_x, b_y)
@@ -415,7 +421,12 @@ class OceanStateNoise(object):
             for i in range(0, self.nx):
                 local_i = i + 1
                 h_mid = d_eta[local_j,local_i] + H_mid[j, i]
-
+                
+                ##############
+                #h_mid = H_mid[j, i]
+                ##############
+                
+                
                 eta_diff_y = (d_eta[local_j+1, local_i] - d_eta[local_j-1, local_i])/(2.0*self.dy)
                 d_hu[j,i] = -(g/coriolis)*h_mid*eta_diff_y
 
