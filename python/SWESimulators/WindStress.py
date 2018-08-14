@@ -22,8 +22,8 @@ import numpy as np
 from abc import ABCMeta, abstractmethod
 
 class WIND_STRESS_PARAMS(Structure):
-    """Mapped to struct WindStressParams in common.opencl
-    DO NOT make changes here without changing common.opencl accordingly!
+    """Mapped to struct WindStressParams in common.cu
+    DO NOT make changes here without changing common.cu accordingly!
     """
     _fields_ = [("wind_stress_type", c_int),
                 ("tau0", c_float),
@@ -49,16 +49,16 @@ class BaseWindStress(object):
     
     @abstractmethod
     def type(self):
-        """Mapping to wind_stress_type (defined in common.opencl)"""
+        """Mapping to wind_stress_type (defined in common.cu)"""
         pass
     
     @abstractmethod
     def tostruct(self):
-        """Return correct WindStressParams struct (defined above AND in common.opencl)"""
+        """Return correct WindStressParams struct (defined above AND in common.cu)"""
         pass
     
     def csize(self):
-        """Return size (in bytes) of WindStressParams struct (defined above AND in common.opencl)"""
+        """Return size (in bytes) of WindStressParams struct (defined above AND in common.cu)"""
         return sizeof(WIND_STRESS_PARAMS)
 
 class NoWindStress(BaseWindStress):
@@ -68,11 +68,11 @@ class NoWindStress(BaseWindStress):
         pass
     
     def type(self):
-        """Mapping to wind_stress_type (defined in common.opencl)"""
+        """Mapping to wind_stress_type (defined in common.cu)"""
         return 0
     
     def tostruct(self):
-        """Return correct WindStressParams struct (defined in common.opencl)"""
+        """Return correct WindStressParams struct (defined in common.cu)"""
         wind_stress = WIND_STRESS_PARAMS(wind_stress_type=self.type())
         return wind_stress
 
@@ -92,11 +92,11 @@ class GenericUniformWindStress(BaseWindStress):
         self.wind_direction = np.float32(wind_direction)
 
     def type(self):
-        """Mapping to wind_stress_type (defined in common.opencl)"""
+        """Mapping to wind_stress_type (defined in common.cu)"""
         return 1
     
     def tostruct(self):
-        """Return correct WindStressParams struct (defined in common.opencl)"""
+        """Return correct WindStressParams struct (defined in common.cu)"""
         wind_stress = WIND_STRESS_PARAMS(wind_stress_type=self.type(), 
                                   rho_air=self.rho_air,
                                   wind_speed=self.wind_speed,
@@ -118,11 +118,11 @@ class UniformAlongShoreWindStress(BaseWindStress):
         self.alpha = np.float32(alpha)
 
     def type(self):
-        """Mapping to wind_stress_type (defined in common.opencl)"""
+        """Mapping to wind_stress_type (defined in common.cu)"""
         return 2
     
     def tostruct(self):
-        """Return correct WindStressParams struct (defined in common.opencl)"""
+        """Return correct WindStressParams struct (defined in common.cu)"""
         wind_stress = WIND_STRESS_PARAMS(wind_stress_type=self.type(), 
                                   tau0=self.tau0,
                                   rho=self.rho,
@@ -146,11 +146,11 @@ class BellShapedAlongShoreWindStress(BaseWindStress):
         self.alpha = np.float32(alpha)
 
     def type(self):
-        """Mapping to wind_stress_type (defined in common.opencl)"""
+        """Mapping to wind_stress_type (defined in common.cu)"""
         return 3
     
     def tostruct(self):
-        """Return correct WindStressParams struct (defined in common.opencl)"""
+        """Return correct WindStressParams struct (defined in common.cu)"""
         wind_stress = WIND_STRESS_PARAMS(wind_stress_type=self.type(), 
                                   xm=self.xm,
                                   tau0=self.tau0,
@@ -179,11 +179,11 @@ class MovingCycloneWindStress(BaseWindStress):
         self.v0 = np.float32(v0)
 
     def type(self):
-        """Mapping to wind_stress_type (defined in common.opencl)"""
+        """Mapping to wind_stress_type (defined in common.cu)"""
         return 4
     
     def tostruct(self):
-        """Return correct WindStressParams struct (defined in common.opencl)"""
+        """Return correct WindStressParams struct (defined in common.cu)"""
         wind_stress = WIND_STRESS_PARAMS(wind_stress_type=self.type(), 
                                   Rc=self.Rc,
                                   x0=self.x0,

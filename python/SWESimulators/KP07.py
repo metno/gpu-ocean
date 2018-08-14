@@ -26,7 +26,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #Import packages we need
 import numpy as np
-import pyopencl as cl #OpenCL in Python
 import gc
 
 import Common, SimWriter, SimReader
@@ -39,7 +38,7 @@ class KP07(Simulator.Simulator):
     """
 
     def __init__(self, \
-                 cl_ctx, \
+                 gpu_ctx, \
                  eta0, Hi, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
@@ -104,7 +103,7 @@ class KP07(Simulator.Simulator):
         self.use_rk2 = use_rk2
         rk_order = np.int32(use_rk2 + 1)
         A = None
-        super(KP07, self).__init__(cl_ctx, \
+        super(KP07, self).__init__(gpu_ctx, \
                                    nx, ny, \
                                    ghost_cells_x, \
                                    ghost_cells_y, \
@@ -128,15 +127,20 @@ class KP07(Simulator.Simulator):
         self._set_interior_domain_from_sponge_cells()
         
         #Get kernels
-        self.kp07_kernel = Common.get_kernel(self.cl_ctx, "KP07_kernel.opencl", block_width, block_height)
+        self.kp07_kernel = gpu_ctx.get_kernel("KP07_kernel.cu", block_width, block_height)
+        
+        # Get CUDA functions and define data types for prepared_{async_}call()
+        self.swe_2D = self.kp07_kernel.get_function("swe_2D")
+        self.swe_2D.prepare("iifffffffffiPiPiPiPiPiPiPiPiPiiiif")
         
         #Create data by uploading to device    
-        self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
+        self.gpu_data = Common.SWEDataArakawaA(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
         
         #Bathymetry
-        self.bathymetry = Common.Bathymetry(self.cl_ctx, self.cl_queue, nx, ny, ghost_cells_x, ghost_cells_y, Hi, boundary_conditions)
+        self.bathymetry = Common.Bathymetry(self.gpu_ctx, self.gpu_stream, \
+                                            nx, ny, ghost_cells_x, ghost_cells_y, Hi, boundary_conditions)
         
-        self.bc_kernel = Common.BoundaryConditionsArakawaA(self.cl_ctx, \
+        self.bc_kernel = Common.BoundaryConditionsArakawaA(gpu_ctx, \
                                                            self.nx, \
                                                            self.ny, \
                                                            ghost_cells_x, \
@@ -148,7 +152,7 @@ class KP07(Simulator.Simulator):
                                     offset_x=self.offset_x, offset_y=self.offset_y)
             
     @classmethod
-    def fromfilename(cls, cl_ctx, filename, cont_write_netcdf=True):
+    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
@@ -199,7 +203,7 @@ class KP07(Simulator.Simulator):
         # get last timestep (including simulation time of last timestep)
         eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
         
-        return cls(cl_ctx, \
+        return cls(gpu_ctx, \
                  eta0, Hi, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
@@ -218,7 +222,7 @@ class KP07(Simulator.Simulator):
         """
         self.closeNetCDF()
         
-        self.cl_data.release()
+        self.gpu_data.release()
         
         self.bathymetry.release()
         gc.collect()
@@ -230,8 +234,8 @@ class KP07(Simulator.Simulator):
         n = int(t_end / self.dt + 1)
 
         if self.t == 0:
-            self.bc_kernel.boundaryCondition(self.cl_queue, \
-                    self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+            self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                    self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
         
         for i in range(0, n):        
             local_dt = np.float32(min(self.dt, t_end-i*self.dt))
@@ -240,7 +244,7 @@ class KP07(Simulator.Simulator):
                 break
         
             if (self.use_rk2):
-                self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
+                self.swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                         self.nx, self.ny, \
                         self.dx, self.dy, local_dt, \
                         self.g, \
@@ -250,22 +254,22 @@ class KP07(Simulator.Simulator):
                         self.y_zero_reference_cell, \
                         self.r, \
                         np.int32(0), \
-                        self.cl_data.h0.data,  self.cl_data.h0.pitch,  \
-                        self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
-                        self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
-                        self.cl_data.h1.data,  self.cl_data.h1.pitch,  \
-                        self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
-                        self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
-                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
-                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
+                        self.gpu_data.h0.data.gpudata,  self.gpu_data.h0.pitch,  \
+                        self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
+                        self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
+                        self.gpu_data.h1.data.gpudata,  self.gpu_data.h1.pitch,  \
+                        self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch, \
+                        self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch, \
+                        self.bathymetry.Bi.data.gpudata, self.bathymetry.Bi.pitch, \
+                        self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
                         self.wind_stress_dev, \
                         self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         self.t)
                 
-                self.bc_kernel.boundaryCondition(self.cl_queue, \
-                        self.cl_data.h1, self.cl_data.hu1, self.cl_data.hv1)
+                self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                        self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1)
                 
-                self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
+                self.swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                         self.nx, self.ny, \
                         self.dx, self.dy, local_dt, \
                         self.g, \
@@ -275,22 +279,22 @@ class KP07(Simulator.Simulator):
                         self.y_zero_reference_cell, \
                         self.r, \
                         np.int32(1), \
-                        self.cl_data.h1.data,  self.cl_data.h1.pitch,  \
-                        self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
-                        self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
-                        self.cl_data.h0.data,  self.cl_data.h0.pitch,  \
-                        self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
-                        self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
-                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
-                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
+                        self.gpu_data.h1.data.gpudata,  self.gpu_data.h1.pitch,  \
+                        self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch, \
+                        self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch, \
+                        self.gpu_data.h0.data.gpudata,  self.gpu_data.h0.pitch,  \
+                        self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
+                        self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
+                        self.bathymetry.Bi.data.gpudata, self.bathymetry.Bi.pitch, \
+                        self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
                         self.wind_stress_dev, \
                         self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         self.t)
                 
-                self.bc_kernel.boundaryCondition(self.cl_queue, \
-                        self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0) 
+                self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0) 
             else:
-                self.kp07_kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
+                self.swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                         self.nx, self.ny, \
                         self.dx, self.dy, local_dt, \
                         self.g, \
@@ -300,20 +304,20 @@ class KP07(Simulator.Simulator):
                         self.y_zero_reference_cell, \
                         self.r, \
                         np.int32(0), \
-                        self.cl_data.h0.data,  self.cl_data.h0.pitch,  \
-                        self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
-                        self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
-                        self.cl_data.h1.data,  self.cl_data.h1.pitch,  \
-                        self.cl_data.hu1.data, self.cl_data.hu1.pitch, \
-                        self.cl_data.hv1.data, self.cl_data.hv1.pitch, \
-                        self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
-                        self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
+                        self.gpu_data.h0.data.gpudata,  self.gpu_data.h0.pitch,  \
+                        self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
+                        self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
+                        self.gpu_data.h1.data.gpudata,  self.gpu_data.h1.pitch,  \
+                        self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch, \
+                        self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch, \
+                        self.bathymetry.Bi.data.gpudata, self.bathymetry.Bi.pitch, \
+                        self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
                         self.wind_stress_dev, \
                         self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                         self.t)
-                self.cl_data.swap()
-                self.bc_kernel.boundaryCondition(self.cl_queue, \
-                        self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
+                self.gpu_data.swap()
+                self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
                 
             self.t += local_dt
             
@@ -326,5 +330,5 @@ class KP07(Simulator.Simulator):
     
 
     def downloadBathymetry(self):
-        return self.bathymetry.download(self.cl_queue)
+        return self.bathymetry.download(self.gpu_stream)
 
