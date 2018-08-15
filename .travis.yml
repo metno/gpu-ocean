@@ -37,7 +37,6 @@ script:
   - export COVERALLS_REPO_TOKEN=N5DQzXpRwmJg84M0xfeFlDV2D6Zz4yUVt
   - cd python/tests
   - python -m unittest discover . "*_test.py"
-# Coveralls is not set up for Python!
-#  - python -m pytest -v --cov .. --cov-report term-missing
-#  - coveralls
+  - python -m pytest -v --cov .. --cov-report term-missing
+  - coveralls
 
