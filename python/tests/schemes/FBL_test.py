@@ -3,10 +3,12 @@ import time
 import numpy as np
 import sys
 import gc
+import os
 
 from testUtils import *
 
-sys.path.insert(0, '../')
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')))
+
 from SWESimulators import Common, FBL
 
 class FBLtest(unittest.TestCase):
