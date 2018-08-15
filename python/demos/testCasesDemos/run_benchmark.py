@@ -24,8 +24,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import sys
-sys.path.insert(0, "../../")
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.getcwd(), '../../')))
 
 import argparse
 parser = argparse.ArgumentParser(description='Benchmark a simulator.')
