@@ -21,8 +21,6 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "../config.h"
-
 #include "common.cu"
 
 // Finds the coriolis term based on the linear Coriolis force

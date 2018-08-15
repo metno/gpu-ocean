@@ -1,12 +1,4 @@
 #include "../reconstructH_types.h"
-#include "../config.h"
-
-#ifndef __OPENCL_VERSION__
-#define __kernel
-#define __global
-#define local
-#define CLK_LOCAL_MEM_FENCE
-#endif
 
 /*
 Reconstructs the equilibrium depth, H, at the western and southern cell edge.

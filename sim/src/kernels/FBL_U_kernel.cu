@@ -21,7 +21,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "common.cu"
-#include "../config.h"
 
 // Finds the coriolis term based on the linear Coriolis force
 // f = \tilde{f} + beta*(y-y0)
