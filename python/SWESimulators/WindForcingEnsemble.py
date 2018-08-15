@@ -29,11 +29,11 @@ import numpy as np
 import time
 import abc
 
-import CDKLM16
-import GPUDrifterCollection
-import BaseOceanStateEnsemble
-import Common
-import DataAssimilationUtils as dautils
+from SWESimulators import CDKLM16
+from SWESimulators import GPUDrifterCollection
+from SWESimulators import BaseOceanStateEnsemble
+from SWESimulators import Common
+from SWESimulators import DataAssimilationUtils as dautils
 
 
 class WindForcingEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
@@ -77,7 +77,7 @@ class WindForcingEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
         # Put the initial positions into the observation array
         self._addObservation(self.observeTrueDrifters())
-        print "Added init to observation array"
+        print("Added init to observation array")
 
     def resample(self, newSampleIndices, reinitialization_variance):
         obsTrueDrifter = self.observeTrueDrifters()

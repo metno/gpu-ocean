@@ -4,7 +4,7 @@ import numpy as np
 
 import warnings
 import functools
-import WindStress
+from SWESimulators import WindStress
 
 def deprecated(func):
     """This is a decorator which can be used to mark functions

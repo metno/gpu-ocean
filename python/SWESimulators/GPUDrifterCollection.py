@@ -26,8 +26,8 @@ import numpy as np
 import time
 import pyopencl
 
-import Common
-import BaseDrifterCollection
+from SWESimulators import Common
+from SWESimulators import BaseDrifterCollection
 
 class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
     def __init__(self, cl_ctx, numDrifters, \

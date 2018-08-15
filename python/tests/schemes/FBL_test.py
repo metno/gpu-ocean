@@ -3,16 +3,18 @@ import time
 import numpy as np
 import sys
 import gc
+import os
 
 from testUtils import *
 
-sys.path.insert(0, '../')
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')))
+
 from SWESimulators import Common, FBL
 
 class FBLtest(unittest.TestCase):
 
     def setUp(self):
-        self.cl_ctx = make_cl_ctx()
+        self.gpu_ctx = Common.CUDAContext(verbose=False)
 
         self.nx = 50
         self.ny = 70
@@ -46,7 +48,7 @@ class FBLtest(unittest.TestCase):
         self.eta0 = None 
         self.u0 = None 
         self.v0 = None
-        self.cl_ctx = None
+        self.gpu_ctx = None
         gc.collect() # Force run garbage collection to free up memory
         
     def setBoundaryConditions(self, bcSettings=1):
@@ -119,7 +121,7 @@ class FBLtest(unittest.TestCase):
         self.createHostData()
         makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy,
                         self.ghosts)
-        self.sim = FBL.FBL(self.cl_ctx, \
+        self.sim = FBL.FBL(self.gpu_ctx, \
                            self.h0, self.eta0, self.u0, self.v0, \
                            self.nx, self.ny, \
                            self.dx, self.dy, self.dt, \
@@ -135,7 +137,7 @@ class FBLtest(unittest.TestCase):
         self.setBoundaryConditions(1)
         self.createHostData()
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        self.sim = FBL.FBL(self.cl_ctx, \
+        self.sim = FBL.FBL(self.gpu_ctx, \
                            self.h0, self.eta0, self.u0, self.v0, \
                            self.nx, self.ny, \
                            self.dx, self.dy, self.dt, \
@@ -152,7 +154,7 @@ class FBLtest(unittest.TestCase):
         self.setBoundaryConditions(2)
         self.createHostData()
         makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        self.sim = FBL.FBL(self.cl_ctx, \
+        self.sim = FBL.FBL(self.gpu_ctx, \
                            self.h0, self.eta0, self.u0, self.v0, \
                            self.nx, self.ny, \
                            self.dx, self.dy, self.dt, \
@@ -170,7 +172,7 @@ class FBLtest(unittest.TestCase):
         self.setBoundaryConditions(2)
         self.createHostData()
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        self.sim = FBL.FBL(self.cl_ctx, \
+        self.sim = FBL.FBL(self.gpu_ctx, \
                            self.h0, self.eta0, self.u0, self.v0, \
                            self.nx, self.ny, \
                            self.dx, self.dy, self.dt, \
@@ -189,7 +191,7 @@ class FBLtest(unittest.TestCase):
         self.setBoundaryConditions(3)
         self.createHostData()
         makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        self.sim = FBL.FBL(self.cl_ctx, \
+        self.sim = FBL.FBL(self.gpu_ctx, \
                            self.h0, self.eta0, self.u0, self.v0, \
                            self.nx, self.ny, \
                            self.dx, self.dy, self.dt, \
@@ -207,7 +209,7 @@ class FBLtest(unittest.TestCase):
         self.setBoundaryConditions(3)
         self.createHostData()
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        self.sim = FBL.FBL(self.cl_ctx, \
+        self.sim = FBL.FBL(self.gpu_ctx, \
                            self.h0, self.eta0, self.u0, self.v0, \
                            self.nx, self.ny, \
                            self.dx, self.dy, self.dt, \
@@ -225,7 +227,7 @@ class FBLtest(unittest.TestCase):
         self.setBoundaryConditions(4)
         self.createHostData()
         makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        self.sim = FBL.FBL(self.cl_ctx, \
+        self.sim = FBL.FBL(self.gpu_ctx, \
                            self.h0, self.eta0, self.u0, self.v0, \
                            self.nx, self.ny, \
                            self.dx, self.dy, self.dt, \
@@ -243,7 +245,7 @@ class FBLtest(unittest.TestCase):
         self.setBoundaryConditions(4)
         self.createHostData()
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
-        self.sim = FBL.FBL(self.cl_ctx, \
+        self.sim = FBL.FBL(self.gpu_ctx, \
                            self.h0, self.eta0, self.u0, self.v0, \
                            self.nx, self.ny, \
                            self.dx, self.dy, self.dt, \
@@ -262,7 +264,7 @@ class FBLtest(unittest.TestCase):
         self.f = 0.01
         makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy,
                         self.ghosts)
-        self.sim = FBL.FBL(self.cl_ctx, \
+        self.sim = FBL.FBL(self.gpu_ctx, \
                            self.h0, self.eta0, self.u0, self.v0, \
                            self.nx, self.ny, \
                            self.dx, self.dy, self.dt, \

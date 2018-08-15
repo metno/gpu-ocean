@@ -10,8 +10,8 @@ import xmlrunner
 from pyopenclTests.OpenCLArray2D_test import OpenCLArray2DTest
 
 if (len(sys.argv) < 1):
-    print ("Usage:")
-    print ("\t %s  [jenkins]" % sys.argv[0])
+    print("Usage:")
+    print("\t %s  [jenkins]" % sys.argv[0])
     exit()
 
 # In order to format the test report so that Jenkins can read it:
