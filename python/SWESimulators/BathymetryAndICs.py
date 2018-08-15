@@ -272,7 +272,7 @@ def addCentralDamBreakStep(eta, nx, ny, dx, dy, step_size, halo):
 Generate a radial dam break initial condition with a step function
 """                
 def addCentralDamBreakSmooth(eta, nx, ny, dx, dy, step_size, halo):
-    print "addCentralDamBreakSmooth not implemented"
+    print("addCentralDamBreakSmooth not implemented")
     
 """
 Generates a smooth jeté along the x-axis at y=0.25*ny
@@ -417,7 +417,7 @@ Adds a smooth continental shelf in the south of the domain.
 The shelf is smooth in order to avoid discontinuous bathymetry
 """
 def addContinentalShelfBathymetrySmooth(B, nx, ny, halo, shallow, deep, where_in_y):
-    print "addContinentalShelfBathymetrySmooth not implemented"
+    print("addContinentalShelfBathymetrySmooth not implemented")
     
 
                 

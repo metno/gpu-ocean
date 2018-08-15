@@ -25,10 +25,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import gc
 
-import Common, SimWriter, SimReader
-import Simulator
-import WindStress
-import OceanStateNoise
+from SWESimulators import Common, SimWriter, SimReader
+from SWESimulators import Simulator
+from SWESimulators import WindStress
+from SWESimulators import OceanStateNoise
 
 # Needed for the random perturbation of the wind forcing:
 import pycuda.driver as cuda

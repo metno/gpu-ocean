@@ -27,7 +27,7 @@ import numpy as np
 import pyopencl as cl #OpenCL in Python
 import Common
 import gc
-import WindStress
+from SWESimulators import WindStress
 
 
 

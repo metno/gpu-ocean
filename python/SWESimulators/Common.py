@@ -1,4 +1,5 @@
 from pycuda.compiler import SourceModule
+import pycuda.compiler
 import pycuda.gpuarray
 import pycuda.driver as cuda
 import os
@@ -7,7 +8,7 @@ import numpy as np
 
 import warnings
 import functools
-import WindStress
+from SWESimulators import WindStress
 
 def deprecated(func):
     """This is a decorator which can be used to mark functions
@@ -94,7 +95,7 @@ class CUDAContext(object):
         """
         # Generate a kernel ID for our cache
         module_path = os.path.dirname(os.path.realpath(__file__))
-        module_path = os.path.join(module_path, "../../sim/src/kernels") # current kernel directory
+        module_path = os.path.abspath(os.path.join(module_path, "../../sim/src/kernels")) # current kernel directory
 
         kernel_hash = ""
 
@@ -117,8 +118,16 @@ class CUDAContext(object):
             define_string = "#define block_width " + str(block_width) + "\n"
             define_string += "#define block_height " + str(block_height) + "\n\n"
 
-            kernel_string = define_string + '#include "' + os.path.join(module_path, kernel_filename) + '"'
-            self.kernels[kernel_hash] = SourceModule(kernel_string, include_dirs=[module_path, "../../sim/src/kernels"])
+            kernel_string = define_string + '#include "' + kernel_filename + '"'
+
+            try:
+                self.kernels[kernel_hash] = SourceModule(kernel_string, include_dirs=[module_path])
+            except cuda.CompileError as e:
+                print("Compilation of kernel failed!")
+                print("command_line: " + str(e.command_line))
+                print("Stdout: " + str(e.stdout))
+                print("Stderr: " + str(e.stderr))
+                print("Msg: " + str(e.msg))
 
         return self.kernels[kernel_hash]
 
