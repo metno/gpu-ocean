@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import sys
-sys.path.insert(0, "F:/windows/sintef/gpu-ocean/python")
+sys.path.insert(0, "../../")
 
 import argparse
 parser = argparse.ArgumentParser(description='Benchmark a simulator.')
@@ -45,7 +45,6 @@ tic = time.time();
 
 # Import packages we need
 import os
-import pyopencl
 import numpy as np
 from SWESimulators import FBL, CTCS, KP07, CDKLM16, PlotHelper, Common
 
@@ -53,20 +52,11 @@ from SWESimulators import FBL, CTCS, KP07, CDKLM16, PlotHelper, Common
 toc = time.time()
 print("{:02.4f} s: ".format(toc-tic) + "Imported packages")
 
-
-#Set OpenCL parameters
-os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
-os.environ["PYOPENCL_CTX"] = "0"
-os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
-os.environ["PYOPENCL_NO_CACHE"] = "1"
-os.environ["CUDA_CACHE_DISABLE"] = "1"
-
-
-# Create OpenCL context
+# Create CUDA context
 tic = time.time()
-cl_ctx = pyopencl.create_some_context()
+gpu_ctx = Common.CUDAContext()
 toc = time.time()
-print("{:02.4f} s: ".format(toc-tic) + "Created context on " + cl_ctx.devices[0].name)
+print("{:02.4f} s: ".format(toc-tic) + "Created context on " + gpu_ctx.cuda_device.name())
 
 # Set benchmark sizes
 dx = 200.0
@@ -119,7 +109,7 @@ def initKP():
 	if (args.block_height != None):
 		kwargs['block_height'] = args.block_height
 		
-	sim = KP07.KP07(cl_ctx, \
+	sim = KP07.KP07(gpu_ctx, \
 					eta0, Hi, u0, v0, \
 					args.nx, args.ny, \
 					dx, dy, dt, \
@@ -157,7 +147,7 @@ def initCDKLM():
 	if (args.block_height != None):
 		kwargs['block_height'] = args.block_height
 		
-	sim = CDKLM16.CDKLM16(cl_ctx, \
+	sim = CDKLM16.CDKLM16(gpu_ctx, \
 					eta0, u0, v0, Hi, \
 					args.nx, args.ny, \
 					dx, dy, dt, \
@@ -194,7 +184,7 @@ def initFBL():
 	if (args.block_height != None):
 		kwargs['block_height'] = args.block_height
 		
-	sim = FBL.FBL(cl_ctx, \
+	sim = FBL.FBL(gpu_ctx, \
 					h0, eta0, u0, v0, \
 					args.nx, args.ny, \
 					dx, dy, dt, \
@@ -235,7 +225,7 @@ def initCTCS():
 	if (args.block_height != None):
 		kwargs['block_height'] = args.block_height
 		
-	sim = CTCS.CTCS(cl_ctx, \
+	sim = CTCS.CTCS(gpu_ctx, \
 					h0, eta0, u0, v0, \
 					args.nx, args.ny, \
 					dx, dy, dt, \
