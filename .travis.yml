@@ -10,6 +10,7 @@ notifications:
       - martinls@met.no
       - havard.heitlo.holm@sintef.no 
 
+    # Change values when CI is working properly again!
     on_success: never #change
     on_failure: never #always
 
@@ -34,10 +35,9 @@ script:
   - export OCL_ICD_VENDORS=/usr/local/etc/OpenCL/vendors/pocl.icd
   - export COVERALLS_SERVICE_NAME=travis-ci
   - export COVERALLS_REPO_TOKEN=N5DQzXpRwmJg84M0xfeFlDV2D6Zz4yUVt
-  - echo "=============== PYTHON TESTS ===============" 
   - cd python/tests
   - python -m unittest discover . "*_test.py"
-# Coveralls is not set up!
+# Coveralls is not set up for Python!
 #  - python -m pytest -v --cov .. --cov-report term-missing
 #  - coveralls
 
