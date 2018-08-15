@@ -67,14 +67,16 @@ class CUDAContext(object):
         other_contexts = []
         while (cuda.Context.get_current() != None):
             context = cuda.Context.get_current()
-            if (self.verbose):
-                if (context != self.cuda_context):
+
+            if (context != self.cuda_context):
+                if (self.verbose):
                     print(" `-> <" + str(self.cuda_context) + "> Popping context <" + str(context) + "> which we do not own")
-                    other_contexts = [context] + other_contexts
-                    cuda.Context.pop()
-                else:
+                other_contexts = [context] + other_contexts
+                cuda.Context.pop()
+            else:
+                if (self.verbose):
                     print(" `-> <" + str(self.cuda_context) + "> Popping context <" + str(context) + "> (ourselves)")
-                    cuda.Context.pop()
+                cuda.Context.pop()
 
         # Add all the contexts we popped that were not our own
         for context in other_contexts:
@@ -232,7 +234,7 @@ class CUDAArray2D:
         Frees the allocated memory buffers on the GPU 
         """
         if self.holds_data:
-            del self.data
+            self.data.gpudata.free()
             self.holds_data = False
 
     
