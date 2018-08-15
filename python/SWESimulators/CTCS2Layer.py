@@ -52,30 +52,30 @@ class CTCS2LayerDataCL:
                                h2_0, eta2_0, u2_0, v2_0):
         #Make sure that the data is single precision floating point
         if (not np.issubdtype(h1_0.dtype, np.float32) or np.isfortran(h1_0)):
-            print "Converting H_0"
+            print("Converting H_0")
             h1_0 = h1_0.astype(np.float32, order='C')
         if (not np.issubdtype(eta1_0.dtype, np.float32) or np.isfortran(eta1_0)):
-            print "Converting Eta_0"
+            print("Converting Eta_0")
             eta1_0 = eta1_0.astype(np.float32, order='C')
         if (not np.issubdtype(u1_0.dtype, np.float32) or np.isfortran(u1_0)):
-            print "Converting U_0"
+            print("Converting U_0")
             u1_0 = u1_0.astype(np.float32, order='C')
         if (not np.issubdtype(v1_0.dtype, np.float32) or np.isfortran(v1_0)):
-            print "Converting V_0"
+            print("Converting V_0")
             v1_0 = v1_0.astype(np.float32, order='C')
         
         #Same for second (deepest) layer
         if (not np.issubdtype(h2_0.dtype, np.float32) or np.isfortran(h2_0)):
-            print "Converting H2_0"
+            print("Converting H2_0")
             h2_0 = h2_0.astype(np.float32, order='C')
         if (not np.issubdtype(eta2_0.dtype, np.float32) or np.isfortran(eta2_0)):
-            print "Converting Eta2_0"
+            print("Converting Eta2_0")
             eta2_0 = eta2_0.astype(np.float32, order='C')
         if (not np.issubdtype(u2_0.dtype, np.float32) or np.isfortran(u2_0)):
-            print "Converting U2_0"
+            print("Converting U2_0")
             u2_0 = u2_0.astype(np.float32, order='C')
         if (not np.issubdtype(v2_0.dtype, np.float32) or np.isfortran(v2_0)):
-            print "Converting V2_0"
+            print("Converting V2_0")
             v2_0 = v2_0.astype(np.float32, order='C')
         
         self.ny, self.nx = h1_0.shape
@@ -255,7 +255,7 @@ class CTCS2Layer:
                  wind_x0=0, wind_y0=0, \
                  wind_u0=0, wind_v0=0):
         self.cl_ctx = cl_ctx
-        print "Using ", self.cl_ctx.devices[0].name
+        print("Using " + str(self.cl_ctx.devices[0].name))
 
         #Create an OpenCL command queue
         self.cl_queue = cl.CommandQueue(self.cl_ctx)

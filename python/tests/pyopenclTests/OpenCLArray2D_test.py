@@ -53,7 +53,7 @@ class OpenCLArray2DTest(unittest.TestCase):
         
     def tearDown(self):
         if self.tests_failed:
-            print "Device name: " + self.device_name
+            print("Device name: " + self.device_name)
         if not self.explicit_free:
             self.clarray.release()
         if self.double_clarray is not None:

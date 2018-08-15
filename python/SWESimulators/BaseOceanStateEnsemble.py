@@ -28,11 +28,11 @@ import numpy as np
 import time
 import abc
 
-import CDKLM16
-import GPUDrifterCollection
-import WindStress
-import Common
-import DataAssimilationUtils as dautils
+from SWESimulators import CDKLM16
+from SWESimulators import GPUDrifterCollection
+from SWESimulators import WindStress
+from SWESimulators import Common
+from SWESimulators import DataAssimilationUtils as dautils
 
 class BaseOceanStateEnsemble(object):
 
@@ -157,7 +157,7 @@ class BaseOceanStateEnsemble(object):
             self.observation_cov = np.eye(2)*self.observation_variance
             self.observation_cov_inverse = np.eye(2)*(1.0/self.observation_variance)
         else:
-            print "type(self.observation_variance): ", type(self.observation_variance)
+            print("type(self.observation_variance): " + str(type(self.observation_variance)))
             # Assume that we have a correctly shaped matrix here
             self.observation_cov = self.observation_variance
             self.observation_cov_inverse = np.linalg.inv(self.observation_cov)
@@ -196,7 +196,7 @@ class BaseOceanStateEnsemble(object):
         # Observations are stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
         # where n is time step and i is drifter
         
-        print "Adding observation for time " + str(self.t)
+        print("Adding observation for time " + str(self.t))
         self.observedDrifterPositions.append([self.t, observedDrifterPositions])
 
         
@@ -374,13 +374,13 @@ class BaseOceanStateEnsemble(object):
         for oceanState in self.particles:
             eta, hu, hv = oceanState.download()
             if simNo == self.obs_index:
-                print "------- simNo: True state -------"
+                print("------- simNo: True state -------")
             else:
-                print "------- simNo: " + str(simNo) + " -------"
-            print "t = " + str(oceanState.t)
-            print "Max eta: ", np.max(eta)
-            print "Max hu:  ", np.max(hu)
-            print "Max hv:  ", np.max(hv)
+                print("------- simNo: " + str(simNo) + " -------")
+            print("t = " + str(oceanState.t))
+            print("Max eta: ", np.max(eta))
+            print("Max hu:  ", np.max(hu))
+            print("Max hv:  ", np.max(hv))
             simNo = simNo + 1
     
 
@@ -821,7 +821,7 @@ class BaseOceanStateEnsemble(object):
     def _fillPolarPlot(self, ax, drifter_id=0, printInfo=False):
         max_r = 0
         observedParticles = self.observeParticles()[:, drifter_id, :]
-        if printInfo: print "observedParticles: \n", observedParticles
+        if printInfo: print("observedParticles: \n" +str(observedParticles))
         for p in range(self.numParticles):
             u, v = observedParticles[p,0], observedParticles[p,1]
             r = np.sqrt(u**2 + v**2)
@@ -835,7 +835,7 @@ class BaseOceanStateEnsemble(object):
 
         obs_u = self.observeTrueState()[drifter_id, 2]
         obs_v = self.observeTrueState()[drifter_id, 3]
-        if printInfo: print "observedTrueState: ", (obs_u, obs_v)
+        if printInfo: print("observedTrueState: " + str((obs_u, obs_v)))
         obs_r = np.sqrt(obs_u**2 + obs_v**2)
         max_r = max(max_r, obs_r)
         obs_theta = np.arctan(obs_v/obs_u)

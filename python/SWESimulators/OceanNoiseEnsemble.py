@@ -29,13 +29,18 @@ import numpy as np
 import time
 import abc
 
-import CDKLM16
-import GPUDrifterCollection
-import BaseOceanStateEnsemble
-import Common
-import DataAssimilationUtils as dautils
+from SWESimulators import CDKLM16
+from SWESimulators import GPUDrifterCollection
+from SWESimulators import BaseOceanStateEnsemble
+from SWESimulators import Common
+from SWESimulators import DataAssimilationUtils as dautils
 
-reload(BaseOceanStateEnsemble)
+try:
+    from importlib import reload
+except:
+    pass
+
+reload(SWESimulators.BaseOceanStateEnsemble)
 class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
     

@@ -337,7 +337,7 @@ class SimNetCDFWriter:
         
         
     def __exit__(self, exc_type, exc_value, traceback):
-        print "Closing file " + self.output_file_name +" ..." 
+        print("Closing file " + self.output_file_name + " ...")
         self.ncfile.close()
         
         

@@ -26,9 +26,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import gc
 
-import Common, SimWriter, SimReader
-import Simulator
-import WindStress
+from SWESimulators import Common, SimWriter, SimReader
+from SWESimulators import Simulator
+from SWESimulators import WindStress
    
 
 class FBL(Simulator.Simulator):
@@ -118,8 +118,6 @@ class FBL(Simulator.Simulator):
                                   ignore_ghostcells, \
                                   offset_x, offset_y, \
                                   block_width, block_height)
-        
-        
         self._set_interior_domain_from_sponge_cells()
         
         

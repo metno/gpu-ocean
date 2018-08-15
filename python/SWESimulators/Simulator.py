@@ -20,10 +20,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import pycuda.driver as cuda
-import Common, SimWriter
+from SWESimulators import Common, SimWriter
 import gc
 from abc import ABCMeta, abstractmethod
 
+try:
+    from importlib import reload
+except:
+    pass
+    
 reload(Common)
 
 class Simulator(object):
@@ -111,7 +116,7 @@ class Simulator(object):
         self.global_size = ( \
                        int(np.ceil(self.nx / float(self.local_size[0]))), \
                        int(np.ceil(self.ny / float(self.local_size[1]))) \
-                      ) 
+                      )
             
     @abstractmethod
     def step(self, t_end=0.0):
@@ -235,6 +240,6 @@ class Simulator(object):
         if (self.boundary_conditions.isSponge()):
             self.interior_domain_indices = self.boundary_conditions.spongeCells.copy()
             self.interior_domain_indices[0:2] = -self.interior_domain_indices[0:2]
-            print "self.interior_domain_indices: ", self.interior_domain_indices
+            print("self.interior_domain_indices: " + str(self.interior_domain_indices))
     
     

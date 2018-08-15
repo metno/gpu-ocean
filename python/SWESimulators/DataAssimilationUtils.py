@@ -25,7 +25,7 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import time
 
-import Common
+from SWESimulators import Common
 
 class ObservationType:
     """

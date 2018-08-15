@@ -27,11 +27,11 @@ import numpy as np
 import time
 import abc
 
-import CDKLM16
-import CPUDrifterCollection
-import Common
-import DataAssimilationUtils as dautils
-import BaseDrifterEnsemble
+from SWESimulators import CDKLM16
+from SWESimulators import CPUDrifterCollection
+from SWESimulators import Common
+from SWESimulators import DataAssimilationUtils as dautils
+from SWESimulators import BaseDrifterEnsemble
 
 
 class CPUDrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
@@ -81,9 +81,9 @@ class CPUDrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
         while t < T:
             # Loop over particles
             for i in range(numParticles):
-                if doPrint: print "---------- Particle " + str(i) + " ---------------"
+                if doPrint: print("---------- Particle " + str(i) + " ---------------")
                 x0, y0 = positions[i,0], positions[i,1]
-                if doPrint: print "(x0, y0): ", (x0,y0)
+                if doPrint: print("(x0, y0): " + str((x0,y0)))
 
                 # First, find which cell each particle is in
 
@@ -92,11 +92,11 @@ class CPUDrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
                 cell_id_y = int(np.ceil(y0/self.dy) + y_zero_ref)
 
                 if (cell_id_x < 0 or cell_id_x > self.nx + 4 or cell_id_y < 0 or cell_id_y > self.ny + 4):
-                    print "ERROR! Cell id " + str((cell_id_x, cell_id_y)) + " is outside of the domain!"
-                    print "\t\Particle position is: " + str((x0, y0))
+                    print("ERROR! Cell id " + str((cell_id_x, cell_id_y)) + " is outside of the domain!")
+                    print("\t\Particle position is: " + str((x0, y0)))
 
-                if doPrint: print "cell values in x-direction: ", ((cell_id_x-2-0.5)*self.dx, (cell_id_x-2+0.5)*self.dx)
-                if doPrint: print "cell values in y-direction: ", ((cell_id_y-2-0.5)*self.dy, (cell_id_y-2+0.5)*self.dy)
+                if doPrint: print("cell values in x-direction: " + str(((cell_id_x-2-0.5)*self.dx, (cell_id_x-2+0.5)*self.dx) ))
+                if doPrint: print("cell values in y-direction: " + str(((cell_id_y-2-0.5)*self.dy, (cell_id_y-2+0.5)*self.dy) ))
                     
                 waterHeight = (  self.base_H[cell_id_y  , cell_id_x  ]
                                + self.base_H[cell_id_y+1, cell_id_x  ]
@@ -107,11 +107,11 @@ class CPUDrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
                 u = hu[cell_id_y, cell_id_x]/h
                 v = hv[cell_id_y, cell_id_x]/h
 
-                if doPrint: print "Velocity: ", (u, v)
+                if doPrint: print("Velocity: " + str((u, v)))
 
                 x1 = sensitivity*u*self.dt + x0
                 y1 = sensitivity*v*self.dt + y0
-                if doPrint: print "(x1, y1): ", (positions[i,0], positions[i,1])
+                if doPrint: print("(x1, y1): " + str((positions[i,0], positions[i,1])))
 
                 positions[i,0] = x1
                 positions[i,1] = y1

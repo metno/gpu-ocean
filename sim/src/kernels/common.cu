@@ -1,7 +1,6 @@
 #ifndef COMMON_CU
 #define COMMON_CU
 
-#include "../config.h"
 #include "../windStress_params.h"
 
 #define _180_OVER_PI 57.29578f

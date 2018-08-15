@@ -26,9 +26,8 @@ import numpy as np
 import pyopencl
 import gc
 
-import Common
-import config
-import FBL, CTCS, CDKLM16, KP07
+from SWESimulators import Common
+from SWESimulators import config
 
 class OceanStateNoise(object):
     """
