@@ -35,8 +35,8 @@ __kernel void passiveDrifterKernel(
         int nx_, int ny_,
         float dx_, float dy_, float dt_,
 
-	float x_zero_reference_cell_, // the cell column representing x0 (x0 at western face)
-	float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
+	int x_zero_reference_cell_, // the cell column representing x0 (x0 at western face)
+	int y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
 	
 	// Data
         __global float* eta_ptr_, int eta_pitch_,
@@ -71,8 +71,8 @@ __kernel void passiveDrifterKernel(
 	float drifter_pos_y = drifter[1];
 
 	// Find cell ID for the cell in which our particle is
-	int cell_id_x = (int)(ceil(drifter_pos_x/dx_) + x_zero_reference_cell_);
-	int cell_id_y = (int)(ceil(drifter_pos_y/dy_) + y_zero_reference_cell_);
+	int cell_id_x = (int)(floor(drifter_pos_x/dx_) + x_zero_reference_cell_);
+	int cell_id_y = (int)(floor(drifter_pos_y/dy_) + y_zero_reference_cell_);
 
 	// Read the water velocity from global memory
 	__global float* eta_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*cell_id_y);
@@ -98,7 +98,7 @@ __kernel void passiveDrifterKernel(
 	if (periodic_north_south_ && (drifter_pos_y < 0)) {
 	    drifter_pos_y += ny_*dy_;
 	}
-	if (periodic_north_south_ && (drifter_pos_y > nx_*dx_)) {
+	if (periodic_north_south_ && (drifter_pos_y > ny_*dy_)) {
 	    drifter_pos_y -= ny_*dy_;
 	}
 

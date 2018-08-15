@@ -156,6 +156,7 @@ class CDKLM16(Simulator.Simulator):
         if self.h0AsWaterElevation:
             self.bathymetry.waterElevationToDepth(self.gpu_data.h0)
         
+        self.constant_equilibrium_depth = np.max(Hi)
         
         self.bc_kernel = Common.BoundaryConditionsArakawaA(gpu_ctx, \
                                                            self.nx, \
@@ -351,7 +352,8 @@ class CDKLM16(Simulator.Simulator):
             # Evolve drifters
             if self.hasDrifters:
                 self.drifters.drift(self.gpu_data.h0, self.gpu_data.hu0, \
-                                    self.gpu_data.hv0, np.float32(10), \
+                                    self.gpu_data.hv0, \
+                                    np.float32(self.constant_equilibrium_depth), \
                                     self.nx, self.ny, self.dx, self.dy, \
                                     local_dt, \
                                     np.int32(2), np.int32(2))
