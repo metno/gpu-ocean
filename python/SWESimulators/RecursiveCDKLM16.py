@@ -79,7 +79,7 @@ class RecursiveCDKLM16:
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
 
         #Get kernels
-        self.kernel = Common.get_kernel(self.cl_ctx, "recursiveCDKLM16_kernel.opencl", block_width, block_height)
+        self.kernel = Common.get_kernel(self.cl_ctx, "recursiveCDKLM16_kernel.opencl", defines={'block_width': block_width, 'block_height': block_height})
 
         # Boundary Conditions
         self.boundary_conditions = boundary_conditions

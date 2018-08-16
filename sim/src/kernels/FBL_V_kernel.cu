@@ -36,6 +36,7 @@ __device__ float linear_coriolis_term(const float f, const float beta,
 /**
   * Kernel that evolves V one step in time.
   */
+extern "C" {
 __global__ void computeVKernel(
         //Discretization parameters
         int nx_, int ny_,
@@ -170,3 +171,4 @@ __global__ void computeVKernel(
     // Currently, boundary conditions are individual kernels.
     // They should be moved to be within-kernel functions.
 }
+} // extern "C" 

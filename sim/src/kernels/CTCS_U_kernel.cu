@@ -37,6 +37,7 @@ __device__ float linear_coriolis_term(const float f, const float beta,
 /**
   * Kernel that evolves U one step in time.
   */
+extern "C" {
 __global__ void computeUKernel(
         //Discretization parameters
         int nx_, int ny_,
@@ -261,3 +262,4 @@ __global__ void computeUKernel(
         U0_row[ti] = U2;
     }
 }
+} //extern "C" 

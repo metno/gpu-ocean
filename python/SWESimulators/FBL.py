@@ -122,9 +122,9 @@ class FBL(Simulator.Simulator):
         
         
         #Get kernels
-        self.u_kernel = gpu_ctx.get_kernel("FBL_U_kernel.cu", block_width, block_height)
-        self.v_kernel = gpu_ctx.get_kernel("FBL_V_kernel.cu", block_width, block_height)
-        self.eta_kernel = gpu_ctx.get_kernel("FBL_eta_kernel.cu", block_width, block_height)
+        self.u_kernel = gpu_ctx.get_kernel("FBL_U_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
+        self.v_kernel = gpu_ctx.get_kernel("FBL_V_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
+        self.eta_kernel = gpu_ctx.get_kernel("FBL_eta_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
 
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.computeUKernel = self.u_kernel.get_function("computeUKernel")
@@ -236,7 +236,7 @@ class FBL(Simulator.Simulator):
             self.bc_kernel.boundaryConditionEta(self.gpu_stream, self.gpu_data.h0)
             
 
-        for i in range(0, n):        
+        for i in range(0, n):
             local_dt = np.float32(min(self.dt, t_end-i*self.dt))
             
             #if self.totalNumIterations > 240:
@@ -328,7 +328,7 @@ class FBL_periodic_boundary:
         
         # Load kernel for periodic boundary.
         self.periodicBoundaryKernel \
-            = gpu_ctx.get_kernel("FBL_periodic_boundary.cu", block_width, block_height)
+            = gpu_ctx.get_kernel("FBL_periodic_boundary.cu", defines={'block_width': block_width, 'block_height': block_height})
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.closedBoundaryUKernel = self.periodicBoundaryKernel.get_function("closedBoundaryUKernel")
         self.closedBoundaryUKernel.prepare("iiiiPi")
@@ -346,7 +346,7 @@ class FBL_periodic_boundary:
         self.periodicBoundaryEtaKernel.prepare("iiiiPi")
 
         # Reuse CTCS kernels for Flow Relaxation Scheme
-        self.CTCSBoundaryKernels = gpu_ctx.get_kernel("CTCS_boundary.cu", block_width, block_height)
+        self.CTCSBoundaryKernels = gpu_ctx.get_kernel("CTCS_boundary.cu", defines={'block_width': block_width, 'block_height': block_height})
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.boundary_flowRelaxationScheme_NS = self.CTCSBoundaryKernels.get_function("boundary_flowRelaxationScheme_NS")
         self.boundary_flowRelaxationScheme_NS.prepare("iiiiiiiiiiPi")

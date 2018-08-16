@@ -120,9 +120,9 @@ class CTCS(Simulator.Simulator):
         self._set_interior_domain_from_sponge_cells()
 
         #Get kernels
-        self.u_kernel = gpu_ctx.get_kernel("CTCS_U_kernel.cu", block_width, block_height)
-        self.v_kernel = gpu_ctx.get_kernel("CTCS_V_kernel.cu", block_width, block_height)
-        self.eta_kernel = gpu_ctx.get_kernel("CTCS_eta_kernel.cu", block_width, block_height)
+        self.u_kernel = gpu_ctx.get_kernel("CTCS_U_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
+        self.v_kernel = gpu_ctx.get_kernel("CTCS_V_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
+        self.eta_kernel = gpu_ctx.get_kernel("CTCS_eta_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.computeUKernel = self.u_kernel.get_function("computeUKernel")
@@ -326,7 +326,7 @@ class CTCS_boundary_condition:
         self.ny_halo = np.int32(ny + 2*halo_y)
 
         # Load kernel for periodic boundary
-        self.boundaryKernels = gpu_ctx.get_kernel("CTCS_boundary.cu", block_width, block_height)
+        self.boundaryKernels = gpu_ctx.get_kernel("CTCS_boundary.cu", defines={'block_width': block_width, 'block_height': block_height})
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.boundaryUKernel_NS = self.boundaryKernels.get_function("boundaryUKernel_NS")
