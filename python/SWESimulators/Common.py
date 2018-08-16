@@ -145,6 +145,7 @@ class CUDAContext(object):
     def __str__(self):
         return "CudaContext id " + str(self.cuda_context.handle)
 
+    @staticmethod
     def hash_kernel(kernel_filename, include_dirs):        
         # Generate a kernel ID for our caches
         num_includes = 0
@@ -250,7 +251,7 @@ class CUDAContext(object):
             kernel_string += '#include "{:s}"'.format(kernel_path)
             if (self.use_cache):
                 with io.open(cached_kernel_filename + ".txt", "w") as file:
-                    file.write(kernel_string)
+                    file.write(unicode(kernel_string))
                 
             
             with Timer("compiler") as timer:
