@@ -90,7 +90,7 @@ __device__ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
 
 
 
-
+extern "C" {
 __global__ void swe_2D(
         int nx_, int ny_,
         float dx_, float dy_, float dt_,
@@ -137,6 +137,7 @@ __global__ void swe_2D(
 	float* Ly_ptr_, int Ly_pitch_
 
     ) {
+    
         
     //Index of thread within block
     const int tx = threadIdx.x;
@@ -630,3 +631,6 @@ __global__ void swe_2D(
 	
     
 }
+
+}
+

@@ -83,18 +83,18 @@ class PlotHelper:
         plt.title('Eta Radial plot')
 
         ax = self.fig.add_subplot(self.gs[1, 1])
-        self.sp_x_axis1, = plt.plot(x_coords[self.ny/2,:], eta1[self.ny/2,:], 'k+--', label='x-axis')
-        self.sp_y_axis1, = plt.plot(y_coords[:,self.nx/2], eta1[:,self.nx/2], 'kx:', label='y-axis')
+        self.sp_x_axis1, = plt.plot(x_coords[self.ny//2,:], eta1[self.ny//2,:], 'k+--', label='x-axis')
+        self.sp_y_axis1, = plt.plot(y_coords[:,self.nx//2], eta1[:,self.nx//2], 'kx:', label='y-axis')
         plt.axis([max(min_x, min_y), min(max_x, max_y), -1.5, 1])
         plt.title('Eta along axis')
         plt.legend()
 
         ax = self.fig.add_subplot(self.gs[1, 2])
-        self.sp_x_diag1, = plt.plot(1.41*np.diagonal(x_coords, offset=-abs(self.nx-self.ny)/2), \
-                                   np.diagonal(eta1, offset=-abs(self.nx-self.ny)/2), \
+        self.sp_x_diag1, = plt.plot(1.41*np.diagonal(x_coords, offset=-abs(self.nx-self.ny)//2), \
+                                   np.diagonal(eta1, offset=-abs(self.nx-self.ny)//2), \
                                    'k+--', label='x = -y')
-        self.sp_y_diag1, = plt.plot(1.41*np.diagonal(y_coords.T, offset=abs(self.nx-self.ny)/2), \
-                                   np.diagonal(eta1.T, offset=abs(self.nx-self.ny)/2), \
+        self.sp_y_diag1, = plt.plot(1.41*np.diagonal(y_coords.T, offset=abs(self.nx-self.ny)//2), \
+                                   np.diagonal(eta1.T, offset=abs(self.nx-self.ny)//2), \
                                    'kx:', label='x = y')
         plt.axis([max(min_x, min_y), min(max_x, max_y), -1.5, 1])
         plt.title('Eta along diagonal')
@@ -108,18 +108,18 @@ class PlotHelper:
             plt.title('Eta2 Radial plot')
 
             ax = self.fig.add_subplot(self.gs[2, 1])
-            self.sp_x_axis2, = plt.plot(x_coords[self.ny/2,:], eta2[self.ny/2,:], 'k+--', label='x-axis')
-            self.sp_y_axis2, = plt.plot(y_coords[:,self.nx/2], eta2[:,self.nx/2], 'kx:', label='y-axis')
+            self.sp_x_axis2, = plt.plot(x_coords[self.ny//2,:], eta2[self.ny//2,:], 'k+--', label='x-axis')
+            self.sp_y_axis2, = plt.plot(y_coords[:,self.nx//2], eta2[:,self.nx//2], 'kx:', label='y-axis')
             plt.axis([max(min_x, min_y), min(max_x, max_y), -1.5, 1])
             plt.title('Eta2 along axis')
             plt.legend()
 
             ax = self.fig.add_subplot(self.gs[2, 2])
-            self.sp_x_diag2, = plt.plot(1.41*np.diagonal(x_coords, offset=-abs(self.nx-self.ny)/2), \
-                                       np.diagonal(eta2, offset=-abs(self.nx-self.ny)/2), \
+            self.sp_x_diag2, = plt.plot(1.41*np.diagonal(x_coords, offset=-abs(self.nx-self.ny)//2), \
+                                       np.diagonal(eta2, offset=-abs(self.nx-self.ny)//2), \
                                        'k+--', label='x = -y')
-            self.sp_y_diag2, = plt.plot(1.41*np.diagonal(y_coords.T, offset=abs(self.nx-self.ny)/2), \
-                                       np.diagonal(eta2.T, offset=abs(self.nx-self.ny)/2), \
+            self.sp_y_diag2, = plt.plot(1.41*np.diagonal(y_coords.T, offset=abs(self.nx-self.ny)//2), \
+                                       np.diagonal(eta2.T, offset=abs(self.nx-self.ny)//2), \
                                        'kx:', label='x = y')
             plt.axis([max(min_x, min_y), min(max_x, max_y), -1.5, 1])
             plt.title('Eta2 along diagonal')
@@ -143,24 +143,24 @@ class PlotHelper:
         self.sp_radial1.set_ydata(eta1.ravel());
 
         self.fig.add_subplot(self.gs[1, 1])
-        self.sp_x_axis1.set_ydata(eta1[(self.ny+2)/2,:])
-        self.sp_y_axis1.set_ydata(eta1[:,(self.nx+2)/2])
+        self.sp_x_axis1.set_ydata(eta1[(self.ny+2)//2,:])
+        self.sp_y_axis1.set_ydata(eta1[:,(self.nx+2)//2])
 
         self.fig.add_subplot(self.gs[1, 2])
-        self.sp_x_diag1.set_ydata(np.diagonal(eta1, offset=-abs(self.nx-self.ny)/2))
-        self.sp_y_diag1.set_ydata(np.diagonal(eta1.T, offset=abs(self.nx-self.ny)/2))
+        self.sp_x_diag1.set_ydata(np.diagonal(eta1, offset=-abs(self.nx-self.ny)//2))
+        self.sp_y_diag1.set_ydata(np.diagonal(eta1.T, offset=abs(self.nx-self.ny)//2))
         
         if (eta2 is not None):
             self.fig.add_subplot(self.gs[2, 0])
             self.sp_radial2.set_ydata(eta2.ravel());
 
             self.fig.add_subplot(self.gs[2, 1])
-            self.sp_x_axis2.set_ydata(eta2[(self.ny+2)/2,:])
-            self.sp_y_axis2.set_ydata(eta2[:,(self.nx+2)/2])
+            self.sp_x_axis2.set_ydata(eta2[(self.ny+2)//2,:])
+            self.sp_y_axis2.set_ydata(eta2[:,(self.nx+2)//2])
 
             self.fig.add_subplot(self.gs[2, 2])
-            self.sp_x_diag2.set_ydata(np.diagonal(eta2, offset=-abs(self.nx-self.ny)/2))
-            self.sp_y_diag2.set_ydata(np.diagonal(eta2.T, offset=abs(self.nx-self.ny)/2))
+            self.sp_x_diag2.set_ydata(np.diagonal(eta2, offset=-abs(self.nx-self.ny)//2))
+            self.sp_y_diag2.set_ydata(np.diagonal(eta2.T, offset=abs(self.nx-self.ny)//2))
         
         plt.draw()
         time.sleep(0.001)

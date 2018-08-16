@@ -34,6 +34,7 @@ __device__ float linear_coriolis_term(const float f, const float beta,
 /**
   * Kernel that evolves eta one step in time.
   */
+extern "C" {
 __global__ void computeEtaKernel(
         //Discretization parameters
         int nx_, int ny_,
@@ -128,3 +129,5 @@ __global__ void computeEtaKernel(
         eta0_row[ti] = eta2;
     }
 }
+} // extern "C"
+
