@@ -495,7 +495,7 @@ class FBL_periodic_boundary:
         
         if (self.bc_north == 3) or (self.bc_south ==3):
             self.boundary_flowRelaxationScheme_NS.prepared_async_call( \
-                self.global_size, self.local_size, self.gpu_stream, \
+                self.global_size, self.local_size, gpu_stream, \
                 self.nx, self.ny, \
                 self.ghostsX, self.ghostsY, \
                 staggered_x_int32, staggered_y_int32, \
@@ -506,7 +506,7 @@ class FBL_periodic_boundary:
 
         if (self.bc_east == 3) or (self.bc_west == 3):
             self.boundary_flowRelaxationScheme_EW.prepared_async_call( \
-                self.global_size, self.local_size, self.gpu_stream, \
+                self.global_size, self.local_size, gpu_stream, \
                 self.nx, self.ny, \
                 self.ghostsX, self.ghostsY, \
                 staggered_x_int32, staggered_y_int32, \

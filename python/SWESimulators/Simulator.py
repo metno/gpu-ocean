@@ -151,7 +151,6 @@ class Simulator(object):
         if self.write_netcdf:
             self.sim_writer.__exit__(0,0,0)
             self.write_netcdf = False
-            self.sim_writer = None
         
     def attachDrifters(self, drifters):
         ### Do the following type of checking here:
