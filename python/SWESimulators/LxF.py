@@ -65,7 +65,7 @@ class LxF:
         self.cl_queue = cl.CommandQueue(self.cl_ctx)
 
         #Get kernels
-        self.lxf_kernel = Common.get_kernel(self.cl_ctx, "LxF_kernel.opencl", block_width, block_height)
+        self.lxf_kernel = Common.get_kernel(self.cl_ctx, "LxF_kernel.opencl", defines={'block_width': block_width, 'block_height': block_height})
         
         #Create data by uploading to device
         ghost_cells_x = 1

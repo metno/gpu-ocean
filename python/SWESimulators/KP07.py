@@ -127,7 +127,7 @@ class KP07(Simulator.Simulator):
         self._set_interior_domain_from_sponge_cells()
         
         #Get kernels
-        self.kp07_kernel = gpu_ctx.get_kernel("KP07_kernel.cu", block_width, block_height)
+        self.kp07_kernel = gpu_ctx.get_kernel("KP07_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.swe_2D = self.kp07_kernel.get_function("swe_2D")

@@ -27,6 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * Fix north-south boundary before east-west (to get the corners right)
  */
 
+extern "C" {
 __global__ void periodicBoundary_NS(
 	// Discretization parameters
         int nx_, int ny_,
@@ -64,9 +65,10 @@ __global__ void periodicBoundary_NS(
 
     }
 }
-
+} // extern "C" 
 
 // Fix north-south boundary before east-west (to get the corners right)
+extern "C" {
 __global__ void periodicBoundary_EW(
 	// Discretization parameters
         int nx_, int ny_,
@@ -101,6 +103,7 @@ __global__ void periodicBoundary_EW(
 	}
     }
 }
+} // extern "C"
 
 
 /*
@@ -110,7 +113,7 @@ __global__ void periodicBoundary_EW(
  * 
  * Fix north-south boundary before east-west (to get the corners right)
  */
-
+extern "C" {
 __global__ void periodic_boundary_intersections_NS(
 	// Discretization parameters
         int nx_, int ny_,
@@ -137,8 +140,10 @@ __global__ void periodic_boundary_intersections_NS(
 	ghost_row[ti] = opposite_row[ti];
     }
 }
+} // extern "C" 
 
 // Fix north-south boundary before east-west (to get the corners right)
+extern "C" {
 __global__ void periodic_boundary_intersections_EW(
         // Discretization parameters
         int nx_, int ny_,
@@ -167,13 +172,14 @@ __global__ void periodic_boundary_intersections_EW(
 	}
     }
 }
+} // extern "C" {
 
 
 /*
  *  These kernels handles wall boundary conditions for values defined on cell intersections, and assumes that the halo consists of the same number of ghost cells on each periodic boundary.
  * 
  */
-
+extern "C" {
 __global__ void closed_boundary_intersections_EW(
         // Discretization parameters
         int nx_, int ny_,
@@ -199,7 +205,9 @@ __global__ void closed_boundary_intersections_EW(
 	}
     }
 }
+} // extern "C" 
 
+extern "C" {
 __global__ void closed_boundary_intersections_NS(
         // Discretization parameters
         int nx_, int ny_,
@@ -231,7 +239,7 @@ __global__ void closed_boundary_intersections_NS(
 	
     }
 }
-
+} // extern "C" 
 
 
 /*
@@ -248,7 +256,7 @@ __global__ void closed_boundary_intersections_NS(
  *
  *  This is true regardless if the boundary on the opposite side is a sponge or not.
  */
-
+extern "C" {
 __global__ void linearInterpolation_NS(
         // Discretization parameters
         int boundary_condition_north_, int boundary_condition_south_,
@@ -310,8 +318,10 @@ __global__ void linearInterpolation_NS(
 	target_row_v[ti] = outer_value_v + ratio*(inner_value_v - outer_value_v);
     }
 }
+} // extern "C" 
 
-    
+
+extern "C" {    
 __global__ void linearInterpolation_EW(
         // Discretization parameters
         int boundary_condition_east_, int boundary_condition_west_,
@@ -367,6 +377,7 @@ __global__ void linearInterpolation_EW(
 	v_row[ti] = outer_value_v + ratio*(inner_value_v - outer_value_v);
     }
 }
+} // extern "C" {
 
 
 /*
@@ -383,6 +394,7 @@ __global__ void linearInterpolation_EW(
  *
  *  This is true regardless if the boundary on the opposite side is a sponge or not.
  */
+ extern "C" {
 __global__ void flowRelaxationScheme_NS(
 	// Discretization parameters
 	int boundary_condition_north_, int boundary_condition_south_,
@@ -438,8 +450,10 @@ __global__ void flowRelaxationScheme_NS(
 	
     }
 }
+} // extern "C" {
 
 
+extern "C" {
 __global__ void flowRelaxationScheme_EW(
 	// Discretization parameters
 	int boundary_condition_east_, int boundary_condition_west_,
@@ -490,3 +504,5 @@ __global__ void flowRelaxationScheme_EW(
 	v_row[ti] = (1.0f-alpha)*v_row[ti] + alpha*exterior_value_v;
     }
 }
+} // extern "C" 
+

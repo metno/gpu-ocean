@@ -23,6 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /**
   * Kernel that evolves eta one step in time.
   */
+extern "C" {
 __global__ void computeEtaKernel(
         //Discretization parameters
         int nx_, int ny_,
@@ -110,3 +111,4 @@ __global__ void computeEtaKernel(
         eta_row[ti] = eta_next;
     }
 }
+} // extern "C"

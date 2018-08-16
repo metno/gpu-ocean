@@ -100,7 +100,7 @@ class OceanStateNoise(object):
         self.random_numbers = Common.OpenCLArray2D(cl_ctx, self.rand_nx, self.rand_ny, 0, 0, self.random_numbers_host)
         
         # Generate kernels
-        self.kernels = Common.get_kernel(self.cl_ctx, "ocean_noise.opencl", block_width, block_height)
+        self.kernels = Common.get_kernel(self.cl_ctx, "ocean_noise.opencl", defines={'block_width': block_width, 'block_height': block_height})
  
         
         #Compute kernel launch parameters
