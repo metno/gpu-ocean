@@ -78,6 +78,8 @@ class MyIPythonMagic(Magics):
         
     @line_magic
     def setup_logging(self, log_filename):
+        import sys
+        
         #Get root logger
         logger = logging.getLogger('')
         logger.setLevel(logging.DEBUG)
@@ -95,6 +97,7 @@ class MyIPythonMagic(Magics):
         logger.addHandler(ch)
         
         logger.info('Registering logging to %s', log_filename)
+        logger.info("Python version %s", sys.version)
 
 
 # Register 
