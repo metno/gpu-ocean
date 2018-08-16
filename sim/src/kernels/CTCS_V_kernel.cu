@@ -62,9 +62,7 @@ __global__ void computeVKernel(
         float* V1_ptr_, int V1_pitch_, // V^n
     
         // Wind stress parameters
-        const wind_stress_params *wind_stress_,
-
-		float t_) {
+		float wind_stress_t_) {
         
     __shared__ float H_shared[block_height+1][block_width+2];
     __shared__ float eta1_shared[block_height+1][block_width+2];
@@ -237,7 +235,10 @@ __global__ void computeVKernel(
     float E = (V_p0 - V0 + V_m0)/(dx_*dx_) + (V_0p - V0 + V_0m)/(dy_*dy_);
 
     //Calculate the wind shear stress
-    float Y = windStressY(wind_stress_, dx_, dy_, dt_, t_);
+    //FIXME Check coordinates (ti_, tj_) here!!!
+    //TODO Check coordinates (ti_, tj_) here!!!
+    //WARNING Check coordinates (ti_, tj_) here!!!
+    float Y = windStressY(wind_stress_t_, ti+0.5, tj, nx_, ny_);
     
     // Finding the contribution from Coriolis
     float global_thread_y = blockIdx.y * blockDim.y + threadIdx.y;

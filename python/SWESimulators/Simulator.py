@@ -80,10 +80,6 @@ class Simulator(object):
         self.offset_x = offset_x
         self.offset_y = offset_y
         
-        # Upload wind stress params to device
-        self.wind_stress_dev = cuda.mem_alloc(wind_stress.csize())
-        cuda.memcpy_htod_async(int(self.wind_stress_dev), wind_stress.tostruct(), stream=self.gpu_stream)
-        
         #Initialize time
         self.t = np.float32(t)
         
@@ -117,6 +113,52 @@ class Simulator(object):
                        int(np.ceil(self.nx / float(self.local_size[0]))), \
                        int(np.ceil(self.ny / float(self.local_size[1]))) \
                       )
+                      
+    def setup_wind_stress(self, kernel_module):
+        # upload to GPU , bind to texture IDs
+        
+        #FIXME: This is just dummy data to test
+        tex_nx, tex_ny = 3, 2
+        sx = np.linspace(1.0, 2.0, tex_nx, dtype=np.float32)
+        sy = np.linspace(2.0, 3.0, tex_ny, dtype=np.float32)
+        X0 = np.ones((tex_ny, tex_nx)).astype(np.float32) * 5
+        X1 = np.ones((tex_ny, tex_nx)).astype(np.float32) * 10
+        Y0 = np.ones((tex_ny, tex_nx)).astype(np.float32) * 10
+        Y1 = np.ones((tex_ny, tex_nx)).astype(np.float32) * 15
+        
+        
+        ### X wind stress
+        texref_x_curr = kernel_module.get_texref("windstress_X_current")
+        cuda.matrix_to_texref(X0, texref_x_curr, order="C")
+        texref_x_curr.set_filter_mode(cuda.filter_mode.LINEAR)
+        texref_x_curr.set_address_mode(0, cuda.address_mode.CLAMP)
+        texref_x_curr.set_address_mode(1, cuda.address_mode.CLAMP)
+        texref_x_curr.set_flags(cuda.TRSF_NORMALIZED_COORDINATES)
+    
+        texref_x_next = kernel_module.get_texref("windstress_X_next")
+        cuda.matrix_to_texref(X1, texref_x_next, order="C")
+        texref_x_next.set_filter_mode(cuda.filter_mode.LINEAR)
+        texref_x_next.set_address_mode(0, cuda.address_mode.CLAMP)
+        texref_x_next.set_address_mode(1, cuda.address_mode.CLAMP)
+        texref_x_next.set_flags(cuda.TRSF_NORMALIZED_COORDINATES)
+        
+        
+        ### Y wind stress
+        texref_y_curr = kernel_module.get_texref("windstress_Y_current")
+        cuda.matrix_to_texref(Y0, texref_y_curr, order="C")
+        texref_y_curr.set_filter_mode(cuda.filter_mode.LINEAR)
+        texref_y_curr.set_address_mode(0, cuda.address_mode.CLAMP)
+        texref_y_curr.set_address_mode(1, cuda.address_mode.CLAMP)
+        texref_y_curr.set_flags(cuda.TRSF_NORMALIZED_COORDINATES)
+    
+        texref_y_next = kernel_module.get_texref("windstress_Y_next")
+        cuda.matrix_to_texref(Y1, texref_y_next, order="C")
+        texref_y_next.set_filter_mode(cuda.filter_mode.LINEAR)
+        texref_y_next.set_address_mode(0, cuda.address_mode.CLAMP)
+        texref_y_next.set_address_mode(1, cuda.address_mode.CLAMP)
+        texref_y_next.set_flags(cuda.TRSF_NORMALIZED_COORDINATES)
+        
+        return [texref_x_curr, texref_x_next, texref_y_curr, texref_y_next]
             
     @abstractmethod
     def step(self, t_end=0.0):
