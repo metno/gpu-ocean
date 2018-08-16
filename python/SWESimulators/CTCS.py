@@ -124,21 +124,20 @@ class CTCS(Simulator.Simulator):
         self.v_kernel = gpu_ctx.get_kernel("CTCS_V_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
         self.eta_kernel = gpu_ctx.get_kernel("CTCS_eta_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
         
-        #Setup wind stress
         
-        # Get CUDA functions and define data types for prepared_{async_}call()
-        texrefs = self.setup_wind_stress(self.u_kernel)
+        # Get CUDA functions 
         self.computeUKernel = self.u_kernel.get_function("computeUKernel")
-        self.computeUKernel.prepare("iiiifffffffffPiPiPiPiPif", \
-                texrefs=texrefs)
-                
-        texrefs = self.setup_wind_stress(self.v_kernel)
         self.computeVKernel = self.v_kernel.get_function("computeVKernel")
-        self.computeVKernel.prepare("iiiifffffffffPiPiPiPiPif", \
-                texrefs=texrefs)
-                
         self.computeEtaKernel = self.eta_kernel.get_function("computeEtaKernel")
+        
+        # Prepare kernel lauches
+        self.computeUKernel.prepare("iiiifffffffffPiPiPiPiPif")#, texrefs=self.u_kernel_texrefs)        
+        self.computeVKernel.prepare("iiiifffffffffPiPiPiPiPif")#, texrefs=self.v_kernel_texrefs)
         self.computeEtaKernel.prepare("iiffffffffPiPiPi")
+        
+        # Set up textures
+        self.setup_wind_stress(self.u_kernel, self.computeUKernel)
+        self.setup_wind_stress(self.v_kernel, self.computeVKernel)
         
         #Create data by uploading to device     
         self.H = Common.CUDAArray2D(self.gpu_stream, nx, ny, halo_x, halo_y, H)
@@ -261,8 +260,9 @@ class CTCS(Simulator.Simulator):
             if (local_dt <= 0.0):
                 break
                 
-            #FIXME: Coordinate with windstress class
-            wind_stress_t = 0.5;
+            
+            self.setup_wind_stress(self.u_kernel, self.computeUKernel)
+            wind_stress_t = self.setup_wind_stress(self.v_kernel, self.computeVKernel)
             
             self.computeEtaKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                     self.nx, self.ny, \
