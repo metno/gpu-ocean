@@ -79,7 +79,7 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
         #print "global_size: ", self.global_size
         #print "numDrifters + obs: ", self.numDrifters + 1
         # remember: shape = (y, x)
-        
+         
     def copy(self):
         """
         Makes an independent indentical copy of the current object
@@ -147,6 +147,7 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
     def cleanUp(self):
         if (self.driftersDevice is not None):
             self.driftersDevice.release()
+        self.gpu_ctx = None
             
     def enforceBoundaryConditions(self):
         if self.boundaryConditions.isPeriodicNorthSouth or self.boundaryConditions.isPeriodicEastWest:

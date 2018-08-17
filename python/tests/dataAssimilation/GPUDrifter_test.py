@@ -20,12 +20,9 @@ class GPUDrifterTest(BaseDrifterTest):
         self.gpu_ctx = Common.CUDAContext(verbose=False)
         
     def tearDown(self):
-        if self.smallDrifterSet is not None:
-            self.smallDrifterSet.cleanUp()
-        if self.resamplingDrifterSet is not None:
-            self.resamplingDrifterSet.cleanUp()
-        del self.gpu_ctx
-
+        super(GPUDrifterTest, self).tearDown()
+        gc.collect()
+        
     def create_small_drifter_set(self):
         self.smallDrifterSet = GPUDrifterCollection(self.gpu_ctx,
                                                     self.numDrifters,
@@ -37,7 +34,7 @@ class GPUDrifterTest(BaseDrifterTest):
                                                          self.resampleNumDrifters)
         
     def create_large_drifter_set(self, size, domain_x, domain_y):
-        return GPUDrifterCollection(self.gpu_ctx, size, domain_size_x=domain_x, domain_size_y=domain_y) 
+        self.largeDrifterSet = GPUDrifterCollection(self.gpu_ctx, size, domain_size_x=domain_x, domain_size_y=domain_y) 
         
 
 
