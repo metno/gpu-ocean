@@ -57,9 +57,7 @@ __global__ void computeUKernel(
         float* eta_ptr_, int eta_pitch_,
     
         // Wind stress parameters
-        const wind_stress_params *wind_stress_,
-
-        float t_) {
+        float wind_stress_t_) {
     
     __shared__ float H_shared[block_height][block_width+1];
     __shared__ float V_shared[block_height+1][block_width+1];
@@ -159,8 +157,10 @@ __global__ void computeUKernel(
     //Calculate the gravitational effect
     float P = g_*H_m*(eta_shared[ty][tx] - eta_shared[ty][tx+1])/dx_;
     
-    //Calculate the wind shear stress
-    float X = windStressX(wind_stress_, dx_, dy_, dt_, t_);
+    //FIXME Check coordinates (ti_, tj_) here!!!
+    //TODO Check coordinates (ti_, tj_) here!!!
+    //WARNING Check coordinates (ti_, tj_) here!!!
+    float X = windStressX(wind_stress_t_, ti, tj+0.5, nx_, ny_);
 
     //Compute the U at the next timestep
     float U_next = B*(U_current + dt_*(fV_m + P + X) );

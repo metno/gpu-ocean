@@ -15,7 +15,7 @@ from SWESimulators import Common, CDKLM16
 class CDKLM16test(unittest.TestCase):
 
     def setUp(self):
-        self.gpu_ctx = Common.CUDAContext(verbose=False)
+        self.gpu_ctx = Common.CUDAContext()
 
         self.nx = 50
         self.ny = 70
