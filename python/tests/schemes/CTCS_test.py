@@ -14,7 +14,7 @@ from SWESimulators import Common, CTCS
 class CTCStest(unittest.TestCase):
 
     def setUp(self):
-        self.gpu_ctx = Common.CUDAContext(verbose=False)
+        self.gpu_ctx = Common.CUDAContext()
 
         self.nx = 50
         self.ny = 70
