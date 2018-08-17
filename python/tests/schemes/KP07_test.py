@@ -14,7 +14,7 @@ from SWESimulators import Common, KP07
 class KP07test(unittest.TestCase):
 
     def setUp(self):
-        self.gpu_ctx = Common.CUDAContext(verbose=False)
+        self.gpu_ctx = Common.CUDAContext()
         
         self.nx = 50
         self.ny = 70

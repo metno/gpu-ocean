@@ -30,6 +30,7 @@ import hashlib
 import logging
 import gc
 
+import pycuda
 import pycuda.compiler as cuda_compiler
 import pycuda.gpuarray
 import pycuda.driver as cuda
@@ -93,6 +94,8 @@ class CUDAContext(object):
         
         #Initialize cuda (must be first call to PyCUDA)
         cuda.init(flags=0)
+        
+        self.logger.info("PyCUDA version %s", str(pycuda.VERSION_TEXT))
         
         #Print some info about CUDA
         self.logger.info("CUDA version %s", str(cuda.get_version()))
@@ -248,10 +251,14 @@ class CUDAContext(object):
             kernel_string = ""
             for key, value in defines.items():
                 kernel_string += "#define {:s} {:s}\n".format(str(key), str(value))
-            kernel_string += '#include "{:s}"'.format(kernel_path)
+            kernel_string += '#include "{:s}"'.format(str(kernel_path))
             if (self.use_cache):
                 with io.open(cached_kernel_filename + ".txt", "w") as file:
-                    file.write(unicode(kernel_string))
+                    #Why is kernel_string a bytes object in Python 3.5.2?
+                    #Bugfix here
+                    if isinstance(kernel_string, bytes):
+                        kernel_string = bytes.decode(kernel_string)
+                    file.write(kernel_string)
                 
             
             with Timer("compiler") as timer:

@@ -1,20 +1,13 @@
 #ifndef COMMON_CU
 #define COMMON_CU
 
-#include "../windStress_params.h"
-
 #define _180_OVER_PI 57.29578f
 #define PI_OVER_180 0.01745329f
 
 /*
-This OpenCL kernel implements the Kurganov-Petrova numerical scheme 
-for the shallow water equations, described in 
-A. Kurganov & Guergana Petrova
-A Second-Order Well-Balanced Positivity Preserving Central-Upwind
-Scheme for the Saint-Venant System Communications in Mathematical
-Sciences, 5 (2007), 133-160. 
+This file implements different helper functions etc.
 
-Copyright (C) 2016  SINTEF ICT
+Copyright (C) 2016, 2017, 2018 SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -559,123 +552,55 @@ __device__ void minmodSlopeY(float  Q[3][block_height+4][block_width+4],
     }
 }
 
-/*
- * Compute x-component of wind vector.
- * @param wind_speed Wind speed in m/s.
- * @param wind_direction Wind direction in degrees (clockwise, 0 being wind blowing from north towards south).
- */
-__device__ float wind_u(float wind_speed, float wind_direction) {
-	return -wind_speed * sin(wind_direction * PI_OVER_180);
-}
 
-/*
- * Compute y-component of wind vector.
- * @param wind_speed Wind speed in m/s.
- * @param wind_direction Wind direction in degrees (clockwise, 0 being wind blowing from north towards south).
- */
-__device__ float wind_v(float wind_speed, float wind_direction) {
-	return -wind_speed * cos(wind_direction * PI_OVER_180);
-}
 
-__device__ float windStressX(const wind_stress_params *wind_stress_,
-                float dx_, float dy_, float dt_,
-				float t_) {
-    float X = 0.0f;
+texture<float, cudaTextureType2D> windstress_X_current;
+texture<float, cudaTextureType2D> windstress_X_next;
+
+texture<float, cudaTextureType2D> windstress_Y_current;
+texture<float, cudaTextureType2D> windstress_Y_next;
+
+
+/**
+  * Returns the wind stress, trilinearly interpolated in space and time
+  * @param wind_stress_t_ \in [0, 1] determines the temporal interpolation (0=current, 1=next)
+  * @param ti_ Location of this thread along the x-axis in number of cells (NOTE: half indices)
+  * @param tj_ Location of this thread along the y-axis in number of cells (NOTE: half indices)
+  * @param nx_ Number of cells along x axis
+  * @param ny_ Number of cells along y axis
+  */
+__device__ float windStressX(float wind_stress_t_, float ti_, float tj_, int nx_, int ny_) {
+    //Normalize coordinates (to [0, 1])
+    const int s = ti_ / float(nx_);
+    const int t = tj_ / float(ny_);
     
-    switch (wind_stress_->type) {
-    case NO_WIND:
-    	break;
-    case GENERIC_UNIFORM:
-		{
-			/*
-			 * C_drag as defined by Engedahl (1995)
-			 *
-			 * (See "Documentation of simple ocean models for use in ensemble predictions. Part II: Benchmark cases"
-			 * at https://www.met.no/publikasjoner/met-report/met-report-2012 for details.)
-			 */
-			const float C_drag = (wind_stress_->wind_speed < 11) ? 0.0012f : (0.49f + 0.065f)*wind_stress_->wind_speed;
-
-			X = wind_stress_->rho_air * C_drag * wind_u(wind_stress_->wind_speed, wind_stress_->wind_direction);
-		}
-		break;
-    case ALONGSHORE_UNIFORM:
-        {
-            const float y = (blockIdx.y * blockDim.y + threadIdx.y+0.5f)*dy_;
-            X = wind_stress_->tau0/wind_stress_->rho * exp(-wind_stress_->alpha*y);
-            //X = 0.2f;
-        }
-        break;
-    case ALONGSHORE_BELLSHAPED:
-        if (t_ <= 48.0f*3600.0f) {
-            const float a = wind_stress_->alpha*((blockIdx.x * blockDim.x + threadIdx.x+0.5f)*dx_-wind_stress_->xm);
-            const float aa = a*a;
-            const float y = (blockIdx.y * blockDim.y + threadIdx.y+0.5f)*dy_;
-            X = wind_stress_->tau0/wind_stress_->rho * exp(-aa) * exp(-wind_stress_->alpha*y);
-        }
-        break;
-    case MOVING_CYCLONE:
-        {
-            const float x = (blockIdx.x * blockDim.x + threadIdx.x)*dx_;
-            const float y = (blockIdx.y * blockDim.y + threadIdx.y+0.5f)*dy_;
-            const float a = (x-wind_stress_->x0-wind_stress_->u0*(t_+dt_));
-            const float aa = a*a;
-            const float b = (y-wind_stress_->y0-wind_stress_->v0*(t_+dt_));
-            const float bb = b*b;
-            const float r = sqrt(aa+bb);
-            const float c = 1.0f - r/wind_stress_->Rc;
-            const float xi = c*c;
-            
-            X = -(wind_stress_->tau0/wind_stress_->rho) * (b/wind_stress_->Rc) * exp(-0.5f*xi);
-        }
-        break;
-    }
-
-    return X;
+    //Look up current and next timestep (using bilinear texture interpolation)
+    float current = tex2D(windstress_X_current, s, t);
+    float next = tex2D(windstress_X_next, s, t);
+    
+    //Interpolate in time
+    return wind_stress_t_*next + (1.0f - wind_stress_t_)*current;
 }
 
-__device__ float windStressY(const wind_stress_params *wind_stress_,
-                float dx_, float dy_, float dt_,
-	            float t_) {
-    float Y = 0.0f;
-
-    switch (wind_stress_->type) {
-    case NO_WIND:
-    	break;
-    case GENERIC_UNIFORM:
-		{
-			/*
-			 * C_drag as defined by Engedahl (1995)
-			 *
-			 * (See "Documentation of simple ocean models for use in ensemble predictions. Part II: Benchmark cases"
-			 * at https://www.met.no/publikasjoner/met-report/met-report-2012 for details.)
-			 */
-			const float C_drag = (wind_stress_->wind_speed < 11) ? 0.0012f : (0.49f + 0.065f)*wind_stress_->wind_speed;
-
-			Y = wind_stress_->rho_air * C_drag * wind_v(wind_stress_->wind_speed, wind_stress_->wind_direction);
-		}
-		break;
-    case ALONGSHORE_UNIFORM:
-    	break;
-    case ALONGSHORE_BELLSHAPED:
-    	break;
-    case MOVING_CYCLONE:
-        {
-            const float x = (blockIdx.x * blockDim.x + threadIdx.x+0.5f)*dx_; 
-            const float y = (blockIdx.y * blockDim.y + threadIdx.y)*dy_;
-            const float a = (x-wind_stress_->x0-wind_stress_->u0*(t_+dt_));
-            const float aa = a*a;
-            const float b = (y-wind_stress_->y0-wind_stress_->v0*(t_+dt_));
-            const float bb = b*b;
-            const float r = sqrt(aa+bb);
-            const float c = 1.0f - r/wind_stress_->Rc;
-            const float xi = c*c;
-            
-            Y = (wind_stress_->tau0/wind_stress_->rho) * (a/wind_stress_->Rc) * exp(-0.5f*xi);
-        }
-        break;
-    }
-
-    return Y;
+/**
+  * Returns the wind stress, trilinearly interpolated in space and time
+  * @param wind_stress_t_ \in [0, 1] determines the temporal interpolation (0=current, 1=next)
+  * @param ti_ Location of this thread along the x-axis in number of cells (NOTE: half indices)
+  * @param tj_ Location of this thread along the y-axis in number of cells (NOTE: half indices)
+  * @param nx_ Number of cells along x axis
+  * @param ny_ Number of cells along y axis
+  */
+__device__ float windStressY(float wind_stress_t_, float ti_, float tj_, int nx_, int ny_) {
+    //Normalize coordinates (to [0, 1])
+    const int s = ti_ / float(nx_);
+    const int t = tj_ / float(ny_);
+    
+    //Look up current and next timestep (using bilinear texture interpolation)
+    float current = tex2D(windstress_Y_current, s, t);
+    float next = tex2D(windstress_Y_next, s, t);
+    
+    //Interpolate in time
+    return wind_stress_t_*next + (1.0f - wind_stress_t_)*current;
 }
 
 
