@@ -215,11 +215,11 @@ class CUDAContext(object):
         defines_hash = defines_hasher.hexdigest()
         defines_hasher = None
         root, ext = os.path.splitext(kernel_filename)
-        kernel_path = os.path.abspath(os.path.join(self.module_path, "../../sim/src/kernels", kernel_filename))
+        kernel_path = os.path.abspath(os.path.join(self.module_path, "../kernels", kernel_filename))
         kernel_hash = root \
                 + "_" + CUDAContext.hash_kernel( \
                     kernel_path, \
-                    include_dirs=[os.path.join(self.module_path, "../../sim/src/kernels")] + include_dirs) \
+                    include_dirs=[os.path.join(self.module_path, "../kernels")] + include_dirs) \
                 + "_" + defines_hash \
                 + ext
         cached_kernel_filename = os.path.join(self.cache_path, kernel_hash)
