@@ -124,7 +124,7 @@ class CPUDrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
     ### NEW
     #-------------------
     def copy(self):
-        copy = CPUDrifterEnsemble(None, self.numParticles, self.observation_variance)
+        copy = CPUDrifterEnsemble(self.numParticles, self.observation_variance)
         copy.setGridInfo(self.nx, self.ny, self.dx, self.dy, self.dt,
                          self.boundaryConditions,
                          self.base_eta, self.base_hu, self.base_hv, self.base_H)
