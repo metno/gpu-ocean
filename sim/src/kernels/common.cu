@@ -554,11 +554,11 @@ __device__ void minmodSlopeY(float  Q[3][block_height+4][block_width+4],
 
 
 
-texture<float, 2> windstress_X_current;
-texture<float, 2> windstress_X_next;
+texture<float, cudaTextureType2D> windstress_X_current;
+texture<float, cudaTextureType2D> windstress_X_next;
 
-texture<float, 2> windstress_Y_current;
-texture<float, 2> windstress_Y_next;
+texture<float, cudaTextureType2D> windstress_Y_current;
+texture<float, cudaTextureType2D> windstress_Y_next;
 
 
 /**
@@ -575,8 +575,8 @@ __device__ float windStressX(float wind_stress_t_, float ti_, float tj_, int nx_
     const int t = tj_ / float(ny_);
     
     //Look up current and next timestep (using bilinear texture interpolation)
-    float current = tex2D<float>(windstress_X_current, s, t);
-    float next = tex2D<float>(windstress_X_next, s, t);
+    float current = tex2D(windstress_X_current, s, t);
+    float next = tex2D(windstress_X_next, s, t);
     
     //Interpolate in time
     return wind_stress_t_*next + (1.0f - wind_stress_t_)*current;
@@ -596,8 +596,8 @@ __device__ float windStressY(float wind_stress_t_, float ti_, float tj_, int nx_
     const int t = tj_ / float(ny_);
     
     //Look up current and next timestep (using bilinear texture interpolation)
-    float current = tex2D<float>(windstress_Y_current, s, t);
-    float next = tex2D<float>(windstress_Y_next, s, t);
+    float current = tex2D(windstress_Y_current, s, t);
+    float next = tex2D(windstress_Y_next, s, t);
     
     //Interpolate in time
     return wind_stress_t_*next + (1.0f - wind_stress_t_)*current;

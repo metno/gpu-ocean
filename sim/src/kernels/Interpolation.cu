@@ -17,8 +17,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-texture<float, 2> my_texture_current;
-texture<float, 2> my_texture_next;
+texture<float, cudaTextureType2D> my_texture_current;
+texture<float, cudaTextureType2D> my_texture_next;
 
 extern "C" {
 __global__ void interpolationTest(
@@ -46,8 +46,8 @@ __global__ void interpolationTest(
     if (ti < nx_ && tj < ny_) {
         float sx = ti/float(nx_);
         float sy = tj/float(ny_);
-        float current = tex2D<float>(my_texture_current, sx, sy);
-        float next = tex2D<float>(my_texture_next, sx, sy);
+        float current = tex2D(my_texture_current, sx, sy);
+        float next = tex2D(my_texture_next, sx, sy);
         
         H_row[ti] = (1.0f-t_)*current + t_*next;
     }
