@@ -23,7 +23,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from matplotlib import pyplot as plt
 import numpy as np
-import pyopencl
 import gc
 
 import Common
@@ -38,7 +37,7 @@ class OceanStateNoise(object):
     while dHu and dHv are found by the geostrophic balance to avoid shock solutions.
     """
     
-    def __init__(self, cl_ctx, cl_queue,
+    def __init__(self, gpu_ctx, gpu_stream,
                  nx, ny, dx, dy,
                  boundaryConditions, staggered,
                  soar_q0=None, soar_L=None,
@@ -47,8 +46,8 @@ class OceanStateNoise(object):
         self.random_numbers = None
         self.seed = None
         
-        self.cl_ctx = cl_ctx
-        self.cl_queue = cl_queue
+        self.gpu_ctx = gpu_ctx
+        self.gpu_stream = gpu_stream
         
         self.nx = np.int32(nx)
         self.ny = np.int32(ny)
@@ -94,28 +93,36 @@ class OceanStateNoise(object):
         self.host_seed = np.random.rand(self.seed_ny, self.seed_nx)*self.floatMax
         self.host_seed = self.host_seed.astype(np.uint64, order='C')
 
-        self.seed = Common.OpenCLArray2D(cl_ctx, self.seed_nx, self.seed_ny, 0, 0, self.host_seed, double_precision=True, integers=True)
+        self.seed = Common.CUDAArray2D(gpu_stream, self.seed_nx, self.seed_ny, 0, 0, self.host_seed, double_precision=True, integers=True)
         
         # Allocate memory for random numbers
         self.random_numbers_host = np.zeros((self.rand_ny, self.rand_nx), dtype=np.float32, order='C')
-        self.random_numbers = Common.OpenCLArray2D(cl_ctx, self.rand_nx, self.rand_ny, 0, 0, self.random_numbers_host)
+        self.random_numbers = Common.CUDAArray2D(self.gpu_stream, self.rand_nx, self.rand_ny, 0, 0, self.random_numbers_host)
         
         # Generate kernels
-        self.kernels = Common.get_kernel(self.cl_ctx, "ocean_noise.opencl", block_width, block_height)
+        self.kernels = gpu_ctx.get_kernel("ocean_noise.cu", block_width, block_height)
  
+        # Get CUDA functions and define data types for prepared_{async_}call()
+        self.uniformDistributionKernel = self.kernels.get_function("uniformDistribution")
+        self.uniformDistributionKernel.prepare("iiiPiPi")
+        
+        self.normalDistributionKernel = self.kernels.get_function("normalDistribution")
+        self.normalDistributionKernel.prepare("iiiPiPi")
+        
+        self.perturbOceanKernel = self.kernels.get_function("perturbOcean")
+        self.perturbOceanKernel.prepare("iiffiiffffffiiPiPiPiPiPi")
         
         #Compute kernel launch parameters
-        self.local_size = (block_width, block_height) 
+        self.local_size = (block_width, block_height, 1) 
         self.global_size_random_numbers = ( \
-                       int(np.ceil(self.seed_nx / float(self.local_size[0])) * self.local_size[0]), \
-                       int(np.ceil(self.seed_ny / float(self.local_size[1])) * self.local_size[1]) \
+                       int(np.ceil(self.seed_nx / float(self.local_size[0]))), \
+                       int(np.ceil(self.seed_ny / float(self.local_size[1]))) \
                                   ) 
         self.global_size_noise = ( \
-                       int(np.ceil(self.rand_nx / float(self.local_size[0])) * self.local_size[0]), \
-                       int(np.ceil(self.rand_ny / float(self.local_size[1])) * self.local_size[1]) \
+                       int(np.ceil(self.rand_nx / float(self.local_size[0]))), \
+                       int(np.ceil(self.rand_ny / float(self.local_size[1]))) \
                                   ) 
-        
-        
+
         
         
     def __del__(self):
@@ -134,7 +141,7 @@ class OceanStateNoise(object):
         staggered = False
         if isinstance(sim, FBL.FBL) or isinstance(sim, CTCS.CTCS):
             staggered = True
-        return cls(sim.cl_ctx, sim.cl_queue,
+        return cls(sim.gpu_ctx, sim.gpu_stream,
                    sim.nx, sim.ny, sim.dx, sim.dy,
                    sim.boundary_conditions, staggered,
                    soar_q0=soar_q0, soar_L=soar_L,
@@ -143,34 +150,33 @@ class OceanStateNoise(object):
         
         
     def getSeed(self):
-        return self.seed.download(self.cl_queue)
+        return self.seed.download(self.gpu_stream)
     
     def resetSeed(self):
+        # Generate seed:
         self.floatMax = 2147483648.0
         self.host_seed = np.random.rand(self.seed_ny, self.seed_nx)*self.floatMax
-        self.host_seed.astype(np.float32, order='C')
-        self.seed.upload(self.cl_queue, self.host_seed)
+        self.host_seed = self.host_seed.astype(np.uint64, order='C')
+        self.seed.upload(self.gpu_stream, self.host_seed)
         
     
     def getRandomNumbers(self):
-        return self.random_numbers.download(self.cl_queue)
+        return self.random_numbers.download(self.gpu_stream)
     
     def generateNormalDistribution(self):
-        self.kernels.normalDistribution(self.cl_queue, 
-                                        self.global_size_random_numbers, self.local_size,
-                                        self.seed_nx, self.seed_ny,
-                                        self.rand_nx,
-                                        self.seed.data, self.seed.pitch,
-                                        self.random_numbers.data, self.random_numbers.pitch)
+        self.normalDistributionKernel.prepared_async_call(self.global_size_random_numbers, self.local_size, self.gpu_stream, 
+                                                          self.seed_nx, self.seed_ny,
+                                                          self.rand_nx,
+                                                          self.seed.data.gpudata, self.seed.pitch,
+                                                          self.random_numbers.data.gpudata, self.random_numbers.pitch)
         
     def generateUniformDistribution(self):
         # Call kernel -> new random numbers
-        self.kernels.uniformDistribution(self.cl_queue, 
-                                         self.global_size_random_numbers, self.local_size,
-                                         self.seed_nx, self.seed_ny,
-                                         self.rand_nx,
-                                         self.seed.data, self.seed.pitch,
-                                         self.random_numbers.data, self.random_numbers.pitch)
+        self.uniformDistributionKernel.prepared_async_call(self.global_size_random_numbers, self.local_size, self.gpu_stream,
+                                                           self.seed_nx, self.seed_ny,
+                                                           self.rand_nx,
+                                                           self.seed.data.gpudata, self.seed.pitch,
+                                                           self.random_numbers.data.gpudata, self.random_numbers.pitch)
     
     def perturbSim(self, sim, q0_scale=1.0):
         assert(isinstance(sim, CDKLM16.CDKLM16))
@@ -190,9 +196,9 @@ class OceanStateNoise(object):
         """
         Apply the SOAR Q covariance matrix on the random ocean field which is
         added to the provided buffers eta, hu and hv.
-        eta: surface deviation - OpenCLArray2D object.
-        hu: volume transport in x-direction - OpenCLArray2D object.
-        hv: volume transport in y-dirextion - OpenCLArray2D object.
+        eta: surface deviation - CUDAArray2D object.
+        hu: volume transport in x-direction - CUDAArray2D object.
+        hv: volume transport in y-dirextion - CUDAArray2D object.
         """
         # Need to update the random field, requiering a global sync
         self.generateNormalDistribution()
@@ -200,23 +206,22 @@ class OceanStateNoise(object):
         soar_q0 = np.float32(self.soar_q0 * q0_scale)
         
         # Call applySOARQ_kernel and add to eta
-        self.kernels.perturbOcean(self.cl_queue,
-                                  self.global_size_noise, self.local_size,
-                                  self.nx, self.ny,
-                                  self.dx, self.dy,
-                                  np.int32(ghost_cells_x), np.int32(ghost_cells_y),
-                                  
-                                  np.float32(g), np.float32(f),
-                                  np.float32(beta), np.float32(y0_reference_cell),
-                                  
-                                  soar_q0, self.soar_L,
-                                  self.periodicNorthSouth, self.periodicEastWest,
-                                  
-                                  self.random_numbers.data, self.random_numbers.pitch,
-                                  eta.data, eta.pitch,
-                                  hu.data, hu.pitch,
-                                  hv.data, hv.pitch,
-                                  H.data, H.pitch)
+        self.perturbOceanKernel.prepared_async_call(self.global_size_noise, self.local_size, self.gpu_stream,
+                                                    self.nx, self.ny,
+                                                    self.dx, self.dy,
+                                                    np.int32(ghost_cells_x), np.int32(ghost_cells_y),
+
+                                                    np.float32(g), np.float32(f),
+                                                    np.float32(beta), np.float32(y0_reference_cell),
+
+                                                    soar_q0, self.soar_L,
+                                                    self.periodicNorthSouth, self.periodicEastWest,
+
+                                                    self.random_numbers.data.gpudata, self.random_numbers.pitch,
+                                                    eta.data.gpudata, eta.pitch,
+                                                    hu.data.gpudata, hu.pitch,
+                                                    hv.data.gpudata, hv.pitch,
+                                                    H.data.gpudata, H.pitch)
     
     
     
