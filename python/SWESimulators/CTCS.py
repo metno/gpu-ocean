@@ -220,6 +220,7 @@ class CTCS(Simulator.Simulator):
         self.gpu_data.release()
         
         self.H.release()
+        self.gpu_ctx = None
         gc.collect()
     
     def step(self, t_end=0.0):

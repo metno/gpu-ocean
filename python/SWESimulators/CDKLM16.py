@@ -198,6 +198,7 @@ class CDKLM16(Simulator.Simulator):
         self.geoEq_Ly.release()
         self.bathymetry.release()
         self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
+        
         self.gpu_ctx = None
         gc.collect()
            

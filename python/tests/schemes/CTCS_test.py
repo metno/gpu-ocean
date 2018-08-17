@@ -52,7 +52,11 @@ class CTCStest(unittest.TestCase):
         self.eta0 = None
         self.u0 = None
         self.v0 = None
-        self.gpu_ctx = None
+
+        if self.gpu_ctx is not None:
+            self.assertEqual(sys.getrefcount(self.gpu_ctx), 2)
+            self.gpu_ctx = None
+
         gc.collect() # Force run garbage collection to free up memory       
 
             

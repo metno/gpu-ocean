@@ -52,7 +52,11 @@ class KP07test(unittest.TestCase):
         self.v0 = None
         self.Hi = None
         self.Bi = None
-        self.gpu_ctx = None
+
+        if self.gpu_ctx is not None:
+            self.assertEqual(sys.getrefcount(self.gpu_ctx), 2)
+            self.gpu_ctx = None
+        
         gc.collect() # Force run garbage collection to free up memory
         
 
