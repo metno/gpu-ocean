@@ -30,6 +30,7 @@ import abc
 from SWESimulators import CDKLM16
 from SWESimulators import GPUDrifterCollection
 from SWESimulators import Common
+from SWESimulators import WindStress
 from SWESimulators import DataAssimilationUtils as dautils
 
 
@@ -118,7 +119,7 @@ class BaseDrifterEnsemble(object):
     
     
     # IMPROVED
-    def setParameters(self, f=0, g=9.81, beta=0, r=0, wind=Common.WindStressParams(type=99)):
+    def setParameters(self, f=0, g=9.81, beta=0, r=0, wind=WindStress.WindStress()):
         self.g = g
         self.f = f
         self.beta = beta

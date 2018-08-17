@@ -99,7 +99,8 @@ class OceanStateNoise(object):
         self.random_numbers = Common.CUDAArray2D(self.gpu_stream, self.rand_nx, self.rand_ny, 0, 0, self.random_numbers_host)
         
         # Generate kernels
-        self.kernels = gpu_ctx.get_kernel("ocean_noise.cu", block_width, block_height)
+        self.kernels = gpu_ctx.get_kernel("ocean_noise.cu", \
+                                          defines={'block_width': block_width, 'block_height': block_height})
  
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.uniformDistributionKernel = self.kernels.get_function("uniformDistribution")

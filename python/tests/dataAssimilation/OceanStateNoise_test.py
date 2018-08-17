@@ -15,7 +15,7 @@ from SWESimulators.OceanStateNoise import *
 class OceanStateNoiseTest(unittest.TestCase):
 
     def setUp(self):
-        self.gpu_ctx = Common.CUDAContext(verbose=False)
+        self.gpu_ctx = Common.CUDAContext()
         self.gpu_stream = cuda.Stream()
         
         self.nx = 30

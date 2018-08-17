@@ -62,7 +62,8 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
                                                  2, self.getNumDrifters()+1, 0, 0, \
                                                  self.driftersHost)
         
-        self.drift_kernels = gpu_ctx.get_kernel("driftKernels.cu", self.block_width, self.block_height)
+        self.drift_kernels = gpu_ctx.get_kernel("driftKernels.cu", \
+                                                defines={'block_width': self.block_width, 'block_height': self.block_height})
 
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.passiveDrifterKernel = self.drift_kernels.get_function("passiveDrifterKernel")

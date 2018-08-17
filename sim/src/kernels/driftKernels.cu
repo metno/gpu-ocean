@@ -18,13 +18,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-//#include "../common.cu"
-#include "../config.h"
-
 
 /**
   * Kernel that evolves drifter positions along u and v.
   */
+extern "C" {
 __global__ void passiveDrifterKernel(
         //Discretization parameters
         int nx_, int ny_,
@@ -49,18 +47,15 @@ __global__ void passiveDrifterKernel(
 	float sensitivity_
     ) {
 
-    //Index of thread within block
+    //Index of thread within block (only needed in one dim)
     const int tx = threadIdx.x;
-    const int ty = threadIdx.y; // Should be 0
-    
-    //Index of block within domain
+        
+    //Index of block within domain (only needed in one dim)
     const int bx = blockDim.x * blockIdx.x;
-    const int by = blockDim.y * blockIdx.y;
-    
-    //Index of cell within domain
+        
+    //Index of cell within domain (only needed in one dim)
     const int ti = bx + tx;
-    const int tj = by + ty; // Should also be 0
-
+    
     if (ti < num_drifters_ + 1) {
 	// Obtain pointer to our particle:
 	float* drifter = (float*) ((char*) drifters_positions_ + drifters_pitch_*ti);
@@ -104,8 +99,10 @@ __global__ void passiveDrifterKernel(
 	drifter[1] = drifter_pos_y;
     }
 }
+} // extern "C"
+    
 
-
+extern "C" {
 __global__ void enforceBoundaryConditions(
         //domain parameters
 	float domain_size_x_, float domain_size_y_,
@@ -117,9 +114,8 @@ __global__ void enforceBoundaryConditions(
 	float* drifters_positions_, int drifters_pitch_
     ) {
     
-    //Index of drifter
+    //Index of drifter (only needed in one dimension)
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
-    const int tj = blockIdx.y * blockDim.y + threadIdx.y; // Should be 0
     
     if (ti < num_drifters_ + 1) {
 	// Obtain pointer to our particle:
@@ -146,4 +142,4 @@ __global__ void enforceBoundaryConditions(
 	drifter[1] = drifter_pos_y;
     }
 }
-
+} // extern "C"

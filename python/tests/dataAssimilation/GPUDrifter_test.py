@@ -17,7 +17,7 @@ class GPUDrifterTest(BaseDrifterTest):
 
     def setUp(self):
         super(GPUDrifterTest, self).setUp()
-        self.gpu_ctx = Common.CUDAContext(verbose=False)
+        self.gpu_ctx = Common.CUDAContext()
         
     def tearDown(self):
         super(GPUDrifterTest, self).tearDown()

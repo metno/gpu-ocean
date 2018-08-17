@@ -22,7 +22,7 @@ class DrifterEnsembleTest(BaseDrifterEnsembleTest):
     def setUp(self):
         super(DrifterEnsembleTest, self).setUp()
         
-        self.gpu_ctx = Common.CUDAContext(verbose=False)
+        self.gpu_ctx = Common.CUDAContext()
                 
     def tearDown(self):
         super(DrifterEnsembleTest, self).tearDown()

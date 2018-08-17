@@ -19,9 +19,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "common.cu"
-#include "../config.h"
-
-//#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
 /**
   *  Generates two uniform random numbers based on the ANSIC Linear Congruential 
@@ -70,6 +67,7 @@ __device__ float2 boxMuller(ulong* seed) {
 /**
   * Kernel that generates uniform random numbers.
   */
+extern "C" {
 __global__ void uniformDistribution(
         // Size of data
         int seed_nx_, int seed_ny_,        
@@ -106,11 +104,12 @@ __global__ void uniformDistribution(
         }
     }
 }
-
+} // extern "C"
 
 /**
   * Kernel that generates normal distributed random numbers with mean 0 and variance 1.
   */
+extern "C" {
 __global__ void normalDistribution(
         // Size of data
         int seed_nx_, int seed_ny_,
@@ -147,7 +146,7 @@ __global__ void normalDistribution(
         }
     }
 }
-
+} // extern "C"
 
 /**
   * Local function calculating the SOAR function given two grid locations
@@ -165,6 +164,7 @@ __device__ float soar_covariance(int a_x, int a_y, int b_x, int b_y,
   * Kernel that adds a perturbation to the input field eta.
   * The perturbation is based on a SOAR covariance function using a cut-off value of 2.
   */
+extern "C" {
 __global__ void perturbOcean(
         // Size of data
         int nx_, int ny_,
@@ -305,4 +305,4 @@ __global__ void perturbOcean(
         }
     }
 }
-
+} // extern "C"
