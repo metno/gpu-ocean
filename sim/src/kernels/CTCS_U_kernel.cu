@@ -21,8 +21,6 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "../config.h"
-
 #include "common.cu"
 
 
@@ -39,6 +37,7 @@ __device__ float linear_coriolis_term(const float f, const float beta,
 /**
   * Kernel that evolves U one step in time.
   */
+extern "C" {
 __global__ void computeUKernel(
         //Discretization parameters
         int nx_, int ny_,
@@ -63,9 +62,7 @@ __global__ void computeUKernel(
         float* V1_ptr_, int V1_pitch_, // V^n
     
         // Wind stress parameters
-        const wind_stress_params *wind_stress_,
-
-        float t_) {
+        float wind_stress_t_) {
         
     __shared__ float H_shared[block_height+2][block_width+1];
     __shared__ float eta1_shared[block_height+2][block_width+1];
@@ -246,7 +243,10 @@ __global__ void computeUKernel(
     float E = (U_p0 - U0 + U_m0)/(dx_*dx_) + (U_0p - U0 + U_0m)/(dy_*dy_);
     
     //Calculate the wind shear stress
-    float X = windStressX(wind_stress_, dx_, dy_, dt_, t_);
+    //FIXME Check coordinates (ti_, tj_) here!!!
+    //TODO Check coordinates (ti_, tj_) here!!!
+    //WARNING Check coordinates (ti_, tj_) here!!!
+    float X = windStressX(wind_stress_t_, ti, tj+0.5, nx_, ny_);
 
     // Finding the contribution from Coriolis
     float global_thread_y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -263,3 +263,4 @@ __global__ void computeUKernel(
         U0_row[ti] = U2;
     }
 }
+} //extern "C" 

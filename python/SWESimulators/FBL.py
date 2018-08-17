@@ -26,9 +26,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import gc
 
-import Common, SimWriter, SimReader
-import Simulator
-import WindStress
+from SWESimulators import Common, SimWriter, SimReader
+from SWESimulators import Simulator
+from SWESimulators import WindStress
    
 
 class FBL(Simulator.Simulator):
@@ -45,7 +45,7 @@ class FBL(Simulator.Simulator):
                  t=0.0, \
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
-                 wind_stress=WindStress.NoWindStress(), \
+                 wind_stress=WindStress.WindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
@@ -118,23 +118,27 @@ class FBL(Simulator.Simulator):
                                   ignore_ghostcells, \
                                   offset_x, offset_y, \
                                   block_width, block_height)
-        
-        
         self._set_interior_domain_from_sponge_cells()
         
         
         #Get kernels
-        self.u_kernel = gpu_ctx.get_kernel("FBL_U_kernel.cu", block_width, block_height)
-        self.v_kernel = gpu_ctx.get_kernel("FBL_V_kernel.cu", block_width, block_height)
-        self.eta_kernel = gpu_ctx.get_kernel("FBL_eta_kernel.cu", block_width, block_height)
+        self.u_kernel = gpu_ctx.get_kernel("FBL_U_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
+        self.v_kernel = gpu_ctx.get_kernel("FBL_V_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
+        self.eta_kernel = gpu_ctx.get_kernel("FBL_eta_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
 
-        # Get CUDA functions and define data types for prepared_{async_}call()
+        # Get CUDA functions 
         self.computeUKernel = self.u_kernel.get_function("computeUKernel")
-        self.computeUKernel.prepare("iiffffffffPiPiPiPiPf")
         self.computeVKernel = self.v_kernel.get_function("computeVKernel")
-        self.computeVKernel.prepare("iiffffffffPiPiPiPiPf")
         self.computeEtaKernel = self.eta_kernel.get_function("computeEtaKernel")
+        
+        # Prepare kernel lauches
+        self.computeUKernel.prepare("iiffffffffPiPiPiPif")
+        self.computeVKernel.prepare("iiffffffffPiPiPiPif")
         self.computeEtaKernel.prepare("iiffffffffPiPiPiPi")
+        
+        # Set up textures
+        self.update_wind_stress(self.u_kernel, self.computeUKernel)
+        self.update_wind_stress(self.v_kernel, self.computeVKernel)
         
         self.H = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H, self.asym_ghost_cells)
         self.gpu_data = Common.SWEDataArakawaC(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, self.asym_ghost_cells)
@@ -240,7 +244,7 @@ class FBL(Simulator.Simulator):
             self.bc_kernel.boundaryConditionEta(self.gpu_stream, self.gpu_data.h0)
             
 
-        for i in range(0, n):        
+        for i in range(0, n):
             local_dt = np.float32(min(self.dt, t_end-i*self.dt))
             
             #if self.totalNumIterations > 240:
@@ -251,6 +255,9 @@ class FBL(Simulator.Simulator):
 
             if (local_dt <= 0.0):
                 break
+                
+            self.update_wind_stress(self.u_kernel, self.computeUKernel)
+            wind_stress_t = np.float32(self.update_wind_stress(self.v_kernel, self.computeVKernel))
 
             self.computeUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                     self.nx_halo, self.ny, \
@@ -260,8 +267,7 @@ class FBL(Simulator.Simulator):
                     self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
                     self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
                     self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch, \
-                    self.wind_stress_dev, \
-                    self.t)
+                    wind_stress_t)
 
             # Fix U boundary
             self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu0)
@@ -274,8 +280,7 @@ class FBL(Simulator.Simulator):
                     self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
                     self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
                     self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch, \
-                    self.wind_stress_dev, \
-                    self.t)
+                    wind_stress_t)
 
             # Fix V boundary
             self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv0)
@@ -332,7 +337,7 @@ class FBL_periodic_boundary:
         
         # Load kernel for periodic boundary.
         self.periodicBoundaryKernel \
-            = gpu_ctx.get_kernel("FBL_periodic_boundary.cu", block_width, block_height)
+            = gpu_ctx.get_kernel("FBL_periodic_boundary.cu", defines={'block_width': block_width, 'block_height': block_height})
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.closedBoundaryUKernel = self.periodicBoundaryKernel.get_function("closedBoundaryUKernel")
         self.closedBoundaryUKernel.prepare("iiiiPi")
@@ -350,7 +355,7 @@ class FBL_periodic_boundary:
         self.periodicBoundaryEtaKernel.prepare("iiiiPi")
 
         # Reuse CTCS kernels for Flow Relaxation Scheme
-        self.CTCSBoundaryKernels = gpu_ctx.get_kernel("CTCS_boundary.cu", block_width, block_height)
+        self.CTCSBoundaryKernels = gpu_ctx.get_kernel("CTCS_boundary.cu", defines={'block_width': block_width, 'block_height': block_height})
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.boundary_flowRelaxationScheme_NS = self.CTCSBoundaryKernels.get_function("boundary_flowRelaxationScheme_NS")
         self.boundary_flowRelaxationScheme_NS.prepare("iiiiiiiiiiPi")
@@ -499,7 +504,7 @@ class FBL_periodic_boundary:
         
         if (self.bc_north == 3) or (self.bc_south ==3):
             self.boundary_flowRelaxationScheme_NS.prepared_async_call( \
-                self.global_size, self.local_size, self.gpu_stream, \
+                self.global_size, self.local_size, gpu_stream, \
                 self.nx, self.ny, \
                 self.ghostsX, self.ghostsY, \
                 staggered_x_int32, staggered_y_int32, \
@@ -510,7 +515,7 @@ class FBL_periodic_boundary:
 
         if (self.bc_east == 3) or (self.bc_west == 3):
             self.boundary_flowRelaxationScheme_EW.prepared_async_call( \
-                self.global_size, self.local_size, self.gpu_stream, \
+                self.global_size, self.local_size, gpu_stream, \
                 self.nx, self.ny, \
                 self.ghostsX, self.ghostsY, \
                 staggered_x_int32, staggered_y_int32, \

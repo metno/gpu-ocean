@@ -29,18 +29,37 @@ import numpy as np
 import time
 import abc
 
-import CDKLM16
-import GPUDrifterCollection
-import BaseOceanStateEnsemble
-import Common
-import DataAssimilationUtils as dautils
+from SWESimulators import CDKLM16
+from SWESimulators import GPUDrifterCollection
+from SWESimulators import BaseOceanStateEnsemble
+from SWESimulators import Common
+from SWESimulators import DataAssimilationUtils as dautils
 
-reload(BaseOceanStateEnsemble)
+try:
+    from importlib import reload
+except:
+    pass
+
+reload(SWESimulators.BaseOceanStateEnsemble)
 class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
     
     def init(self, driftersPerOceanModel=1):
         self.driftersPerOceanModel = driftersPerOceanModel
+        
+        # Define mid-points for the different drifters 
+        # Decompose the domain, so that we spread the drifters as much as possible
+        sub_domains_y = np.int(np.round(np.sqrt(self.driftersPerOceanModel)))
+        sub_domains_x = np.int(np.ceil(1.0*self.driftersPerOceanModel/sub_domains_y))
+        self.midPoints = np.empty((driftersPerOceanModel, 2))
+        for sub_y in range(sub_domains_y):
+            for sub_x in range(sub_domains_x):
+                drifter_id = sub_y*sub_domains_x + sub_x
+                if drifter_id >= self.driftersPerOceanModel:
+                    break
+                self.midPoints[drifter_id, 0]  = (sub_x + 0.5)*self.nx*self.dx/sub_domains_x
+                self.midPoints[drifter_id, 1]  = (sub_y + 0.5)*self.ny*self.dy/sub_domains_y
+              
         
         for i in range(self.numParticles+1):
             self.particles[i] = CDKLM16.CDKLM16(self.cl_ctx, \
@@ -56,18 +75,14 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             if self.initialization_variance_factor_ocean_field != 0.0:
                 self.particles[i].perturbState(q0_scale=self.initialization_variance_factor_ocean_field)
             
-            if i == self.numParticles:
-                # All particles done, only the observation is left,
-                # and for the observation we only use one drifter, regardless of the
-                # number in the other particles.
-                driftersPerOceanModel = 1
-            
             drifters = GPUDrifterCollection.GPUDrifterCollection(self.cl_ctx, driftersPerOceanModel,
                                              observation_variance=self.observation_variance,
                                              boundaryConditions=self.boundaryConditions,
                                              domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
             
-            initPos = np.random.multivariate_normal(self.midPoint, self.initialization_cov_drifters, driftersPerOceanModel)
+            initPos = np.empty((self.driftersPerOceanModel, 2))
+            for d in range(self.driftersPerOceanModel):
+                initPos[d,:] = np.random.multivariate_normal(self.midPoints[d,:], self.initialization_cov_drifters)
             drifters.setDrifterPositions(initPos)
             #print "drifter particles: ", drifter.getParticlePositions()
             #print "drifter observations: ", drifter.getObservationPosition()
@@ -91,7 +106,8 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         for i in range(self.getNumParticles()):
             index = newSampleIndices[i]
             #print "(particle no, position, old direction, new direction): "
-            if self.observation_type == dautils.ObservationType.UnderlyingFlow:
+            if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
+               self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
                 newPos[:,:] = obsTrueDrifter
             else:
                 # Copy the drifter position from the particle that is resampled

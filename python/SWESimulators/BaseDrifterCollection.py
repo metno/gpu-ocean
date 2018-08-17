@@ -26,8 +26,8 @@ import numpy as np
 import time
 import abc
 
-import Common
-import DataAssimilationUtils as dautils
+from SWESimulators import Common
+from SWESimulators import DataAssimilationUtils as dautils
 
 class BaseDrifterCollection(object):    
     """

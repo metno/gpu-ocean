@@ -17,6 +17,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+
 //#include "../common.cu"
 #include "../config.h"
 
@@ -29,8 +30,8 @@ __global__ void passiveDrifterKernel(
         int nx_, int ny_,
         float dx_, float dy_, float dt_,
 
-	float x_zero_reference_cell_, // the cell column representing x0 (x0 at western face)
-	float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
+	int x_zero_reference_cell_, // the cell column representing x0 (x0 at western face)
+	int y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
 	
 	// Data
         float* eta_ptr_, int eta_pitch_,
@@ -94,7 +95,7 @@ __global__ void passiveDrifterKernel(
 	if (periodic_north_south_ && (drifter_pos_y < 0)) {
 	    drifter_pos_y += ny_*dy_;
 	}
-	if (periodic_north_south_ && (drifter_pos_y > nx_*dx_)) {
+	if (periodic_north_south_ && (drifter_pos_y > ny_*dy_)) {
 	    drifter_pos_y -= ny_*dy_;
 	}
 

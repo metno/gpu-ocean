@@ -54,7 +54,7 @@ class CUDAArray2DTest(unittest.TestCase):
         
     def tearDown(self):
         if self.tests_failed:
-            print "Device name: " + self.device_name
+            print("Device name: " + self.device_name)
         if not self.explicit_free:
             self.cudaarray.release()
         if self.double_cudaarray is not None:

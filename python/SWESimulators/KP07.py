@@ -28,9 +28,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import gc
 
-import Common, SimWriter, SimReader
-import Simulator
-import WindStress
+from SWESimulators import Common, SimWriter, SimReader
+from SWESimulators import Simulator
+from SWESimulators import WindStress
 
 class KP07(Simulator.Simulator):
     """
@@ -47,7 +47,7 @@ class KP07(Simulator.Simulator):
                  theta=1.3, use_rk2=True,
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
-                 wind_stress=WindStress.NoWindStress(), \
+                 wind_stress=WindStress.WindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
@@ -127,11 +127,12 @@ class KP07(Simulator.Simulator):
         self._set_interior_domain_from_sponge_cells()
         
         #Get kernels
-        self.kp07_kernel = gpu_ctx.get_kernel("KP07_kernel.cu", block_width, block_height)
+        self.kp07_kernel = gpu_ctx.get_kernel("KP07_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.swe_2D = self.kp07_kernel.get_function("swe_2D")
-        self.swe_2D.prepare("iifffffffffiPiPiPiPiPiPiPiPiPiiiif")
+        self.swe_2D.prepare("iifffffffffiPiPiPiPiPiPiPiPiiiiif")
+        self.update_wind_stress(self.kp07_kernel, self.swe_2D)
         
         #Create data by uploading to device    
         self.gpu_data = Common.SWEDataArakawaA(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
@@ -242,6 +243,8 @@ class KP07(Simulator.Simulator):
         for i in range(0, n):        
             local_dt = np.float32(min(self.dt, t_end-i*self.dt))
             
+            wind_stress_t = np.float32(self.update_wind_stress(self.kp07_kernel, self.swe_2D))
+            
             if (local_dt <= 0.0):
                 break
         
@@ -264,9 +267,8 @@ class KP07(Simulator.Simulator):
                         self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch, \
                         self.bathymetry.Bi.data.gpudata, self.bathymetry.Bi.pitch, \
                         self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
-                        self.wind_stress_dev, \
                         self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
-                        self.t)
+                        wind_stress_t)
                 
                 self.bc_kernel.boundaryCondition(self.gpu_stream, \
                         self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1)
@@ -289,9 +291,8 @@ class KP07(Simulator.Simulator):
                         self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
                         self.bathymetry.Bi.data.gpudata, self.bathymetry.Bi.pitch, \
                         self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
-                        self.wind_stress_dev, \
                         self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
-                        self.t)
+                        wind_stress_t)
                 
                 self.bc_kernel.boundaryCondition(self.gpu_stream, \
                         self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0) 
@@ -314,9 +315,8 @@ class KP07(Simulator.Simulator):
                         self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch, \
                         self.bathymetry.Bi.data.gpudata, self.bathymetry.Bi.pitch, \
                         self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
-                        self.wind_stress_dev, \
                         self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
-                        self.t)
+                        wind_stress_t)
                 self.gpu_data.swap()
                 self.bc_kernel.boundaryCondition(self.gpu_stream, \
                         self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)

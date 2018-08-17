@@ -26,8 +26,8 @@ import numpy as np
 import time
 import pycuda.driver as cuda
 
-import Common
-import BaseDrifterCollection
+from SWESimulators import Common
+from SWESimulators import BaseDrifterCollection
 
 class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
     def __init__(self, gpu_ctx, numDrifters, \
@@ -127,7 +127,6 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
     def drift(self, eta, hu, hv, H0, nx, ny, dx, dy, dt, \
               x_zero_ref, y_zero_ref):
         
-        #print "Calling drift with global_size " + str(self.global_size)
         self.passiveDrifterKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                                                nx, ny, dx, dy, dt, x_zero_ref, y_zero_ref, \
                                                eta.data.gpudata, eta.pitch, \

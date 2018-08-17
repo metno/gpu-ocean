@@ -2,17 +2,19 @@ import unittest
 import time
 import numpy as np
 import sys
+import os
 import gc
 
 from testUtils import *
 
-sys.path.insert(0, '../')
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')))
+
 from SWESimulators import Common, KP07
 
 class KP07test(unittest.TestCase):
 
     def setUp(self):
-        self.gpu_ctx = Common.CUDAContext(verbose=False)
+        self.gpu_ctx = Common.CUDAContext()
         
         self.nx = 50
         self.ny = 70

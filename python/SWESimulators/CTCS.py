@@ -27,9 +27,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import gc
 
-import Common, SimWriter, SimReader
-import Simulator
-import WindStress
+from SWESimulators import Common, SimWriter, SimReader
+from SWESimulators import Simulator
+from SWESimulators import WindStress
 
 import time
 
@@ -47,7 +47,7 @@ class CTCS(Simulator.Simulator):
                  t=0.0, \
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
-                 wind_stress=WindStress.NoWindStress(), \
+                 wind_stress=WindStress.WindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
@@ -120,17 +120,23 @@ class CTCS(Simulator.Simulator):
         self._set_interior_domain_from_sponge_cells()
 
         #Get kernels
-        self.u_kernel = gpu_ctx.get_kernel("CTCS_U_kernel.cu", block_width, block_height)
-        self.v_kernel = gpu_ctx.get_kernel("CTCS_V_kernel.cu", block_width, block_height)
-        self.eta_kernel = gpu_ctx.get_kernel("CTCS_eta_kernel.cu", block_width, block_height)
+        self.u_kernel = gpu_ctx.get_kernel("CTCS_U_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
+        self.v_kernel = gpu_ctx.get_kernel("CTCS_V_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
+        self.eta_kernel = gpu_ctx.get_kernel("CTCS_eta_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
         
-        # Get CUDA functions and define data types for prepared_{async_}call()
+        # Get CUDA functions 
         self.computeUKernel = self.u_kernel.get_function("computeUKernel")
-        self.computeUKernel.prepare("iiiifffffffffPiPiPiPiPiPf")
         self.computeVKernel = self.v_kernel.get_function("computeVKernel")
-        self.computeVKernel.prepare("iiiifffffffffPiPiPiPiPiPf")
         self.computeEtaKernel = self.eta_kernel.get_function("computeEtaKernel")
+        
+        # Prepare kernel lauches
+        self.computeUKernel.prepare("iiiifffffffffPiPiPiPiPif")
+        self.computeVKernel.prepare("iiiifffffffffPiPiPiPiPif")
         self.computeEtaKernel.prepare("iiffffffffPiPiPi")
+        
+        # Set up textures
+        self.update_wind_stress(self.u_kernel, self.computeUKernel)
+        self.update_wind_stress(self.v_kernel, self.computeVKernel)
         
         #Create data by uploading to device     
         self.H = Common.CUDAArray2D(self.gpu_stream, nx, ny, halo_x, halo_y, H)
@@ -253,6 +259,10 @@ class CTCS(Simulator.Simulator):
             
             if (local_dt <= 0.0):
                 break
+                
+            
+            self.update_wind_stress(self.u_kernel, self.computeUKernel)
+            wind_stress_t = np.float32(self.update_wind_stress(self.v_kernel, self.computeVKernel))
             
             self.computeEtaKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                     self.nx, self.ny, \
@@ -275,8 +285,7 @@ class CTCS(Simulator.Simulator):
                     self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch,    # U^{n-1} => U^{n+1} \
                     self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch,    # U^{n} \
                     self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch,    # V^{n} \
-                    self.wind_stress_dev, \
-                    self.t)
+                    wind_stress_t)
 
             self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu0)
             
@@ -291,8 +300,7 @@ class CTCS(Simulator.Simulator):
                     self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch,   # U^{n} \
                     self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch,   # V^{n-1} => V^{n+1} \
                     self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch,   # V^{n} \
-                    self.wind_stress_dev, \
-                    self.t)
+                    wind_stress_t)
 
             self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv0)
             
@@ -327,7 +335,7 @@ class CTCS_boundary_condition:
         self.ny_halo = np.int32(ny + 2*halo_y)
 
         # Load kernel for periodic boundary
-        self.boundaryKernels = gpu_ctx.get_kernel("CTCS_boundary.cu", block_width, block_height)
+        self.boundaryKernels = gpu_ctx.get_kernel("CTCS_boundary.cu", defines={'block_width': block_width, 'block_height': block_height})
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.boundaryUKernel_NS = self.boundaryKernels.get_function("boundaryUKernel_NS")

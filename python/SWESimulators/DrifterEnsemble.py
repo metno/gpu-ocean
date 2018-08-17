@@ -27,11 +27,11 @@ import numpy as np
 import time
 import abc
 
-import CDKLM16
-import GPUDrifterCollection
-import Common
-import DataAssimilationUtils as dautils
-import BaseDrifterEnsemble
+from SWESimulators import CDKLM16
+from SWESimulators import GPUDrifterCollection
+from SWESimulators import Common
+from SWESimulators import DataAssimilationUtils as dautils
+from SWESimulators import BaseDrifterEnsemble
 
 
 class DrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):

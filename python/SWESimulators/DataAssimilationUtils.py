@@ -25,7 +25,7 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import time
 
-import Common
+from SWESimulators import Common
 
 class ObservationType:
     """
@@ -33,11 +33,13 @@ class ObservationType:
     """
     DrifterPosition = 1
     UnderlyingFlow = 2
+    DirectUnderlyingFlow = 3
     
     @staticmethod
     def _assert_valid(obs_type):
         assert(obs_type == ObservationType.DrifterPosition or \
-               obs_type == ObservationType.UnderlyingFlow), \
+               obs_type == ObservationType.UnderlyingFlow or \
+               obs_type == ObservationType.DirectUnderlyingFlow), \
         'Provided observation type ' + str(ot) + ' is invalid'
 
 

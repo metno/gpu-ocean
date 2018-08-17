@@ -21,8 +21,6 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "../config.h"
-
 #include "common.cu"
 
 // Boundary conditions are defined as
@@ -32,6 +30,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // 4: Open (Linear interpolation)
 
  // Fix north-south boundary before east-west (to get the corners right)
+ extern "C" {
 __global__ void boundaryEtaKernel_NS(
 	// Discretization parameters
         int nx_, int ny_,
@@ -60,8 +59,10 @@ __global__ void boundaryEtaKernel_NS(
     }
     // TODO: USE HALO PARAMS
 }
-
+} // extern "C"
+        
 // Fix north-south boundary before east-west (to get the corners right)
+extern "C" {
 __global__ void boundaryEtaKernel_EW(
 	// Discretization parameters
         int nx_, int ny_,
@@ -88,8 +89,10 @@ __global__ void boundaryEtaKernel_EW(
     }
     // TODO: USE HALO PARAMS
 }
+} // extern "C"
 
 // NS need to be called before EW!
+extern "C" {
 __global__ void boundaryUKernel_NS(
         // Discretization parameters
         int nx_, int ny_,
@@ -121,7 +124,9 @@ __global__ void boundaryUKernel_NS(
 	}
     } 
 }
+} // extern "C"
 
+extern "C" {
 __global__ void boundaryUKernel_EW(
         // Discretization parameters
         int nx_, int ny_,
@@ -157,10 +162,11 @@ __global__ void boundaryUKernel_EW(
 	}
     }
 }
-
+} // extern "C"
 
 
 // NS need to be called before EW!
+extern "C" {
 __global__ void boundaryVKernel_NS(
         // Discretization parameters
         int nx_, int ny_,
@@ -196,7 +202,9 @@ __global__ void boundaryVKernel_NS(
 	}
     }
 }
+} // extern "C"
 
+extern "C" {
 __global__ void boundaryVKernel_EW(
         // Discretization parameters
         int nx_, int ny_,
@@ -227,8 +235,9 @@ __global__ void boundaryVKernel_EW(
 	}
     }
 }
+} // extern "C" 
 
-
+extern "C" {
 __global__ void boundary_linearInterpol_NS(
 	// Discretization parameters
         int nx_, int ny_,
@@ -277,9 +286,10 @@ __global__ void boundary_linearInterpol_NS(
 	    target_row_ptr[ti] = outer_value + ratio*(inner_value - outer_value);
 	}
 }
+} // extern "C"
 
 
-
+extern "C" {
 __global__ void boundary_linearInterpol_EW(
 	// Discretization parameters
         int nx_, int ny_,
@@ -327,10 +337,10 @@ __global__ void boundary_linearInterpol_EW(
 	    data_row[ti] = outer_value + ratio*(inner_value - outer_value);
 	}
 }
+} // extern "C"
 
 
-
-
+extern "C" {
 __global__ void boundary_flowRelaxationScheme_NS(
 	// Discretization parameters
         int nx_, int ny_,
@@ -375,8 +385,10 @@ __global__ void boundary_flowRelaxationScheme_NS(
 	    target_row_ptr[ti] = (1.0f - alpha)*target_row_ptr[ti] + alpha*exterior_value;
 	}
 }
+} // extern "C" 
 
 
+extern "C" {
 __global__ void boundary_flowRelaxationScheme_EW(
 	// Discretization parameters
         int nx_, int ny_,
@@ -420,3 +432,4 @@ __global__ void boundary_flowRelaxationScheme_EW(
 	    data_row[ti] = (1.0f - alpha)*data_row[ti] + alpha*exterior_value;
 	}
 }
+} // extern "C"

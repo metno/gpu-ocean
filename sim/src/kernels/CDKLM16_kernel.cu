@@ -22,7 +22,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "common.cu"
-#include "../config.h"
 
 // Finds the coriolis term based on the linear Coriolis force
 // f = \tilde{f} + beta*(y-y0)
@@ -91,7 +90,7 @@ __device__ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
 
 
 
-
+extern "C" {
 __global__ void swe_2D(
         int nx_, int ny_,
         float dx_, float dy_, float dt_,
@@ -123,21 +122,18 @@ __global__ void swe_2D(
         float* Hm_ptr_, int Hm_pitch_,
 	
         //Wind stress parameters
-        const wind_stress_params *wind_stress_,
-	
-        float t_, 
+        float wind_stress_t_,
     
         // Boundary conditions (1: wall, 2: periodic, 3: open boundary (flow relaxation scheme))
         int bc_north_, int bc_east_, int bc_south_, int bc_west_,
 
-	// Geostrophic Equilibrium memory buffers
-	// The buffers have the same size as input/output
-	int report_geostrophical_equilibrium,
-	float* uxpvy_ptr_, int uxpvy_pitch_,
-	float* Kx_ptr_, int Kx_pitch_,
-	float* Ly_ptr_, int Ly_pitch_
-
-    ) {
+        // Geostrophic Equilibrium memory buffers
+        // The buffers have the same size as input/output
+        int report_geostrophical_equilibrium,
+        float* uxpvy_ptr_, int uxpvy_pitch_,
+        float* Kx_ptr_, int Kx_pitch_,
+        float* Ly_ptr_, int Ly_pitch_) {
+    
         
     //Index of thread within block
     const int tx = threadIdx.x;
@@ -493,18 +489,18 @@ __global__ void swe_2D(
         const int i = tx + 2; //Skip local ghost cells, i.e., +2
         const int j = ty + 2;
         
-        const float X = windStressX(wind_stress_, dx_, dy_, dt_, t_);
-        const float Y = windStressY(wind_stress_, dx_, dy_, dt_, t_);
+        const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
+        const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
 
-	// Bottom topography source terms!
-	// -g*(eta + H)*(-1)*dH/dx   * dx
-	const float st1 = g_*(R[0][j][i] + Hm[j][i])*(RHx[ty  ][tx+1] - RHx[ty][tx]);
-	const float st2 = g_*(R[0][j][i] + Hm[j][i])*(RHy[ty+1][tx  ] - RHy[ty][tx]);
+        // Bottom topography source terms!
+        // -g*(eta + H)*(-1)*dH/dx   * dx
+        const float st1 = g_*(R[0][j][i] + Hm[j][i])*(RHx[ty  ][tx+1] - RHx[ty][tx]);
+        const float st2 = g_*(R[0][j][i] + Hm[j][i])*(RHy[ty+1][tx  ] - RHy[ty][tx]);
 
-	// Coriolis parameter
-	float global_thread_y = tj-2; // Global id including ghost cells
-	float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
-						dy_, y_zero_reference_cell_);
+        // Coriolis parameter
+        float global_thread_y = tj-2; // Global id including ghost cells
+        float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+                            dy_, y_zero_reference_cell_);
 	
         const float L1  = - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_ 
 	                  - (G[0][ty+1][tx  ] - G[0][ty][tx]) / dy_;
@@ -631,3 +627,6 @@ __global__ void swe_2D(
 	
     
 }
+
+}
+

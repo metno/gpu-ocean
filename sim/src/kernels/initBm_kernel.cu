@@ -26,6 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * Grid (including ghost cells) of nx by ny cells, and 
  * nx+1 by ny+1 intersections.
  */
+extern "C" {
 __global__ void initBm(const int nx_, const int ny_,
 	    float* Bi_ptr_, int Bi_pitch_,
 	    float* Bm_ptr_, int Bm_pitch_ ) {
@@ -68,11 +69,14 @@ __global__ void initBm(const int nx_, const int ny_,
 	Bm_row[ti] = 0.25f*(Bi[ty][tx] + Bi[ty+1][tx] + Bi[ty][tx+1] + Bi[ty+1][tx+1]);
     }
 }
+} // extern "C"
+
 
 /**
  *  Kernel for changing water elevation to water depth (e.g. for CDKLM16)
  *  (nx, ny) is the size of domain **including** ghost cells.
  */
+extern "C" {
 __global__ void waterElevationToDepth(const int nx_, const int ny_,
 				    float* h_ptr_, int h_pitch_,
 				    float* Bm_ptr_, int Bm_pitch_ ) {
@@ -88,12 +92,14 @@ __global__ void waterElevationToDepth(const int nx_, const int ny_,
     }
     
 }
+} // extern "C"
 
 
 /**
  *  Kernel for changing water elevation to water depth (e.g. for CDKLM16)
  *  (nx, ny) is the size of domain **including** ghost cells.
  */
+extern "C" {
 __global__ void waterDepthToElevation(const int nx_, const int ny_,
 				    float* w_ptr_, int w_pitch_,
 				    float* h_ptr_, int h_pitch_,
@@ -112,3 +118,4 @@ __global__ void waterDepthToElevation(const int nx_, const int ny_,
     }
     
 }
+} // extern "C" 

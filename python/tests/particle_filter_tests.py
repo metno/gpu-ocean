@@ -17,10 +17,9 @@ def printSupportedTests():
     print ("0: All, 1: CPUDrifter, 2: GPUDrifter, 3: DrifterEnsembleTest, "
            + "4: CPUDrifterEnsembleTest")
 
-
 if (len(sys.argv) < 2):
-    print ("Usage:")
-    print ("\t %s tests  [jenkins]" % sys.argv[0])
+    print("Usage:")
+    print("\t %s tests  [jenkins]" % sys.argv[0])
     printSupportedTests()
     exit()
 tests = int(sys.argv[1])
@@ -49,7 +48,7 @@ elif tests == 3:
 elif tests == 4:
     test_classes_to_run = [CPUDrifterEnsembleTest]
 else:
-    print ("Error: " + str(tests) + " is not a supported test number...")
+    print("Error: " + str(tests) + " is not a supported test number...")
     printSupportedTests()
     exit()
 

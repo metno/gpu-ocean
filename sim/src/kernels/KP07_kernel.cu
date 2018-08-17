@@ -23,7 +23,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "common.cu"
-#include "../config.h"
 
 // Finds the coriolis term based on the linear Coriolis force
 // f = \tilde{f} + beta*(y-y0)
@@ -215,6 +214,7 @@ __device__ void init_H_with_garbage(float Hi[block_height+4][block_width+4],
 /**
   * This unsplit kernel computes the 2D numerical scheme with a TVD RK2 time integration scheme
   */
+extern "C" {
 __global__ void swe_2D(
         int nx_, int ny_,
         float dx_, float dy_, float dt_,
@@ -243,14 +243,11 @@ __global__ void swe_2D(
         // Depth at cell intersections (i) and mid-points (m)
         float* Hi_ptr_, int Hi_pitch_,
         float* Hm_ptr_, int Hm_pitch_,
-        
-        //Wind stress parameters
-        const wind_stress_params *wind_stress_,
 
         // Boundary conditions (1: wall, 2: periodic, 3: numerical sponge)
         int bc_north_, int bc_east_, int bc_south_, int bc_west_,
 	
-        float t_) {
+        float wind_stress_t_) {
         
     //Index of thread within block
     const int tx = threadIdx.x;
@@ -335,8 +332,8 @@ __global__ void swe_2D(
 	const float ST2 = bottomSourceTerm2(Q, Qx, RHx, g_, i, j);
 	const float ST3 = bottomSourceTerm3(Q, Qy, RHy, g_, i, j);
 	
-	const float X = windStressX(wind_stress_, dx_, dy_, dt_, t_);
-	const float Y = windStressY(wind_stress_, dx_, dy_, dt_, t_);
+    const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
+    const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
 
 	
 	// Coriolis parameter
@@ -391,3 +388,4 @@ __global__ void swe_2D(
         }
     }
 }
+} // extern "C"

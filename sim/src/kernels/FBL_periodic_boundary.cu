@@ -22,7 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "common.cu"
 
-
+extern "C" {
 __global__ void closedBoundaryUKernel(
         // Discretization parameters
         int nx_, int ny_,
@@ -42,7 +42,9 @@ __global__ void closedBoundaryUKernel(
         U_row[ti] = 0.0f;
     }    
 }
+} // extern "C" 
 
+extern "C" {
 __global__ void periodicBoundaryUKernel(
         // Discretization parameters
         int nx_, int ny_,
@@ -62,7 +64,9 @@ __global__ void periodicBoundaryUKernel(
         U_row[0] = U_row[nx_];
     }
 }
+} // extern "C" 
 
+extern "C" {
 __global__ void updateGhostCellsUKernel(
         // Discretization parameters
         int nx_, int ny_,
@@ -84,8 +88,9 @@ __global__ void updateGhostCellsUKernel(
     }
       
 }
+} // extern "C" 
 
-
+extern "C" {
 __global__ void periodicBoundaryVKernel(
         // Discretization parameters
         int nx_, int ny_,
@@ -106,7 +111,10 @@ __global__ void periodicBoundaryVKernel(
         V_lower_boundary[ti] = V_top_row[ti];
     }
 }
+} // extern "C" {
 
+
+extern "C" {
 __global__ void closedBoundaryVKernel(
         // Discretization parameters
         int nx_, int ny_,
@@ -126,9 +134,10 @@ __global__ void closedBoundaryVKernel(
         V_row[ti] = 0.0f;
     }    
 }
+} // extern "C" 
 
 
-    
+extern "C" {
 __global__ void updateGhostCellsVKernel(
         // Discretization parameters
         int nx_, int ny_,
@@ -148,8 +157,10 @@ __global__ void updateGhostCellsVKernel(
         V_row[nx_] = V_row[0];
     }
 }
+} // extern "C" 
 
 
+extern "C" {
 __global__ void periodicBoundaryEtaKernel(
         // Discretization parameters
         int nx_, int ny_,
@@ -177,3 +188,4 @@ __global__ void periodicBoundaryEtaKernel(
         eta_row[ti] = eta_row[0];
     }
 }
+} // extern "C"

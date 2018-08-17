@@ -25,8 +25,8 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import time
 
-import Common
-import BaseDrifterCollection
+from SWESimulators import Common
+from SWESimulators import BaseDrifterCollection
 
 class CPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
     """

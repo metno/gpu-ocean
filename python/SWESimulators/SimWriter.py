@@ -44,7 +44,7 @@ class SimNetCDFWriter:
                  offset_x=0, offset_y=0):
 
         # OpenCL queue:
-        self.cl_queue = sim.cl_queue
+        self.gpu_stream = sim.gpu_stream
 
         # Write options:
         self.ignore_ghostcells = ignore_ghostcells
@@ -75,9 +75,9 @@ class SimNetCDFWriter:
         
         self.dt = sim.dt
         if self.staggered_grid:
-            self.H = sim.H.download(self.cl_queue)
+            self.H = sim.H.download(self.gpu_stream)
         else:
-            self.H = sim.bathymetry.download(self.cl_queue)[0] # Hi
+            self.H = sim.bathymetry.download(self.gpu_stream)[0] # Hi
         
         if (sim.__class__.__name__ == "KP07"):
             if (sim.use_rk2):
@@ -337,7 +337,7 @@ class SimNetCDFWriter:
         
         
     def __exit__(self, exc_type, exc_value, traceback):
-        print "Closing file " + self.output_file_name +" ..." 
+        print("Closing file " + self.output_file_name + " ...")
         self.ncfile.close()
         
         
