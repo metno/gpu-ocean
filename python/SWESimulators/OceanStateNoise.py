@@ -133,6 +133,7 @@ class OceanStateNoise(object):
             self.seed.release()
         if self.random_numbers is not None:
             self.random_numbers.release()
+        self.gpu_ctx = None
         gc.collect()
         
     @classmethod

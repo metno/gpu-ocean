@@ -74,7 +74,10 @@ class OceanStateNoiseTest(unittest.TestCase):
             self.hv.release()
         if self.H is not None:
             self.H.release()
-        self.gpu_ctx = None
+        if self.gpu_ctx is not None:
+            self.assertEqual(sys.getrefcount(self.gpu_ctx), 2)
+            self.gpu_ctx = None
+   
         gc.collect()
             
     def create_noise(self):

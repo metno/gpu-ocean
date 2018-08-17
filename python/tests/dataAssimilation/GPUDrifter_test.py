@@ -21,6 +21,9 @@ class GPUDrifterTest(BaseDrifterTest):
         
     def tearDown(self):
         super(GPUDrifterTest, self).tearDown()
+        if self.gpu_ctx is not None:
+            self.assertEqual(sys.getrefcount(self.gpu_ctx), 2)
+            self.gpu_ctx = None
         gc.collect()
         
     def create_small_drifter_set(self):

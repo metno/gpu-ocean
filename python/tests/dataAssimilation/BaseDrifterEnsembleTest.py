@@ -3,7 +3,6 @@ import time
 import numpy as np
 import sys
 import gc
-import pyopencl
 
 import abc
 
@@ -39,7 +38,7 @@ class BaseDrifterEnsembleTest(unittest.TestCase):
         self.smallParticleSet = None
         # to be initialized by child class with above values
         
-        self.cl_ctx = None
+        self.gpu_ctx = None
         
         self.smallPositionSetHost = np.array( [[0.9, 0.9], [0.9, 0.1],
                                                [0.1, 0.9], [0.1, 0.1]])
@@ -65,8 +64,13 @@ class BaseDrifterEnsembleTest(unittest.TestCase):
             self.smallParticleSet.cleanUp()
         if self.resamplingParticleSet is not None:
             self.resamplingParticleSet.cleanUp()
-        self.cl_ctx = None
-            
+
+        if self.gpu_ctx is not None:
+            self.assertEqual(sys.getrefcount(self.gpu_ctx), 2)
+        
+        self.gpu_ctx = None
+        gc.collect()
+        
     ### set observation and particle positions to the test cases
     def set_positions_small_set(self):
         self.create_small_particle_set()

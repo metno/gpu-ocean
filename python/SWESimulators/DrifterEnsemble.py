@@ -66,4 +66,10 @@ class DrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
         self.drifters.initializeUniform()
         self.sim.attachDrifters(self.drifters)
     
-   
+    def cleanUp(self):
+        if self.sim is not None:
+            self.sim.cleanUp()
+        if self.drifters is not None:
+            self.drifters.cleanUp()
+        self.gpu_ctx = None
+        

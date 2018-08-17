@@ -25,6 +25,8 @@ class BaseDrifterTest(unittest.TestCase):
         super(BaseDrifterTest, cls).setUpClass()
     
     def setUp(self):
+        self.gpu_ctx = None
+        
         self.numDrifters = 3
         self.observationVariance = 0.25
         self.boundaryCondition = Common.BoundaryConditions(2,2,2,2)
