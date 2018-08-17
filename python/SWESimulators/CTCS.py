@@ -124,20 +124,19 @@ class CTCS(Simulator.Simulator):
         self.v_kernel = gpu_ctx.get_kernel("CTCS_V_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
         self.eta_kernel = gpu_ctx.get_kernel("CTCS_eta_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
         
-        
         # Get CUDA functions 
         self.computeUKernel = self.u_kernel.get_function("computeUKernel")
         self.computeVKernel = self.v_kernel.get_function("computeVKernel")
         self.computeEtaKernel = self.eta_kernel.get_function("computeEtaKernel")
         
         # Prepare kernel lauches
-        self.computeUKernel.prepare("iiiifffffffffPiPiPiPiPif")#, texrefs=self.u_kernel_texrefs)        
-        self.computeVKernel.prepare("iiiifffffffffPiPiPiPiPif")#, texrefs=self.v_kernel_texrefs)
+        self.computeUKernel.prepare("iiiifffffffffPiPiPiPiPif")
+        self.computeVKernel.prepare("iiiifffffffffPiPiPiPiPif")
         self.computeEtaKernel.prepare("iiffffffffPiPiPi")
         
         # Set up textures
-        self.setup_wind_stress(self.u_kernel, self.computeUKernel)
-        self.setup_wind_stress(self.v_kernel, self.computeVKernel)
+        self.update_wind_stress(self.u_kernel, self.computeUKernel)
+        self.update_wind_stress(self.v_kernel, self.computeVKernel)
         
         #Create data by uploading to device     
         self.H = Common.CUDAArray2D(self.gpu_stream, nx, ny, halo_x, halo_y, H)
@@ -261,8 +260,8 @@ class CTCS(Simulator.Simulator):
                 break
                 
             
-            self.setup_wind_stress(self.u_kernel, self.computeUKernel)
-            wind_stress_t = self.setup_wind_stress(self.v_kernel, self.computeVKernel)
+            self.update_wind_stress(self.u_kernel, self.computeUKernel)
+            wind_stress_t = np.float32(self.update_wind_stress(self.v_kernel, self.computeVKernel))
             
             self.computeEtaKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                     self.nx, self.ny, \
@@ -285,7 +284,7 @@ class CTCS(Simulator.Simulator):
                     self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch,    # U^{n-1} => U^{n+1} \
                     self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch,    # U^{n} \
                     self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch,    # V^{n} \
-                    np.float32(wind_stress_t))
+                    wind_stress_t)
 
             self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu0)
             
@@ -300,7 +299,7 @@ class CTCS(Simulator.Simulator):
                     self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch,   # U^{n} \
                     self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch,   # V^{n-1} => V^{n+1} \
                     self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch,   # V^{n} \
-                    np.float32(wind_stress_t))
+                    wind_stress_t)
 
             self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv0)
             

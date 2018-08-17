@@ -127,7 +127,7 @@ class Simulator(object):
     @param kernel_module Module (from get_kernel in CUDAContext)
     @param update_timestamps Boolean to determine if we update the wind stress timestamps. If set to True, then a subsequent call to this function will have no effect. 
     """
-    def setup_wind_stress(self, kernel_module, kernel_function):
+    def update_wind_stress(self, kernel_module, kernel_function):
         #Key used to access the hashmaps
         key = str(kernel_module)
         self.logger.debug("Setting up wind stress for %s", key)
