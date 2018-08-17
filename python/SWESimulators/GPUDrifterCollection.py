@@ -67,7 +67,7 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
 
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.passiveDrifterKernel = self.drift_kernels.get_function("passiveDrifterKernel")
-        self.passiveDrifterKernel.prepare("iifffffPiPiPifiiiPif")
+        self.passiveDrifterKernel.prepare("iifffiiPiPiPifiiiPif")
         self.enforceBoundaryConditionsKernel = self.drift_kernels.get_function("enforceBoundaryConditions")
         self.enforceBoundaryConditionsKernel.prepare("ffiiiPi")
         
@@ -127,7 +127,6 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
     
     def drift(self, eta, hu, hv, H0, nx, ny, dx, dy, dt, \
               x_zero_ref, y_zero_ref):
-        
         self.passiveDrifterKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                                                nx, ny, dx, dy, dt, x_zero_ref, y_zero_ref, \
                                                eta.data.gpudata, eta.pitch, \
@@ -137,7 +136,7 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
                                                np.int32(self.boundaryConditions.isPeriodicNorthSouth()), \
                                                np.int32(self.boundaryConditions.isPeriodicEastWest()), \
                                                np.int32(self.getNumDrifters()), \
-                                               self.driftersDevice.gpudata, \
+                                               self.driftersDevice.data.gpudata, \
                                                self.driftersDevice.pitch, \
                                                np.float32(self.sensitivity))
 

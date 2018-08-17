@@ -76,11 +76,11 @@ __global__ void passiveDrifterKernel(
 	float* const hv_row = (float*) ((char*) hv_ptr_ + hv_pitch_*cell_id_y);
 	float const v = hv_row[cell_id_x]/h;
 
-	// Move drifter
+        // Move drifter
 	drifter_pos_x += sensitivity_*u*dt_;
 	drifter_pos_y += sensitivity_*v*dt_;
-
-	// Ensure boundary conditions
+        
+        // Ensure boundary conditions
 	if (periodic_east_west_ && (drifter_pos_x < 0)) {
 	    drifter_pos_x += + nx_*dx_;
 	}
