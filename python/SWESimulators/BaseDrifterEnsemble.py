@@ -37,10 +37,8 @@ class BaseDrifterEnsemble(object):
     
     __metaclass__ = abc.ABCMeta
         
-    def __init__(self, cl_ctx, numParticles, observation_variance=0.0):
-        
-        self.cl_ctx = cl_ctx
-        
+    def __init__(self, numParticles, observation_variance=0.0):
+                
         self.numParticles = numParticles
         #self.particles = [None]*(self.numParticles + 1)
         

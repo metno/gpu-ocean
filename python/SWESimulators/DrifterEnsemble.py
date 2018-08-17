@@ -36,10 +36,9 @@ import BaseDrifterEnsemble
 
 class DrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
         
-    def __init__(self, cl_ctx, numParticles, observation_variance=0.0):
+    def __init__(self, gpu_ctx, numParticles, observation_variance=0.0):
         
-        super(DrifterEnsemble, self).__init__(cl_ctx, 
-                                              numParticles, 
+        super(DrifterEnsemble, self).__init__(numParticles, 
                                               observation_variance)
         
     

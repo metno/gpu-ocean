@@ -36,10 +36,9 @@ import BaseDrifterEnsemble
 
 class CPUDrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
         
-    def __init__(self, cl_ctx, numParticles, observation_variance=0.0):
+    def __init__(self, numParticles, observation_variance=0.0):
          
-        super(CPUDrifterEnsemble, self).__init__(cl_ctx, 
-                                              numParticles, 
+        super(CPUDrifterEnsemble, self).__init__(numParticles, 
                                               observation_variance)
         
     

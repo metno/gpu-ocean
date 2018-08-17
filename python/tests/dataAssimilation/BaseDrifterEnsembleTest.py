@@ -39,7 +39,6 @@ class BaseDrifterEnsembleTest(unittest.TestCase):
         self.smallParticleSet = None
         # to be initialized by child class with above values
         
-        # create_small_particle_set:
         self.cl_ctx = None
         
         self.smallPositionSetHost = np.array( [[0.9, 0.9], [0.9, 0.1],
