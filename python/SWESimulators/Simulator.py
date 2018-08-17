@@ -155,7 +155,7 @@ class Simulator(object):
         
         self.drifters = drifters
         self.hasDrifters = True
-        self.drifters.setCLQueue(self.gpu_stream)
+        self.drifters.setGPUStream(self.gpu_stream)
     
     def download(self, interior_domain_only=False):
         """

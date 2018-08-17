@@ -53,7 +53,7 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
         # the same queue...
         self.gpu_stream = gpu_stream
         if self.gpu_stream is None:
-            self.cl_queue = cuda.Stream()
+            self.gpu_stream = cuda.Stream()
                 
         self.sensitivity = 1.0
          
