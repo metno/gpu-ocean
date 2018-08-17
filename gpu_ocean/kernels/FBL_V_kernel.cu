@@ -56,9 +56,7 @@ __global__ void computeVKernel(
         float* eta_ptr_, int eta_pitch_,
     
         // Wind stress parameters
-	const wind_stress_params *wind_stress_,
-
-        float t_) {
+        float wind_stress_t_) {
         
     __shared__ float H_shared[block_height+1][block_width];
     __shared__ float U_shared[block_height+1][block_width+1];
@@ -156,8 +154,10 @@ __global__ void computeVKernel(
     //Calculate the gravitational effect
     float P = g_*H_m*(eta_shared[ty][tx] - eta_shared[ty+1][tx])/dy_;
 
-    //Calculate the wind shear stress
-    float Y = windStressY(wind_stress_, dx_, dy_, dt_, t_);
+    //FIXME Check coordinates (ti_, tj_) here!!!
+    //TODO Check coordinates (ti_, tj_) here!!!
+    //WARNING Check coordinates (ti_, tj_) here!!!
+    float Y = windStressY(wind_stress_t_, ti+0.5, tj, nx_, ny_);
 
     //Compute the V at the next timestep
     float V_next = B*(V_current + dt_*(-fU_m + P + Y) );

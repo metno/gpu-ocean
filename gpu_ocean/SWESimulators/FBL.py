@@ -45,7 +45,7 @@ class FBL(Simulator.Simulator):
                  t=0.0, \
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
-                 wind_stress=WindStress.NoWindStress(), \
+                 wind_stress=WindStress.WindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
@@ -126,13 +126,19 @@ class FBL(Simulator.Simulator):
         self.v_kernel = gpu_ctx.get_kernel("FBL_V_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
         self.eta_kernel = gpu_ctx.get_kernel("FBL_eta_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
 
-        # Get CUDA functions and define data types for prepared_{async_}call()
+        # Get CUDA functions 
         self.computeUKernel = self.u_kernel.get_function("computeUKernel")
-        self.computeUKernel.prepare("iiffffffffPiPiPiPiPf")
         self.computeVKernel = self.v_kernel.get_function("computeVKernel")
-        self.computeVKernel.prepare("iiffffffffPiPiPiPiPf")
         self.computeEtaKernel = self.eta_kernel.get_function("computeEtaKernel")
+        
+        # Prepare kernel lauches
+        self.computeUKernel.prepare("iiffffffffPiPiPiPif")
+        self.computeVKernel.prepare("iiffffffffPiPiPiPif")
         self.computeEtaKernel.prepare("iiffffffffPiPiPiPi")
+        
+        # Set up textures
+        self.update_wind_stress(self.u_kernel, self.computeUKernel)
+        self.update_wind_stress(self.v_kernel, self.computeVKernel)
         
         self.H = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H, self.asym_ghost_cells)
         self.gpu_data = Common.SWEDataArakawaC(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, self.asym_ghost_cells)
@@ -247,6 +253,9 @@ class FBL(Simulator.Simulator):
 
             if (local_dt <= 0.0):
                 break
+                
+            self.update_wind_stress(self.u_kernel, self.computeUKernel)
+            wind_stress_t = np.float32(self.update_wind_stress(self.v_kernel, self.computeVKernel))
 
             self.computeUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                     self.nx_halo, self.ny, \
@@ -256,8 +265,7 @@ class FBL(Simulator.Simulator):
                     self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
                     self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
                     self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch, \
-                    self.wind_stress_dev, \
-                    self.t)
+                    wind_stress_t)
 
             # Fix U boundary
             self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu0)
@@ -270,8 +278,7 @@ class FBL(Simulator.Simulator):
                     self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
                     self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
                     self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch, \
-                    self.wind_stress_dev, \
-                    self.t)
+                    wind_stress_t)
 
             # Fix V boundary
             self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv0)

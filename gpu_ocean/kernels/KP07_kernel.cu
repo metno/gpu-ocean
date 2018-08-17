@@ -243,14 +243,11 @@ __global__ void swe_2D(
         // Depth at cell intersections (i) and mid-points (m)
         float* Hi_ptr_, int Hi_pitch_,
         float* Hm_ptr_, int Hm_pitch_,
-        
-        //Wind stress parameters
-        const wind_stress_params *wind_stress_,
 
         // Boundary conditions (1: wall, 2: periodic, 3: numerical sponge)
         int bc_north_, int bc_east_, int bc_south_, int bc_west_,
 	
-        float t_) {
+        float wind_stress_t_) {
         
     //Index of thread within block
     const int tx = threadIdx.x;
@@ -335,8 +332,8 @@ __global__ void swe_2D(
 	const float ST2 = bottomSourceTerm2(Q, Qx, RHx, g_, i, j);
 	const float ST3 = bottomSourceTerm3(Q, Qy, RHy, g_, i, j);
 	
-	const float X = windStressX(wind_stress_, dx_, dy_, dt_, t_);
-	const float Y = windStressY(wind_stress_, dx_, dy_, dt_, t_);
+    const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
+    const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
 
 	
 	// Coriolis parameter

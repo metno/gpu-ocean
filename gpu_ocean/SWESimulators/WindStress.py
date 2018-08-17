@@ -19,12 +19,50 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from ctypes import *
 import numpy as np
+
+
 from abc import ABCMeta, abstractmethod
 
+
+
+class WindStress():
+    
+    def __init__(self, t=None, X=None, Y=None):
+        
+        self.t = [0]
+        self.X = [np.zeros((1,1), dtype=np.float32, order='C')]
+        self.Y = [np.zeros((1,1), dtype=np.float32, order='C')]
+        
+        self.numWindSteps = 1
+        
+        if t is not None:
+            assert(X is not None), "missing wind forcing X"
+            assert(Y is not None), "missing wind forcing Y"
+            
+            assert(len(t) == len(X)), str(len(t)) + " vs " + str(len(X))
+            assert(len(t) == len(Y)), str(len(t)) + " vs " + str(len(Y))
+
+            self.numWindSteps = len(t)
+            
+            for i in range(len(X)):
+                assert (X[i].dtype == 'float32'), "Wind data needs to be of type np.float32"
+                assert (Y[i].dtype == 'float32'), "Wind data needs to be of type np.float32"
+            
+            self.t = t
+            self.X = X
+            self.Y = Y
+            
+
+
+            
+            
+
+    
 class WIND_STRESS_PARAMS(Structure):
     """Mapped to struct WindStressParams in common.cu
     DO NOT make changes here without changing common.cu accordingly!
     """
+    
     _fields_ = [("wind_stress_type", c_int),
                 ("tau0", c_float),
                 ("rho", c_float),
@@ -65,7 +103,7 @@ class NoWindStress(BaseWindStress):
     """No wind stress."""
 
     def __init__(self):
-        pass
+        assert(False), "This is a deprecated wind stress definition. Please use the WindStress class!"
     
     def type(self):
         """Mapping to wind_stress_type (defined in common.cu)"""
@@ -87,6 +125,7 @@ class GenericUniformWindStress(BaseWindStress):
     def __init__(self, \
                  rho_air=0, \
                  wind_speed=0, wind_direction=0):
+        assert(False), "This is a deprecated wind stress definition. Please use the WindStress class!"
         self.rho_air = np.float32(rho_air)
         self.wind_speed = np.float32(wind_speed)
         self.wind_direction = np.float32(wind_direction)
@@ -102,7 +141,7 @@ class GenericUniformWindStress(BaseWindStress):
                                   wind_speed=self.wind_speed,
                                   wind_direction=self.wind_direction)
         return wind_stress
-        
+
 class UniformAlongShoreWindStress(BaseWindStress):
     """Uniform along shore wind stress.
     
@@ -113,6 +152,7 @@ class UniformAlongShoreWindStress(BaseWindStress):
 
     def __init__(self, \
                  tau0=0, rho=0, alpha=0):
+        assert(False), "This is a deprecated wind stress definition. Please use the WindStress class!"
         self.tau0 = np.float32(tau0)
         self.rho = np.float32(rho)
         self.alpha = np.float32(alpha)
@@ -128,7 +168,7 @@ class UniformAlongShoreWindStress(BaseWindStress):
                                   rho=self.rho,
                                   alpha=self.alpha)
         return wind_stress
-        
+
 class BellShapedAlongShoreWindStress(BaseWindStress):
     """Bell shaped along shore wind stress.
     
@@ -140,6 +180,7 @@ class BellShapedAlongShoreWindStress(BaseWindStress):
 
     def __init__(self, \
                  xm=0, tau0=0, rho=0, alpha=0):
+        assert(False), "This is a deprecated wind stress definition. Please use the WindStress class!"
         self.xm = np.float32(xm)
         self.tau0 = np.float32(tau0)
         self.rho = np.float32(rho)
@@ -157,7 +198,7 @@ class BellShapedAlongShoreWindStress(BaseWindStress):
                                   rho=self.rho,
                                   alpha=self.alpha)
         return wind_stress
-        
+
 class MovingCycloneWindStress(BaseWindStress):
     """Moving cyclone wind stress.
     
@@ -172,6 +213,7 @@ class MovingCycloneWindStress(BaseWindStress):
                  Rc=0, \
                  x0=0, y0=0, \
                  u0=0, v0=0):
+        assert(False), "This is a deprecated wind stress definition. Please use the WindStress class!"
         self.Rc = np.float32(Rc)
         self.x0 = np.float32(x0)
         self.y0 = np.float32(y0)

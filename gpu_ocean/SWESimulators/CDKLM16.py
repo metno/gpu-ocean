@@ -50,7 +50,7 @@ class CDKLM16(Simulator.Simulator):
                  coriolis_beta=0.0, \
                  y_zero_reference_cell = 0, \
                  max_wind_direction_perturbation = 0, \
-                 wind_stress=WindStress.NoWindStress(), \
+                 wind_stress=WindStress.WindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  small_scale_perturbation=False, \
                  small_scale_perturbation_amplitude=None, \
@@ -141,7 +141,8 @@ class CDKLM16(Simulator.Simulator):
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.swe_2D = self.kernel.get_function("swe_2D")
-        self.swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPiPfiiiiiPiPiPi")
+        self.swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPifiiiiiPiPiPi")
+        self.update_wind_stress(self.kernel, self.swe_2D)
         
         #Create data by uploading to device
         self.gpu_data = Common.SWEDataArakawaA(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
@@ -293,6 +294,8 @@ class CDKLM16(Simulator.Simulator):
             
             if (local_dt <= 0.0):
                 break
+            
+            wind_stress_t = np.float32(self.update_wind_stress(self.kernel, self.swe_2D))
 
             #self.bc_kernel.boundaryCondition(self.cl_queue, \
             #            self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1)
@@ -302,14 +305,14 @@ class CDKLM16(Simulator.Simulator):
 
                 self.callKernel(self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
                                 self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1, \
-                                local_dt, 0)
+                                local_dt, wind_stress_t, 0)
 
                 self.bc_kernel.boundaryCondition(self.gpu_stream, \
                         self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1)
 
                 self.callKernel(self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1, \
                                 self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
-                                local_dt, 1)
+                                local_dt, wind_stress_t, 1)
 
                 self.bc_kernel.boundaryCondition(self.gpu_stream, \
                         self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
@@ -317,7 +320,7 @@ class CDKLM16(Simulator.Simulator):
             elif (self.rk_order == 1):
                 self.callKernel(self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
                                 self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1, \
-                                local_dt, 0)
+                                local_dt, wind_stress_t, 0)
                                 
                 self.gpu_data.swap()
 
@@ -329,21 +332,21 @@ class CDKLM16(Simulator.Simulator):
 
                 self.callKernel(self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
                                 self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1, \
-                                local_dt, 0)
+                                local_dt, wind_stress_t, 0)
                 
                 self.bc_kernel.boundaryCondition(self.gpu_stream, \
                         self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1)
 
                 self.callKernel(self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1, \
                                 self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
-                                local_dt, 1)
+                                local_dt, wind_stress_t, 1)
 
                 self.bc_kernel.boundaryCondition(self.gpu_stream, \
                         self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1)
 
                 self.callKernel(self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1, \
                                 self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
-                                local_dt, 2)
+                                local_dt, wind_stress_t, 2)
                 
                 self.bc_kernel.boundaryCondition(self.gpu_stream, \
                         self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
@@ -371,7 +374,7 @@ class CDKLM16(Simulator.Simulator):
     def callKernel(self, \
                    h_in, hu_in, hv_in, \
                    h_out, hu_out, hv_out, \
-                   local_dt, rk_step):
+                   local_dt, wind_stress_t, rk_step):
         self.swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                            self.nx, self.ny, \
                            self.dx, self.dy, local_dt, \
@@ -391,8 +394,7 @@ class CDKLM16(Simulator.Simulator):
                            hv_out.data.gpudata, hv_out.pitch, \
                            self.bathymetry.Bi.data.gpudata, self.bathymetry.Bi.pitch, \
                            self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
-                           self.wind_stress_dev, \
-                           self.t, \
+                           wind_stress_t, \
                            self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
                            self.reportGeostrophicEquilibrium, \
                            self.geoEq_uxpvy.data.gpudata, self.geoEq_uxpvy.pitch, \
