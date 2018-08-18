@@ -218,7 +218,7 @@ class CUDAContext(object):
         defines_hash = defines_hasher.hexdigest()
         defines_hasher = None
         root, ext = os.path.splitext(kernel_filename)
-        kernel_path = os.path.abspath(os.path.join(self.module_path, "../kernels", kernel_filename))
+        kernel_path = os.path.abspath(os.path.join(self.module_path, "gpu_kernels", kernel_filename))
         kernel_hash = root \
                 + "_" + CUDAContext.hash_kernel( \
                     kernel_path, \
