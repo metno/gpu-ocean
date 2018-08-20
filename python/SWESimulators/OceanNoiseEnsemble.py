@@ -40,7 +40,6 @@ try:
 except:
     pass
 
-reload(SWESimulators.BaseOceanStateEnsemble)
 class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
     
@@ -62,7 +61,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
               
         
         for i in range(self.numParticles+1):
-            self.particles[i] = CDKLM16.CDKLM16(self.cl_ctx, \
+            self.particles[i] = CDKLM16.CDKLM16(self.gpu_ctx, \
                                                 self.base_eta, self.base_hu, self.base_hv, \
                                                 self.base_H, \
                                                 self.nx, self.ny, self.dx, self.dy, self.dt, \
@@ -75,7 +74,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             if self.initialization_variance_factor_ocean_field != 0.0:
                 self.particles[i].perturbState(q0_scale=self.initialization_variance_factor_ocean_field)
             
-            drifters = GPUDrifterCollection.GPUDrifterCollection(self.cl_ctx, driftersPerOceanModel,
+            drifters = GPUDrifterCollection.GPUDrifterCollection(self.gpu_ctx, driftersPerOceanModel,
                                              observation_variance=self.observation_variance,
                                              boundaryConditions=self.boundaryConditions,
                                              domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
