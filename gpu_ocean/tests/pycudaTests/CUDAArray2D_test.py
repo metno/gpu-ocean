@@ -17,7 +17,7 @@ class CUDAArray2DTest(unittest.TestCase):
     def setUp(self):
 
         #Set which CL device to use, and disable kernel caching
-        self.gpu_ctx = Common.CUDAContext(verbose=False)
+        self.gpu_ctx = Common.CUDAContext()
                     
         # Make some host data which we can play with
         self.nx = 3
