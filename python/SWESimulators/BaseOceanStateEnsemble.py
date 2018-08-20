@@ -38,9 +38,9 @@ class BaseOceanStateEnsemble(object):
 
     __metaclass__ = abc.ABCMeta
         
-    def __init__(self, numParticles, cl_ctx, observation_type=dautils.ObservationType.DrifterPosition):
+    def __init__(self, numParticles, gpu_ctx, observation_type=dautils.ObservationType.DrifterPosition):
         
-        self.cl_ctx = cl_ctx
+        self.gpu_ctx = gpu_ctx
         
         self.numParticles = numParticles
         self.particles = [None]*(self.numParticles + 1)
@@ -130,7 +130,7 @@ class BaseOceanStateEnsemble(object):
                          eta=eta, hu=hu, hv=hv, H=Hi)
         self.setParameters(f=sim.f, g=sim.g, beta=sim.coriolis_beta, r=sim.r, wind=sim.wind_stress)
     
-    def setParameters(self, f=0, g=9.81, beta=0, r=0, wind=WindStress.NoWindStress()):
+    def setParameters(self, f=0, g=9.81, beta=0, r=0, wind=WindStress.WindStress()):
         self.g = g
         self.f = f
         self.beta = beta
