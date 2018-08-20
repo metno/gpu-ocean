@@ -27,6 +27,7 @@ import gc
 
 from SWESimulators import Common
 from SWESimulators import config
+from SWESimulators import FBL, CTCS
 
 class OceanStateNoise(object):
     """
@@ -180,9 +181,8 @@ class OceanStateNoise(object):
                                                            self.random_numbers.data.gpudata, self.random_numbers.pitch)
     
     def perturbSim(self, sim, q0_scale=1.0):
-        assert(isinstance(sim, CDKLM16.CDKLM16))
          
-        self.perturbOceanState(sim.cl_data.h0, sim.cl_data.hu0, sim.cl_data.hv0,
+        self.perturbOceanState(sim.gpu_data.h0, sim.gpu_data.hu0, sim.gpu_data.hv0,
                                sim.bathymetry.Bi,
                                sim.f, beta=sim.coriolis_beta, g=sim.g, 
                                y0_reference_cell=sim.y_zero_reference_cell,
