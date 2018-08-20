@@ -181,7 +181,7 @@ class OceanStateNoise(object):
                                                            self.random_numbers.data.gpudata, self.random_numbers.pitch)
     
     def perturbSim(self, sim, q0_scale=1.0):
-         
+        
         self.perturbOceanState(sim.gpu_data.h0, sim.gpu_data.hu0, sim.gpu_data.hv0,
                                sim.bathymetry.Bi,
                                sim.f, beta=sim.coriolis_beta, g=sim.g, 
@@ -310,8 +310,8 @@ class OceanStateNoise(object):
         #(domain_ny, domain_nx) = random.shape
         b_dim_x = self.local_size[0]
         b_dim_y = self.local_size[1]
-        blocks_x = self.global_size_random_numbers[0]/b_dim_x
-        blocks_y = self.global_size_random_numbers[1]/b_dim_y
+        blocks_x = self.global_size_random_numbers[0]
+        blocks_y = self.global_size_random_numbers[1]
         for by in range(blocks_y):
             for bx in range(blocks_x):
                 for j in range(b_dim_y):

@@ -216,12 +216,44 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.assertAlmostEqual(mean, 0.5, 2)
         self.assertAlmostEqual(var, 1.0/12.0, 2)
 
+
+    def test_random_uniform_CPU(self):
+        self.create_large_noise()
+
+        self.large_noise.generateUniformDistributionCPU()
+
+        U = self.large_noise.getRandomNumbersCPU()
+
+        mean = np.mean(U)
+        var = np.var(U)
+
+        # Check the mean and var with very low accuracy.
+        # Gives error if the distribution is way off
+        self.assertAlmostEqual(mean, 0.5, 2)
+        self.assertAlmostEqual(var, 1.0/12.0, 2)
+
     def test_random_normal(self):
         self.create_large_noise()
 
         self.large_noise.generateNormalDistribution()
 
         U = self.large_noise.getRandomNumbers()
+
+        mean = np.mean(U)
+        var = np.var(U)
+
+        # Check the mean and var with very low accuracy.
+        # Gives error if the distribution is way off
+        self.assertAlmostEqual(mean, 0.0, 2)
+        self.assertAlmostEqual(var, 1.0, 1)
+
+        
+    def test_random_normal_CPU(self):
+        self.create_large_noise()
+
+        self.large_noise.generateNormalDistributionCPU()
+
+        U = self.large_noise.getRandomNumbersCPU()
 
         mean = np.mean(U)
         var = np.var(U)
