@@ -29,7 +29,7 @@ import time
 import gc
 import pycuda.driver as cuda
 
-from SWESimulators import Common
+from SWESimulators import Common, OceanStateNoise
 
 class IEWPFOcean:
     
@@ -356,7 +356,7 @@ class IEWPFOcean:
             return index - dim_size
         return index
     
-    def _apply_local_SVD_to_global_xi(self, global_xi, pos_x, pos_y):
+    def _apply_local_SVD_to_global_xi_CPU(self, global_xi, pos_x, pos_y):
         """
         Despite the bad name, this is a good function!
 
@@ -406,4 +406,58 @@ class IEWPFOcean:
 
                 global_xi[global_y_j, global_x_j] = xi_j
 
-    
+    def drawFromP_CPU(self, sim, observed_drifter_pos):
+
+        # 1) Draw \tilde{\xi} \sim N(0, I)
+        sim.small_scale_model_error.generateNormalDistributionCPU()
+        if self.debug: print "noise shape: ", sim.small_scale_model_error.random_numbers_host.shape    
+
+        # Comment in these lines to see how the SVD structure affect the random numbers
+        #sim.small_scale_model_error.random_numbers_host *= 0
+        #sim.small_scale_model_error.random_numbers_host += 1
+        original = None
+        if self.debug: original = sim.small_scale_model_error.random_numbers_host.copy()
+
+        # 1.5) Find gamma, which is needed by step 3
+        gamma = np.sum(sim.small_scale_model_error.random_numbers_host **2)
+        if self.debug: print "Gamma obtained from standard gaussian: ", gamma
+        if self.debug: self.showMatrices(sim.small_scale_model_error.random_numbers_host, original,\
+                                         "Std normal dist numbers")
+
+        # 2) For each drifter, apply the local sqrt SVD-term
+        for drifter in range(sim.drifters.getNumDrifters()):
+
+            # 2.1) Find the cell index for the noise.random_numbers_host buffer.
+            # This buffer has no ghost cells.
+            cell_id_x = int(np.floor(observed_drifter_pos[drifter,0]/sim.dx))
+            cell_id_y = int(np.floor(observed_drifter_pos[drifter,1]/sim.dy))
+
+            # 2.2) Apply the local sqrt(SVD)-term
+            self._apply_local_SVD_to_global_xi_CPU(sim.small_scale_model_error.random_numbers_host, \
+                                                   cell_id_x, cell_id_y)
+            if self.debug: self.showMatrices(sim.small_scale_model_error.random_numbers_host, \
+                                             original - sim.small_scale_model_error.random_numbers_host, \
+                                             "Std normal dist numbers after SVD from drifter " + str(drifter))
+
+        # 3 and 4) Apply SOAR and geostrophic balance
+        H_mid = sim.downloadBathymetry()[0]
+        p_eta, p_hu, p_hv = sim.small_scale_model_error._obtainOceanPerturbations_CPU(H_mid, sim.f, sim.coriolis_beta, sim.g)
+
+        if self.debug:
+            self.showMatrices(p_eta[1:-1, 1:-1], p_hu, "Sample from P", p_hv)
+            draw_from_q_maker = OceanStateNoise.OceanStateNoise(sim.gpu_ctx, sim.gpu_stream, \
+                                                                sim.nx, sim.ny, sim.dx, sim.dy, \
+                                                                sim.boundary_conditions, \
+                                                                sim.small_scale_model_error.staggered, \
+                                                                sim.small_scale_model_error.soar_q0, \
+                                                                sim.small_scale_model_error.soar_L)
+            draw_from_q_maker.random_numbers_host = original.copy()
+            q_eta, q_hu, q_hv = draw_from_q_maker._obtainOceanPerturbations_CPU(H_mid, sim.f, sim.coriolis_beta, sim.g)
+            self.showMatrices(q_eta[1:-1, 1:-1], q_hu, "Equivalent sample from Q", q_hv)
+            self.showMatrices(p_eta[1:-1, 1:-1] - q_eta[1:-1, 1:-1], p_hu - q_hu, "diff sample from P and sample from Q", p_hv - q_hv)
+
+
+        #gamma_from_p = np.sum(p_eta[1:-1, 1:-1]**2) + np.sum(p_hu**2) + np.sum(p_hv**2)
+        #if debug: print "Gamma obtained from P^1/2 xi: ", gamma_from_p
+
+        return p_eta[1:-1, 1:-1], p_hu, p_hv, gamma
