@@ -160,9 +160,16 @@ class IEWPFOceanTest(unittest.TestCase):
 
         assert2DListAlmostEqual(self, localSVD_from_GPU.tolist(), self.iewpf.localSVD_host.tolist(), 7, "S matrix GPU vs CPU")
         assert2DListAlmostEqual(self, localSVD_from_GPU.tolist(), localSVD_from_file.tolist(), 7, "S matrix GPU vs file")
+
+    def test_local_SVD_to_global_CPU(self):
+        test_data = np.loadtxt("iewpfRefData/preLocalSVDtoGlobal.dat")
+        results_from_file = np.loadtxt("iewpfRefData/postLocalSVDtoGlobal.dat")
+
+        self.assertEqual(test_data.shape, (self.ny, self.nx))
         
-     
-        
+        self.iewpf._apply_local_SVD_to_global_xi(test_data, 30, 30)
+
+        assert2DListAlmostEqual(self, test_data.tolist(), results_from_file.tolist(), 10, "test_local_SVD_to_global_CPU")
 
         
         

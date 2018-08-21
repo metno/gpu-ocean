@@ -327,3 +327,83 @@ class IEWPFOcean:
 
 
         return np.dot(u, np.diag(np.sqrt(s))).astype(np.float32, order='C')
+    
+    
+    # As we have S = (HQH^T + R)^-1, we can do step 1 of the IEWPF algorithm
+    def obtainTargetWeight(self, ensemble, w_rest=None):
+        if w_rest is None:
+            w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
+        
+        d = ensemble.getInnovations() 
+        Ne = ensemble.getNumParticles()
+        c = np.zeros(Ne)
+        for particle in range(Ne):
+            # Obtain db = d^T S d
+            db = 0.0
+            for drifter in range(ensemble.driftersPerOceanModel):
+                e = np.dot(self.S_host, d[particle,drifter,:])
+                db += np.dot(e, d[particle, drifter, :])
+            c[particle] = w_rest[particle] + 0.5*db
+            if self.debug: print "c[" + str(particle) + "]: ", c[particle]
+            if self.debug: print "exp(-c[" + str(particle) + "]: ", np.exp(-c[particle])
+        return np.min(c)
+
+    
+    def _apply_periodic_boundary(self, index, dim_size):
+        if index < 0:
+            return index + dim_size
+        elif index >= dim_size:
+            return index - dim_size
+        return index
+    
+    def _apply_local_SVD_to_global_xi(self, global_xi, pos_x, pos_y):
+        """
+        Despite the bad name, this is a good function!
+
+        It takes as input:
+         - the global_xi stored in a (ny, nx) buffer
+         - the drifter cell position (pos_x, pos_y)
+        
+        It find the local sqrt (SVD) as U*sqrt(Sigma) in a (49, 49) buffer in self.
+        
+
+        The global_xi buffer is modified so that xi = U*sqrt(Sigma)*xi
+
+        Note that we have to make a copy of xi so that we don't read already updated values.
+
+        The function assumes periodic boundary conditions in both dimensions.
+        """
+
+
+        # Copy the result (representing the multiplication with I)
+        read_global_xi = global_xi.copy()
+
+        # Read the non-zero structure from tildeP to tildeP_block
+        for loc_y_j in range(7):
+            global_y_j = pos_y - 3 + loc_y_j
+            global_y_j = self._apply_periodic_boundary(global_y_j, self.ny)
+            for loc_x_j in range(7):
+                global_x_j = pos_x - 3 + loc_x_j
+                global_x_j = self._apply_periodic_boundary(global_x_j, self.nx)
+
+                global_j = global_y_j*self.nx + global_x_j
+                local_j = loc_y_j*7 + loc_x_j
+
+                #loc_vec[local_j] = glob_vec[global_j]
+
+                xi_j = 0.0
+                for loc_y_i in range(7):
+                    global_y_i = pos_y - 3 + loc_y_i
+                    global_y_i = self._apply_periodic_boundary(global_y_i, self.ny)
+                    for loc_x_i in range(7):
+                        global_x_i = pos_x - 3 + loc_x_i
+                        global_x_i = self._apply_periodic_boundary(global_x_i, self.nx)
+
+                        global_i = global_y_i*self.nx + global_x_i
+                        local_i = loc_y_i*7 + loc_x_i
+
+                        xi_j += self.localSVD_host[local_j, local_i]*read_global_xi[global_y_i, global_x_i]
+
+                global_xi[global_y_j, global_x_j] = xi_j
+
+    
