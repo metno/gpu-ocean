@@ -67,7 +67,8 @@ class CPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
         
         return copyOfSelf
     
-    
+    def cleanUp(self):
+        pass
     
     ### Implementation of abstract GETs
     

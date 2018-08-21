@@ -194,9 +194,12 @@ class CTCS(Simulator.Simulator):
         timeIntegrator = sim_reader.get("time_integrator")
         y_zero_reference_cell = sim_reader.get("y_zero_reference_cell")
 
-        wind_stress_type = sim_reader.get("wind_stress_type")
-        wind = Common.WindStressParams(type=wind_stress_type)
-
+        try:
+            wind_stress_type = sim_reader.get("wind_stress_type")
+            wind = Common.WindStressParams(type=wind_stress_type)
+        except:
+            wind = WindStress.WindStress()
+            
         boundaryConditions = Common.BoundaryConditions( \
             sim_reader.getBC()[0], sim_reader.getBC()[1], \
             sim_reader.getBC()[2], sim_reader.getBC()[3], \
@@ -226,6 +229,7 @@ class CTCS(Simulator.Simulator):
         self.gpu_data.release()
         
         self.H.release()
+        self.gpu_ctx = None
         gc.collect()
     
     def step(self, t_end=0.0):

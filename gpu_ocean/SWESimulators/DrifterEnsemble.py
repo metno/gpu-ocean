@@ -36,19 +36,19 @@ from SWESimulators import BaseDrifterEnsemble
 
 class DrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
         
-    def __init__(self, cl_ctx, numParticles, observation_variance=0.0):
+    def __init__(self, gpu_ctx, numParticles, observation_variance=0.0):
         
-        super(DrifterEnsemble, self).__init__(cl_ctx, 
-                                              numParticles, 
+        super(DrifterEnsemble, self).__init__(numParticles, 
                                               observation_variance)
         
+        self.gpu_ctx = gpu_ctx
     
     # ---------------------------------------
     # Implementing abstract function
     # ---------------------------------------
     def init(self):
 
-        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
                                    self.base_eta, self.base_hu, self.base_hv, \
                                    self.base_H, \
                                    self.nx, self.ny, self.dx, self.dy, self.dt, \
@@ -58,7 +58,7 @@ class DrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
                                    write_netcdf=False)
 
         # TO CHECK! Is it okay to have drifters as self.drifters - in order to easier reach its member functions?
-        self.drifters = GPUDrifterCollection.GPUDrifterCollection(self.cl_ctx, self.numParticles,
+        self.drifters = GPUDrifterCollection.GPUDrifterCollection(self.gpu_ctx, self.numParticles,
                       observation_variance=self.observation_variance,
                       boundaryConditions=self.boundaryConditions,
                       domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
@@ -66,4 +66,10 @@ class DrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
         self.drifters.initializeUniform()
         self.sim.attachDrifters(self.drifters)
     
-   
+    def cleanUp(self):
+        if self.sim is not None:
+            self.sim.cleanUp()
+        if self.drifters is not None:
+            self.drifters.cleanUp()
+        self.gpu_ctx = None
+        

@@ -18,13 +18,13 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+#include "common.cu"
 
 /**
   *  Generates two uniform random numbers based on the ANSIC Linear Congruential 
   *  Generator.
   */
-float2 ansic_lcg(ulong* seed_ptr) {
+__device__ float2 ansic_lcg(ulong* seed_ptr) {
     ulong seed = (*seed_ptr);
     double denum = 2147483648.0;
     ulong modulo = 2147483647;
@@ -36,47 +36,59 @@ float2 ansic_lcg(ulong* seed_ptr) {
     float u2 = seed / denum;
 
     (*seed_ptr) = seed;
-    return (float2)(u1, u2);
+
+    float2 out;
+    out.x = u1;
+    out.y = u2;
+
+    return out;
+    //return make_float2(u1, u2);
 }
 
 /**
   *  Generates two random numbers, drawn from a normal distribtion with mean 0 and
   *  variance 1. Based on the Box Muller transform.
   */
-float2 boxMuller(ulong* seed) {
+__device__ float2 boxMuller(ulong* seed) {
     float2 u = ansic_lcg(seed);
     
     float r = sqrt(-2.0f*log(u.x));
     float n1 = r*cospi(2*u.y);
     float n2 = r*sinpi(2*u.y);
+
+    float2 out;
+    out.x = n1;
+    out.y = n2;
+    return out;
     
-    return (float2)(n1, n2);
+    //return make_float2(n1, n2);
 }
 
 /**
   * Kernel that generates uniform random numbers.
   */
-__kernel void uniformDistribution(
+extern "C" {
+__global__ void uniformDistribution(
         // Size of data
         int seed_nx_, int seed_ny_,        
-        int random_nx_, 
+        int random_nx_,
         
         //Data
-        __global ulong* seed_ptr_, int seed_pitch_,
-        __global float* random_ptr_, int random_pitch_
+        ulong* seed_ptr_, int seed_pitch_,
+        float* random_ptr_, int random_pitch_
     ) {
 
     //Index of cell within domain
-    const int ti = get_global_id(0); 
-    const int tj = get_global_id(1);
+    const int ti = (blockDim.x * blockIdx.x) + threadIdx.x;
+    const int tj = (blockDim.y * blockIdx.y) + threadIdx.y;
 
     // Each thread computes and writes two uniform numbers.
 
     if ((ti < seed_nx_) && (tj < seed_ny_)) {
     
         //Compute pointer to current row in the U array
-        __global ulong* const seed_row = (__global ulong*) ((__global char*) seed_ptr_ + seed_pitch_*tj);
-        __global float* const random_row = (__global float*) ((__global char*) random_ptr_ + random_pitch_*tj);
+        ulong* const seed_row = (ulong*) ((char*) seed_ptr_ + seed_pitch_*tj);
+        float* const random_row = (float*) ((char*) random_ptr_ + random_pitch_*tj);
         
         ulong seed = seed_row[ti];
         float2 u = ansic_lcg(&seed);
@@ -92,32 +104,33 @@ __kernel void uniformDistribution(
         }
     }
 }
-
+} // extern "C"
 
 /**
   * Kernel that generates normal distributed random numbers with mean 0 and variance 1.
   */
-__kernel void normalDistribution(
+extern "C" {
+__global__ void normalDistribution(
         // Size of data
         int seed_nx_, int seed_ny_,
         int random_nx_, 
         
         //Data
-        __global ulong* seed_ptr_, int seed_pitch_,
-        __global float* random_ptr_, int random_pitch_
+        ulong* seed_ptr_, int seed_pitch_,
+        float* random_ptr_, int random_pitch_
     ) {
-
+    
     //Index of cell within domain
-    const int ti = get_global_id(0); 
-    const int tj = get_global_id(1);
+    const int ti = (blockDim.x * blockIdx.x) + threadIdx.x;
+    const int tj = (blockDim.y * blockIdx.y) + threadIdx.y;
 
     // Each thread computes and writes two uniform numbers.
 
     if ((ti < seed_nx_) && (tj < seed_ny_)) {
     
         //Compute pointer to current row in the U array
-        __global ulong* const seed_row = (__global ulong*) ((__global char*) seed_ptr_ + seed_pitch_*tj);
-        __global float* const random_row = (__global float*) ((__global char*) random_ptr_ + random_pitch_*tj);
+        ulong* const seed_row = (ulong*) ((char*) seed_ptr_ + seed_pitch_*tj);
+        float* const random_row = (float*) ((char*) random_ptr_ + random_pitch_*tj);
         
         ulong seed = seed_row[ti];
         float2 u = boxMuller(&seed);
@@ -133,12 +146,12 @@ __kernel void normalDistribution(
         }
     }
 }
-
+} // extern "C"
 
 /**
   * Local function calculating the SOAR function given two grid locations
   */
-float soar_covariance(int a_x, int a_y, int b_x, int b_y,
+__device__ float soar_covariance(int a_x, int a_y, int b_x, int b_y,
                       float dx, float dy, float soar_q0, float soar_L) {
     const float dist = sqrt( dx*dx*(a_x - b_x)*(a_x - b_x) +
                              dy*dy*(a_y - b_y)*(a_y - b_y) );
@@ -151,7 +164,8 @@ float soar_covariance(int a_x, int a_y, int b_x, int b_y,
   * Kernel that adds a perturbation to the input field eta.
   * The perturbation is based on a SOAR covariance function using a cut-off value of 2.
   */
-__kernel void perturbOcean(
+extern "C" {
+__global__ void perturbOcean(
         // Size of data
         int nx_, int ny_,
         float dx_, float dy_,
@@ -167,59 +181,61 @@ __kernel void perturbOcean(
         int periodic_north_south_, int periodic_east_west_,
         
         // random data
-        __global float* random_ptr_, int random_pitch_,
+        float* random_ptr_, int random_pitch_,
 
         // Ocean data
-        __global float* eta_ptr_, int eta_pitch_,
-        __global float* hu_ptr_, int hu_pitch_,
-        __global float* hv_ptr_, int hv_pitch_,
-        __global float* Hi_ptr_, int Hi_pitch_
+        float* eta_ptr_, int eta_pitch_,
+        float* hu_ptr_, int hu_pitch_,
+        float* hv_ptr_, int hv_pitch_,
+        float* Hi_ptr_, int Hi_pitch_
     ) {
 
     //Index of cell within block
-    const int tx = get_local_id(0); 
-    const int ty = get_local_id(1);
+    const int tx = threadIdx.x; 
+    const int ty = threadIdx.y;
 
     //Index of start of block within domain
-    const int bx = get_local_size(0) * get_group_id(0);
-    const int by = get_local_size(1) * get_group_id(1);
+    const int bx = blockDim.x * blockIdx.x;
+    const int by = blockDim.y * blockIdx.y;
 
     //Index of cell within domain
-    const int ti = get_global_id(0);
-    const int tj = get_global_id(1);
+    const int ti = bx + tx;
+    const int tj = by + ty;
 
     const int cutoff = 2;
 
     // Local storage for xi (the random numbers)
-    __local float xi[block_height+6][block_width+6];
+    __shared__ float xi[block_height+6][block_width+6];
 
     // Local storage for d_eta (also used for H)
-    __local float d_eta[block_height+2][block_width+2];
+    __shared__ float d_eta[block_height+2][block_width+2];
 
 
     // Use local memory for d_eta to compute H_mid for given thread id
-    for (int j = ty; j < block_height+1; j += get_local_size(1)) {
+    for (int j = ty; j < block_height+1; j += blockDim.y) {
         const int global_j = clamp(by+j, 0, ny_+1);
-        __global float* const Hi_row = (__global float*) ((__global char*) Hi_ptr_ + Hi_pitch_*(global_j+ghost_cells_y_));
-        for (int i = tx; i < block_width+1; i += get_local_size(0)) {
+        float* const Hi_row = (float*) ((char*) Hi_ptr_ + Hi_pitch_*(global_j+ghost_cells_y_));
+        for (int i = tx; i < block_width+1; i += blockDim.x) {
             const int global_i = clamp(bx+i, 0, nx_+1);
             d_eta[j][i] = Hi_row[global_i+ghost_cells_x_];
         }
     }
-    barrier(CLK_LOCAL_MEM_FENCE);
+    
+    __syncthreads();
+    
     const float H_mid = 0.25f*(d_eta[ty  ][tx] + d_eta[ty  ][tx+1] +
                               d_eta[ty+1][tx] + d_eta[ty+1][tx+1]   );
     
     // Read random numbers into local memory:
-    for (int j = ty; j < block_height+6; j += get_local_size(1)) {
+    for (int j = ty; j < block_height+6; j += blockDim.y) {
         int global_j = 0;
         if (periodic_north_south_) {
             global_j = (by + j - cutoff - 1 + ny_) % ny_;
         } else {
             global_j = clamp(by + j, 0, ny_+6);
         }
-        __global float* const random_row = (__global float*) ((__global char*) random_ptr_ + random_pitch_*global_j);
-        for (int i = tx; i < block_width+6; i += get_local_size(0)) {
+        float* const random_row = (float*) ((char*) random_ptr_ + random_pitch_*global_j);
+        for (int i = tx; i < block_width+6; i += blockDim.x) {
             int global_i = 0;
             if (periodic_east_west_) {
                 global_i = (bx + i - cutoff - 1 + nx_) % nx_;
@@ -230,12 +246,12 @@ __kernel void perturbOcean(
         }
     }
 
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
 
     // Compute d_eta using the SOAR covariance function, and store in local memory
     // All reads are from local memory
-    for (int j = ty; j < block_height+2; j += get_local_size(1)) {
-        for(int i = tx; i < block_width+2; i += get_local_size(0)) {
+    for (int j = ty; j < block_height+2; j += blockDim.y) {
+        for(int i = tx; i < block_width+2; i += blockDim.x) {
             const int a_x = i + cutoff;
             const int a_y = j + cutoff;
             int b_x = i;
@@ -252,15 +268,15 @@ __kernel void perturbOcean(
         }
     }
 
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
 
     // Evaluate geostrophic balance and write eta, hu and hv to global memory
     if ((ti < nx_) && (tj < ny_)) {
 
         //Compute pointer to current row in the U array
-        __global float* const eta_row = (__global float*) ((__global char*) eta_ptr_ + eta_pitch_*(tj+ghost_cells_y_));
-        __global float* const hu_row  = (__global float*) ((__global char*) hu_ptr_  + hu_pitch_*(tj+ghost_cells_y_));
-        __global float* const hv_row = (__global float*) ((__global char*)  hv_ptr_ + hv_pitch_*(tj+ghost_cells_y_));
+        float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*(tj+ghost_cells_y_));
+        float* const hu_row  = (float*) ((char*) hu_ptr_  + hu_pitch_*(tj+ghost_cells_y_));
+        float* const hv_row = (float*) ((char*)  hv_ptr_ + hv_pitch_*(tj+ghost_cells_y_));
         
         const int eta_tx = tx+1;
         const int eta_ty = ty+1;
@@ -289,4 +305,4 @@ __kernel void perturbOcean(
         }
     }
 }
-
+} // extern "C"
