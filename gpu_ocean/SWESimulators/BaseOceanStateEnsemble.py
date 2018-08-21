@@ -196,7 +196,7 @@ class BaseOceanStateEnsemble(object):
         # Observations are stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
         # where n is time step and i is drifter
         
-        print("Adding observation for time " + str(self.t))
+        #print("Adding observation for time " + str(self.t))
         self.observedDrifterPositions.append([self.t, observedDrifterPositions])
 
         
