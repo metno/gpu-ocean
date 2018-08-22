@@ -449,6 +449,8 @@ class BaseOceanStateEnsemble(object):
         return self.observation_variance
     def getNumParticles(self):
         return self.numParticles
+    def getNumDrifters(self):
+        return self.driftersPerOceanModel
     
     def findLargestPossibleTimeStep(self):
         """

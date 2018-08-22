@@ -140,6 +140,8 @@ class IEWPFOceanTest(unittest.TestCase):
         self.assertTrue(self.iewpf.boundaryConditions.isPeriodicNorthSouth())
         self.assertTrue(self.iewpf.boundaryConditions.isPeriodicEastWest())
         self.assertTrue(self.iewpf.Nx, self.nx*self.ny*3)
+        self.assertEqual(self.iewpf.numParticles, self.ensembleSize)
+        self.assertEqual(self.iewpf.numDrifters, self.driftersPerOceanModel)
         
     def test_S_matrix(self):
         S_from_GPU = self.iewpf.download_S()
@@ -185,5 +187,16 @@ class IEWPFOceanTest(unittest.TestCase):
         
         gamma = self.iewpf.obtainGamma(self.ensemble.particles[0])
 
-        # Checking relative difference
-        self.assertAlmostEqual((gamma_from_numpy-gamma)/gamma_from_numpy, 0.0)
+        # Checking relative difference 
+        self.assertAlmostEqual((gamma_from_numpy-gamma)/gamma_from_numpy, 0.0, places=6)
+
+    def test_set_buffer_to_zero(self):
+        self.ensemble.particles[0].small_scale_model_error.generateNormalDistribution()
+        self.iewpf.setNoiseBufferToZero(self.ensemble.particles[0])
+
+        obtained_random_numbers = self.ensemble.particles[0].small_scale_model_error.getRandomNumbers()
+        for j in range(self.ny):
+            for i in range(self.nx):
+                self.assertEqual(obtained_random_numbers[j,i], 0.0)
+
+        

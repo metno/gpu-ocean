@@ -1,5 +1,5 @@
 /*
-Implements interpolation using textures. 
+Implements reduction kernels needed for GPU Ocean.
 
 Copyright (C) 2018  SINTEF ICT
 

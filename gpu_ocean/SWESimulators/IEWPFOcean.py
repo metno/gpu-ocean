@@ -61,6 +61,9 @@ class IEWPFOcean:
         self.geoBalanceConst = np.float32(self.g*self.const_H/(2.0*self.f))
 
         self.Nx = np.int32(self.nx*self.ny*3)  # state dimension
+        self.numParticles = np.int32(ensemble.getNumParticles())
+        self.numDrifters  = np.int32(ensemble.getNumDrifters())
+        
         
         # The underlying assumptions are:
         # 1) that the equilibrium depth is constant:
@@ -96,20 +99,34 @@ class IEWPFOcean:
         # Generate kernels
         self.reduction_kernels = self.gpu_ctx.get_kernel("reductions.cu", \
                                                          defines={})
+        self.iewpf_kernels = self.gpu_ctx.get_kernel("iewpf_kernels.cu", \
+                                                     defines={'block_width': block_width, 'block_height': block_height})
+        
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.squareSumKernel = self.reduction_kernels.get_function("squareSum")
         self.squareSumKernel.prepare("iiPP")
         
+        self.setBufferToZeroKernel = self.iewpf_kernels.get_function("setBufferToZero")
+        self.setBufferToZeroKernel.prepare("iiPi")
+        
+        self.halfTheKalmanGainKernel = self.iewpf_kernels.get_function("halfTheKalmanGain")
+        self.halfTheKalmanGainKernel.prepare("iiffffiifffPi")
+        
         #Compute kernel launch parameters
         self.local_size_reductions  = (128, 1, 1)
-        self.global_size_reductions = (1,   1, 1)
+        self.global_size_reductions = (1,   1)
         
-        self.local_size = (block_width, block_height, 1)
-        self.global_size = ( \
-                       int(np.ceil(self.nx / float(self.local_size[0]))), \
-                       int(np.ceil(self.ny / float(self.local_size[1]))) \
+        self.local_size_Kalman  = (7, 7, 1)
+        self.global_size_Kalman = (1, 1)
+        
+        self.local_size_domain = (block_width, block_height, 1)
+        self.global_size_domain = ( \
+                                   int(np.ceil(self.nx / float(self.local_size_domain[0]))), \
+                                   int(np.ceil(self.ny / float(self.local_size_domain[1]))) \
                                   ) 
+    
+       
     
     
     def __del__(self):
@@ -129,7 +146,11 @@ class IEWPFOcean:
     
     # Functions needed for the GPU implementation of IEWPF
     def obtainGamma(self, sim):
-        
+        """
+        Gamma = sum(xi^2), where xi \sim N(0,I)
+        Calling a kernel that sums the square of all elements in the random buffer of the
+        small scale model error of the provided simulator.
+        """
         self.squareSumKernel.prepared_async_call(self.global_size_reductions,
                                                  self.local_size_reductions, 
                                                  self.master_stream,
@@ -138,8 +159,47 @@ class IEWPFOcean:
                                                  self.reduction_buffer.data.gpudata)
         return self.download_reduction_buffer()[0,0]
         
+    def setNoiseBufferToZero(self, sim):
+        self.setBufferToZeroKernel.prepared_async_call(self.global_size_domain,
+                                                      self.local_size_domain, 
+                                                      self.master_stream,
+                                                      sim.nx, sim.ny,
+                                                      sim.small_scale_model_error.random_numbers.data.gpudata,
+                                                      sim.small_scale_model_error.random_numbers.pitch)
+        
+    def addKalmanGain(self, sim, all_observed_drifter_positions, innovation):
+        
+        # Reset the random numbers buffer for the given sim to zero:
+        self.setNoiseBufferToZero(sim)
+        
+        # Loop over drifters to get half the Kalman gain for each innovation
+        for drifter in range(self.numDrifters):
+            print "drifter: ", drifter
+            local_innovation = innovation[drifter,:]
+            print "local_innovation:" , local_innovation
+            observed_drifter_position = all_observed_drifter_positions[drifter,:]
+            
+            cell_id_x = np.int32(int(np.floor(observed_drifter_position[0]/sim.dx)))
+            cell_id_y = np.int32(int(np.floor(observed_drifter_position[1]/sim.dy)))
+
+            # 1) Solve linear problem
+            e = np.dot(self.S_host, local_innovation)
+                        
+            self.halfTheKalmanGainKernel.prepared_async_call(self.global_size_Kalman,
+                                                             self.local_size_Kalman,
+                                                             self.master_stream,
+                                                             self.nx, self.ny, self.dx, self.dy,
+                                                             self.soar_q0, self.soar_L,
+                                                             cell_id_x, cell_id_y,
+                                                             self.geoBalanceConst,
+                                                             np.float32(e[0,0]), np.float32(e[0,1]),
+                                                             sim.small_scale_model_error.random_numbers.data.gpudata,
+                                                             sim.small_scale_model_error.random_numbers.pitch)
+            
+        # The final step of the Kalman gain is to obtain geostrophic balance on the obtained field.
+        sim.small_scale_model_error.perturbSim(sim, update_random_field=False)
     
-    
+        
     
     ## Download GPU buffers
     
@@ -181,7 +241,7 @@ class IEWPFOcean:
         dist_y = min((a_y - b_y)**2, (a_y - (b_y + self.ny))**2, (a_y - (b_y - self.ny))**2)
         
         dist = np.sqrt( self.dx*self.dx*dist_x  +  self.dy*self.dy*dist_y)
-
+        
         return self.soar_q0*(1.0 + dist/self.soar_L)*np.exp(-dist/self.soar_L)
 
     def _createS(self, ensemble):
