@@ -139,7 +139,8 @@ class IEWPFOceanTest(unittest.TestCase):
         self.assertAlmostEqual(self.iewpf.const_H, self.waterDepth)
         self.assertTrue(self.iewpf.boundaryConditions.isPeriodicNorthSouth())
         self.assertTrue(self.iewpf.boundaryConditions.isPeriodicEastWest())
-
+        self.assertTrue(self.iewpf.Nx, self.nx*self.ny*3)
+        
     def test_S_matrix(self):
         S_from_GPU = self.iewpf.download_S()
         S_from_file = np.loadtxt("iewpfRefData/S.dat")
@@ -167,7 +168,7 @@ class IEWPFOceanTest(unittest.TestCase):
 
         self.assertEqual(test_data.shape, (self.ny, self.nx))
         
-        self.iewpf._apply_local_SVD_to_global_xi(test_data, 30, 30)
+        self.iewpf._apply_local_SVD_to_global_xi_CPU(test_data, 30, 30)
 
         assert2DListAlmostEqual(self, test_data.tolist(), results_from_file.tolist(), 10, "test_local_SVD_to_global_CPU")
 

@@ -28,16 +28,20 @@ import numpy as np
 import time
 import gc
 import pycuda.driver as cuda
+from scipy.special import lambertw
+
 
 from SWESimulators import Common, OceanStateNoise
 
 class IEWPFOcean:
     
-    def __init__(self, ensemble, debug=False):
+    def __init__(self, ensemble, debug=False, show_errors=False):
         
         self.gpu_ctx = ensemble.gpu_ctx
         self.master_stream = cuda.Stream()
+        
         self.debug = debug
+        self.show_errors = show_errors
         
         # Store information needed internally in the class
         self.dx = np.float32(ensemble.dx) 
@@ -55,6 +59,7 @@ class IEWPFOcean:
         
         self.geoBalanceConst = np.float32(self.g*self.const_H/(2.0*self.f))
 
+        self.Nx = np.int32(self.nx*self.ny*3)  # state dimension
         
         # The underlying assumptions are:
         # 1) that the equilibrium depth is constant:
@@ -329,11 +334,105 @@ class IEWPFOcean:
         return np.dot(u, np.diag(np.sqrt(s))).astype(np.float32, order='C')
     
     
+    
+    
+    def iewpf_CPU(self, ensemble, infoPlots=None, it=None):
+        """
+        The complete IEWPF algorithm implemented on the CPU.
+        
+        Retrieves innovations and target weights from the ensemble, and updates 
+        each particle according to the IEWPF method.
+        """
+        # Step -1: Deterministic step
+        t = ensemble.step_truth(self.dt, stochastic=True)
+        t = ensemble.step_particles(self.dt, stochastic=False)
+
+
+        # Step 0: Obtain innovations
+        observed_drifter_position = ensemble.observeTrueDrifters()
+        innovations = ensemble.getInnovations()
+        w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
+
+        # save plot halfway
+        if infoPlots is not None:
+            self._keepPlot(ensemble, infoPlots, it, 1)
+
+        # Step 1: Find maximum weight
+        target_weight = self.obtainTargetWeight(ensemble)
+        #print "WWWWWWWWWWWWWWW"
+        #print "Target weight: ", target_weight
+        #print "-log(target_weight): ", -np.log(target_weight)
+        #print "exp(-target_weight): ", np.exp(-target_weight)
+        #print "1/Ne: ", 1.0/ensemble.getNumParticles()
+        #print "WWWWWWWWWWWWWWW"
+
+
+        for p in range(ensemble.getNumParticles()):
+            #iewpfOcean.debug = p==0
+
+            # Step 2: Sample xi Ìƒ N(0, P)
+            p_eta, p_hu, p_hv, gamma = self.drawFromP_CPU(ensemble.particles[p], 
+                                                          observed_drifter_position)
+            xi = [p_eta, p_hu, p_hv] 
+
+            # Step 3: Pull particles towards observation by adding a Kalman gain term
+            eta_a, hu_a, hv_a, phi = self.applyKalmanGain_CPU(ensemble.particles[p], \
+                                                              observed_drifter_position,
+                                                              innovations[p], target_weight)
+
+            # Step 4: Solve implicit equation and add scaled sample from P
+            self.applyScaledPSample_CPU(ensemble.particles[p], eta_a, hu_a, hv_a, \
+                                        phi, xi, gamma, 
+                                        target_weight, w_rest[p])
+
+            eta_a = self._expand_to_periodic_boundaries(eta_a, 2)
+            hu_a  = self._expand_to_periodic_boundaries(hu_a,  2)
+            hv_a  = self._expand_to_periodic_boundaries(hv_a,  2)
+            ensemble.particles[p].upload(eta_a, hu_a, hv_a)
+
+            # TODO
+            #ensemble.particles[p].drifters.setDrifterPositions(newPos)
+
+        # save plot after
+        if infoPlots is not None:
+            self._keepPlot(ensemble, infoPlots, it, 3)
+    
+    
+    def _expand_to_periodic_boundaries(self, interior, ghostcells):
+        if ghostcells == 0:
+            return interior
+        (ny, nx) = interior.shape
+
+        nx_halo = nx + 2*ghostcells
+        ny_halo = ny + 2*ghostcells
+        newBuf = np.zeros((ny_halo, nx_halo))
+        newBuf[ghostcells:-ghostcells, ghostcells:-ghostcells] = interior 
+        for g in range(ghostcells):
+            newBuf[g, :] = newBuf[ny_halo - 2*ghostcells + g, :]
+            #newBuf[ny_halo - 2*ghostcells + g, :] *=0
+            newBuf[ny_halo - 1 - g, :] = newBuf[2*ghostcells - 1 - g, :]
+            #newBuf[2*ghostcells - 1 - g, :] *=0
+        for g in range(ghostcells):
+            newBuf[:, g] = newBuf[:, nx_halo - 2*ghostcells + g]
+            newBuf[:, nx_halo - 1 - g] = newBuf[:, 2*ghostcells - 1 - g]
+        return newBuf
+    
+    def _keepPlot(self, ensemble, infoPlots, it, stage):
+        title = "it=" + str(it) + " before IEWPF"
+        if stage == 2:
+            title = "it=" + str(it) + " during IEWPF (with deterministic step)"
+        elif stage == 3:
+            title = "it=" + str(it) + " after IEWPF"
+        infoFig = ensemble.plotDistanceInfo(title=title, printInfo=False)
+        plt.close(infoFig)
+        infoPlots.append(infoFig)
+    
+    
     # As we have S = (HQH^T + R)^-1, we can do step 1 of the IEWPF algorithm
     def obtainTargetWeight(self, ensemble, w_rest=None):
         if w_rest is None:
             w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
-        
+            
         d = ensemble.getInnovations() 
         Ne = ensemble.getNumParticles()
         c = np.zeros(Ne)
@@ -461,3 +560,202 @@ class IEWPFOcean:
         #if debug: print "Gamma obtained from P^1/2 xi: ", gamma_from_p
 
         return p_eta[1:-1, 1:-1], p_hu, p_hv, gamma
+    
+    
+    
+    def applyKalmanGain_CPU(self, sim, \
+                        all_observed_drifter_positions, innovation, target_weight, \
+                        returnKalmanGainTerm=False):
+        """
+        Creating a Kalman gain type field, K = QH^T S d
+        Returning two different values: x_a = x + K, and also phi = d^T S d
+        Return eta_a, hu_a, hv_a, phi
+        """
+        # Following the 3rd step of the IEWPF algorithm
+        if self.debug: print "(nx, ny, dx, dy): ", (sim.nx, sim.ny, sim.dx, sim.dy)
+        if self.debug: print "all_observed_drifter_positions: ", all_observed_drifter_positions
+        if self.debug: print "innovation:  ", innovation
+        if self.debug: print "target_weight: ", target_weight
+
+        # 0.1) Allocate buffers
+        total_K_eta = np.zeros((sim.ny, sim.nx))
+        total_K_hu  = np.zeros((sim.ny, sim.nx))
+        total_K_hv  = np.zeros((sim.ny, sim.nx))
+        phi = 0.0
+
+        # Assume drifters to be far appart, and make a Kalman gain factor for each drifter
+        for drifter in range(sim.drifters.getNumDrifters()):
+
+            local_innovation = innovation[drifter,:]
+            observed_drifter_position = all_observed_drifter_positions[drifter,:]
+
+
+            # 0.1) Find the cell index assuming no ghost cells
+            cell_id_x = int(np.floor(observed_drifter_position[0]/sim.dx))
+            cell_id_y = int(np.floor(observed_drifter_position[1]/sim.dy))
+            if self.debug: print "(cell_id_x, cell_id_y): ", (cell_id_x, cell_id_y)
+
+            # 1) Solve linear problem
+            e = np.dot(self.S_host, local_innovation)
+            if self.debug: print "e: ", e
+
+            # 2) K = QH^T e = U_GB Q^{1/2} Q^{1/2} U_GB^T  H^T e
+            #    Obtain the Kalman gain
+            # 2.1) U_GB^T H^T e
+            # 2.1.1) H^T: The transpose of the observation operator now maps the velocity at the 
+            #        drifter position to the complete state vector:
+            #        H^T [hu(posx, posy), hv(posx, posy)] = [zeros_eta, 0 0 hu(posx, posy) 0 0, 0 0 hv(posx, posy) 0 0]
+
+            # 2.1.2) U_GB^T: map out to laplacian stencil
+            local_huhv = np.zeros(4) # representing [north, east, south, west] positions from 
+            north_east_south_west_index = [[4,3,0], [3,4,1], [2,3,2], [3,2,3]] #[[y-index-eta, x-index-eta, index-local_eta_soar]]
+            # the x-component of the innovation spreads to north and south
+            local_huhv[0] = -e[0,0]*self.geoBalanceConst/sim.dy # north 
+            local_huhv[2] =  e[0,0]*self.geoBalanceConst/sim.dy # south
+            # the y-component of the innovation spreads to east and west
+            local_huhv[1] =  e[0,1]*self.geoBalanceConst/sim.dx # east
+            local_huhv[3] = -e[0,1]*self.geoBalanceConst/sim.dx # west
+
+            # 2.1.3) Q^{1/2}:
+            local_eta = np.zeros((7,7))
+            for j,i,soar_res_index in north_east_south_west_index:
+                if self.debug: print (j,i), soar_res_index
+                for b in range(j-2, j+3):
+                    for a in range(i-2, i+3):
+                        local_eta[b,a] += local_huhv[soar_res_index]*self._SOAR_Q_CPU(a, b, i, j)
+            if self.debug: self.showMatrices(local_eta, local_eta, "local $\eta$ from global $\eta$")
+
+            # 2.2) Apply U_GB Q^{1/2} to the result
+            # 2.2.1)  Easiest way: map local_eta to a global K_eta_tmp buffer
+            K_eta_tmp = np.zeros((sim.ny, sim.nx))
+            if self.debug: print "K_eta_tmp.shape",  K_eta_tmp.shape
+            for j in range(7):
+                j_global = (cell_id_y-3+j+sim.ny)%sim.ny 
+                for i in range(7):
+                    i_global = (cell_id_x-3+i+sim.nx)%sim.nx 
+                    K_eta_tmp[j_global, i_global] += local_eta[j,i]
+                    #K_eta_tmp[j_global, i_global] += 10000000*local_eta[j,i]
+            if self.debug: self.showMatrices(K_eta_tmp, local_eta, "global K_eta from local K_eta, halfway in the calc.")
+
+            # 2.2.2) Use K_eta_tmp as the noise.random_numbers_host
+            sim.small_scale_model_error.random_numbers_host = K_eta_tmp
+
+            # 2.2.3) Apply soar + geo-balance
+            H_mid = sim.downloadBathymetry()[0]
+            K_eta , K_hu, K_hv = sim.small_scale_model_error._obtainOceanPerturbations_CPU(H_mid, sim.f, sim.coriolis_beta, sim.g)
+            if self.debug: self.showMatrices(K_eta[1:-1, 1:-1], K_hu, "Kalman gain from drifter " + str(drifter), K_hv)
+
+            total_K_eta += K_eta[1:-1, 1:-1]
+            total_K_hu  += K_hu
+            total_K_hv  += K_hv
+            if self.debug: self.showMatrices(total_K_eta, total_K_hu, "Total Kalman gain after drifter " + str(drifter), total_K_hv)
+            #showMatrices(total_K_eta, total_K_hu, "Total Kalman gain after drifter " + str(drifter), total_K_hv)
+
+
+            # 3) Obtain phi = d^T * e
+            phi += local_innovation[0]*e[0,0] + local_innovation[1]*e[0,1]
+            if self.debug: print "phi after drifter " + str(drifter) + ": ", phi
+        if self.debug: print "phi: ", phi
+
+        if returnKalmanGainTerm:
+            return total_K_eta, total_K_hu, total_K_hv, phi
+
+        # 4) Obtain x_a
+        eta_a, hu_a, hv_a = sim.download(interior_domain_only=True)
+        if self.debug: self.showMatrices(eta_a, hu_a, "$M(x)$", hv_a)
+        eta_a += total_K_eta
+        hu_a += total_K_hu
+        hv_a += total_K_hv
+        if self.debug: print "Shapes of x_a: ", eta_a.shape, hu_a.shape, hv_a.shape
+        if self.debug: self.showMatrices(eta_a, hu_a, "$x_a = M(x) + K$", hv_a)
+        
+        return eta_a, hu_a, hv_a, phi
+            
+            
+    def _implicitEquation(self, alpha, gamma, Nx, a):
+        return (alpha-1.0)*gamma - Nx*np.log(alpha) + a
+            
+    def applyScaledPSample_CPU(self, sim, eta_a, hu_a, hv_a, \
+                           phi, xi, gamma, 
+                           target_weight, w_rest, particle_id=None):
+        """
+        Solving the scalar implicit equation using the Lambert W function, and 
+        updating the buffers eta_a, hu_a, hv_a as:
+        x_a = x_a + alpha*xi
+        """
+
+
+        # 5) obtain gamma
+        if self.debug: print "Shapes of xi: ", xi[0].shape, xi[1].shape, xi[2].shape
+        #gamma = 0.0
+        #for field in range(3):
+        #    for j in range(ny):
+        #        for i in range(nx):
+        #            gamma += xi[field][j,i]*xi[field][j,i]
+        if self.debug: print "gamma: ", gamma
+        if self.debug: print "Nx: ", self.Nx
+        if self.debug: print "w_rest: ", w_rest
+        if self.debug: print "target_weight: ", target_weight
+        if self.debug: print "phi: ", phi
+
+        # 6) Find a
+        a = phi - w_rest + target_weight
+        if self.debug: print "a = phi - w_rest + target_weight: ", a
+
+        # 7) Solving the Lambert W function
+        #alpha = 10000
+        lambert_W_arg = -(gamma/self.Nx)*np.exp(a/self.Nx)*np.exp(-gamma/self.Nx)
+        alpha_min1 = -(self.Nx/gamma)*np.real(lambertw(lambert_W_arg, k=-1))
+        alpha_zero = -(self.Nx/gamma)*np.real(lambertw(lambert_W_arg))
+        if self.debug: print "Check a against the Lambert W requirement: ", a, " < ", - self.Nx + gamma - self.Nx*np.log(gamma/self.Nx), " = ", a <  - self.Nx + gamma - self.Nx*np.log(gamma/self.Nx)
+        if self.debug: print "-e^-1 < z < 0 : ", -1.0/np.exp(1), " < ", lambert_W_arg, " < ", 0, " = ", \
+            (-1.0/np.exp(1) < lambert_W_arg, lambert_W_arg < 0)
+        if self.debug: print "Obtained (alpha k=-1, alpha k=0): ", (alpha_min1, alpha_zero)
+        if self.debug: print "The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1))
+        if self.debug: print "The two branches from Lambert W: ", (np.real(lambertw(lambert_W_arg)), np.real(lambertw(lambert_W_arg, k=-1)))
+
+        alpha = alpha_zero
+        if lambert_W_arg > (-1.0/np.exp(1)) :
+            alpha_u = np.random.rand()
+            if alpha_u < 0.5:
+                alpha = alpha_min1
+                if self.debug: print "Drew alpha from -1-branch"
+        elif self.show_errors:
+            print "!!!!!!!!!!!!"
+            print "BAD BAD ARGUMENT TO LAMBERT W"
+            print "Particle ID: ", particle_id
+            print "Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1)
+            print "The requirement is lamber_W_arg > (-1.0/exp(1)): " + str(lambert_W_arg) + " > " + str(-1.0/np.exp(1.0))
+            print "gamma: ", gamma
+            print "Nx: ", self.Nx
+            print "w_rest: ", w_rest
+            print "target_weight: ", target_weight
+            print "phi: ", phi
+            print "!!!!!!!!!!!!"
+        #if self.debug: print "Drawing random number alpha_u: ", alpha_u
+        #oldDebug = self.debug
+        #self.debug = True
+        if self.debug: print "--------------------------------------"
+        if self.debug: print "Obtained (lambert_ans k=0, lambert_ans k=-1): ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1))
+        if self.debug: print "Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1)
+        if self.debug: print "Checking implicit equation with alpha (k=0, k=-1): ", \
+            (self._implicitEquation(alpha_zero, gamma, self.Nx, a), self._implicitEquation(alpha_min1, gamma, self.Nx, a))
+        #if self.debug: print "Chose alpha = ", alpha
+        #if self.debug: print "The implicit equation looked like: \n\t" + \
+        #    "(alpha - 1)"+str(gamma)+" - " + str(self.Nx) + "log(alpha) + " + str(a) + " = 0"
+        #if self.debug: print "Parameters: (gamma, Nx, aj)", (gamma, self.Nx, a)
+
+        alpha = np.sqrt(alpha)
+        if self.debug: print "alpha = np.sqrt(alpha) ->  ", alpha
+        if self.debug: print "--------------------------------------"
+        #debug = oldDebug
+
+        # 7.2) alpha*xi
+        if self.debug: self.showMatrices(alpha*xi[0], alpha*xi[1], "alpha * xi", alpha*xi[2])
+
+        # 8) Final nudge!
+        eta_a += alpha*xi[0]
+        hu_a  += alpha*xi[1]
+        hv_a  += alpha*xi[2]
+        if self.debug: self.showMatrices(eta_a, hu_a, "final x = x_a + alpha*xi", hv_a)
+
