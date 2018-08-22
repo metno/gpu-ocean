@@ -173,4 +173,17 @@ class IEWPFOceanTest(unittest.TestCase):
         assert2DListAlmostEqual(self, test_data.tolist(), results_from_file.tolist(), 10, "test_local_SVD_to_global_CPU")
 
         
+    def test_empty_reduction_buffer(self):
+        buffer_host = self.iewpf.download_reduction_buffer()
+        self.assertEqual(buffer_host.shape, (1,1))
+        self.assertEqual(buffer_host[0,0], 0.0)
         
+    def test_reduction(self):
+        self.ensemble.particles[0].small_scale_model_error.generateNormalDistribution()
+        obtained_random_numbers = self.ensemble.particles[0].small_scale_model_error.getRandomNumbers()
+        gamma_from_numpy = np.linalg.norm(obtained_random_numbers)**2
+        
+        gamma = self.iewpf.obtainGamma(self.ensemble.particles[0])
+
+        # Checking relative difference
+        self.assertAlmostEqual((gamma_from_numpy-gamma)/gamma_from_numpy, 0.0)

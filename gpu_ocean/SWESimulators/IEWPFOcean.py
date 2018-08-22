@@ -35,7 +35,8 @@ from SWESimulators import Common, OceanStateNoise
 
 class IEWPFOcean:
     
-    def __init__(self, ensemble, debug=False, show_errors=False):
+    def __init__(self, ensemble, debug=False, show_errors=False,
+                 block_width=16, block_height=16):
         
         self.gpu_ctx = ensemble.gpu_ctx
         self.master_stream = cuda.Stream()
@@ -85,6 +86,32 @@ class IEWPFOcean:
         self.localSVD_host = self._generateLocaleSVDforP(ensemble)
         self.localSVD_device = Common.CUDAArray2D(self.master_stream, 49, 49, 0, 0, self.localSVD_host)
     
+        
+        # Allocate extra memory needed for reduction kernel.
+        # Currently: one single GPU buffer with 1x1 elements
+        self.reduction_buffer = None
+        reduction_buffer_host = np.zeros((1,1), dtype=np.float32)
+        self.reduction_buffer = Common.CUDAArray2D(self.master_stream, 1, 1, 0, 0, reduction_buffer_host)
+        
+        # Generate kernels
+        self.reduction_kernels = self.gpu_ctx.get_kernel("reductions.cu", \
+                                                         defines={})
+        
+        # Get CUDA functions and define data types for prepared_{async_}call()
+        self.squareSumKernel = self.reduction_kernels.get_function("squareSum")
+        self.squareSumKernel.prepare("iiPP")
+        
+        #Compute kernel launch parameters
+        self.local_size_reductions  = (128, 1, 1)
+        self.global_size_reductions = (1,   1, 1)
+        
+        self.local_size = (block_width, block_height, 1)
+        self.global_size = ( \
+                       int(np.ceil(self.nx / float(self.local_size[0]))), \
+                       int(np.ceil(self.ny / float(self.local_size[1]))) \
+                                  ) 
+    
+    
     def __del__(self):
         self.cleanUp()
         
@@ -95,15 +122,35 @@ class IEWPFOcean:
             self.S_device.release()
         if self.localSVD_device is not None:
             self.localSVD_device.release()
-        
+        if self.reduction_buffer is not None:
+            self.reduction_buffer.release()
         self.gpu_ctx = None
+    
+    
+    # Functions needed for the GPU implementation of IEWPF
+    def obtainGamma(self, sim):
         
+        self.squareSumKernel.prepared_async_call(self.global_size_reductions,
+                                                 self.local_size_reductions, 
+                                                 self.master_stream,
+                                                 self.nx, self.ny,
+                                                 sim.small_scale_model_error.random_numbers.data.gpudata,
+                                                 self.reduction_buffer.data.gpudata)
+        return self.download_reduction_buffer()[0,0]
         
+    
+    
+    
+    ## Download GPU buffers
+    
     def download_S(self):
         return self.S_device.download(self.master_stream)
     
     def download_localSVD(self):
         return self.localSVD_device.download(self.master_stream)
+    
+    def download_reduction_buffer(self):
+        return self.reduction_buffer.download(self.master_stream)
     
         
     def showMatrices(self, x, y, title, z = None):
@@ -123,7 +170,7 @@ class IEWPFOcean:
             plt.xlabel('(%.2E, %.2E)' % (np.min(z), np.max(z)))
         plt.suptitle(title)
 
-        
+    
         
     def _SOAR_Q_CPU(self, a_x, a_y, b_x, b_y):
         """
