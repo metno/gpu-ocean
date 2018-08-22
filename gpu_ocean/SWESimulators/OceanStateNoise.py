@@ -67,12 +67,13 @@ class OceanStateNoise(object):
         self.periodicEastWest = np.int32(boundaryConditions.isPeriodicEastWest())
         
         # Size of random field and seed
-        self.rand_nx = np.int32(nx + 2*(1+self.cutoff))
-        self.rand_ny = np.int32(ny + 2*(1+self.cutoff))
-        if self.periodicEastWest:
-            self.rand_nx = np.int32(nx)
-        if self.periodicNorthSouth:
-            self.rand_ny = np.int32(ny)
+        self.rand_nx = np.int32(nx)
+        self.rand_ny = np.int32(ny)
+        if not self.periodicEastWest:
+            self.rand_nx = np.int32(nx + 2*(1+self.cutoff))
+        if not self.periodicNorthSouth:
+            self.rand_ny = np.int32(ny + 2*(1+self.cutoff))
+        
         self.seed_ny = np.int32(self.rand_ny)
         self.seed_nx = np.int32(self.rand_nx/2) 
         ### WHAT IF rand_nx IS ODD??
