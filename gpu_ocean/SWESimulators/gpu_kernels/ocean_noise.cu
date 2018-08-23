@@ -176,6 +176,9 @@ __global__ void perturbOcean(
         
         // Parameter for the SOAR function
         float soar_q0_, float soar_L_, 
+
+        // Scale parameter for the final stochastic field
+        float perturbation_scale_,
         
         // Periodic domain
         int periodic_north_south_, int periodic_east_west_,
@@ -295,9 +298,9 @@ __global__ void perturbOcean(
         const float d_hv =  (g_/coriolis)*h_mid*eta_diff_x;        
 
         if (true) {
-            eta_row[ti+ghost_cells_x_] += d_eta[ty+1][tx+1];
-             hu_row[ti+ghost_cells_x_] += d_hu;
-             hv_row[ti+ghost_cells_x_] += d_hv;
+            eta_row[ti+ghost_cells_x_] += perturbation_scale_ * d_eta[ty+1][tx+1];
+             hu_row[ti+ghost_cells_x_] += perturbation_scale_ * d_hu;
+             hv_row[ti+ghost_cells_x_] += perturbation_scale_ * d_hv;
         } else {
             eta_row[ti+ghost_cells_x_] = d_eta[ty+1][tx+1];
             hu_row[ti+ghost_cells_x_] = d_hu;

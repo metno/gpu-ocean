@@ -112,7 +112,7 @@ class OceanStateNoise(object):
         self.normalDistributionKernel.prepare("iiiPiPi")
         
         self.perturbOceanKernel = self.kernels.get_function("perturbOcean")
-        self.perturbOceanKernel.prepare("iiffiiffffffiiPiPiPiPiPi")
+        self.perturbOceanKernel.prepare("iiffiifffffffiiPiPiPiPiPi")
         
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height, 1) 
@@ -181,7 +181,7 @@ class OceanStateNoise(object):
                                                            self.seed.data.gpudata, self.seed.pitch,
                                                            self.random_numbers.data.gpudata, self.random_numbers.pitch)
     
-    def perturbSim(self, sim, q0_scale=1.0, update_random_field=True):
+    def perturbSim(self, sim, q0_scale=1.0, update_random_field=True, perturbation_scale=1.0):
         
         self.perturbOceanState(sim.gpu_data.h0, sim.gpu_data.hu0, sim.gpu_data.hv0,
                                sim.bathymetry.Bi,
@@ -195,7 +195,7 @@ class OceanStateNoise(object):
     
     def perturbOceanState(self, eta, hu, hv, H, f, beta=0.0, g=9.81, 
                           y0_reference_cell=0, ghost_cells_x=0, ghost_cells_y=0,
-                          q0_scale=1.0, update_random_field=True):
+                          q0_scale=1.0, update_random_field=True, perturbation_scale=1.0):
         """
         Apply the SOAR Q covariance matrix on the random ocean field which is
         added to the provided buffers eta, hu and hv.
@@ -218,7 +218,8 @@ class OceanStateNoise(object):
                                                     np.float32(g), np.float32(f),
                                                     np.float32(beta), np.float32(y0_reference_cell),
 
-                                                    soar_q0, self.soar_L,
+                                                    soar_q0, self.soar_L, 
+                                                    np.float32(perturbation_scale),
                                                     self.periodicNorthSouth, self.periodicEastWest,
 
                                                     self.random_numbers.data.gpudata, self.random_numbers.pitch,
@@ -396,7 +397,7 @@ class OceanStateNoise(object):
         return Qxi
     
     
-    def _obtainOceanPerturbations_CPU(self, H, f, beta, g):
+    def _obtainOceanPerturbations_CPU(self, H, f, beta, g, perturbation_scale=1):
         d_eta = self._applyQ_CPU()
         # d_eta.shape = (self.ny + 2, self.nx + 2)
         
@@ -442,5 +443,8 @@ class OceanStateNoise(object):
                 eta_diff_x = (d_eta[local_j, local_i+1] - d_eta[local_j, local_i-1])/(2.0*self.dx)
                 d_hv[j,i] = (g/coriolis)*h_mid*eta_diff_x   
 
+        if perturbation_scale != 1:
+            return perturbation_scale*d_eta, perturbation_scale*d_hu, perturbation_scale*d_hv
+            
         return d_eta, d_hu, d_hv
     
