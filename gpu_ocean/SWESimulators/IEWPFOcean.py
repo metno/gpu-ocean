@@ -113,12 +113,19 @@ class IEWPFOcean:
         self.halfTheKalmanGainKernel = self.iewpf_kernels.get_function("halfTheKalmanGain")
         self.halfTheKalmanGainKernel.prepare("iiffffiifffPi")
         
+        self.localSVDOnGlobalXiKernel = self.iewpf_kernels.get_function("localSVDOnGlobalXi")
+        self.localSVDOnGlobalXiKernel.prepare("iiiiPiPi")
+        
+        
         #Compute kernel launch parameters
         self.local_size_reductions  = (128, 1, 1)
         self.global_size_reductions = (1,   1)
         
         self.local_size_Kalman  = (7, 7, 1)
         self.global_size_Kalman = (1, 1)
+        
+        self.local_size_SVD  = (7, 7, 1)
+        self.global_size_SVD = (1, 1)
         
         self.local_size_domain = (block_width, block_height, 1)
         self.global_size_domain = ( \
@@ -198,6 +205,26 @@ class IEWPFOcean:
         sim.small_scale_model_error.perturbSim(sim, update_random_field=False)
     
         
+    def applyLocalSVDOnGlobalXi(self, sim, all_observed_drifter_positions):
+        # Assuming that the random numbers buffer for the given sim is filled with N(0,I) numbers
+        
+        for drifter in range(self.numDrifters):
+            print "\nhei from drifter ", drifter
+            observed_drifter_position = all_observed_drifter_positions[drifter,:]
+            
+            cell_id_x = np.int32(int(np.floor(observed_drifter_position[0]/sim.dx)))
+            cell_id_y = np.int32(int(np.floor(observed_drifter_position[1]/sim.dy)))
+            print "cell id: ", (cell_id_x, cell_id_y)
+            
+            self.localSVDOnGlobalXiKernel.prepared_async_call(self.global_size_SVD,
+                                                              self.local_size_SVD,
+                                                              self.master_stream,
+                                                              self.nx, self.ny,
+                                                              cell_id_x, cell_id_y,
+                                                              self.localSVD_device.data.gpudata,
+                                                              self.localSVD_device.pitch, 
+                                                              sim.small_scale_model_error.random_numbers.data.gpudata,
+                                                             sim.small_scale_model_error.random_numbers.pitch)
     
     ## Download GPU buffers
     

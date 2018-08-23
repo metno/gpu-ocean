@@ -164,7 +164,7 @@ class IEWPFOceanTest(unittest.TestCase):
         assert2DListAlmostEqual(self, localSVD_from_GPU.tolist(), self.iewpf.localSVD_host.tolist(), 7, "S matrix GPU vs CPU")
         assert2DListAlmostEqual(self, localSVD_from_GPU.tolist(), localSVD_from_file.tolist(), 7, "S matrix GPU vs file")
 
-    def test_local_SVD_to_global_CPU(self):
+    def test_local_SVD_to_global_CPU_ref_data(self):
         test_data = np.loadtxt("iewpfRefData/preLocalSVDtoGlobal.dat")
         results_from_file = np.loadtxt("iewpfRefData/postLocalSVDtoGlobal.dat")
 
@@ -173,7 +173,32 @@ class IEWPFOceanTest(unittest.TestCase):
         self.iewpf._apply_local_SVD_to_global_xi_CPU(test_data, 30, 30)
 
         assert2DListAlmostEqual(self, test_data.tolist(), results_from_file.tolist(), 10, "test_local_SVD_to_global_CPU")
+        
+    def test_local_SVD_to_global_GPU_ref_data(self):
+        test_data = np.loadtxt("iewpfRefData/preLocalSVDtoGlobal.dat")
+        results_from_file = np.loadtxt("iewpfRefData/postLocalSVDtoGlobal.dat")
 
+        self.assertEqual(test_data.shape, (self.ny, self.nx))
+
+        sim = self.ensemble.particles[0]
+
+        # Upload reference input data to the sim random numbers buffer:
+        sim.small_scale_model_error.random_numbers.upload(self.iewpf.master_stream,
+                                                          test_data.astype(np.float32))
+        
+        # Manipulate drifter data to match the referance test case:
+        self.iewpf.numDrifters = 1
+        all_observed_drifters = np.array([[30*self.dx + 1, 30*self.dy + 1]])
+
+        # Apply SVD:
+        self.iewpf.applyLocalSVDOnGlobalXi(sim, all_observed_drifters)
+        
+        # Download results:
+        gpu_result = sim.small_scale_model_error.random_numbers.download(self.iewpf.master_stream)
+
+        # Compare:
+        rel_norm_results = np.linalg.norm(gpu_result - results_from_file)/np.max(results_from_file)
+        self.assertAlmostEqual(rel_norm_results, 0.0, places=6)
         
     def test_empty_reduction_buffer(self):
         buffer_host = self.iewpf.download_reduction_buffer()
@@ -199,7 +224,7 @@ class IEWPFOceanTest(unittest.TestCase):
             for i in range(self.nx):
                 self.assertEqual(obtained_random_numbers[j,i], 0.0)
 
-    def test_kalman_gain(self):
+    def atest_kalman_gain(self):
         self.run_ensemble()
         innovation = self.ensemble.getInnovations()[0]
         observed_drifter_positions = self.ensemble.observeTrueDrifters()
