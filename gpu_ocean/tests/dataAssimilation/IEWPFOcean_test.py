@@ -199,4 +199,33 @@ class IEWPFOceanTest(unittest.TestCase):
             for i in range(self.nx):
                 self.assertEqual(obtained_random_numbers[j,i], 0.0)
 
+    def test_kalman_gain(self):
+        self.run_ensemble()
+        innovation = self.ensemble.getInnovations()[0]
+        observed_drifter_positions = self.ensemble.observeTrueDrifters()
+
+        # Set sim variables to zero, so that only the Kalman gain ends up in those fields
+        zeros = np.zeros((self.iewpf.ny+4, self.iewpf.nx+4), dtype=np.float32)
+        self.ensemble.particles[0].gpu_data.h0.upload(self.iewpf.master_stream, zeros)
+        self.ensemble.particles[0].gpu_data.hu0.upload(self.iewpf.master_stream, zeros)
+        self.ensemble.particles[0].gpu_data.hv0.upload(self.iewpf.master_stream, zeros)
+
+        self.iewpf.addKalmanGain(self.ensemble.particles[0],
+                                 observed_drifter_positions,
+                                 innovation)
+
+        eta, hu, hv = self.ensemble.particles[0].download(interior_domain_only=True)
+
+        dummy_target_weight = 2.0
+        etaCPU, huCPU, hvCPU, gamma = self.iewpf.applyKalmanGain_CPU(self.ensemble.particles[0],
+                                                                     observed_drifter_positions,
+                                                                     innovation, dummy_target_weight,
+                                                                     returnKalmanGainTerm=True)
+        rel_norm_eta = np.linalg.norm(eta - etaCPU)/np.max(eta)
+        rel_norm_hu  = np.linalg.norm(hu - huCPU)/np.max(hu)
+        rel_norm_hv  = np.linalg.norm(hv - hvCPU)/np.max(hv)
+       
+        self.assertAlmostEqual(rel_norm_eta, 0.0, places=5)
+        self.assertAlmostEqual(rel_norm_hu,  0.0, places=5)
+        self.assertAlmostEqual(rel_norm_hv,  0.0, places=5)
         

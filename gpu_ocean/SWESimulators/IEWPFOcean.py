@@ -174,9 +174,7 @@ class IEWPFOcean:
         
         # Loop over drifters to get half the Kalman gain for each innovation
         for drifter in range(self.numDrifters):
-            print "drifter: ", drifter
             local_innovation = innovation[drifter,:]
-            print "local_innovation:" , local_innovation
             observed_drifter_position = all_observed_drifter_positions[drifter,:]
             
             cell_id_x = np.int32(int(np.floor(observed_drifter_position[0]/sim.dx)))
