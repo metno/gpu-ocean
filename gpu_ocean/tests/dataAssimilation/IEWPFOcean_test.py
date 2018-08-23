@@ -186,12 +186,8 @@ class IEWPFOceanTest(unittest.TestCase):
         sim.small_scale_model_error.random_numbers.upload(self.iewpf.master_stream,
                                                           test_data.astype(np.float32))
         
-        # Manipulate drifter data to match the referance test case:
-        self.iewpf.numDrifters = 1
-        all_observed_drifters = np.array([[30*self.dx + 1, 30*self.dy + 1]])
-
-        # Apply SVD:
-        self.iewpf.applyLocalSVDOnGlobalXi(sim, all_observed_drifters)
+        # Apply SVD centered in the chosen cell (30, 30):
+        self.iewpf.applyLocalSVDOnGlobalXi(sim, 30, 30)
         
         # Download results:
         gpu_result = sim.small_scale_model_error.random_numbers.download(self.iewpf.master_stream)
@@ -224,7 +220,7 @@ class IEWPFOceanTest(unittest.TestCase):
             for i in range(self.nx):
                 self.assertEqual(obtained_random_numbers[j,i], 0.0)
 
-    def atest_kalman_gain(self):
+    def test_kalman_gain(self):
         self.run_ensemble()
         innovation = self.ensemble.getInnovations()[0]
         observed_drifter_positions = self.ensemble.observeTrueDrifters()

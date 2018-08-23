@@ -151,7 +151,62 @@ class IEWPFOcean:
         self.gpu_ctx = None
     
     
+    
+    
+    ### MAIN IEWPF METHOD
+    
+    def iewpf(self, ensemble, infoPlots=None, it=None):
+        """
+        The complete IEWPF algorithm implemented on the GPU.
+        
+        Retrieves innovations and target weights from the ensemble, and updates 
+        each particle according to the IEWPF method.
+        """
+        # Step -1: Deterministic step
+        t = ensemble.step_truth(self.dt, stochastic=True)
+        t = ensemble.step_particles(self.dt, stochastic=False)
+
+
+        # Step 0: Obtain innovations
+        observed_drifter_positions = ensemble.observeTrueDrifters()
+        innovations = ensemble.getInnovations()
+        w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
+
+        # save plot before
+        if infoPlots is not None:
+            self._keepPlot(ensemble, infoPlots, it, 1)
+
+        # Step 1: Find maximum weight
+        target_weight = self.obtainTargetWeight(ensemble)
+
+        for p in range(ensemble.getNumParticles()):
+                        
+            # Loop step 1: Pull particles towards observation by adding a Kalman gain term
+            #     Also, we find phi within this function
+            phi = self.addKalmanGain(ensemble.particles[p], observed_drifter_positions, innovations[p])
+            
+            # Loop step 2: Sample xi \sim N(0, P), and get gamma in the process
+            gamma = self.sampleFromP(ensemble.particles[p], observed_drifter_positions)
+            
+            # Loop step 3: Solve implicit equation
+            alpha = self.solveImplicitEquation(phi, gamma, target_weight, w_rest[p], particle_id=p)
+            
+            # Loop steps 4:Add scaled sample from P to the state vector
+            ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
+                                                                     update_random_field=False, \
+                                                                     perturbation_scale=alpha)   
+            
+            # TODO
+            #ensemble.particles[p].drifters.setDrifterPositions(newPos)
+            print "IEWPF done for particle: ", p
+        # save plot after
+        if infoPlots is not None:
+            self._keepPlot(ensemble, infoPlots, it, 3)
+    
+    
+    ### GPU Methods
     # Functions needed for the GPU implementation of IEWPF
+    
     def obtainGamma(self, sim):
         """
         Gamma = sum(xi^2), where xi \sim N(0,I)
@@ -166,6 +221,7 @@ class IEWPFOcean:
                                                  self.reduction_buffer.data.gpudata)
         return self.download_reduction_buffer()[0,0]
         
+            
     def setNoiseBufferToZero(self, sim):
         self.setBufferToZeroKernel.prepared_async_call(self.global_size_domain,
                                                       self.local_size_domain, 
@@ -178,6 +234,9 @@ class IEWPFOcean:
         
         # Reset the random numbers buffer for the given sim to zero:
         self.setNoiseBufferToZero(sim)
+        
+        # Find phi as we go: phi = d^T S d
+        phi = 0.0
         
         # Loop over drifters to get half the Kalman gain for each innovation
         for drifter in range(self.numDrifters):
@@ -201,31 +260,115 @@ class IEWPFOcean:
                                                              sim.small_scale_model_error.random_numbers.data.gpudata,
                                                              sim.small_scale_model_error.random_numbers.pitch)
             
+            phi += local_innovation[0]*e[0,0] + local_innovation[1]*e[0,1]
+            
         # The final step of the Kalman gain is to obtain geostrophic balance on the obtained field.
         sim.small_scale_model_error.perturbSim(sim, update_random_field=False)
     
+        return phi
+        # end of addKalmanGain
+        #----------------------------------
+    
+    
+    def sampleFromP(self, sim, all_observed_drifter_positions):
         
-    def applyLocalSVDOnGlobalXi(self, sim, all_observed_drifter_positions):
-        # Assuming that the random numbers buffer for the given sim is filled with N(0,I) numbers
+        # Sample from N(0,I)
+        sim.small_scale_model_error.generateNormalDistribution()
+        
+        # Obtain gamma
+        gamma = self.obtainGamma(sim)
         
         for drifter in range(self.numDrifters):
-            print "\nhei from drifter ", drifter
+            #print "\nhei from drifter ", drifter
             observed_drifter_position = all_observed_drifter_positions[drifter,:]
             
-            cell_id_x = np.int32(int(np.floor(observed_drifter_position[0]/sim.dx)))
-            cell_id_y = np.int32(int(np.floor(observed_drifter_position[1]/sim.dy)))
-            print "cell id: ", (cell_id_x, cell_id_y)
-            
-            self.localSVDOnGlobalXiKernel.prepared_async_call(self.global_size_SVD,
-                                                              self.local_size_SVD,
-                                                              self.master_stream,
-                                                              self.nx, self.ny,
-                                                              cell_id_x, cell_id_y,
-                                                              self.localSVD_device.data.gpudata,
-                                                              self.localSVD_device.pitch, 
+            cell_id_x = int(np.floor(observed_drifter_position[0]/sim.dx))
+            cell_id_y = int(np.floor(observed_drifter_position[1]/sim.dy))
+            #print "cell id: ", (cell_id_x, cell_id_y)
+        
+            self.applyLocalSVDOnGlobalXi(sim, cell_id_x, cell_id_y)
+                
+        return gamma
+    
+    def applyLocalSVDOnGlobalXi(self, sim, drifter_cell_id_x, drifter_cell_id_y):
+        # Assuming that the random numbers buffer for the given sim is filled with N(0,I) numbers
+        self.localSVDOnGlobalXiKernel.prepared_async_call(self.global_size_SVD,
+                                                          self.local_size_SVD,
+                                                          self.master_stream,
+                                                          self.nx, self.ny,
+                                                          np.int32(drifter_cell_id_x),
+                                                          np.int32(drifter_cell_id_y),
+                                                          self.localSVD_device.data.gpudata,
+                                                          self.localSVD_device.pitch, 
                                                               sim.small_scale_model_error.random_numbers.data.gpudata,
                                                              sim.small_scale_model_error.random_numbers.pitch)
     
+    ### Solving the implicit equation on the CPU:
+    def _implicitEquation(self, alpha, gamma, Nx, a):
+        return (alpha-1.0)*gamma - Nx*np.log(alpha) + a
+            
+    def solveImplicitEquation(self, phi, gamma, 
+                               target_weight, w_rest, particle_id=None):
+        """
+        Solving the scalar implicit equation using the Lambert W function, and 
+        updating the buffers eta_a, hu_a, hv_a as:
+        x_a = x_a + alpha*xi
+        """
+        if self.debug:
+            print "gamma: ", gamma
+            print "Nx: ", self.Nx
+            print "w_rest: ", w_rest
+            print "target_weight: ", target_weight
+            print "phi: ", phi
+
+        # 6) Find a
+        a = phi - w_rest + target_weight
+        if self.debug: 
+            print "a = phi - w_rest + target_weight: ", a
+
+        # 7) Solving the Lambert W function
+        lambert_W_arg = -(gamma/self.Nx)*np.exp(a/self.Nx)*np.exp(-gamma/self.Nx)
+
+        alpha_min1 = -(self.Nx/gamma)*np.real(lambertw(lambert_W_arg, k=-1))
+        alpha_zero = -(self.Nx/gamma)*np.real(lambertw(lambert_W_arg))
+        
+        if self.debug: 
+            print "Check a against the Lambert W requirement: ", a, " < ", - self.Nx + gamma - self.Nx*np.log(gamma/self.Nx), " = ", a <  - self.Nx + gamma - self.Nx*np.log(gamma/self.Nx)
+            print "-e^-1 < z < 0 : ", -1.0/np.exp(1), " < ", lambert_W_arg, " < ", 0, " = ", \
+                    (-1.0/np.exp(1) < lambert_W_arg, lambert_W_arg < 0)
+            print "Obtained (alpha k=-1, alpha k=0): ", (alpha_min1, alpha_zero)
+            print "The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1))
+            print "The two branches from Lambert W: ", (np.real(lambertw(lambert_W_arg)), np.real(lambertw(lambert_W_arg, k=-1)))
+
+        alpha = alpha_zero
+        if lambert_W_arg > (-1.0/np.exp(1)) :
+            alpha_u = np.random.rand()
+            if alpha_u < 0.5:
+                alpha = alpha_min1
+                if self.debug: print "Drew alpha from -1-branch"
+        elif self.show_errors:
+            print "!!!!!!!!!!!!"
+            print "BAD BAD ARGUMENT TO LAMBERT W"
+            print "Particle ID: ", particle_id
+            print "Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1)
+            print "The requirement is lamber_W_arg > (-1.0/exp(1)): " + str(lambert_W_arg) + " > " + str(-1.0/np.exp(1.0))
+            print "gamma: ", gamma
+            print "Nx: ", self.Nx
+            print "w_rest: ", w_rest
+            print "target_weight: ", target_weight
+            print "phi: ", phi
+            print "!!!!!!!!!!!!"
+        
+        
+        if self.debug: 
+            print "--------------------------------------"
+            print "Obtained (lambert_ans k=0, lambert_ans k=-1): ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1))
+            print "Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1)
+            print "Checking implicit equation with alpha (k=0, k=-1): ", \
+            (self._implicitEquation(alpha_zero, gamma, self.Nx, a), self._implicitEquation(alpha_min1, gamma, self.Nx, a))
+
+        return np.sqrt(alpha)
+        
     ## Download GPU buffers
     
     def download_S(self):
@@ -466,11 +609,79 @@ class IEWPFOcean:
         return np.dot(u, np.diag(np.sqrt(s))).astype(np.float32, order='C')
     
     
+  
     
     
     def iewpf_CPU(self, ensemble, infoPlots=None, it=None):
         """
         The complete IEWPF algorithm implemented on the CPU.
+        
+        Retrieves innovations and target weights from the ensemble, and updates 
+        each particle according to the IEWPF method.
+        """
+        # Step -1: Deterministic step
+        t = ensemble.step_truth(self.dt, stochastic=True)
+        t = ensemble.step_particles(self.dt, stochastic=False)
+
+
+        # Step 0: Obtain innovations
+        observed_drifter_position = ensemble.observeTrueDrifters()
+        innovations = ensemble.getInnovations()
+        w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
+
+        # save plot halfway
+        if infoPlots is not None:
+            self._keepPlot(ensemble, infoPlots, it, 1)
+
+        # Step 1: Find maximum weight
+        target_weight = self.obtainTargetWeight(ensemble)
+        #print "WWWWWWWWWWWWWWW"
+        #print "Target weight: ", target_weight
+        #print "-log(target_weight): ", -np.log(target_weight)
+        #print "exp(-target_weight): ", np.exp(-target_weight)
+        #print "1/Ne: ", 1.0/ensemble.getNumParticles()
+        #print "WWWWWWWWWWWWWWW"
+
+
+        for p in range(ensemble.getNumParticles()):
+            #iewpfOcean.debug = p==0
+            
+            # Loop step 1: Pull particles towards observation by adding a Kalman gain term
+            eta_a, hu_a, hv_a, phi = self.applyKalmanGain_CPU(ensemble.particles[p], \
+                                                              observed_drifter_position,
+                                                              innovations[p], target_weight)
+            
+            
+
+            # Loop step 2: Sample xi \sim N(0, P)
+            p_eta, p_hu, p_hv, gamma = self.drawFromP_CPU(ensemble.particles[p], 
+                                                          observed_drifter_position)
+            xi = [p_eta, p_hu, p_hv] 
+
+            
+
+            # Loop steps 3 and 4: Solve implicit equation and add scaled sample from P to the state vector
+            self.applyScaledPSample_CPU(ensemble.particles[p], eta_a, hu_a, hv_a, \
+                                        phi, xi, gamma, 
+                                        target_weight, w_rest[p])
+
+            # CPU step: Fix boundaries and upload the resulting state to the GPU
+            eta_a = self._expand_to_periodic_boundaries(eta_a, 2)
+            hu_a  = self._expand_to_periodic_boundaries(hu_a,  2)
+            hv_a  = self._expand_to_periodic_boundaries(hv_a,  2)
+            ensemble.particles[p].upload(eta_a, hu_a, hv_a)
+
+            # TODO
+            #ensemble.particles[p].drifters.setDrifterPositions(newPos)
+            print "IEWPF (CPU) done for particle: ", p
+        # save plot after
+        if infoPlots is not None:
+            self._keepPlot(ensemble, infoPlots, it, 3)
+    
+    
+    def iewpf_traditional_CPU(self, ensemble, infoPlots=None, it=None):
+        """
+        The complete IEWPF algorithm (as described by the SotA-18 paper) implemented on the CPU.
         
         Retrieves innovations and target weights from the ensemble, and updates 
         each particle according to the IEWPF method.
@@ -803,9 +1014,6 @@ class IEWPFOcean:
         
         return eta_a, hu_a, hv_a, phi
             
-            
-    def _implicitEquation(self, alpha, gamma, Nx, a):
-        return (alpha-1.0)*gamma - Nx*np.log(alpha) + a
             
     def applyScaledPSample_CPU(self, sim, eta_a, hu_a, hv_a, \
                            phi, xi, gamma, 
