@@ -37,7 +37,6 @@ class SimNetCDFWriter:
         ignore_ghostcells: Ghost cells will not be written to file if set to True.
         offset_x: Offset simulator origo with offset_x*dx in x-dimension, before writing to netCDF. 
         offset_y: Offset simulator origo with offset_y*dy in y-dimension, before writing to netCDF.
-
     """
     def __init__(self, sim, num_layers=1, staggered_grid=False, \
                  ignore_ghostcells=False, \
@@ -48,8 +47,8 @@ class SimNetCDFWriter:
 
         # Write options:
         self.ignore_ghostcells = ignore_ghostcells
-        self.num_layers = num_layers
         self.staggered_grid = staggered_grid
+        self.num_layers = num_layers
 
         # Identification of solution
         self.timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
@@ -91,7 +90,7 @@ class SimNetCDFWriter:
         self.coriolis_force = sim.f
         self.coriolis_beta = sim.coriolis_beta
         self.y_zero_reference_cell = sim.y_zero_reference_cell
-        self.wind_stress = sim.wind_stress.type()
+        #self.wind_stress = sim.wind_stress.type() # FIXME
         self.eddy_viscosity_coefficient = sim.A
         g = sim.g
         nx = sim.nx
@@ -124,7 +123,10 @@ class SimNetCDFWriter:
         # Organize directory and create file:
         if not os.path.isdir(self.dir_name):
             os.makedirs(self.dir_name)
-        self.ncfile = Dataset(self.output_file_name,'w', clobber=True) 
+        if(sim.ensemble_size):
+            self.ncfile = Dataset(self.output_file_name,'w', clobber=True, parallel=True)
+        else:
+            self.ncfile = Dataset(self.output_file_name,'w', clobber=True, parallel=False)
         self.ncfile.Conventions = "CF-1.4"
         
         # Write global attributes
@@ -141,7 +143,7 @@ class SimNetCDFWriter:
         self.ncfile.coriolis_force = self.coriolis_force
         self.ncfile.coriolis_beta = self.coriolis_beta
         self.ncfile.y_zero_reference_cell = self.y_zero_reference_cell
-        self.ncfile.wind_stress_type = self.wind_stress
+        #self.ncfile.wind_stress_type = self.wind_stress # FIXME
         self.ncfile.eddy_viscosity_coefficient = self.eddy_viscosity_coefficient
         self.ncfile.g = g  
         self.ncfile.nx = nx
@@ -173,6 +175,8 @@ class SimNetCDFWriter:
         if not self.staggered_grid: 
             self.ncfile.createDimension('x_Hi', nx + self.ghost_cells_tot_x + 1)
             self.ncfile.createDimension('y_Hi', ny + self.ghost_cells_tot_y + 1)
+        if (sim.ensemble_size):
+            self.ncfile.createDimension('ensemble_member', sim.ensemble_size)
         
         #Create axis
         self.nc_time = self.ncfile.createVariable('time', np.dtype('float32').char, 'time')
@@ -206,6 +210,13 @@ class SimNetCDFWriter:
             x_Hi.axis = "X"
             y_Hi.axis = "Y"
             
+        if (sim.ensemble_size):
+            ensemble_member = self.ncfile.createVariable('ensemble_member', np.dtype('float32').char, 'ensemble_member')
+            ensemble_member.long_name = "ensemble run number"
+            ensemble_member.standard_name = "realization"
+            ensemble_member._CoordinateAxisType = "Ensemble"
+            ensemble_member[:] = range(0, sim.ensemble_size)
+
         #Create bogus projection variable
         self.nc_proj = self.ncfile.createVariable('projection_stere', np.dtype('int32').char)
         self.nc_proj.grid_mapping_name = 'polar_stereographic'
@@ -282,13 +293,29 @@ class SimNetCDFWriter:
         else:
             self.nc_H[0, :] = self.H[1:-1, 1:-1]
         
-        self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
-        if not self.ignore_ghostcells and self.staggered_grid:
-            self.nc_hu = self.ncfile.createVariable('hu', np.dtype('float32').char, ('time', 'y_hu', 'x_hu'), zlib=True)
-            self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'y_hv', 'x_hv'), zlib=True)
+        if(sim.ensemble_size):
+            self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'ensemble_member', 'y', 'x'), zlib=True)
+            # FIXME: Switch to independent parallel IO after nc-file is initialized.
+            # time dim cannot be UNLIMITED when independent parallel IO is used!
+            self.nc_eta.set_collective(False)
+            if not self.ignore_ghostcells and self.staggered_grid:
+                self.nc_hu = self.ncfile.createVariable('hu', np.dtype('float32').char, ('time', 'ensemble_member', 'y_hu', 'x_hu'), zlib=True)
+                self.nc_hu.set_collective(False)
+                self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'ensemble_member', 'y_hv', 'x_hv'), zlib=True)
+                self.nc_hv.set_collective(False)
+            else:
+                self.nc_hu = self.ncfile.createVariable('hu', np.dtype('float32').char, ('time', 'ensemble_member', 'y', 'x'), zlib=True)
+                self.nc_hu.set_collective(False)
+                self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'ensemble_member', 'y', 'x'), zlib=True)
+                self.nc_hv.set_collective(False)
         else:
-            self.nc_hu = self.ncfile.createVariable('hu', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
-            self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
+            self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
+            if not self.ignore_ghostcells and self.staggered_grid:
+                self.nc_hu = self.ncfile.createVariable('hu', np.dtype('float32').char, ('time', 'y_hu', 'x_hu'), zlib=True)
+                self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'y_hv', 'x_hv'), zlib=True)
+            else:
+                self.nc_hu = self.ncfile.createVariable('hu', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
+                self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
             
         self.nc_eta.standard_name = 'water_surface_height_above_reference_datum'
         self.nc_hu.standard_name = 'x_sea_water_velocity'
@@ -345,16 +372,27 @@ class SimNetCDFWriter:
     def writeTimestep(self, sim):
         eta, hu, hv = sim.download()
         if (self.ignore_ghostcells):
-            
-            self.nc_time[self.i] = sim.t
-            self.nc_eta[self.i, :] = eta[1:-1, 1:-1]
-            self.nc_hu[self.i, :] = hu[1:-1, 1:-2]
-            self.nc_hv[self.i, :] = hv[1:-2, 1:-1]
+            if(sim.ensemble_size):
+                self.nc_time[self.i] = sim.t
+                self.nc_eta[self.i, sim.ensemble_member, :] = eta[1:-1, 1:-1]
+                self.nc_hu[self.i, sim.ensemble_member, :] = hu[1:-1, 1:-2]
+                self.nc_hv[self.i, sim.ensemble_member, :] = hv[1:-2, 1:-1]
+            else:
+                self.nc_time[self.i] = sim.t
+                self.nc_eta[self.i, :] = eta[1:-1, 1:-1]
+                self.nc_hu[self.i, :] = hu[1:-1, 1:-2]
+                self.nc_hv[self.i, :] = hv[1:-2, 1:-1]
         else:
-            self.nc_time[self.i] = sim.t
-            self.nc_eta[self.i, :] = eta
-            self.nc_hu[self.i, :] = hu
-            self.nc_hv[self.i, :] = hv
+            if(sim.ensemble_size):
+                self.nc_time[self.i] = sim.t
+                self.nc_eta[self.i, sim.ensemble_member, :] = eta
+                self.nc_hu[self.i, sim.ensemble_member, :] = hu
+                self.nc_hv[self.i, sim.ensemble_member, :] = hv
+            else:
+                self.nc_time[self.i] = sim.t
+                self.nc_eta[self.i, :] = eta
+                self.nc_hu[self.i, :] = hu
+                self.nc_hv[self.i, :] = hv
                        
         self.i += 1
 
