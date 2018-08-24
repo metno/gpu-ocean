@@ -198,7 +198,7 @@ class IEWPFOcean:
             
             # TODO
             #ensemble.particles[p].drifters.setDrifterPositions(newPos)
-            print "IEWPF done for particle: ", p
+            #print "IEWPF done for particle: ", p
         # save plot after
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 3)
@@ -673,7 +673,7 @@ class IEWPFOcean:
 
             # TODO
             #ensemble.particles[p].drifters.setDrifterPositions(newPos)
-            print "IEWPF (CPU) done for particle: ", p
+            #print "IEWPF (CPU) done for particle: ", p
         # save plot after
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 3)

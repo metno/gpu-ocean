@@ -625,6 +625,16 @@ class BaseOceanStateEnsemble(object):
         fieldRanges[4] = min(fieldRanges[4], np.min(hv ))
         fieldRanges[5] = max(fieldRanges[5], np.max(hv ))
 
+    def _markDriftersInImshow(self, ax, observed_drifter_positions):
+        """
+        Utility 
+        """
+        for d in range(self.driftersPerOceanModel):
+            cell_id_x = int(np.floor(observed_drifter_positions[d,0]/self.dx))
+            cell_id_y = int(np.floor(observed_drifter_positions[d,1]/self.dy))
+            circ = matplotlib.patches.Circle((cell_id_x, cell_id_y), 1, fill=False)
+            ax.add_patch(circ)    
+    
     def plotEnsemble(self):
         """
         Utility function to plot:
@@ -633,6 +643,8 @@ class BaseOceanStateEnsemble(object):
             - the state of up to 5 first ensemble members
         """
         matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
+        
+        observed_drifter_positions = self.observeTrueDrifters()
 
         numParticlePlots = min(self.getNumParticles(), 5)
         numPlots = numParticlePlots + 3
@@ -644,7 +656,6 @@ class BaseOceanStateEnsemble(object):
         
         self._updateMinMax(eta_true, hu_true, hv_true, fieldRanges)
         X,Y = np.meshgrid(np.arange(0, self.nx, 1.0), np.arange(0, self.ny, 1.0))
-
 
         eta_mean = np.zeros_like(eta_true)
         hu_mean = np.zeros_like(hu_true)
@@ -690,72 +701,87 @@ class BaseOceanStateEnsemble(object):
         eta_lim = np.max(np.abs(fieldRanges[:2]))
         huv_lim = np.max(np.abs(fieldRanges[2:]))
         
-        plt.subplot(numPlots, plotCols, 1)
+        ax = plt.subplot(numPlots, plotCols, 1)
         plt.imshow(eta_true, origin='lower', vmin=-eta_lim, vmax=eta_lim)
         plt.contour(eta_true, levels=eta_levels, colors='black', alpha=0.5)
         plt.title("true eta")
-        plt.subplot(numPlots, plotCols, 2)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        ax = plt.subplot(numPlots, plotCols, 2)
         plt.imshow(hu_true, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hu_true, levels=hu_levels, colors='black', alpha=0.5)
         plt.title("true hu")
-        plt.subplot(numPlots, plotCols, 3)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        ax = plt.subplot(numPlots, plotCols, 3)
         plt.imshow(hv_true, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hv_true, levels=hv_levels, colors='black', alpha=0.5)
         plt.title("true hv")
-        plt.subplot(numPlots, plotCols, 4)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        ax = plt.subplot(numPlots, plotCols, 4)
         plt.quiver(X, Y, hu_true, hv_true)
         plt.title("velocity field")
+        self._markDriftersInImshow(ax, observed_drifter_positions)
         
-        plt.subplot(numPlots, plotCols, 5)
+        ax = plt.subplot(numPlots, plotCols, 5)
         plt.imshow(eta_mean, origin='lower', vmin=-eta_lim, vmax=eta_lim)
         plt.contour(eta_mean, levels=eta_levels, colors='black', alpha=0.5)
         plt.title("mean eta")
-        plt.subplot(numPlots, plotCols, 6)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        ax = plt.subplot(numPlots, plotCols, 6)
         plt.imshow(hu_mean, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hu_mean, levels=hu_levels, colors='black', alpha=0.5)
         plt.title("mean hu")
-        plt.subplot(numPlots, plotCols, 7)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        ax = plt.subplot(numPlots, plotCols, 7)
         plt.imshow(hv_mean, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hv_mean, levels=hv_levels, colors='black', alpha=0.5)
         plt.title("mean hv")
-        plt.subplot(numPlots, plotCols, 8)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        ax = plt.subplot(numPlots, plotCols, 8)
         plt.quiver(X, Y, hu_mean, hv_mean)
         plt.title("velocity field")
+        self._markDriftersInImshow(ax, observed_drifter_positions)
         
         mrse_max = max(np.max(eta_mrse), np.max(hu_mrse), np.max(hv_mrse))
         mrse_min = min(np.min(eta_mrse), np.min(hu_mrse), np.min(hv_mrse))
         mrse_levels = np.linspace(mrse_max, mrse_min, 10)
         
-        plt.subplot(numPlots, plotCols, 9)
+        ax = plt.subplot(numPlots, plotCols, 9)
         plt.imshow(eta_mrse, origin='lower', vmin=-eta_lim, vmax=eta_lim)
         plt.contour(eta_mrse, levels=eta_levels, colors='black', alpha=0.5)
         plt.title("RMSE eta")
-        plt.subplot(numPlots, plotCols, 10)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        ax = plt.subplot(numPlots, plotCols, 10)
         plt.imshow(hu_mrse, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         plt.contour(hu_mrse, levels=hu_levels, colors='black', alpha=0.5)
         plt.title("RMSE hu")
-        plt.subplot(numPlots, plotCols, 11)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        ax = plt.subplot(numPlots, plotCols, 11)
         plt.imshow(hv_mrse, origin='lower', vmin=-huv_lim, vmax=huv_lim)
         #plt.colorbar() # TODO: Find a nice way to include colorbar to this plot...
         plt.contour(hv_mrse, levels=hv_levels, colors='black', alpha=0.5)
         plt.title("RMSE hv")
+        self._markDriftersInImshow(ax, observed_drifter_positions)
 
         for p in range(numParticlePlots):
-            plt.subplot(numPlots, plotCols, 13+p*plotCols)
+            ax = plt.subplot(numPlots, plotCols, 13+p*plotCols)
             plt.imshow(eta[p], origin='lower', vmin=-eta_lim, vmax=eta_lim)
             plt.contour(eta[p], levels=eta_levels, colors='black', alpha=0.5)
             plt.title("particle eta")
-            plt.subplot(numPlots, plotCols, 13+p*plotCols + 1)
+            self._markDriftersInImshow(ax, observed_drifter_positions)
+            ax = plt.subplot(numPlots, plotCols, 13+p*plotCols + 1)
             plt.imshow(hu[p], origin='lower', vmin=-huv_lim, vmax=huv_lim)
             plt.contour(hu[p], levels=hu_levels, colors='black', alpha=0.5)
             plt.title("particle hu")
-            plt.subplot(numPlots, plotCols, 13+p*plotCols + 2)
+            self._markDriftersInImshow(ax, observed_drifter_positions)
+            ax = plt.subplot(numPlots, plotCols, 13+p*plotCols + 2)
             plt.imshow(hv[p], origin='lower', vmin=-huv_lim, vmax=huv_lim)
             plt.contour(hv[p], levels=hv_levels, colors='black', alpha=0.5)
             plt.title("particle hv")
-            plt.subplot(numPlots, plotCols, 13+p*plotCols + 3)
+            self._markDriftersInImshow(ax, observed_drifter_positions)
+            ax = plt.subplot(numPlots, plotCols, 13+p*plotCols + 3)
             plt.quiver(X, Y, hu[p], hv[p])
             plt.title("velocity field")
+            self._markDriftersInImshow(ax, observed_drifter_positions)
             
         plt.axis('tight')
     
