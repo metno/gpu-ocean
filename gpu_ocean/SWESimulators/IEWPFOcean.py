@@ -154,7 +154,6 @@ class IEWPFOcean:
     
     
     ### MAIN IEWPF METHOD
-    
     def iewpf(self, ensemble, infoPlots=None, it=None):
         """
         The complete IEWPF algorithm implemented on the GPU.
@@ -165,20 +164,19 @@ class IEWPFOcean:
         # Step -1: Deterministic step
         t = ensemble.step_truth(self.dt, stochastic=True)
         t = ensemble.step_particles(self.dt, stochastic=False)
-
-
+        
         # Step 0: Obtain innovations
         observed_drifter_positions = ensemble.observeTrueDrifters()
         innovations = ensemble.getInnovations()
         w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
-
+        
         # save plot before
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 1)
-
+        
         # Step 1: Find maximum weight
         target_weight = self.obtainTargetWeight(ensemble)
-
+        
         for p in range(ensemble.getNumParticles()):
                         
             # Loop step 1: Pull particles towards observation by adding a Kalman gain term
@@ -196,6 +194,95 @@ class IEWPFOcean:
                                                                      update_random_field=False, \
                                                                      perturbation_scale=alpha)   
             
+            # TODO
+            #ensemble.particles[p].drifters.setDrifterPositions(newPos)
+        
+        # save plot after
+        if infoPlots is not None:
+            self._keepPlot(ensemble, infoPlots, it, 3)
+    
+    
+    
+    def iewpf_timer(self, ensemble, infoPlots=None, it=None):
+        """
+        The complete IEWPF algorithm implemented on the GPU.
+        
+        Retrieves innovations and target weights from the ensemble, and updates 
+        each particle according to the IEWPF method.
+        """
+        # Step -1: Deterministic step
+        t = ensemble.step_truth(self.dt, stochastic=True)
+        t = ensemble.step_particles(self.dt, stochastic=False)
+
+        start_pre_loop = cuda.Event()
+        start_pre_loop.record(self.master_stream)
+        dummy = self.download_reduction_buffer()
+        
+        
+        # Step 0: Obtain innovations
+        observed_drifter_positions = ensemble.observeTrueDrifters()
+        innovations = ensemble.getInnovations()
+        w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
+
+        # save plot before
+        if infoPlots is not None:
+            self._keepPlot(ensemble, infoPlots, it, 1)
+
+        # Step 1: Find maximum weight
+        target_weight = self.obtainTargetWeight(ensemble)
+        
+        dummy = self.download_reduction_buffer()
+        end_pre_loop = cuda.Event()
+        end_pre_loop.record(self.master_stream)
+        end_pre_loop.synchronize()
+        gpu_elapsed = end_pre_loop.time_since(start_pre_loop)*1.0e-3
+        print "IEWPF pre loop took: " + str(gpu_elapsed) 
+        
+        for p in range(ensemble.getNumParticles()):
+            print "----------"
+            print "Starting particle " + str(p)
+            start_loop = cuda.Event()
+            kalman_event = cuda.Event()
+            p_event = cuda.Event()
+            add_scaled_event = cuda.Event()
+            
+            start_loop.record(self.master_stream)
+            
+            # Loop step 1: Pull particles towards observation by adding a Kalman gain term
+            #     Also, we find phi within this function
+            phi = self.addKalmanGain(ensemble.particles[p], observed_drifter_positions, innovations[p])
+            
+            kalman_event.record(self.master_stream)
+            kalman_event.synchronize()
+            gpu_elapsed = kalman_event.time_since(start_loop)*1.0e-3
+            print "Kalman gain took:   " + str(gpu_elapsed) 
+            
+            
+            # Loop step 2: Sample xi \sim N(0, P), and get gamma in the process
+            gamma = self.sampleFromP(ensemble.particles[p], observed_drifter_positions)
+            
+            p_event.record(self.master_stream)
+            p_event.synchronize()
+            gpu_elapsed = p_event.time_since(kalman_event)*1.0e-3
+            print "Sample from P took: " + str(gpu_elapsed) 
+            
+            # Loop step 3: Solve implicit equation
+            alpha = self.solveImplicitEquation(phi, gamma, target_weight, w_rest[p], particle_id=p)
+            
+            
+            
+            # Loop steps 4:Add scaled sample from P to the state vector
+            ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
+                                                                     update_random_field=False, \
+                                                                     perturbation_scale=alpha)   
+            
+            add_scaled_event.record(self.master_stream)
+            add_scaled_event.synchronize()
+            gpu_elapsed = add_scaled_event.time_since(p_event)*1.0e-3
+            print "Add scaled xi took: " + str(gpu_elapsed) 
+            
+            print "Done particle " + str(p)
+            print "----------"
             # TODO
             #ensemble.particles[p].drifters.setDrifterPositions(newPos)
             #print "IEWPF done for particle: ", p
@@ -357,6 +444,7 @@ class IEWPFOcean:
             print "w_rest: ", w_rest
             print "target_weight: ", target_weight
             print "phi: ", phi
+            print "The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1))
             print "!!!!!!!!!!!!"
         
         
