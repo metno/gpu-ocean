@@ -175,7 +175,7 @@ class IEWPFOcean:
             self._keepPlot(ensemble, infoPlots, it, 1)
         
         # Step 1: Find maximum weight
-        target_weight = self.obtainTargetWeight(ensemble)
+        target_weight = self.obtainTargetWeight(ensemble, innovations)
         
         for p in range(ensemble.getNumParticles()):
                         
@@ -211,32 +211,47 @@ class IEWPFOcean:
         each particle according to the IEWPF method.
         """
         # Step -1: Deterministic step
+        print "----------"
+        start_pre_loop = cuda.Event()
+        start_pre_loop.record(self.master_stream)
+                
         t = ensemble.step_truth(self.dt, stochastic=True)
         t = ensemble.step_particles(self.dt, stochastic=False)
 
-        start_pre_loop = cuda.Event()
-        start_pre_loop.record(self.master_stream)
-        dummy = self.download_reduction_buffer()
-        
+        deterministic_step_event = cuda.Event()
+        deterministic_step_event.record(self.master_stream)
+        deterministic_step_event.synchronize()
+        gpu_elapsed = deterministic_step_event.time_since(start_pre_loop)*1.0e-3
+        print "Deterministic timestep took: " + str(gpu_elapsed) 
         
         # Step 0: Obtain innovations
         observed_drifter_positions = ensemble.observeTrueDrifters()
+        
+        observe_drifters_event = cuda.Event()
+        observe_drifters_event.record(self.master_stream)
+        observe_drifters_event.synchronize()
+        gpu_elapsed = observe_drifters_event.time_since(deterministic_step_event)*1.0e-3
+        print "Observing drifters took:     " + str(gpu_elapsed) 
+        
+        
         innovations = ensemble.getInnovations()
+        innovations_event = cuda.Event()
+        innovations_event.record(self.master_stream)
+        innovations_event.synchronize()
+        gpu_elapsed = innovations_event.time_since(observe_drifters_event)*1.0e-3
+        print "innovations_event took:      " + str(gpu_elapsed) 
+        
         w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
 
-        # save plot before
-        if infoPlots is not None:
-            self._keepPlot(ensemble, infoPlots, it, 1)
-
         # Step 1: Find maximum weight
-        target_weight = self.obtainTargetWeight(ensemble)
+        target_weight = self.obtainTargetWeight(ensemble, innovations)
         
         dummy = self.download_reduction_buffer()
-        end_pre_loop = cuda.Event()
-        end_pre_loop.record(self.master_stream)
-        end_pre_loop.synchronize()
-        gpu_elapsed = end_pre_loop.time_since(start_pre_loop)*1.0e-3
-        print "IEWPF pre loop took: " + str(gpu_elapsed) 
+        target_weight_event = cuda.Event()
+        target_weight_event.record(self.master_stream)
+        target_weight_event.synchronize()
+        gpu_elapsed = target_weight_event.time_since(innovations_event)*1.0e-3
+        print "Finding target weight took:  " + str(gpu_elapsed) 
         
         for p in range(ensemble.getNumParticles()):
             print "----------"
@@ -722,7 +737,7 @@ class IEWPFOcean:
             self._keepPlot(ensemble, infoPlots, it, 1)
 
         # Step 1: Find maximum weight
-        target_weight = self.obtainTargetWeight(ensemble)
+        target_weight = self.obtainTargetWeight(ensemble, innovations)
         #print "WWWWWWWWWWWWWWW"
         #print "Target weight: ", target_weight
         #print "-log(target_weight): ", -np.log(target_weight)
@@ -789,7 +804,7 @@ class IEWPFOcean:
             self._keepPlot(ensemble, infoPlots, it, 1)
 
         # Step 1: Find maximum weight
-        target_weight = self.obtainTargetWeight(ensemble)
+        target_weight = self.obtainTargetWeight(ensemble, innovations)
         #print "WWWWWWWWWWWWWWW"
         #print "Target weight: ", target_weight
         #print "-log(target_weight): ", -np.log(target_weight)
@@ -860,11 +875,10 @@ class IEWPFOcean:
     
     
     # As we have S = (HQH^T + R)^-1, we can do step 1 of the IEWPF algorithm
-    def obtainTargetWeight(self, ensemble, w_rest=None):
+    def obtainTargetWeight(self, ensemble, d, w_rest=None):
         if w_rest is None:
             w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
             
-        d = ensemble.getInnovations() 
         Ne = ensemble.getNumParticles()
         c = np.zeros(Ne)
         for particle in range(Ne):
