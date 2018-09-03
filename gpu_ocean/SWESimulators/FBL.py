@@ -154,7 +154,6 @@ class FBL(Simulator.Simulator):
                                                self.asym_ghost_cells
         )
 
-        self.totalNumIterations = 0
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
                                     staggered_grid=True, offset_x=self.offset_x, offset_y=self.offset_y)
@@ -299,8 +298,8 @@ class FBL(Simulator.Simulator):
 
             self.bc_kernel.boundaryConditionEta(self.gpu_stream, self.gpu_data.h0)
    
-            self.t += local_dt
-            self.totalNumIterations += 1
+            self.t += np.float64(local_dt)
+            self.num_iterations += 1
             
         if self.write_netcdf:
             self.sim_writer.writeTimestep(self)

@@ -324,7 +324,8 @@ class KP07(Simulator.Simulator):
                 self.bc_kernel.boundaryCondition(self.gpu_stream, \
                         self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
                 
-            self.t += local_dt
+            self.t += np.float64(local_dt)
+            self.num_iterations += 1
             
         if self.write_netcdf:
             self.sim_writer.writeTimestep(self)
