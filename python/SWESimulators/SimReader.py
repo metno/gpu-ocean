@@ -26,7 +26,7 @@ import datetime
 from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 from matplotlib import animation, rc
-import PlotHelper
+from SWESimulators import PlotHelper
 
 
 class SimNetCDFReader:
@@ -54,16 +54,16 @@ class SimNetCDFReader:
         
     def printVariables(self):
         for var in self.ncfile.variables:
-            print var
+            print(var)
         
     def printAttributes(self):
         for attr in self.ncfile.ncattrs():
-            print attr, "\t--> ", self.ncfile.getncattr(attr)
+            print(attr, "\t--> ", self.ncfile.getncattr(attr))
     
     def getNumTimeSteps(self):
         time = self.ncfile.variables['time']
         #for t in time:
-            #print t
+            #print(t)
         return time.size
     
     def getBC(self):
@@ -157,7 +157,7 @@ class SimNetCDFReader:
             self._addText(ax, rest)
         else:
             ax.text(0.1, self.textPos, msg, fontsize=self.text_font_size)
-            #print len(msg)
+            #print(len(msg))
             self.textPos -= 0.2
 
     def makeInfoPlot(self, ax, text_font_size=8):

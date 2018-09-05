@@ -227,7 +227,7 @@ def initializeBalancedBumpOverPoint(eta, hu, hv, # allocated buffers to be fille
     staggered_increment = int(staggered)*1
     staggered_x = int(staggered)*0.5*dx
     staggered_y = int(staggered)*0.5*dy
-    #print "Staggered_{x,y,increment}: ", staggered_x, staggered_y, staggered_increment
+    #print("Staggered_{x,y,increment}: ", staggered_x, staggered_y, staggered_increment)
     # Find center of bump
     x0 = nx*dx*rel_x0
     y0 = ny*dy*rel_y0
@@ -272,7 +272,7 @@ def addCentralDamBreakStep(eta, nx, ny, dx, dy, step_size, halo):
 Generate a radial dam break initial condition with a step function
 """                
 def addCentralDamBreakSmooth(eta, nx, ny, dx, dy, step_size, halo):
-    print "addCentralDamBreakSmooth not implemented"
+    print("addCentralDamBreakSmooth not implemented")
     
 """
 Generates a smooth jeté along the x-axis at y=0.25*ny
@@ -417,7 +417,7 @@ Adds a smooth continental shelf in the south of the domain.
 The shelf is smooth in order to avoid discontinuous bathymetry
 """
 def addContinentalShelfBathymetrySmooth(B, nx, ny, halo, shallow, deep, where_in_y):
-    print "addContinentalShelfBathymetrySmooth not implemented"
+    print("addContinentalShelfBathymetrySmooth not implemented")
     
 
                 

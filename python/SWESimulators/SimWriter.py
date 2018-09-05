@@ -337,7 +337,7 @@ class SimNetCDFWriter:
         
         
     def __exit__(self, exc_type, exc_value, traceback):
-        print "Closing file " + self.output_file_name +" ..." 
+        print("Closing file " + self.output_file_name +" ...")
         self.ncfile.close()
         
         
@@ -395,7 +395,7 @@ class SimNetCDFWriter:
             self._addText(ax, rest)
         else:
             ax.text(0.1, self.textPos, msg)
-            #print len(msg)
+            #print(len(msg))
             self.textPos -= 0.2
         
     def infoPlot(self, ax):
