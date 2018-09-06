@@ -578,13 +578,6 @@ class BaseOceanStateEnsemble(object):
             hu_rmse += (hu_true - tmp_hu[cell_id_y, cell_id_x])**2
             hv_rmse += (hv_true - tmp_hv[cell_id_y, cell_id_x])**2
         
-        #eta_rmse = np.sqrt(eta_rmse/(self.getNumParticles()+1))
-        #hu_rmse  = np.sqrt(hu_rmse /(self.getNumParticles()+1))
-        #hv_rmse  = np.sqrt(hv_rmse /(self.getNumParticles()+1))
-        #eta_r = np.sqrt(eta_rmse/(self.getNumParticles()+1))
-        #hu_r  = np.sqrt(hu_rmse /(self.getNumParticles()+1))
-        #hv_r  = np.sqrt(hv_rmse /(self.getNumParticles()+1))
-        
         eta_mean = eta_mean/self.getNumParticles()
         hu_mean = hu_mean/self.getNumParticles()
         hv_mean = hv_mean/self.getNumParticles()
