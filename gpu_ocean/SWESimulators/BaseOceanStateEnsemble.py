@@ -28,6 +28,8 @@ import numpy as np
 import time
 import abc
 
+import pycuda.driver as cuda
+
 from SWESimulators import CDKLM16
 from SWESimulators import GPUDrifterCollection
 from SWESimulators import WindStress
@@ -41,6 +43,7 @@ class BaseOceanStateEnsemble(object):
     def __init__(self, numParticles, gpu_ctx, observation_type=dautils.ObservationType.DrifterPosition):
         
         self.gpu_ctx = gpu_ctx
+        self.gpu_stream = cuda.Stream()
         
         self.numParticles = numParticles
         self.particles = [None]*(self.numParticles + 1)
@@ -55,7 +58,8 @@ class BaseOceanStateEnsemble(object):
         self.observation_type = observation_type
         self.prev_observation = None
         
-        
+        self.observations_buffer = None
+                
         # Observations are stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
         # where n is time step and i is drifter
         self.observedDrifterPositions = []
@@ -77,6 +81,9 @@ class BaseOceanStateEnsemble(object):
         for oceanState in self.particles:
             if oceanState is not None:
                 oceanState.cleanUp()
+        if self.observation_buffer is not None:
+            self.observation_buffer.release()
+        self.gpu_ctx = None
         
     # IMPROVED
     def setGridInfo(self, nx, ny, dx, dy, dt, 
@@ -177,6 +184,8 @@ class BaseOceanStateEnsemble(object):
         # perturbation
         self.initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field
         
+    def __del__(self):
+        self.cleanUp()
         
     @abc.abstractmethod
     def init(self, driftersPerOceanModel=1):
@@ -190,6 +199,30 @@ class BaseOceanStateEnsemble(object):
     def resample(self, newSampleIndices, reinitialization_variance):
         # Resample and possibly perturb
         pass
+        
+        
+    def _setupGPU(self):
+        # Create observation buffer!    
+        if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
+            self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
+            
+            zeros = np.zeros((self.driftersPerOceanModel, 2), dtype=np.float32, order='C')
+            self.observation_buffer = Common.CUDAArray2D(self.gpu_stream, \
+                                                         2, self.driftersPerOceanModel, 0, 0, \
+                                                         zeros)
+
+            # Generate kernels
+            self.reduction_kernels = self.gpu_ctx.get_kernel("observationKernels.cu", \
+                                                             defines={})
+
+
+            # Get CUDA functions and define data types for prepared_{async_}call()
+            self.observeUnderlyingFlowKernel = self.reduction_kernels.get_function("observeUnderlyingFlow")
+            self.observeUnderlyingFlowKernel.prepare("iiffiiPiPiPifiPiPi")
+
+            self.local_size = (int(self.driftersPerOceanModel), 1, 1)
+            self.global_size = (1, 1)
+        
         
         
     def _addObservation(self, observedDrifterPositions):
@@ -209,7 +242,7 @@ class BaseOceanStateEnsemble(object):
             drifterPositions[p,:,:] = self.particles[p].drifters.getDrifterPositions()
         return drifterPositions
     
-    def observeParticles(self):
+    def observeParticles(self, gpu=False):
         """
         Applying the observation operator on each particle.
 
@@ -237,17 +270,47 @@ class BaseOceanStateEnsemble(object):
             # trueState = [[x1, y1, u1, v1], ..., [xD, yD, uD, vD]]
 
             for p in range(self.numParticles):
-                # Downloading ocean state without ghost cells
-                Hi = self.particles[0].downloadBathymetry()[1]
-                eta, hu, hv = self.downloadParticleOceanState(p)
+                if gpu:
+                    sim = self.particles[p]
+                    self.observeUnderlyingFlowKernel.prepared_async_call(self.global_size,
+                                                                         self.local_size,
+                                                                         self.gpu_stream,
+                                                                         sim.nx, sim.ny, sim.dx, sim.dy,
+                                                                         np.int32(2), np.int32(2),
+                                                                         sim.gpu_data.h0.data.gpudata,
+                                                                         sim.gpu_data.h0.pitch,
+                                                                         sim.gpu_data.hu0.data.gpudata,
+                                                                         sim.gpu_data.hu0.pitch,
+                                                                         sim.gpu_data.hv0.data.gpudata,
+                                                                         sim.gpu_data.hv0.pitch,
+                                                                         np.max(self.base_H),
+                                                                         self.driftersPerOceanModel,
+                                                                         self.particles[self.obs_index].drifters.driftersDevice.data.gpudata,
+                                                                         self.particles[self.obs_index].drifters.driftersDevice.pitch,
+                                                                         self.observation_buffer.data.gpudata,
+                                                                         self.observation_buffer.pitch)
+                    
+                    observedState[p,:,:] = self.observation_buffer.download(self.gpu_stream)
+                                                                         
+                
+                else:
+                    # Downloading ocean state without ghost cells
+                    Hi = self.particles[0].downloadBathymetry()[1]
+                    eta, hu, hv = self.downloadParticleOceanState(p)
 
-                for d in range(self.driftersPerOceanModel):
-                    id_x = np.int(np.floor(trueState[d,0]/self.dx))
-                    id_y = np.int(np.floor(trueState[d,1]/self.dy))
+                    for d in range(self.driftersPerOceanModel):
+                        id_x = np.int(np.floor(trueState[d,0]/self.dx))
+                        id_y = np.int(np.floor(trueState[d,1]/self.dy))
 
-                    depth = Hi[id_y, id_x]
-                    observedState[p,d,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
-                    observedState[p,d,1] = hv[id_y, id_x]/(depth + eta[id_y, id_x])
+                        depth = Hi[id_y, id_x]
+                        observedState[p,d,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
+                        observedState[p,d,1] = hv[id_y, id_x]/(depth + eta[id_y, id_x])
+                        
+                        
+            #print "Particle positions obs index:"
+            #print self.particles[self.obs_index].drifters.driftersDevice.download(self.gpu_stream)
+            #print "true state used by the CPU:"
+            #print trueState
             return observedState
         
     def observeTrueDrifters(self):
@@ -515,9 +578,12 @@ class BaseOceanStateEnsemble(object):
             hu_rmse += (hu_true - tmp_hu[cell_id_y, cell_id_x])**2
             hv_rmse += (hv_true - tmp_hv[cell_id_y, cell_id_x])**2
         
-        eta_rmse = np.sqrt(eta_rmse/(self.getNumParticles()+1))
-        hu_rmse  = np.sqrt(hu_rmse /(self.getNumParticles()+1))
-        hv_rmse  = np.sqrt(hv_rmse /(self.getNumParticles()+1))
+        #eta_rmse = np.sqrt(eta_rmse/(self.getNumParticles()+1))
+        #hu_rmse  = np.sqrt(hu_rmse /(self.getNumParticles()+1))
+        #hv_rmse  = np.sqrt(hv_rmse /(self.getNumParticles()+1))
+        #eta_r = np.sqrt(eta_rmse/(self.getNumParticles()+1))
+        #hu_r  = np.sqrt(hu_rmse /(self.getNumParticles()+1))
+        #hv_r  = np.sqrt(hv_rmse /(self.getNumParticles()+1))
         
         eta_mean = eta_mean/self.getNumParticles()
         hu_mean = hu_mean/self.getNumParticles()
@@ -534,9 +600,9 @@ class BaseOceanStateEnsemble(object):
             hu_sigma  += (tmp_hu[cell_id_y, cell_id_x]  - hu_mean )**2
             hv_sigma  += (tmp_hv[cell_id_y, cell_id_x]  - hv_mean )**2
         
-        eta_sigma = np.sqrt(eta_sigma/(1.0 + self.getNumParticles()))
-        hu_sigma  = np.sqrt( hu_sigma/(1.0 + self.getNumParticles()))
-        hv_sigma  = np.sqrt( hv_sigma/(1.0 + self.getNumParticles()))
+        eta_sigma = np.sqrt(eta_sigma/(self.getNumParticles() -1.0))
+        hu_sigma  = np.sqrt( hu_sigma/(self.getNumParticles() -1.0))
+        hv_sigma  = np.sqrt( hv_sigma/(self.getNumParticles() -1.0))
         
         eta_r = eta_sigma/eta_rmse
         hu_r  =  hu_sigma/hu_rmse

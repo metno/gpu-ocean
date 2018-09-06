@@ -250,3 +250,10 @@ class IEWPFOceanTest(unittest.TestCase):
         self.assertAlmostEqual(rel_norm_hu,  0.0, places=5)
         self.assertAlmostEqual(rel_norm_hv,  0.0, places=5)
         
+    def test_observation_operator_CPU_vs_GPU(self):
+        self.run_ensemble()
+                      
+        cpu = self.ensemble.observeParticles(gpu=False)
+        gpu = self.ensemble.observeParticles(gpu=True)
+                
+        assert2DListAlmostEqual(self, cpu.tolist(), gpu.tolist(), 6, "observation_operator_CPU_vs_GPU")
