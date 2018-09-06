@@ -29,6 +29,8 @@ import numpy as np
 import time
 import abc
 
+import pycuda.driver as cuda
+
 from SWESimulators import CDKLM16
 from SWESimulators import GPUDrifterCollection
 from SWESimulators import BaseOceanStateEnsemble
@@ -44,7 +46,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
     
     def init(self, driftersPerOceanModel=1):
-        self.driftersPerOceanModel = driftersPerOceanModel
+        self.driftersPerOceanModel = np.int32(driftersPerOceanModel)
         
         # Define mid-points for the different drifters 
         # Decompose the domain, so that we spread the drifters as much as possible
@@ -87,6 +89,11 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             #print "drifter observations: ", drifter.getObservationPosition()
             self.particles[i].attachDrifters(drifters)
             
+        
+        # Create gpu kernels and buffers:
+        self._setupGPU()
+        
+                
         # Put the initial positions into the observation array
         self._addObservation(self.observeTrueDrifters())
 

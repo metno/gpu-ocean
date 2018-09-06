@@ -460,6 +460,8 @@ class IEWPFOcean:
             print "target_weight: ", target_weight
             print "phi: ", phi
             print "The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1))
+            print "Checking implicit equation with alpha (k=0, k=-1): ", \
+            (self._implicitEquation(alpha_zero, gamma, self.Nx, a), self._implicitEquation(alpha_min1, gamma, self.Nx, a))
             print "!!!!!!!!!!!!"
         
         
