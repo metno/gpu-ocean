@@ -378,8 +378,10 @@ class IEWPFOcean:
         sim.small_scale_model_error.generateNormalDistribution()
         
         # Obtain gamma
+        sim.gpu_stream.synchronize()
         gamma = self.obtainGamma(sim)
-        
+        sim.gpu_stream.synchronize()
+            
         for drifter in range(self.numDrifters):
             #print "\nhei from drifter ", drifter
             observed_drifter_position = all_observed_drifter_positions[drifter,:]
@@ -406,9 +408,15 @@ class IEWPFOcean:
                                                              sim.small_scale_model_error.random_numbers.pitch)
     
     ### Solving the implicit equation on the CPU:
-    def _implicitEquation(self, alpha, gamma, Nx, a):
+    def _old_implicitEquation(self, alpha, gamma, Nx, a):
         return (alpha-1.0)*gamma - Nx*np.log(alpha) + a
-            
+    
+    def _implicitEquation(self, alpha, gamma, Nx, target_weight, c):
+        """
+        This is the equation that we now should have solved by using the lambert W function
+        """
+        return np.log(alpha*alpha*Nx/gamma) - (alpha*alpha*Nx/gamma) - ((target_weight - c)/Nx) + 1
+        
     def solveImplicitEquation(self, phi, gamma, 
                                target_weight, w_rest, particle_id=None):
         """
@@ -423,24 +431,24 @@ class IEWPFOcean:
             print "target_weight: ", target_weight
             print "phi: ", phi
 
-        # 6) Find a
-        a = phi - w_rest + target_weight
+        # 6) Find c
+        c = phi - w_rest
         if self.debug: 
-            print "a = phi - w_rest + target_weight: ", a
+            print "c = phi - w_rest: ", c
 
         # 7) Solving the Lambert W function
-        lambert_W_arg = -(gamma/self.Nx)*np.exp(a/self.Nx)*np.exp(-gamma/self.Nx)
+        lambert_W_arg = -np.exp((target_weight - c)/self.Nx  - 1)
 
-        alpha_min1 = -(self.Nx/gamma)*np.real(lambertw(lambert_W_arg, k=-1))
-        alpha_zero = -(self.Nx/gamma)*np.real(lambertw(lambert_W_arg))
+        alpha_min1 = np.sqrt(-(gamma/self.Nx)*np.real(lambertw(lambert_W_arg, k=-1)))
+        alpha_zero = np.sqrt(-(gamma/self.Nx)*np.real(lambertw(lambert_W_arg)))
         
         if self.debug: 
-            print "Check a against the Lambert W requirement: ", a, " < ", - self.Nx + gamma - self.Nx*np.log(gamma/self.Nx), " = ", a <  - self.Nx + gamma - self.Nx*np.log(gamma/self.Nx)
+            print "Check a against the Lambert W requirement: "
             print "-e^-1 < z < 0 : ", -1.0/np.exp(1), " < ", lambert_W_arg, " < ", 0, " = ", \
                     (-1.0/np.exp(1) < lambert_W_arg, lambert_W_arg < 0)
             print "Obtained (alpha k=-1, alpha k=0): ", (alpha_min1, alpha_zero)
             print "The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1))
-            print "The two branches from Lambert W: ", (np.real(lambertw(lambert_W_arg)), np.real(lambertw(lambert_W_arg, k=-1)))
+            print "The two reals from Lambert W: ", (np.real(lambertw(lambert_W_arg)), np.real(lambertw(lambert_W_arg, k=-1)))
 
         alpha = alpha_zero
         if lambert_W_arg > (-1.0/np.exp(1)) :
@@ -461,7 +469,8 @@ class IEWPFOcean:
             print "phi: ", phi
             print "The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1))
             print "Checking implicit equation with alpha (k=0, k=-1): ", \
-            (self._implicitEquation(alpha_zero, gamma, self.Nx, a), self._implicitEquation(alpha_min1, gamma, self.Nx, a))
+            (self._implicitEquation(alpha_zero, gamma, self.Nx, target_weight, c), \
+             self._implicitEquation(alpha_min1, gamma, self.Nx, target_weight, c))
             print "!!!!!!!!!!!!"
         
         
@@ -470,9 +479,12 @@ class IEWPFOcean:
             print "Obtained (lambert_ans k=0, lambert_ans k=-1): ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1))
             print "Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1)
             print "Checking implicit equation with alpha (k=0, k=-1): ", \
-            (self._implicitEquation(alpha_zero, gamma, self.Nx, a), self._implicitEquation(alpha_min1, gamma, self.Nx, a))
+            (self._implicitEquation(alpha_zero, gamma, self.Nx, target_weight, c), \
+             self._implicitEquation(alpha_min1, gamma, self.Nx, target_weight, c))
+            print "Selected alpha: ", alpha
+            print "\n"
 
-        return np.sqrt(alpha)
+        return alpha
         
     ## Download GPU buffers
     
