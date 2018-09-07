@@ -39,7 +39,7 @@ class KP07(Simulator.Simulator):
 
     def __init__(self, \
                  gpu_ctx, \
-                 eta0, Hi, hu0, hv0, \
+                 eta0, H, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
                  g, f=0.0, r=0.0, \
@@ -58,7 +58,7 @@ class KP07(Simulator.Simulator):
         eta0: Initial deviation from mean sea level incl ghost cells, (nx+2)*(ny+2) cells
         hu0: Initial momentum along x-axis incl ghost cells, (nx+1)*(ny+2) cells
         hv0: Initial momentum along y-axis incl ghost cells, (nx+2)*(ny+1) cells
-        Hi: Depth from equilibrium defined on cell corners, (nx+5)*(ny+5) corners
+        H: Depth from equilibrium defined on cell corners, (nx+5)*(ny+5) corners
         nx: Number of cells along x-axis
         ny: Number of cells along y-axis
         dx: Grid cell spacing along x-axis (20 000 m)
@@ -78,7 +78,7 @@ class KP07(Simulator.Simulator):
         """
        
         ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
-        if ( np.sum(eta0 - Hi[:-1, :-1] > 0) > nx):
+        if ( np.sum(eta0 - H[:-1, :-1] > 0) > nx):
             assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
 
         
@@ -139,7 +139,7 @@ class KP07(Simulator.Simulator):
         
         #Bathymetry
         self.bathymetry = Common.Bathymetry(self.gpu_ctx, self.gpu_stream, \
-                                            nx, ny, ghost_cells_x, ghost_cells_y, Hi, boundary_conditions)
+                                            nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
         
         self.bc_kernel = Common.BoundaryConditionsArakawaA(gpu_ctx, \
                                                            self.nx, \
@@ -202,13 +202,13 @@ class KP07(Simulator.Simulator):
             sim_reader.getBC()[2], sim_reader.getBC()[3], \
             sim_reader.getBCSpongeCells())
 
-        Hi = sim_reader.getH();
+        H = sim_reader.getH();
         
         # get last timestep (including simulation time of last timestep)
         eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
         
         return cls(gpu_ctx, \
-                 eta0, Hi, hu0, hv0, \
+                 eta0, H, hu0, hv0, \
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
