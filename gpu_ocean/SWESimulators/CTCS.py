@@ -237,6 +237,9 @@ class CTCS(Simulator.Simulator):
         Function which steps n timesteps
         """
         n = int(t_end / self.dt + 1)
+        if (n % 2 == 0):
+            n+=1
+            
         if self.t == 0:
             #print "N: ", n
             #print "np.float(min(self.dt, t_end-n*self.dt))", np.float32(min(self.dt, t_end-(n-1)*self.dt))
@@ -258,12 +261,16 @@ class CTCS(Simulator.Simulator):
             # gpu_data.u1 => U^{n+1} (U kernel has been executed)
             # Now we are ready for the next time step
             
-            local_dt = np.float32(min(self.dt, t_end-i*self.dt))
+            #Add 1% of final timestep to this one
+            #This makes final timestep 99% as large as the others
+            #making sure that the last timestep is not incredibly small
+            local_dt = (t_end / n)
+            local_dt = local_dt + (local_dt / (100*n)) 
+            local_dt = np.float32(min(local_dt, t_end-i*local_dt))
             
             if (local_dt <= 0.0):
                 break
                 
-            
             self.update_wind_stress(self.u_kernel, self.computeUKernel)
             wind_stress_t = np.float32(self.update_wind_stress(self.v_kernel, self.computeVKernel))
             
@@ -310,7 +317,8 @@ class CTCS(Simulator.Simulator):
             #After the kernels, swap the data pointers
             self.gpu_data.swap()
             
-            self.t += local_dt
+            self.t += np.float64(local_dt)
+            self.num_iterations += 1
         
         if self.write_netcdf:
             self.sim_writer.writeTimestep(self)
