@@ -9,15 +9,13 @@ import xmlrunner
 #import testUtils
 from dataAssimilation.CPUDrifter_test import CPUDrifterTest
 from dataAssimilation.GPUDrifter_test import GPUDrifterTest
-from dataAssimilation.OceanStateNoise_test import OceanStateNoiseTest
 from dataAssimilation.DrifterEnsemble_test import DrifterEnsembleTest
 from dataAssimilation.CPUDrifterEnsemble_test import CPUDrifterEnsembleTest
 
 def printSupportedTests():
-    print("Supported tests:")
-    print("0: All, 1: CPUDrifter, 2: GPUDrifter, 3: DrifterEnsembleTest, "
-           + "4: CPUDrifterEnsembleTest, 5: OceanStateNoise")
-
+    print ("Supported tests:")
+    print ("0: All, 1: CPUDrifter, 2: GPUDrifter, 3: DrifterEnsembleTest, "
+           + "4: CPUDrifterEnsembleTest")
 
 if (len(sys.argv) < 2):
     print("Usage:")
@@ -40,8 +38,7 @@ if (jenkins):
 test_classes_to_run = None
 if tests == 0:
     test_classes_to_run = [CPUDrifterTest, GPUDrifterTest,
-                           DrifterEnsembleTest, CPUDrifterEnsembleTest,
-                           OceanStateNoiseTest]
+                           DrifterEnsembleTest, CPUDrifterEnsembleTest]
 elif tests == 1:
     test_classes_to_run = [CPUDrifterTest]
 elif tests == 2:
@@ -50,8 +47,6 @@ elif tests == 3:
     test_classes_to_run = [DrifterEnsembleTest]
 elif tests == 4:
     test_classes_to_run = [CPUDrifterEnsembleTest]
-elif tests == 5:
-    test_classes_to_run = [OceanStateNoiseTest]
 else:
     print("Error: " + str(tests) + " is not a supported test number...")
     printSupportedTests()

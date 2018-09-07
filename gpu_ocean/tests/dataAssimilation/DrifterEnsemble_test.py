@@ -22,7 +22,7 @@ class DrifterEnsembleTest(BaseDrifterEnsembleTest):
     def setUp(self):
         super(DrifterEnsembleTest, self).setUp()
         
-        self.cl_ctx = make_cl_ctx()                               
+        self.gpu_ctx = Common.CUDAContext()
                 
     def tearDown(self):
         super(DrifterEnsembleTest, self).tearDown()
@@ -31,7 +31,7 @@ class DrifterEnsembleTest(BaseDrifterEnsembleTest):
 
     #@abc.abstractmethod
     def create_small_particle_set(self):
-        self.smallParticleSet = DrifterEnsemble.DrifterEnsemble(self.cl_ctx,
+        self.smallParticleSet = DrifterEnsemble.DrifterEnsemble(self.gpu_ctx,
                                                                 self.numParticles,
                                                                 self.observationVariance)
         self.smallParticleSet.setGridInfo(self.nx, self.ny, self.dx, self.dy, self.dt,
@@ -42,7 +42,7 @@ class DrifterEnsembleTest(BaseDrifterEnsembleTest):
 
     #@abc.abstractmethod
     def create_resampling_particle_set(self):
-        self.resamplingParticleSet = DrifterEnsemble.DrifterEnsemble(self.cl_ctx,
+        self.resamplingParticleSet = DrifterEnsemble.DrifterEnsemble(self.gpu_ctx,
                                                                      self.resampleNumParticles,
                                                                      observation_variance=self.resamplingObservationVariance)
         self.resamplingParticleSet.setGridInfo(self.nx, self.ny, self.dx, self.dy, self.dt)
@@ -52,7 +52,7 @@ class DrifterEnsembleTest(BaseDrifterEnsembleTest):
 
     #@abc.abstractmethod
     def create_large_particle_set(self, size, domain_x, domain_y):
-        largeParticleSet = DrifterEnsemble.DrifterEnsemble(self.cl_ctx,
+        largeParticleSet = DrifterEnsemble.DrifterEnsemble(self.gpu_ctx,
                                                            size)
         largeParticleSet.setGridInfo(10, 10, domain_x/10.0, domain_y/10.0, self.dt,
                                                self.boundaryCondition)

@@ -29,5 +29,5 @@ class CPUDrifterTest(BaseDrifterTest):
         self.resamplingDrifterSet = CPUDrifterCollection(self.resampleNumDrifters)
 
     def create_large_drifter_set(self, size, domain_x, domain_y):
-        return CPUDrifterCollection(size, domain_size_x=domain_x, domain_size_y=domain_y)
+        self.largeDrifterSet = CPUDrifterCollection(size, domain_size_x=domain_x, domain_size_y=domain_y)
 

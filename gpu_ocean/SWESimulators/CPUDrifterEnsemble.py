@@ -36,10 +36,9 @@ from SWESimulators import BaseDrifterEnsemble
 
 class CPUDrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
         
-    def __init__(self, cl_ctx, numParticles, observation_variance=0.0):
+    def __init__(self, numParticles, observation_variance=0.0):
          
-        super(CPUDrifterEnsemble, self).__init__(cl_ctx, 
-                                              numParticles, 
+        super(CPUDrifterEnsemble, self).__init__(numParticles, 
                                               observation_variance)
         
     
@@ -125,7 +124,7 @@ class CPUDrifterEnsemble(BaseDrifterEnsemble.BaseDrifterEnsemble):
     ### NEW
     #-------------------
     def copy(self):
-        copy = CPUDrifterEnsemble(None, self.numParticles, self.observation_variance)
+        copy = CPUDrifterEnsemble(self.numParticles, self.observation_variance)
         copy.setGridInfo(self.nx, self.ny, self.dx, self.dy, self.dt,
                          self.boundaryConditions,
                          self.base_eta, self.base_hu, self.base_hv, self.base_H)
