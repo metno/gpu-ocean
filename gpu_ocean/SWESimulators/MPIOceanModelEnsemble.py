@@ -55,6 +55,7 @@ class MPIOceanModelEnsemble:
         ##########################
         self.comm = comm
         self.num_nodes = self.comm.size - 1 #Root does not participate
+        assert self.comm.size >= 2, "You appear to not be using enough MPI nodes (at least two required)"
         
         self.local_ensemble_size = local_ensemble_size
         self.local_ensemble_size = self.comm.bcast(self.local_ensemble_size, root=0)
@@ -183,13 +184,13 @@ class MPIOceanModelEnsemble:
             local_src = src - (self.comm.rank-1)*self.local_ensemble_size
             local_dst = dst - (self.comm.rank-1)*self.local_ensemble_size
 
-            if (MPI.COMM_WORLD.rank == src_node and src_node == dst_node):
+            if (self.comm.rank == src_node and src_node == dst_node):
                 self.logger.debug("Node {:d} copying internally {:d} to {:d}".format(src_node, src, dst))
                 eta0, hu0, hv0 = self.ensemble.particles[local_src].download()
                 eta1, hu1, hv1 = self.ensemble.particles[local_src].downloadPrevTimestep()
                 receive_data += [[local_dst, eta0, hu0, hv0, eta1, hu1, hv1]]
 
-            elif (MPI.COMM_WORLD.rank == src_node):
+            elif (self.comm.rank == src_node):
                 self.logger.debug("Node {:d} sending {:d} to node {:d}".format(src_node, src, dst_node))
                 eta0, hu0, hv0 = self.ensemble.particles[local_src].download()
                 eta1, hu1, hv1 = self.ensemble.particles[local_src].downloadPrevTimestep()
@@ -197,7 +198,7 @@ class MPIOceanModelEnsemble:
                 for j in range(6):
                     mpi_requests += [self.comm.Isend(send_data[-1][j], dest=dst_node, tag=6*i+j)]
 
-            elif (MPI.COMM_WORLD.rank == dst_node):
+            elif (self.comm.rank == dst_node):
                 self.logger.debug("Node {:d} receiving {:d} from node {:d}".format(dst_node, src, src_node))
                 #FIXME: hard coded ghost cells here
                 data = [local_dst]
@@ -368,10 +369,10 @@ class MPIOceanModelEnsemble:
             num_resample = None
 
         #Broadcast with all nodes
-        num_resample = MPI.COMM_WORLD.bcast(num_resample, root=0)
-        if MPI.COMM_WORLD.rank > 0:
+        num_resample = self.comm.bcast(num_resample, root=0)
+        if self.comm.rank > 0:
             resampling_pairs = np.empty((num_resample, 4), dtype=np.int32)
-        MPI.COMM_WORLD.Bcast(resampling_pairs, root=0)
+        self.comm.Bcast(resampling_pairs, root=0)
         
         return resampling_pairs
     
