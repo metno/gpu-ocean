@@ -29,8 +29,8 @@ def runBenchmark(simulator, sim_args, sim_ic):
 
     print("Simulating", flush=True)
     #Run a simulation and plot it
-    nt = 10
-    step_size = 100
+    nt = 5
+    step_size = 50
     for i in range(nt):
         print(".", end='', flush=True)
         sim.step(step_size)

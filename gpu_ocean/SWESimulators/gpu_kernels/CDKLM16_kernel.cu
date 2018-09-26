@@ -162,9 +162,11 @@ __global__ void swe_2D(
     
     // Bathymetry
     __shared__ float  Hi[block_height+1][block_width+1];
-    __shared__ float  Hm[block_height+4][block_width+4];
+    //__shared__ float  Hm[block_height+4][block_width+4];
     __shared__ float RHx[block_height  ][block_width+1];
     __shared__ float RHy[block_height+1][block_width  ];
+    
+    float Hm;
 
 
     // theta_ = 1.5f;
@@ -189,6 +191,7 @@ __global__ void swe_2D(
     __syncthreads();
     
 
+    /*
     // Read Hm into shared memory with 4x4 halo
     for (int j=ty; j < block_height+4; j+=blockDim.y) {
 	// Ensure that we read from correct domain
@@ -201,6 +204,7 @@ __global__ void swe_2D(
 	    Hm[j][i] = Hm_row[k];
 	}
     }
+    */
 
     // Read Hi into shared memory
     // Read intersections on all non-ghost cells
@@ -288,14 +292,23 @@ __global__ void swe_2D(
     //Create our "steady state" reconstruction variables (u, v)
     // K and L are never stored, but computed where needed.
     for (int j=ty; j<block_height+4; j+=blockDim.y) {
+        const int l = clamp(by+j, 0, ny_+3); 
+        float* const Hm_row = (float*) ((char*) Hm_ptr_ + Hm_pitch_*l);
         for (int i=tx; i<block_width+4; i+=blockDim.x) {
+            const int k = clamp(bx+i, 0, nx_+3);
+            float temp_Hm = Hm_row[k];
             
-            const float h = R[0][j][i] + Hm[j][i]; // h = eta + H
+            //const float h = R[0][j][i] + Hm[j][i]; // h = eta + H
+            const float h = R[0][j][i] + temp_Hm;
             const float u = R[1][j][i] / h;
             const float v = R[2][j][i] / h;
 
             Q[0][j][i] = u;
             Q[1][j][i] = v;
+            
+            if (i==tx && j==ty) {
+                Hm = temp_Hm;
+            }
         }
     }
     __syncthreads();
@@ -393,9 +406,6 @@ __global__ void swe_2D(
             const float vp = Q[1][l][k+1];
             const float vm = Q[1][l][k  ];
 
-	    // Depth in the cells on each side of the face:
-	    const float Hm_p = Hm[l][k+1];
-	    const float Hm_m = Hm[l][k  ];
 	    // H is RHx on the given face!
 	    const float H_face = RHx[j][i];
 
@@ -442,9 +452,6 @@ __global__ void swe_2D(
             const float up = Q[0][l+1][k];
             const float um = Q[0][l  ][k];
 
-	    // Depth in the cells on each side of the face:
-	    const float Hm_p = Hm[l+1][k];
-	    const float Hm_m = Hm[l  ][k];
 	    // H is RHx on the given face!
 	    const float H_face = RHy[j][i];
 
@@ -494,8 +501,8 @@ __global__ void swe_2D(
 
         // Bottom topography source terms!
         // -g*(eta + H)*(-1)*dH/dx   * dx
-        const float st1 = g_*(R[0][j][i] + Hm[j][i])*(RHx[ty  ][tx+1] - RHx[ty][tx]);
-        const float st2 = g_*(R[0][j][i] + Hm[j][i])*(RHy[ty+1][tx  ] - RHy[ty][tx]);
+        const float st1 = g_*(R[0][j][i] + Hm)*(RHx[ty  ][tx+1] - RHx[ty][tx]);
+        const float st2 = g_*(R[0][j][i] + Hm)*(RHy[ty+1][tx  ] - RHy[ty][tx]);
 
         // Coriolis parameter
         float global_thread_y = tj-2; // Global id including ghost cells
@@ -518,7 +525,7 @@ __global__ void swe_2D(
 
 	if (rk_order < 3) {
          
-	    const float C = 2.0f*r_*dt_/(R[0][j][i] + Hm[j][i]);
+	    const float C = 2.0f*r_*dt_/(R[0][j][i] + Hm);
                      
 	    if  (step_ == 0) {
 		//First step of RK2 ODE integrator
