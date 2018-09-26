@@ -162,9 +162,6 @@ __global__ void swe_2D(
     
     // Bathymetry
     __shared__ float  Hi[block_height+1][block_width+1];
-    //__shared__ float  Hm[block_height+4][block_width+4];
-    __shared__ float RHx[block_height  ][block_width+1];
-    __shared__ float RHy[block_height+1][block_width  ];
     
     float Hm;
 
@@ -191,21 +188,6 @@ __global__ void swe_2D(
     __syncthreads();
     
 
-    /*
-    // Read Hm into shared memory with 4x4 halo
-    for (int j=ty; j < block_height+4; j+=blockDim.y) {
-	// Ensure that we read from correct domain
-	// We never read outermost halo of Bm
-	const int l = clamp(by+j, 0, ny_+3); 
-	float* const Hm_row = (float*) ((char*) Hm_ptr_ + Hm_pitch_*l);
-	for(int i=tx; i < block_width+4; i+=blockDim.x) {
-	    const int k = clamp(bx+i, 0, nx_+3);
-
-	    Hm[j][i] = Hm_row[k];
-	}
-    }
-    */
-
     // Read Hi into shared memory
     // Read intersections on all non-ghost cells
     for(int j=ty; j < block_height+1; j+=blockDim.y) {
@@ -221,20 +203,6 @@ __global__ void swe_2D(
     __syncthreads();
 
     
-    // Evaluate piecewise bi-linear for RHx
-    // RHx and RHy is then the equilibrium depth on faces
-    for (int j=ty; j<block_height; j+=blockDim.y) {
-        for (int i=tx; i<block_width+1; i+=blockDim.x) {
-            RHx[j][i] = 0.5f*( Hi[j][i] + Hi[j+1][i] );
-	}
-    }
-    // Evaluate piecewise bi-linear for RHy
-    for (int j=ty; j<block_height+1; j+=blockDim.y) {
-        for (int i=tx; i<block_width; i+=blockDim.x) {
-            RHy[j][i] = 0.5f*( Hi[j][i] + Hi[j][i+1] );
-	}
-    }
-    __syncthreads();
     
     //Fix boundary conditions
     if (bc_north_ == 1 || bc_east_ == 1 || bc_south_ == 1 || bc_west_ == 1)
@@ -407,7 +375,7 @@ __global__ void swe_2D(
             const float vm = Q[1][l][k  ];
 
 	    // H is RHx on the given face!
-	    const float H_face = RHx[j][i];
+	    const float H_face = 0.5f*( Hi[j][i] + Hi[j+1][i] );
 
 	    const float eta_bar_p = R[0][l][k+1];
 	    const float eta_bar_m = R[0][l][k  ];
@@ -453,7 +421,7 @@ __global__ void swe_2D(
             const float um = Q[0][l  ][k];
 
 	    // H is RHx on the given face!
-	    const float H_face = RHy[j][i];
+	    const float H_face = 0.5f*( Hi[j][i] + Hi[j][i+1] );
 
 	    const float eta_bar_p = R[0][l+1][k];
 	    const float eta_bar_m = R[0][l  ][k];
@@ -501,8 +469,13 @@ __global__ void swe_2D(
 
         // Bottom topography source terms!
         // -g*(eta + H)*(-1)*dH/dx   * dx
-        const float st1 = g_*(R[0][j][i] + Hm)*(RHx[ty  ][tx+1] - RHx[ty][tx]);
-        const float st2 = g_*(R[0][j][i] + Hm)*(RHy[ty+1][tx  ] - RHy[ty][tx]);
+        const float RHxp = 0.5f*( Hi[ty][tx+1] + Hi[ty+1][tx+1] );
+        const float RHxm = 0.5f*( Hi[ty][tx  ] + Hi[ty+1][tx  ] );
+        const float st1 = g_*(R[0][j][i] + Hm)*(RHxp - RHxm);
+        
+        const float RHyp = 0.5f*( Hi[ty+1][tx] + Hi[ty+1][tx+1] );
+        const float RHym = 0.5f*( Hi[ty  ][tx] + Hi[ty  ][tx+1] );
+        const float st2 = g_*(R[0][j][i] + Hm)*(RHyp - RHym);
 
         // Coriolis parameter
         float global_thread_y = tj-2; // Global id including ghost cells
