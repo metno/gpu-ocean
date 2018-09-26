@@ -148,10 +148,13 @@ __global__ void swe_2D(
     const int tj = blockIdx.y * blockDim.y + threadIdx.y + 2;
     
     // Our physical variables
+    // Input is [eta, hu, hv]
+    // Will store [eta, u, v] (Note u and v are actually computed somewhat down in the code)
     __shared__ float R[3][block_height+4][block_width+4];
     
     // Our reconstruction variables
-    __shared__ float Q[2][block_height+4][block_width+4];
+    //Qx = [u_x, v_x, K_x]
+    //Qy = [u_y, v_y, L_y]
     __shared__ float Qx[3][block_height][block_width+2];
     __shared__ float Qy[3][block_height+2][block_width];
     
@@ -159,11 +162,9 @@ __global__ void swe_2D(
     __shared__ float F[3][block_height][block_width+1];
     __shared__ float G[3][block_height+1][block_width];
     
-    
     // Bathymetry
     __shared__ float  Hi[block_height+1][block_width+1];
     
-    float Hm;
 
 
     // theta_ = 1.5f;
@@ -186,21 +187,25 @@ __global__ void swe_2D(
         }
     }
     __syncthreads();
+    //Skip local ghost cells, i.e., +2
+    const float hu = R[1][ty + 2][tx + 2];
+    const float hv = R[2][ty + 2][tx + 2];
     
 
     // Read Hi into shared memory
     // Read intersections on all non-ghost cells
     for(int j=ty; j < block_height+1; j+=blockDim.y) {
-	// Skip ghost cells and 
-	const int l = clamp(by+j+2, 2, ny_+2);
-	float* const Hi_row = (float*) ((char*) Hi_ptr_ + Hi_pitch_*l);
-	for(int i=tx; i < block_width+1; i+=blockDim.x) {
-	    const int k = clamp(bx+i+2, 2, nx_+2);
+        // Skip ghost cells and 
+        const int l = clamp(by+j+2, 2, ny_+2);
+        float* const Hi_row = (float*) ((char*) Hi_ptr_ + Hi_pitch_*l);
+        for(int i=tx; i < block_width+1; i+=blockDim.x) {
+            const int k = clamp(bx+i+2, 2, nx_+2);
 
-	    Hi[j][i] = Hi_row[k];
-	}
+            Hi[j][i] = Hi_row[k];
+        }
     }
     __syncthreads();
+    const float Hm = 0.25f*(Hi[ty][tx]+Hi[ty+1][tx]+Hi[ty][tx+1]+Hi[ty+1][tx+1]);
 
     
     
@@ -255,6 +260,7 @@ __global__ void swe_2D(
     }
     
     __syncthreads();
+    
         
     
     //Create our "steady state" reconstruction variables (u, v)
@@ -264,22 +270,17 @@ __global__ void swe_2D(
         float* const Hm_row = (float*) ((char*) Hm_ptr_ + Hm_pitch_*l);
         for (int i=tx; i<block_width+4; i+=blockDim.x) {
             const int k = clamp(bx+i, 0, nx_+3);
-            float temp_Hm = Hm_row[k];
             
             //const float h = R[0][j][i] + Hm[j][i]; // h = eta + H
-            const float h = R[0][j][i] + temp_Hm;
-            const float u = R[1][j][i] / h;
-            const float v = R[2][j][i] / h;
-
-            Q[0][j][i] = u;
-            Q[1][j][i] = v;
-            
-            if (i==tx && j==ty) {
-                Hm = temp_Hm;
-            }
+            const float h = R[0][j][i] + Hm_row[k];
+            R[1][j][i] /= h;
+            R[2][j][i] /= h;
         }
     }
     __syncthreads();
+    
+    
+    
     
     
     
@@ -291,29 +292,35 @@ __global__ void swe_2D(
         const int l = j + 2; //Skip ghost cells
         for (int i=tx; i<block_width+2; i+=blockDim.x) {
             const int k = i + 1;
-            for (int p=0; p<2; ++p) {
-                Qx[p][j][i] = minmodSlope(Q[p][l][k-1], Q[p][l][k], Q[p][l][k+1], theta_);
+            
+            float left_eta   = R[0][l][k-1];
+            float center_eta = R[0][l][k  ];
+            float right_eta  = R[0][l][k+1];
+        
+            {
+                const float left_u   = R[1][l][k-1];
+                const float center_u = R[1][l][k  ];
+                const float right_u  = R[1][l][k+1];
+                Qx[0][j][i] = minmodSlope(left_u, center_u, right_u, theta_);
             }
-	    // Qx[2] = Kx, which we need to find differently than ux and vx
-	    float left_eta   = R[0][l][k-1];
-	    float center_eta = R[0][l][k  ];
-	    float right_eta  = R[0][l][k+1];
+                
+            const float left_v   = R[2][l][k-1];
+            const float center_v = R[2][l][k  ];
+            const float right_v  = R[2][l][k+1];
+            Qx[1][j][i] = minmodSlope(left_v, center_v, right_v, theta_);
+                
+            // Qx[2] = Kx, which we need to find differently than ux and vx
+            float global_thread_y = by + j;
+            float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+                                dy_, y_zero_reference_cell_);
+            float V_constant = dx_*coriolis_f/(2.0f*g_);
 
-	    float left_v   = Q[1][l][k-1];
-	    float center_v = Q[1][l][k  ];
-	    float right_v  = Q[1][l][k+1];
+            float backward = theta_*g_*(center_eta - left_eta   - V_constant*(center_v + left_v ) );
+            float central  =   0.5f*g_*(right_eta  - left_eta   - V_constant*(right_v + 2*center_v + left_v) ); 
+            float forward  = theta_*g_*(right_eta  - center_eta - V_constant*(center_v + right_v) );
 
-	    float global_thread_y = by + j;
-	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
-						    dy_, y_zero_reference_cell_);
-	    float V_constant = dx_*coriolis_f/(2.0f*g_);
-
-	    float backward = theta_*g_*(center_eta - left_eta   - V_constant*(center_v + left_v ) );
-	    float central  =   0.5f*g_*(right_eta  - left_eta   - V_constant*(right_v + 2*center_v + left_v) ); 
-	    float forward  = theta_*g_*(right_eta  - center_eta - V_constant*(center_v + right_v) );
-
-	    // Qx[2] is really dx*Kx
-	    Qx[2][j][i] = minmodRaw(backward, central, forward); 
+            // Qx[2] is really dx*Kx
+            Qx[2][j][i] = minmodRaw(backward, central, forward); 
 	    
         }
     }
@@ -323,34 +330,44 @@ __global__ void swe_2D(
         const int l = j + 1;
         for (int i=tx; i<block_width; i+=blockDim.x) {            
             const int k = i + 2; //Skip ghost cells
-            for (int p=0; p<2; ++p) {
-                Qy[p][j][i] = minmodSlope(Q[p][l-1][k], Q[p][l][k], Q[p][l+1][k], theta_);
+            // Qy[2] = Ly, which we need to find differently than uy and vy
+            float lower_eta  = R[0][l-1][k];
+            float center_eta = R[0][l  ][k];
+            float upper_eta  = R[0][l+1][k];
+            
+            const float lower_u  = R[1][l-1][k];
+            const float center_u = R[1][l  ][k];
+            const float upper_u  = R[1][l+1][k];
+            Qy[0][j][i] = minmodSlope(lower_u, center_u, upper_u, theta_);
+            
+            
+            {
+                const float lower_v  = R[2][l-1][k];
+                const float center_v = R[2][l  ][k];
+                const float upper_v  = R[2][l+1][k];
+                Qy[1][j][i] = minmodSlope(lower_v, center_v, upper_v, theta_);
             }
-	    // Qy[2] = Ly, which we need to find differently than uy and vy
-	    float lower_eta  = R[0][l-1][k];
-	    float center_eta = R[0][l  ][k];
-	    float upper_eta  = R[0][l+1][k];
 
-	    float global_thread_y = by + j;
-	    float center_coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
-							   dy_, y_zero_reference_cell_);
-	    float lower_coriolis_f  = linear_coriolis_term(f_, beta_, global_thread_y - 1,
-							   dy_, y_zero_reference_cell_);
-	    float upper_coriolis_f  = linear_coriolis_term(f_, beta_, global_thread_y + 1,
-							   dy_, y_zero_reference_cell_);
-	   	    
-	    float lower_fu  = Q[0][l-1][k]*lower_coriolis_f;
-	    float center_fu = Q[0][l  ][k]*center_coriolis_f;
-	    float upper_fu  = Q[0][l+1][k]*upper_coriolis_f;
+            float global_thread_y = by + j;
+            float center_coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+                                   dy_, y_zero_reference_cell_);
+            float lower_coriolis_f  = linear_coriolis_term(f_, beta_, global_thread_y - 1,
+                                   dy_, y_zero_reference_cell_);
+            float upper_coriolis_f  = linear_coriolis_term(f_, beta_, global_thread_y + 1,
+                                   dy_, y_zero_reference_cell_);
+                
+            float lower_fu  = lower_u*lower_coriolis_f;
+            float center_fu = center_u*center_coriolis_f;
+            float upper_fu  = upper_u*upper_coriolis_f;
 
-	    float U_constant = dy_/(2.0f*g_);
+            float U_constant = dy_/(2.0f*g_);
 
-	    float backward = theta_*g_*(center_eta - lower_eta  + U_constant*(center_fu + lower_fu ) );
-	    float central  =   0.5f*g_*(upper_eta  - lower_eta  + U_constant*(upper_fu + 2*center_fu + lower_fu) ); 
-	    float forward  = theta_*g_*(upper_eta  - center_eta + U_constant*(center_fu + upper_fu) );
+            float backward = theta_*g_*(center_eta - lower_eta  + U_constant*(center_fu + lower_fu ) );
+            float central  =   0.5f*g_*(upper_eta  - lower_eta  + U_constant*(upper_fu + 2*center_fu + lower_fu) ); 
+            float forward  = theta_*g_*(upper_eta  - center_eta + U_constant*(center_fu + upper_fu) );
 
-	    // Qy[2] is really dy*Ly
-	    Qy[2][j][i] = minmodRaw(backward, central, forward); 
+            // Qy[2] is really dy*Ly
+            Qy[2][j][i] = minmodRaw(backward, central, forward); 
         }
     }
     __syncthreads();
@@ -365,34 +382,34 @@ __global__ void swe_2D(
             const int k = i + 1;
 
             // (u, v) reconstructed at a cell interface from the right (p) and left (m)
-	    const float2 Rp = make_float2(Q[0][l][k+1] - 0.5f*Qx[0][j][i+1],
-                                       Q[1][l][k+1] - 0.5f*Qx[1][j][i+1]);
-            const float2 Rm = make_float2(Q[0][l][k  ] + 0.5f*Qx[0][j][i  ],
-                                       Q[1][l][k  ] + 0.5f*Qx[1][j][i  ]);
-
             // Variables to reconstruct h from u, v, K, L
-            const float vp = Q[1][l][k+1];
-            const float vm = Q[1][l][k  ];
+            const float eta_bar_p = R[0][l][k+1];
+            const float eta_bar_m = R[0][l][k  ];
+            const float up = R[1][l][k+1];
+            const float um = R[1][l][k  ];
+            const float vp = R[2][l][k+1];
+            const float vm = R[2][l][k  ];
+            
+            const float2 Rp = make_float2(up - 0.5f*Qx[0][j][i+1], vp - 0.5f*Qx[1][j][i+1]);
+            const float2 Rm = make_float2(um + 0.5f*Qx[0][j][i  ], vm + 0.5f*Qx[1][j][i  ]);
 
-	    // H is RHx on the given face!
-	    const float H_face = 0.5f*( Hi[j][i] + Hi[j+1][i] );
+            // H is RHx on the given face!
+            const float H_face = 0.5f*( Hi[j][i] + Hi[j+1][i] );
 
-	    const float eta_bar_p = R[0][l][k+1];
-	    const float eta_bar_m = R[0][l][k  ];
 
-	    // Qx[2] is really dx*Kx
-	    const float Kx_p = Qx[2][j][i+1];
+            // Qx[2] is really dx*Kx
+            const float Kx_p = Qx[2][j][i+1];
             const float Kx_m = Qx[2][j][i  ];
 
-	    // Coriolis parameter
-	    float global_thread_y = by + j;
-	    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
-						    dy_, y_zero_reference_cell_);
-	    
+            // Coriolis parameter
+            float global_thread_y = by + j;
+            float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+                            dy_, y_zero_reference_cell_);
+
             // Reconstruct h 
             const float hp = eta_bar_p + H_face - (Kx_p + dx_*coriolis_f*vp)/(2.0f*g_); 
-	    const float hm = eta_bar_m + H_face + (Kx_m + dx_*coriolis_f*vm)/(2.0f*g_);
-	    
+            const float hm = eta_bar_m + H_face + (Kx_m + dx_*coriolis_f*vm)/(2.0f*g_);
+
             // Our flux variables Q=(h, u, v)
             const float3 Qp = make_float3(hp, Rp.x, Rp.y);
             const float3 Qm = make_float3(hm, Rm.x, Rm.y);
@@ -411,37 +428,37 @@ __global__ void swe_2D(
         for (int i=tx; i<block_width; i+=blockDim.x) {
             const int k = i + 2; //Skip ghost cells
             // Q at interface from the right and left
-	    const float2 Rp = make_float2(Q[0][l+1][k] - 0.5f*Qy[0][j+1][i],
-                                       Q[1][l+1][k] - 0.5f*Qy[1][j+1][i]);
-	    const float2 Rm = make_float2(Q[0][l  ][k] + 0.5f*Qy[0][j  ][i],
-				       Q[1][l  ][k] + 0.5f*Qy[1][j  ][i]);
-              
             // Variables to reconstruct h from u, v, K, L
-            const float up = Q[0][l+1][k];
-            const float um = Q[0][l  ][k];
+            const float eta_bar_p = R[0][l+1][k];
+            const float eta_bar_m = R[0][l  ][k];
+            const float up = R[1][l+1][k];
+            const float um = R[1][l  ][k];
+            const float vp = R[2][l+1][k];
+            const float vm = R[2][l  ][k];
+            
+            const float2 Rp = make_float2(up - 0.5f*Qy[0][j+1][i], vp - 0.5f*Qy[1][j+1][i]);
+            const float2 Rm = make_float2(um + 0.5f*Qy[0][j  ][i], vm + 0.5f*Qy[1][j  ][i]);
+              
+            // H is RHx on the given face!
+            const float H_face = 0.5f*( Hi[j][i] + Hi[j][i+1] );
 
-	    // H is RHx on the given face!
-	    const float H_face = 0.5f*( Hi[j][i] + Hi[j][i+1] );
 
-	    const float eta_bar_p = R[0][l+1][k];
-	    const float eta_bar_m = R[0][l  ][k];
-
-	    // Qy[2] is really dy*Ly
-	    const float Ly_p = Qy[2][j+1][i];
+            // Qy[2] is really dy*Ly
+            const float Ly_p = Qy[2][j+1][i];
             const float Ly_m = Qy[2][j  ][i];
 
-	    // Coriolis parameter
-	    float global_thread_y = by + j;
-	    float coriolis_fm = linear_coriolis_term(f_, beta_, global_thread_y,
-						    dy_, y_zero_reference_cell_);
-	    float coriolis_fp = linear_coriolis_term(f_, beta_, global_thread_y + 1, 
-						    dy_, y_zero_reference_cell_);
-	    
-            // Reconstruct h 
-	    const float hp = eta_bar_p + H_face - ( Ly_p - dy_*coriolis_fp*up)/(2.0f*g_); 
-	    const float hm = eta_bar_m + H_face + ( Ly_m - dy_*coriolis_fm*um)/(2.0f*g_); 
+            // Coriolis parameter
+            float global_thread_y = by + j;
+            float coriolis_fm = linear_coriolis_term(f_, beta_, global_thread_y,
+                                dy_, y_zero_reference_cell_);
+            float coriolis_fp = linear_coriolis_term(f_, beta_, global_thread_y + 1, 
+                                dy_, y_zero_reference_cell_);
+            
+                // Reconstruct h 
+            const float hp = eta_bar_p + H_face - ( Ly_p - dy_*coriolis_fp*up)/(2.0f*g_); 
+            const float hm = eta_bar_m + H_face + ( Ly_m - dy_*coriolis_fm*um)/(2.0f*g_); 
 
-	    // Our flux variables Q=(h, v, u)
+            // Our flux variables Q=(h, v, u)
             // Note that we swap u and v
             const float3 Qp = make_float3(hp, Rp.y, Rp.x);
             const float3 Qm = make_float3(hm, Rm.y, Rm.x);
@@ -486,10 +503,10 @@ __global__ void swe_2D(
 	                  - (G[0][ty+1][tx  ] - G[0][ty][tx]) / dy_;
         const float L2  = - (F[1][ty  ][tx+1] - F[1][ty][tx]) / dx_ 
                           - (G[1][ty+1][tx  ] - G[1][ty][tx]) / dy_
-  	                  + (X + coriolis_f*R[2][j][i] + st1/dx_);
+  	                  + (X + coriolis_f*hv + st1/dx_);
         const float L3  = - (F[2][ty  ][tx+1] - F[2][ty][tx]) / dx_ 
                           - (G[2][ty+1][tx  ] - G[2][ty][tx]) / dy_
-	                  + (Y - coriolis_f*R[1][j][i] + st2/dy_);
+	                  + (Y - coriolis_f*hu + st2/dy_);
 	
         
 	float* const eta_row = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
@@ -504,8 +521,8 @@ __global__ void swe_2D(
 		//First step of RK2 ODE integrator
             
 		eta_row[ti] =  R[0][j][i] + dt_*L1;
-		hu_row[ti]  = (R[1][j][i] + dt_*L2) / (1.0f + C);
-		hv_row[ti]  = (R[2][j][i] + dt_*L3) / (1.0f + C);
+		hu_row[ti]  = (hu + dt_*L2) / (1.0f + C);
+		hv_row[ti]  = (hv + dt_*L3) / (1.0f + C);
 	    }
 	    else if (step_ == 1) {
 		//Second step of RK2 ODE integrator
@@ -517,8 +534,8 @@ __global__ void swe_2D(
             
 		//Compute Q^n+1
 		const float eta_b = 0.5f*(eta_a + (R[0][j][i] + dt_*L1));
-		const float hu_b  = 0.5f*( hu_a + (R[1][j][i] + dt_*L2));
-		const float hv_b  = 0.5f*( hv_a + (R[2][j][i] + dt_*L3));
+		const float hu_b  = 0.5f*( hu_a + (hu + dt_*L2));
+		const float hv_b  = 0.5f*( hv_a + (hv + dt_*L3));
 
 				
 		//Write to main memory
@@ -540,8 +557,8 @@ __global__ void swe_2D(
 		// q^(1) = q^n + dt*L(q^n)
             
 		eta_row[ti] =  R[0][j][i] + dt_*L1;
-		hu_row[ti]  = (R[1][j][i] + dt_*L2);
-		hv_row[ti]  = (R[2][j][i] + dt_*L3);
+		hu_row[ti]  = (hu + dt_*L2);
+		hv_row[ti]  = (hv + dt_*L3);
 
 	    } else if (step_ == 1) {
 		// Second step of RK3 ODE integrator
@@ -555,8 +572,8 @@ __global__ void swe_2D(
 
 		// Compute Q^(2):
 		const float eta_b = 0.75f*eta_a + 0.25f*(R[0][j][i] + dt_*L1);
-		const float hu_b  = 0.75f* hu_a + 0.25f*(R[1][j][i] + dt_*L2);
-		const float hv_b  = 0.75f* hv_a + 0.25f*(R[2][j][i] + dt_*L3);
+		const float hu_b  = 0.75f* hu_a + 0.25f*(hu + dt_*L2);
+		const float hv_b  = 0.75f* hv_a + 0.25f*(hv + dt_*L3);
 
 		// Write output to the input buffer:
 		float* const eta_out_row = (float*) ((char*) eta0_ptr_ + eta0_pitch_*tj);
@@ -577,8 +594,8 @@ __global__ void swe_2D(
 
 		// Compute Q^n+1:
 		const float eta_b = (eta_a + 2.0f*(R[0][j][i] + dt_*L1)) / 3.0f;
-		const float hu_b  = ( hu_a + 2.0f*(R[1][j][i] + dt_*L2)) / 3.0f;
-		const float hv_b  = ( hv_a + 2.0f*(R[2][j][i] + dt_*L3)) / 3.0f;
+		const float hu_b  = ( hu_a + 2.0f*(hu + dt_*L2)) / 3.0f;
+		const float hv_b  = ( hv_a + 2.0f*(hv + dt_*L3)) / 3.0f;
 
 		//Write to main memory
 		eta_row[ti] = eta_b;
