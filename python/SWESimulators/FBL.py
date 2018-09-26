@@ -27,9 +27,9 @@ import numpy as np
 import pyopencl as cl #OpenCL in Python
 import gc
 
-import Common, SimWriter, SimReader
-import Simulator
-import WindStress
+from SWESimulators import Common, SimWriter, SimReader
+from SWESimulators import Simulator
+from SWESimulators import WindStress
    
 
 class FBL(Simulator.Simulator):

@@ -20,9 +20,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import pyopencl as cl #OpenCL in Python
-import Common, SimWriter
+from SWESimulators import Common, SimWriter
 import gc
 from abc import ABCMeta, abstractmethod
+from importlib import reload
 
 reload(Common)
 
@@ -237,6 +238,6 @@ class Simulator(object):
         if (self.boundary_conditions.isSponge()):
             self.interior_domain_indices = self.boundary_conditions.spongeCells.copy()
             self.interior_domain_indices[0:2] = -self.interior_domain_indices[0:2]
-            print "self.interior_domain_indices: ", self.interior_domain_indices
+            print("self.interior_domain_indices: ", self.interior_domain_indices)
     
     
