@@ -77,7 +77,7 @@ __device__ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
 __device__
 float3 computeFFaceFlux(int i, int j,
                 float R[3][block_height+4][block_width+4],
-                float Qx[3][block_height][block_width+2],
+                float Qx[3][block_height+2][block_width+2],
                 float Hi[block_height+1][block_width+1],
                 const float g_, const float coriolis_f, const float dx_) {
     const int l = j + 2; //Skip ghost cells (be consistent with reconstruction offsets)
@@ -120,7 +120,7 @@ float3 computeFFaceFlux(int i, int j,
 __device__
 float3 computeGFaceFlux(int i, int j,
                 float R[3][block_height+4][block_width+4],
-                float Qy[3][block_height+2][block_width],
+                float Qy[3][block_height+2][block_width+2],
                 float Hi[block_height+1][block_width+1],
                 const float g_, const float coriolis_fm, const float coriolis_fp, const float dy_) {
     const int l = j + 1;
@@ -224,10 +224,12 @@ __global__ void swe_2D(
     __shared__ float R[3][block_height+4][block_width+4];
 
     // Our reconstruction variables
+    //When computing flux along x-axis, we use
     //Qx = [u_x, v_x, K_x]
-    //Qy = [u_y, v_y, L_y]
-    __shared__ float Qx[3][block_height][block_width+2];
-    __shared__ float Qy[3][block_height+2][block_width];
+    //Then we reuse it as
+    //Qx = [u_y, v_y, L_y]
+    //to compute the y fluxes
+    __shared__ float Qx[3][block_height+2][block_width+2];
 
     // Bathymetry
     __shared__ float  Hi[block_height+1][block_width+1];
@@ -273,6 +275,12 @@ __global__ void swe_2D(
     }
     __syncthreads();
     const float Hm = 0.25f*(Hi[ty][tx]+Hi[ty+1][tx]+Hi[ty][tx+1]+Hi[ty+1][tx+1]);
+    
+    
+    //Compute Coriolis terms needed for fluxes etc.
+    const float coriolis_f_lower   = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ - 1.0f + 0.5f)*dy_;
+    const float coriolis_f_central = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ +        0.5f)*dy_;
+    const float coriolis_f_upper   = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ + 1.0f + 0.5f)*dy_;
 
 
 
@@ -390,6 +398,12 @@ __global__ void swe_2D(
 
         }
     }
+    __syncthreads();
+    
+    // Compute flux along x axis
+    const float3 f_flux_diff = computeFFaceFlux(tx+1, ty, R, Qx, Hi,g_, coriolis_f_central, dx_) 
+                             - computeFFaceFlux(tx  , ty, R, Qx, Hi,g_, coriolis_f_central, dx_);
+    __syncthreads();
 
     //Reconstruct slopes along y axis
     for (int j=ty; j<block_height+2; j+=blockDim.y) {
@@ -404,14 +418,14 @@ __global__ void swe_2D(
             const float lower_u  = R[1][l-1][k];
             const float center_u = R[1][l  ][k];
             const float upper_u  = R[1][l+1][k];
-            Qy[0][j][i] = minmodSlope(lower_u, center_u, upper_u, theta_);
+            Qx[0][j][i] = minmodSlope(lower_u, center_u, upper_u, theta_);
 
 
             {
                 const float lower_v  = R[2][l-1][k];
                 const float center_v = R[2][l  ][k];
                 const float upper_v  = R[2][l+1][k];
-                Qy[1][j][i] = minmodSlope(lower_v, center_v, upper_v, theta_);
+                Qx[1][j][i] = minmodSlope(lower_v, center_v, upper_v, theta_);
             }
 
             float global_thread_y = by + j;
@@ -430,22 +444,15 @@ __global__ void swe_2D(
             float forward  = theta_*g_*(upper_eta  - center_eta + U_constant*(center_fu + upper_fu) );
 
             // Qy[2] is really dy*Ly
-            Qy[2][j][i] = minmodRaw(backward, central, forward);
+            Qx[2][j][i] = minmodRaw(backward, central, forward);
         }
     }
     __syncthreads();
 
-    
-    //Compute Coriolis terms needed for fluxes
-    const float coriolis_f_lower   = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ - 1.0f + 0.5f)*dy_;
-    const float coriolis_f_central = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ +        0.5f)*dy_;
-    const float coriolis_f_upper   = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ + 1.0f + 0.5f)*dy_;
-
-    //Compute fluxes along the x and y axis    
-    const float3 f_flux_diff = computeFFaceFlux(tx+1, ty, R, Qx, Hi,g_, coriolis_f_central, dx_) 
-                             - computeFFaceFlux(tx  , ty, R, Qx, Hi,g_, coriolis_f_central, dx_);
-    const float3 g_flux_diff = computeGFaceFlux(tx, ty+1, R, Qy, Hi, g_, coriolis_f_central,   coriolis_f_upper, dy_)
-                             - computeGFaceFlux(tx, ty  , R, Qy, Hi, g_,   coriolis_f_lower, coriolis_f_central, dy_);
+    //Compute fluxes along the y axis    
+    const float3 g_flux_diff = computeGFaceFlux(tx, ty+1, R, Qx, Hi, g_, coriolis_f_central,   coriolis_f_upper, dy_)
+                             - computeGFaceFlux(tx, ty  , R, Qx, Hi, g_,   coriolis_f_lower, coriolis_f_central, dy_);
+    __syncthreads();
 
 
     //Sum fluxes and advance in time for all internal cells
@@ -563,6 +570,7 @@ __global__ void swe_2D(
             }
         }
 
+        /*
         // Write geostrophical equilibrium variables:
         if (report_geostrophical_equilibrium) {
 
@@ -574,6 +582,7 @@ __global__ void swe_2D(
             Kx_row[ti]    = Qx[2][ty][tx+1];  // K_x
             Ly_row[ti]    = Qy[2][ty+1][tx];  // L_y
         }
+        */
 
     }
 
