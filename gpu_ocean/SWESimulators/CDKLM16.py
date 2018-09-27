@@ -141,7 +141,7 @@ class CDKLM16(Simulator.Simulator):
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.swe_2D = self.kernel.get_function("swe_2D")
-        self.swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPifiiiiiPiPiPi")
+        self.swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPifi")
         self.update_wind_stress(self.kernel, self.swe_2D)
         
         #Create data by uploading to device
@@ -381,6 +381,19 @@ class CDKLM16(Simulator.Simulator):
                    h_in, hu_in, hv_in, \
                    h_out, hu_out, hv_out, \
                    local_dt, wind_stress_t, rk_step):
+            
+        #"Beautify" code a bit by packing four bools into a single int
+        #Note: Must match code in kernel!
+        boundary_conditions = np.int32(0)
+        if (self.boundary_conditions.north == 1):
+            boundary_conditions = boundary_conditions | 0x01
+        if (self.boundary_conditions.east == 1):
+            boundary_conditions = boundary_conditions | 0x02
+        if (self.boundary_conditions.south == 1):
+            boundary_conditions = boundary_conditions | 0x04
+        if (self.boundary_conditions.west == 1):
+            boundary_conditions = boundary_conditions | 0x08
+        
         self.swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                            self.nx, self.ny, \
                            self.dx, self.dy, local_dt, \
@@ -401,11 +414,7 @@ class CDKLM16(Simulator.Simulator):
                            self.bathymetry.Bi.data.gpudata, self.bathymetry.Bi.pitch, \
                            self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
                            wind_stress_t, \
-                           self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
-                           self.reportGeostrophicEquilibrium, \
-                           self.geoEq_uxpvy.data.gpudata, self.geoEq_uxpvy.pitch, \
-                           self.geoEq_Kx.data.gpudata, self.geoEq_Kx.pitch, \
-                           self.geoEq_Ly.data.gpudata, self.geoEq_Ly.pitch )
+                           boundary_conditions)
             
     
     def perturbState(self, q0_scale=None):

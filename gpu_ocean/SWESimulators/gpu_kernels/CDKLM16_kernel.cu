@@ -162,6 +162,7 @@ float3 computeGFaceFlux(int i, int j,
 
 
 extern "C" {
+    
 __global__ void swe_2D(
         const int nx_, const int ny_,
         const float dx_, const float dy_, const float dt_,
@@ -196,14 +197,8 @@ __global__ void swe_2D(
         const float wind_stress_t_,
 
         // Boundary conditions (1: wall, 2: periodic, 3: open boundary (flow relaxation scheme))
-        const int bc_north_, const int bc_east_, const int bc_south_, const int bc_west_,
-
-        // Geostrophic Equilibrium memory buffers
-        // The buffers have the same size as input/output
-        const int report_geostrophical_equilibrium,
-        float* uxpvy_ptr_, const int uxpvy_pitch_,
-        float* Kx_ptr_, const int Kx_pitch_,
-        float* Ly_ptr_, const int Ly_pitch_) {
+        // Note: these are packed north, east, south, west boolean bits into an int
+        const int wall_bc_) {
 
 
     //Index of thread within block
@@ -285,25 +280,25 @@ __global__ void swe_2D(
 
 
     //Fix boundary conditions
-    if (bc_north_ == 1 || bc_east_ == 1 || bc_south_ == 1 || bc_west_ == 1)
-    {
+    if (wall_bc_ != 0) {
         // These boundary conditions are dealt with inside shared memory
 
         const int i = tx + 2; //Skip local ghost cells, i.e., +2
         const int j = ty + 2;
 
-        if (ti == 2 && bc_west_ == 1) {
-	    // Wall boundary on west
-	    R[0][j][i-1] =  R[0][j][i];
-            R[1][j][i-1] = -R[1][j][i];
-            R[2][j][i-1] =  R[2][j][i];
+        // Wall boundary on north
+        if (tj == ny_+1 && (wall_bc_ & 0x01)) {
+            R[0][j+1][i] =  R[0][j][i];
+            R[1][j+1][i] =  R[1][j][i];
+            R[2][j+1][i] = -R[2][j][i];
 
-            R[0][j][i-2] =  R[0][j][i+1];
-            R[1][j][i-2] = -R[1][j][i+1];
-            R[2][j][i-2] =  R[2][j][i+1];
-	}
-        if (ti == nx_+1 && bc_east_ == 1) {
-	    // Wall boundary on east
+            R[0][j+2][i] =  R[0][j-1][i];
+            R[1][j+2][i] =  R[1][j-1][i];
+            R[2][j+2][i] = -R[2][j-1][i];
+        }
+        
+        // Wall boundary on east
+        if (ti == nx_+1 && (wall_bc_ & 0x02)) {
             R[0][j][i+1] =  R[0][j][i];
             R[1][j][i+1] = -R[1][j][i];
             R[2][j][i+1] =  R[2][j][i];
@@ -312,9 +307,10 @@ __global__ void swe_2D(
             R[1][j][i+2] = -R[1][j][i-1];
             R[2][j][i+2] =  R[2][j][i-1];
         }
-        if (tj == 2 && bc_south_ == 1) {
-	    // Wall boundary on south
-	    R[0][j-1][i] =  R[0][j][i];
+        
+        // Wall boundary on south
+        if (tj == 2 && (wall_bc_ & 0x04)) {
+            R[0][j-1][i] =  R[0][j][i];
             R[1][j-1][i] =  R[1][j][i];
             R[2][j-1][i] = -R[2][j][i];
 
@@ -322,15 +318,16 @@ __global__ void swe_2D(
             R[1][j-2][i] =  R[1][j+1][i];
             R[2][j-2][i] = -R[2][j+1][i];
         }
-        if (tj == ny_+1 && bc_north_ == 1) {
-	    // Wall boundary on north
-            R[0][j+1][i] =  R[0][j][i];
-            R[1][j+1][i] =  R[1][j][i];
-            R[2][j+1][i] = -R[2][j][i];
+        
+        // Wall boundary on west
+        if (ti == 2 && (wall_bc_ & 0x08)) {
+            R[0][j][i-1] =  R[0][j][i];
+            R[1][j][i-1] = -R[1][j][i];
+            R[2][j][i-1] =  R[2][j][i];
 
-            R[0][j+2][i] =  R[0][j-1][i];
-            R[1][j+2][i] =  R[1][j-1][i];
-            R[2][j+2][i] = -R[2][j-1][i];
+            R[0][j][i-2] =  R[0][j][i+1];
+            R[1][j][i-2] = -R[1][j][i+1];
+            R[2][j][i-2] =  R[2][j][i+1];
         }
     }
 
@@ -568,21 +565,6 @@ __global__ void swe_2D(
                 hv_row[ti]  =  hv_b;
             }
         }
-
-        /*
-        // Write geostrophical equilibrium variables:
-        if (report_geostrophical_equilibrium) {
-
-            float* const uxpvy_row  = (float*) ((char*) uxpvy_ptr_ + uxpvy_pitch_*tj);
-            float* const Kx_row = (float*) ((char*) Kx_ptr_ + Kx_pitch_*tj);
-            float* const Ly_row = (float*) ((char*) Ly_ptr_ + Ly_pitch_*tj);
-
-            uxpvy_row[ti] = Qx[0][ty][tx+1] + Qy[1][ty+1][tx]; // u_x + v_y
-            Kx_row[ti]    = Qx[2][ty][tx+1];  // K_x
-            Ly_row[ti]    = Qy[2][ty+1][tx];  // L_y
-        }
-        */
-
     }
 
 
