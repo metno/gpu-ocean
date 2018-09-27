@@ -397,8 +397,8 @@ __global__ void swe_2D(
     __syncthreads();
     
     // Compute flux along x axis
-    const float3 f_flux_diff = computeFFaceFlux(tx+1, ty, R, Qx, Hi,g_, coriolis_f_central, dx_) 
-                             - computeFFaceFlux(tx  , ty, R, Qx, Hi,g_, coriolis_f_central, dx_);
+    float3 flux_diff = (  computeFFaceFlux(tx+1, ty, R, Qx, Hi,g_, coriolis_f_central, dx_) 
+                        - computeFFaceFlux(tx  , ty, R, Qx, Hi,g_, coriolis_f_central, dx_)) / dx_;
     __syncthreads();
 
     //Reconstruct slopes along y axis
@@ -446,8 +446,8 @@ __global__ void swe_2D(
     __syncthreads();
 
     //Compute fluxes along the y axis    
-    const float3 g_flux_diff = computeGFaceFlux(tx, ty+1, R, Qx, Hi, g_, coriolis_f_central,   coriolis_f_upper, dy_)
-                             - computeGFaceFlux(tx, ty  , R, Qx, Hi, g_,   coriolis_f_lower, coriolis_f_central, dy_);
+    flux_diff = flux_diff + (  computeGFaceFlux(tx, ty+1, R, Qx, Hi, g_, coriolis_f_central,   coriolis_f_upper, dy_)
+                             - computeGFaceFlux(tx, ty  , R, Qx, Hi, g_,   coriolis_f_lower, coriolis_f_central, dy_)) / dy_;
     __syncthreads();
 
 
@@ -469,9 +469,9 @@ __global__ void swe_2D(
         const float RHym = 0.5f*( Hi[ty  ][tx] + Hi[ty  ][tx+1] );
         const float st2 = g_*(R[0][j][i] + Hm)*(RHyp - RHym);
 
-        const float L1  = - f_flux_diff.x / dx_ - g_flux_diff.x / dy_;
-        const float L2  = - f_flux_diff.y / dx_ - g_flux_diff.y / dy_ + (X + coriolis_f_central*hv + st1/dx_);
-        const float L3  = - f_flux_diff.z / dx_ - g_flux_diff.z / dy_ + (Y - coriolis_f_central*hu + st2/dy_);
+        const float L1  = - flux_diff.x;
+        const float L2  = - flux_diff.y + (X + coriolis_f_central*hv + st1/dx_);
+        const float L3  = - flux_diff.z + (Y - coriolis_f_central*hu + st2/dy_);
 
         float* const eta_row = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
         float* const hu_row  = (float*) ((char*) hu1_ptr_  +  hu1_pitch_*tj);
