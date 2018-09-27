@@ -163,47 +163,47 @@ float3 computeGFaceFlux(int i, int j,
 
 extern "C" {
 __global__ void swe_2D(
-        int nx_, int ny_,
-        float dx_, float dy_, float dt_,
-        float g_,
+        const int nx_, const int ny_,
+        const float dx_, const float dy_, const float dt_,
+        const float g_,
 
-        float theta_,
+        const float theta_,
 
-        float f_, //< Coriolis coefficient
-        float beta_, //< Coriolis force f_ + beta_*(y-y0)
-        float y_zero_reference_cell_,  // the cell row representing y0 (y0 at southern face)
+        const float f_, //< Coriolis coefficient
+        const float beta_, //< Coriolis force f_ + beta_*(y-y0)
+        const float y_zero_reference_cell_,  // the cell row representing y0 (y0 at southern face)
 
-        float r_, //< Bottom friction coefficient
+        const float r_, //< Bottom friction coefficient
 
-        int rk_order, // runge kutta order
-        int step_,    // runge kutta step
+        const int rk_order, // runge kutta order
+        const int step_,    // runge kutta step
 
         //Input h^n
-        float* eta0_ptr_, int eta0_pitch_,
-        float* hu0_ptr_, int hu0_pitch_,
-        float* hv0_ptr_, int hv0_pitch_,
+        float* eta0_ptr_, const int eta0_pitch_,
+        float* hu0_ptr_, const int hu0_pitch_,
+        float* hv0_ptr_, const int hv0_pitch_,
 
         //Output h^{n+1}
-        float* eta1_ptr_, int eta1_pitch_,
-        float* hu1_ptr_, int hu1_pitch_,
-        float* hv1_ptr_, int hv1_pitch_,
+        float* eta1_ptr_, const int eta1_pitch_,
+        float* hu1_ptr_, const int hu1_pitch_,
+        float* hv1_ptr_, const int hv1_pitch_,
 
         //Bathymery
-        float* Hi_ptr_, int Hi_pitch_,
-        float* Hm_ptr_, int Hm_pitch_,
+        float* Hi_ptr_, const int Hi_pitch_,
+        float* Hm_ptr_, const int Hm_pitch_,
 
         //Wind stress parameters
-        float wind_stress_t_,
+        const float wind_stress_t_,
 
         // Boundary conditions (1: wall, 2: periodic, 3: open boundary (flow relaxation scheme))
-        int bc_north_, int bc_east_, int bc_south_, int bc_west_,
+        const int bc_north_, const int bc_east_, const int bc_south_, const int bc_west_,
 
         // Geostrophic Equilibrium memory buffers
         // The buffers have the same size as input/output
-        int report_geostrophical_equilibrium,
-        float* uxpvy_ptr_, int uxpvy_pitch_,
-        float* Kx_ptr_, int Kx_pitch_,
-        float* Ly_ptr_, int Ly_pitch_) {
+        const int report_geostrophical_equilibrium,
+        float* uxpvy_ptr_, const int uxpvy_pitch_,
+        float* Kx_ptr_, const int Kx_pitch_,
+        float* Ly_ptr_, const int Ly_pitch_) {
 
 
     //Index of thread within block
@@ -368,9 +368,9 @@ __global__ void swe_2D(
         for (int i=tx; i<block_width+2; i+=blockDim.x) {
             const int k = i + 1;
 
-            float left_eta   = R[0][l][k-1];
-            float center_eta = R[0][l][k  ];
-            float right_eta  = R[0][l][k+1];
+            const float left_eta   = R[0][l][k-1];
+            const float center_eta = R[0][l][k  ];
+            const float right_eta  = R[0][l][k+1];
 
             {
                 const float left_u   = R[1][l][k-1];
@@ -385,13 +385,12 @@ __global__ void swe_2D(
             Qx[1][j][i] = minmodSlope(left_v, center_v, right_v, theta_);
 
             // Qx[2] = Kx, which we need to find differently than ux and vx
-            float global_thread_y = by + j;
-            const float coriolis_f = f_ + beta_ * (global_thread_y-y_zero_reference_cell_ + 0.5f)*dy_;
-            float V_constant = dx_*coriolis_f/(2.0f*g_);
+            const float coriolis_f = f_ + beta_ * ((by + j)-y_zero_reference_cell_ + 0.5f)*dy_;
+            const float V_constant = dx_*coriolis_f/(2.0f*g_);
 
-            float backward = theta_*g_*(center_eta - left_eta   - V_constant*(center_v + left_v ) );
-            float central  =   0.5f*g_*(right_eta  - left_eta   - V_constant*(right_v + 2*center_v + left_v) );
-            float forward  = theta_*g_*(right_eta  - center_eta - V_constant*(center_v + right_v) );
+            const float backward = theta_*g_*(center_eta - left_eta   - V_constant*(center_v + left_v ) );
+            const float central  =   0.5f*g_*(right_eta  - left_eta   - V_constant*(right_v + 2*center_v + left_v) );
+            const float forward  = theta_*g_*(right_eta  - center_eta - V_constant*(center_v + right_v) );
 
             // Qx[2] is really dx*Kx
             Qx[2][j][i] = minmodRaw(backward, central, forward);
@@ -411,9 +410,9 @@ __global__ void swe_2D(
         for (int i=tx; i<block_width; i+=blockDim.x) {
             const int k = i + 2; //Skip ghost cells
             // Qy[2] = Ly, which we need to find differently than uy and vy
-            float lower_eta  = R[0][l-1][k];
-            float center_eta = R[0][l  ][k];
-            float upper_eta  = R[0][l+1][k];
+            const float lower_eta  = R[0][l-1][k];
+            const float center_eta = R[0][l  ][k];
+            const float upper_eta  = R[0][l+1][k];
 
             const float lower_u  = R[1][l-1][k];
             const float center_u = R[1][l  ][k];
@@ -428,20 +427,20 @@ __global__ void swe_2D(
                 Qx[1][j][i] = minmodSlope(lower_v, center_v, upper_v, theta_);
             }
 
-            float global_thread_y = by + j;
-            const float center_coriolis_f = f_ + beta_ * (global_thread_y-y_zero_reference_cell_        + 0.5f)*dy_;
-            const float lower_coriolis_f  = f_ + beta_ * (global_thread_y-y_zero_reference_cell_ - 1.0f + 0.5f)*dy_;
-            const float upper_coriolis_f  = f_ + beta_ * (global_thread_y-y_zero_reference_cell_ + 1.0f + 0.5f)*dy_;
+            const float thread_y_diff = by + j - y_zero_reference_cell_;
+            const float center_coriolis_f = f_ + beta_ * (thread_y_diff        + 0.5f)*dy_;
+            const float lower_coriolis_f  = f_ + beta_ * (thread_y_diff - 1.0f + 0.5f)*dy_;
+            const float upper_coriolis_f  = f_ + beta_ * (thread_y_diff + 1.0f + 0.5f)*dy_;
 
-            float lower_fu  = lower_u*lower_coriolis_f;
-            float center_fu = center_u*center_coriolis_f;
-            float upper_fu  = upper_u*upper_coriolis_f;
+            const float lower_fu  = lower_u*lower_coriolis_f;
+            const float center_fu = center_u*center_coriolis_f;
+            const float upper_fu  = upper_u*upper_coriolis_f;
 
-            float U_constant = dy_/(2.0f*g_);
+            const float U_constant = dy_/(2.0f*g_);
 
-            float backward = theta_*g_*(center_eta - lower_eta  + U_constant*(center_fu + lower_fu ) );
-            float central  =   0.5f*g_*(upper_eta  - lower_eta  + U_constant*(upper_fu + 2*center_fu + lower_fu) );
-            float forward  = theta_*g_*(upper_eta  - center_eta + U_constant*(center_fu + upper_fu) );
+            const float backward = theta_*g_*(center_eta - lower_eta  + U_constant*(center_fu + lower_fu ) );
+            const float central  =   0.5f*g_*(upper_eta  - lower_eta  + U_constant*(upper_fu + 2*center_fu + lower_fu) );
+            const float forward  = theta_*g_*(upper_eta  - center_eta + U_constant*(center_fu + upper_fu) );
 
             // Qy[2] is really dy*Ly
             Qx[2][j][i] = minmodRaw(backward, central, forward);
