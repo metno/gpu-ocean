@@ -23,15 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "common.cu"
 
-// Finds the coriolis term based on the linear Coriolis force
-// f = \tilde{f} + beta*(y-y0)
-__device__ float linear_coriolis_term(const float f, const float beta,
-			   const float tj, const float dy,
-			   const float y_zero_reference_cell) {
-    // y_0 is at the southern face of the row y_zero_reference_cell.
-    float y = (tj-y_zero_reference_cell + 0.5f)*dy;
-    return f + beta * y;
-}
+
 
 
 __device__ float3 CDKLM16_F_func(const float3 Q, const float g) {
@@ -82,15 +74,11 @@ __device__ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
 
 
 
-//    int j=ty;
-//    int i=tx;
-//    float coriolis_f = linear_coriolis_term(f_, beta_, by + j,
-//                    dy_, y_zero_reference_cell_);
 __device__
 float3 computeFFaceFlux(int i, int j,
                 float R[3][block_height+4][block_width+4],
                 float Qx[3][block_height][block_width+2],
-                float  Hi[block_height+1][block_width+1],
+                float Hi[block_height+1][block_width+1],
                 const float g_, const float coriolis_f, const float dx_) {
     const int l = j + 2; //Skip ghost cells (be consistent with reconstruction offsets)
     const int k = i + 1;
@@ -128,6 +116,48 @@ float3 computeFFaceFlux(int i, int j,
 
 
 
+
+__device__
+float3 computeGFaceFlux(int i, int j,
+                float R[3][block_height+4][block_width+4],
+                float Qy[3][block_height+2][block_width],
+                float Hi[block_height+1][block_width+1],
+                const float g_, const float coriolis_fm, const float coriolis_fp, const float dy_) {
+    const int l = j + 1;
+    const int k = i + 2; //Skip ghost cells
+    // Q at interface from the right and left
+    // Variables to reconstruct h from u, v, K, L
+    const float eta_bar_p = R[0][l+1][k];
+    const float eta_bar_m = R[0][l  ][k];
+    const float up = R[1][l+1][k];
+    const float um = R[1][l  ][k];
+    const float vp = R[2][l+1][k];
+    const float vm = R[2][l  ][k];
+
+    const float2 Rp = make_float2(up - 0.5f*Qy[0][j+1][i], vp - 0.5f*Qy[1][j+1][i]);
+    const float2 Rm = make_float2(um + 0.5f*Qy[0][j  ][i], vm + 0.5f*Qy[1][j  ][i]);
+
+    // H is RHx on the given face!
+    const float H_face = 0.5f*( Hi[j][i] + Hi[j][i+1] );
+
+    // Qy[2] is really dy*Ly
+    const float Ly_p = Qy[2][j+1][i];
+    const float Ly_m = Qy[2][j  ][i];
+
+    // Reconstruct h
+    const float hp = eta_bar_p + H_face - ( Ly_p - dy_*coriolis_fp*up)/(2.0f*g_);
+    const float hm = eta_bar_m + H_face + ( Ly_m - dy_*coriolis_fm*um)/(2.0f*g_);
+
+    // Our flux variables Q=(h, v, u)
+    // Note that we swap u and v
+    const float3 Qp = make_float3(hp, Rp.y, Rp.x);
+    const float3 Qm = make_float3(hm, Rm.y, Rm.x);
+
+    // Computed flux
+    // Note that we swap back u and v
+    const float3 flux = CDKLM16_flux(Qm, Qp, g_);
+    return make_float3(flux.x, flux.z, flux.y);
+}
 
 
 
@@ -198,9 +228,6 @@ __global__ void swe_2D(
     //Qy = [u_y, v_y, L_y]
     __shared__ float Qx[3][block_height][block_width+2];
     __shared__ float Qy[3][block_height+2][block_width];
-
-    // Our fluxes
-    __shared__ float G[3][block_height+1][block_width];
 
     // Bathymetry
     __shared__ float  Hi[block_height+1][block_width+1];
@@ -351,8 +378,7 @@ __global__ void swe_2D(
 
             // Qx[2] = Kx, which we need to find differently than ux and vx
             float global_thread_y = by + j;
-            float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
-                                dy_, y_zero_reference_cell_);
+            const float coriolis_f = f_ + beta_ * (global_thread_y-y_zero_reference_cell_ + 0.5f)*dy_;
             float V_constant = dx_*coriolis_f/(2.0f*g_);
 
             float backward = theta_*g_*(center_eta - left_eta   - V_constant*(center_v + left_v ) );
@@ -389,12 +415,9 @@ __global__ void swe_2D(
             }
 
             float global_thread_y = by + j;
-            float center_coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
-                                   dy_, y_zero_reference_cell_);
-            float lower_coriolis_f  = linear_coriolis_term(f_, beta_, global_thread_y - 1,
-                                   dy_, y_zero_reference_cell_);
-            float upper_coriolis_f  = linear_coriolis_term(f_, beta_, global_thread_y + 1,
-                                   dy_, y_zero_reference_cell_);
+            const float center_coriolis_f = f_ + beta_ * (global_thread_y-y_zero_reference_cell_        + 0.5f)*dy_;
+            const float lower_coriolis_f  = f_ + beta_ * (global_thread_y-y_zero_reference_cell_ - 1.0f + 0.5f)*dy_;
+            const float upper_coriolis_f  = f_ + beta_ * (global_thread_y-y_zero_reference_cell_ + 1.0f + 0.5f)*dy_;
 
             float lower_fu  = lower_u*lower_coriolis_f;
             float center_fu = center_u*center_coriolis_f;
@@ -412,65 +435,17 @@ __global__ void swe_2D(
     }
     __syncthreads();
 
+    
+    //Compute Coriolis terms needed for fluxes
+    const float coriolis_f_lower   = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ - 1.0f + 0.5f)*dy_;
+    const float coriolis_f_central = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ +        0.5f)*dy_;
+    const float coriolis_f_upper   = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ + 1.0f + 0.5f)*dy_;
 
-
-    const float coriolis_f = linear_coriolis_term(f_, beta_, by + ty, dy_, y_zero_reference_cell_);
-    const float3 f_flux_diff = computeFFaceFlux(tx+1, ty, R, Qx, Hi,g_, coriolis_f, dx_) - computeFFaceFlux(tx, ty, R, Qx, Hi,g_, coriolis_f, dx_);
-
-
-
-    //Compute fluxes along the y axis
-    for (int j=ty; j<block_height+1; j+=blockDim.y) {
-        const int l = j + 1;
-        for (int i=tx; i<block_width; i+=blockDim.x) {
-            const int k = i + 2; //Skip ghost cells
-            // Q at interface from the right and left
-            // Variables to reconstruct h from u, v, K, L
-            const float eta_bar_p = R[0][l+1][k];
-            const float eta_bar_m = R[0][l  ][k];
-            const float up = R[1][l+1][k];
-            const float um = R[1][l  ][k];
-            const float vp = R[2][l+1][k];
-            const float vm = R[2][l  ][k];
-
-            const float2 Rp = make_float2(up - 0.5f*Qy[0][j+1][i], vp - 0.5f*Qy[1][j+1][i]);
-            const float2 Rm = make_float2(um + 0.5f*Qy[0][j  ][i], vm + 0.5f*Qy[1][j  ][i]);
-
-            // H is RHx on the given face!
-            const float H_face = 0.5f*( Hi[j][i] + Hi[j][i+1] );
-
-
-            // Qy[2] is really dy*Ly
-            const float Ly_p = Qy[2][j+1][i];
-            const float Ly_m = Qy[2][j  ][i];
-
-            // Coriolis parameter
-            float global_thread_y = by + j;
-            float coriolis_fm = linear_coriolis_term(f_, beta_, global_thread_y,
-                                dy_, y_zero_reference_cell_);
-            float coriolis_fp = linear_coriolis_term(f_, beta_, global_thread_y + 1,
-                                dy_, y_zero_reference_cell_);
-
-                // Reconstruct h
-            const float hp = eta_bar_p + H_face - ( Ly_p - dy_*coriolis_fp*up)/(2.0f*g_);
-            const float hm = eta_bar_m + H_face + ( Ly_m - dy_*coriolis_fm*um)/(2.0f*g_);
-
-            // Our flux variables Q=(h, v, u)
-            // Note that we swap u and v
-            const float3 Qp = make_float3(hp, Rp.y, Rp.x);
-            const float3 Qm = make_float3(hm, Rm.y, Rm.x);
-
-            // Computed flux
-            // Note that we swap back u and v
-            const float3 flux = CDKLM16_flux(Qm, Qp, g_);
-            G[0][j][i] = flux.x;
-            G[1][j][i] = flux.z;
-            G[2][j][i] = flux.y;
-        }
-    }
-    __syncthreads();
-
-
+    //Compute fluxes along the x and y axis    
+    const float3 f_flux_diff = computeFFaceFlux(tx+1, ty, R, Qx, Hi,g_, coriolis_f_central, dx_) 
+                             - computeFFaceFlux(tx  , ty, R, Qx, Hi,g_, coriolis_f_central, dx_);
+    const float3 g_flux_diff = computeGFaceFlux(tx, ty+1, R, Qy, Hi, g_, coriolis_f_central,   coriolis_f_upper, dy_)
+                             - computeGFaceFlux(tx, ty  , R, Qy, Hi, g_,   coriolis_f_lower, coriolis_f_central, dy_);
 
 
     //Sum fluxes and advance in time for all internal cells
@@ -491,20 +466,9 @@ __global__ void swe_2D(
         const float RHym = 0.5f*( Hi[ty  ][tx] + Hi[ty  ][tx+1] );
         const float st2 = g_*(R[0][j][i] + Hm)*(RHyp - RHym);
 
-        // Coriolis parameter
-        float global_thread_y = tj-2; // Global id including ghost cells
-        float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
-                            dy_, y_zero_reference_cell_);
-
-        const float L1  = - f_flux_diff.x / dx_
-	                  - (G[0][ty+1][tx  ] - G[0][ty][tx]) / dy_;
-        const float L2  = - f_flux_diff.y / dx_
-                          - (G[1][ty+1][tx  ] - G[1][ty][tx]) / dy_
-  	                  + (X + coriolis_f*hv + st1/dx_);
-        const float L3  = - f_flux_diff.z / dx_
-                          - (G[2][ty+1][tx  ] - G[2][ty][tx]) / dy_
-	                  + (Y - coriolis_f*hu + st2/dy_);
-
+        const float L1  = - f_flux_diff.x / dx_ - g_flux_diff.x / dy_;
+        const float L2  = - f_flux_diff.y / dx_ - g_flux_diff.y / dy_ + (X + coriolis_f_central*hv + st1/dx_);
+        const float L3  = - f_flux_diff.z / dx_ - g_flux_diff.z / dy_ + (Y - coriolis_f_central*hu + st2/dy_);
 
         float* const eta_row = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
         float* const hu_row  = (float*) ((char*) hu1_ptr_  +  hu1_pitch_*tj);
@@ -539,8 +503,6 @@ __global__ void swe_2D(
                 eta_row[ti] = eta_b;
                 hu_row[ti]  =  hu_b / (1.0f + 0.5f*C);
                 hv_row[ti]  =  hv_b / (1.0f + 0.5f*C);
-                //hu_row[ti] = RBx[ty][tx];
-                //hv_row[ti] = RBy[ty][tx];
 
             }
         }
