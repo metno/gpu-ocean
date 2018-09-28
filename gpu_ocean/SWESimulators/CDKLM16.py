@@ -138,7 +138,12 @@ class CDKLM16(Simulator.Simulator):
         self._set_interior_domain_from_sponge_cells()
         
         #Get kernels
-        self.kernel = gpu_ctx.get_kernel("CDKLM16_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
+        self.kernel = gpu_ctx.get_kernel("CDKLM16_kernel.cu", 
+                defines={'block_width': block_width, 'block_height': block_height}, 
+                nvcc_options=["--use_fast_math"],
+                #nvcc_options=["--maxrregcount=39"],
+                #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
+                )
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.swe_2D = self.kernel.get_function("swe_2D")

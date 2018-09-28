@@ -162,7 +162,6 @@ float3 computeGFaceFlux(int i, int j,
 
 
 extern "C" {
-    
 __global__ void swe_2D(
         const int nx_, const int ny_,
         const float dx_, const float dy_, const float dt_,
