@@ -24,6 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import gc
+import logging
 
 from SWESimulators import Common, SimWriter, SimReader
 from SWESimulators import Simulator
@@ -87,7 +88,7 @@ class CDKLM16(Simulator.Simulator):
         write_netcdf: Write the results after each superstep to a netCDF file
         """
                
-        
+        self.logger = logging.getLogger(__name__)
 
         ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
         if ( np.sum(eta0 - H[:-1, :-1] > 0) > nx):
@@ -393,7 +394,7 @@ class CDKLM16(Simulator.Simulator):
             boundary_conditions = boundary_conditions | 0x04
         if (self.boundary_conditions.west == 1):
             boundary_conditions = boundary_conditions | 0x08
-        
+            
         self.swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                            self.nx, self.ny, \
                            self.dx, self.dy, local_dt, \
