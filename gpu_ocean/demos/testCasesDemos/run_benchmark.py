@@ -272,11 +272,11 @@ for i in range(args.iterations):
 	print("{:03.0f} %".format(100*(i+1) / args.iterations))
 	tic = time.time()
 	t = sim.step(args.steps_per_download*dt)
+	gpu_ctx.synchronize()
 	toc = time.time()
 	mcells = args.nx*args.ny*args.steps_per_download/(1e6*(toc-tic))
 	max_mcells = max(mcells, max_mcells);
 	print(" `-> {:02.4f} s: ".format(toc-tic) + "Step, " + "{:02.4f} mcells/sec".format(mcells))
-	
 	tic = time.time()
 	eta1, u1, v1 = sim.download()
 	toc = time.time()
