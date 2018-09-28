@@ -199,7 +199,7 @@ class CUDAContext(object):
     """
     Reads a text file and creates an OpenCL kernel from that
     """
-    def get_kernel(self, kernel_filename, include_dirs=[], no_extern_c=True, defines={}, nvcc_options=None, jit_options=[]):
+    def get_kernel(self, kernel_filename, include_dirs=[], defines={}, compile_args={'no_extern_c', True}, jit_compile_args={}):
         """
         Helper function to print compilation output
         """
@@ -214,7 +214,7 @@ class CUDAContext(object):
             
         # Create a hash of the kernel (and its includes)
         options_hasher = hashlib.md5()
-        options_hasher.update(str(defines).encode('utf-8') + str(nvcc_options).encode('utf-8'));
+        options_hasher.update(str(defines).encode('utf-8') + str(compile_args).encode('utf-8'));
         options_hash = options_hasher.hexdigest()
         options_hasher = None
         root, ext = os.path.splitext(kernel_filename)
@@ -238,7 +238,7 @@ class CUDAContext(object):
                 
             with io.open(cached_kernel_filename, "rb") as file:
                 file_str = file.read()
-                module = cuda.module_from_buffer(file_str, message_handler=cuda_compile_message_handler, options=jit_options)
+                module = cuda.module_from_buffer(file_str, message_handler=cuda_compile_message_handler, **jit_compile_args)
                 
             self.kernels[kernel_hash] = module
             return self.kernels[kernel_hash]
@@ -262,8 +262,8 @@ class CUDAContext(object):
                 
             
             with Timer("compiler") as timer:
-                cubin = cuda_compiler.compile(kernel_string, include_dirs=include_dirs, no_extern_c=no_extern_c, options=nvcc_options, cache_dir=False)
-                module = cuda.module_from_buffer(cubin, message_handler=cuda_compile_message_handler, options=jit_options)
+                cubin = cuda_compiler.compile(kernel_string, include_dirs=include_dirs, cache_dir=False, **compile_args)
+                module = cuda.module_from_buffer(cubin, message_handler=cuda_compile_message_handler, **jit_compile_args)
                 if (self.use_cache):
                     with io.open(cached_kernel_filename, "wb") as file:
                         file.write(cubin)

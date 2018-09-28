@@ -140,9 +140,15 @@ class CDKLM16(Simulator.Simulator):
         #Get kernels
         self.kernel = gpu_ctx.get_kernel("CDKLM16_kernel.cu", 
                 defines={'block_width': block_width, 'block_height': block_height}, 
-                nvcc_options=["--use_fast_math"],
-                #nvcc_options=["--maxrregcount=39"],
+                compile_args={
+                    'options': ["--use_fast_math"], 
+                    #nvcc_options=["--maxrregcount=39"],
+                    #'arch': "compute_50", 
+                    #'code': "sm_50"
+                },
+                jit_compile_args={
                 #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
+                }
                 )
         
         # Get CUDA functions and define data types for prepared_{async_}call()

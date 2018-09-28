@@ -17,6 +17,13 @@ from SWESimulators import FBL, CTCS, KP07, CDKLM16, Common
 
 from SWESimulators.BathymetryAndICs import *
 
+import importlib
+importlib.reload(FBL)
+importlib.reload(CTCS)
+importlib.reload(KP07)
+importlib.reload(CDKLM16)
+importlib.reload(Common)
+
 
 def runBenchmark(simulator, sim_args, sim_ic):
     print("Creating context", flush=True)
