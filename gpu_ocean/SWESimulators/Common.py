@@ -199,7 +199,7 @@ class CUDAContext(object):
     """
     Reads a text file and creates an OpenCL kernel from that
     """
-    def get_kernel(self, kernel_filename, include_dirs=[], defines={}, compile_args={'no_extern_c', True}, jit_compile_args={}):
+    def get_kernel(self, kernel_filename, include_dirs=[], defines={}, compile_args={'no_extern_c': True}, jit_compile_args={}):
         """
         Helper function to print compilation output
         """
