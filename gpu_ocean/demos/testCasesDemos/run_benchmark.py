@@ -295,7 +295,8 @@ print(" === Maximum megacells: {:02.8f} ===".format(max_mcells))
 # (if file exists, we append if data for scheme is not added and overwrite if already added)
 if (args.output):
     if(os.path.isfile(args.output)):
-        data = dict(np.load(args.output))
+        with np.load(args.output) as file_data:
+            data = dict(file_data)
     else:
         data = {}
     data[args.simulator] = max_mcells
