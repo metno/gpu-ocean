@@ -37,6 +37,7 @@ parser.add_argument('--block_height', type=int)
 parser.add_argument('--steps_per_download', type=int, default=2000)
 parser.add_argument('--iterations', type=int, default=1)
 parser.add_argument('--simulator', type=str)
+parser.add_argument('--output', type=str, default=None)
 args = parser.parse_args()
 
 
@@ -289,3 +290,13 @@ for i in range(args.iterations):
 
 	
 print(" === Maximum megacells: {:02.8f} ===".format(max_mcells))
+
+# Save benchmarking data to file 
+# (if file exists, we append if data for scheme is not added and overwrite if already added)
+if (args.output):
+    if(os.path.isfile(args.output)):
+        data = dict(np.load(args.output))
+    else:
+        data = {}
+    data[args.simulator] = max_mcells
+    np.savez(args.output, **data)
