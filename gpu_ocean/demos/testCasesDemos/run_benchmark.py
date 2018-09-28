@@ -25,7 +25,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import sys, os
-sys.path.insert(0, os.path.abspath(os.path.join(os.getcwd(), '../../')))
+current_dir = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../')))
 
 import argparse
 parser = argparse.ArgumentParser(description='Benchmark a simulator.')
