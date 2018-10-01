@@ -5,14 +5,16 @@ channels:
 - conda-forge
 
 dependencies:
-- python=3.5
+- python=3.7
 - numpy
-- matplotlib ==2.2.2
+- matplotlib
 - jupyter
 - netcdf4
 - pytest
 - xmlrunner
 - scipy
+- pandas
+- nb_conda_kernels
 - pip:
   - pycuda
 # on Windows: make sure your visual studio c++ compiler is available in PATH
