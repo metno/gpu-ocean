@@ -199,7 +199,7 @@ class CUDAContext(object):
     """
     Reads a text file and creates an OpenCL kernel from that
     """
-    def get_kernel(self, kernel_filename, include_dirs=[], no_extern_c=True, defines={}):
+    def get_kernel(self, kernel_filename, include_dirs=[], defines={}, compile_args={'no_extern_c': True}, jit_compile_args={}):
         """
         Helper function to print compilation output
         """
@@ -213,17 +213,17 @@ class CUDAContext(object):
         self.logger.debug("Getting %s", kernel_filename)
             
         # Create a hash of the kernel (and its includes)
-        defines_hasher = hashlib.md5()
-        defines_hasher.update(str(defines).encode('utf-8'));
-        defines_hash = defines_hasher.hexdigest()
-        defines_hasher = None
+        options_hasher = hashlib.md5()
+        options_hasher.update(str(defines).encode('utf-8') + str(compile_args).encode('utf-8'));
+        options_hash = options_hasher.hexdigest()
+        options_hasher = None
         root, ext = os.path.splitext(kernel_filename)
         kernel_path = os.path.abspath(os.path.join(self.module_path, "gpu_kernels", kernel_filename))
         kernel_hash = root \
                 + "_" + CUDAContext.hash_kernel( \
                     kernel_path, \
                     include_dirs=[os.path.join(self.module_path, "../kernels")] + include_dirs) \
-                + "_" + defines_hash \
+                + "_" + options_hash \
                 + ext
         cached_kernel_filename = os.path.join(self.cache_path, kernel_hash)
         
@@ -238,7 +238,7 @@ class CUDAContext(object):
                 
             with io.open(cached_kernel_filename, "rb") as file:
                 file_str = file.read()
-                module = cuda.module_from_buffer(file_str, message_handler=cuda_compile_message_handler)
+                module = cuda.module_from_buffer(file_str, message_handler=cuda_compile_message_handler, **jit_compile_args)
                 
             self.kernels[kernel_hash] = module
             return self.kernels[kernel_hash]
@@ -262,8 +262,8 @@ class CUDAContext(object):
                 
             
             with Timer("compiler") as timer:
-                cubin = cuda_compiler.compile(kernel_string, include_dirs=include_dirs, no_extern_c=no_extern_c, cache_dir=False)
-                module = cuda.module_from_buffer(cubin, message_handler=cuda_compile_message_handler)
+                cubin = cuda_compiler.compile(kernel_string, include_dirs=include_dirs, cache_dir=False, **compile_args)
+                module = cuda.module_from_buffer(cubin, message_handler=cuda_compile_message_handler, **jit_compile_args)
                 if (self.use_cache):
                     with io.open(cached_kernel_filename, "wb") as file:
                         file.write(cubin)
