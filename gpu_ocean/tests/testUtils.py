@@ -2,13 +2,13 @@ import os
 import sys
 import numpy as np
 
-import pyopencl
 
 testdir = 'timestep50'
 
 def utils(a):
     return a+1
 
+#import pyopencl
 def make_cl_ctx():
     #Make sure we get compiler output from OpenCL
     os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
