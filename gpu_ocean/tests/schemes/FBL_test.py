@@ -278,6 +278,25 @@ class FBLtest(unittest.TestCase):
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
+    def test_betamodel_central(self):
+        self.setBoundaryConditions(1)
+        self.createHostData()
+        self.f = 0.01
+        beta = 1e-6
+        makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy,
+                        self.ghosts)
+        self.sim = FBL.FBL(self.gpu_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r, coriolis_beta=beta)
+        
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("FBL", "betamodel", "central")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
 
     def test_bathymetry_central(self):
         self.setBoundaryConditions(1)
