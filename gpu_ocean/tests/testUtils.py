@@ -73,9 +73,12 @@ def makeLowerLeftBump(eta, nx, ny, dx, dy, halo):
             if (np.sqrt(x**2 + y**2) < size):
                 eta[j+halo[2], i+halo[3]] = np.exp(-(x**2/size+y**2/size))
 
-def makeBottomTopography(Hi, nx, ny, dx, dy, halo):
-    for j in range(-halo[2], ny + halo[0] + 1):
-        for i in range(-halo[3], nx + halo[1] + 1):
+def makeBottomTopography(Hi, nx, ny, dx, dy, halo, intersections=True):
+    extra_cells = 0
+    if intersections:
+        extra_cells = 1
+    for j in range(-halo[2], ny + halo[0] + extra_cells):
+        for i in range(-halo[3], nx + halo[1] + extra_cells):
             Hi[j+halo[2], i+halo[3]] = 6 + 2.0*np.cos(0.3*(i + i/(np.sin(0.5*j)+2.5))) + \
                                        2.0*np.sin(2*np.pi*(j+i)/(2.0*ny))
             
