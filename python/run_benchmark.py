@@ -1,5 +1,27 @@
-import sys
-sys.path.insert(0, "F:/windows/sintef/gpu-ocean/python")
+# -*- coding: utf-8 -*-
+
+"""
+This software is part of GPU Ocean. 
+Copyright (C) 2018 SINTEF Digital
+Copyright (C) 2018 Norwegian Meteorological Institute
+This python program runs a short program while reporting execution
+metrics, and is intended to be used for meassuring computational 
+performance and throughput.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
+import sys, os
+current_dir = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../')))
 
 import argparse
 parser = argparse.ArgumentParser(description='Benchmark a simulator.')
@@ -10,6 +32,7 @@ parser.add_argument('--block_height', type=int)
 parser.add_argument('--steps_per_download', type=int, default=2000)
 parser.add_argument('--iterations', type=int, default=1)
 parser.add_argument('--simulator', type=str)
+parser.add_argument('--output', type=str, default=None)
 args = parser.parse_args()
 
 
@@ -19,14 +42,13 @@ tic = time.time();
 
 # Import packages we need
 import os
-import pyopencl
 import numpy as np
+import pyopencl
 from SWESimulators import FBL, CTCS, KP07, CDKLM16, PlotHelper, Common
 
 
 toc = time.time()
 print("{:02.4f} s: ".format(toc-tic) + "Imported packages")
-
 
 #Set OpenCL parameters
 os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
@@ -35,12 +57,11 @@ os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
 os.environ["PYOPENCL_NO_CACHE"] = "1"
 os.environ["CUDA_CACHE_DISABLE"] = "1"
 
-
 # Create OpenCL context
 tic = time.time()
-cl_ctx = pyopencl.create_some_context()
+gpu_ctx = pyopencl.create_some_context()
 toc = time.time()
-print("{:02.4f} s: ".format(toc-tic) + "Created context on " + cl_ctx.devices[0].name)
+print("{:02.4f} s: ".format(toc-tic) + "Created context on " + gpu_ctx.devices[0].name)
 
 # Set benchmark sizes
 dx = 200.0
@@ -93,7 +114,7 @@ def initKP():
 	if (args.block_height != None):
 		kwargs['block_height'] = args.block_height
 		
-	sim = KP07.KP07(cl_ctx, \
+	sim = KP07.KP07(gpu_ctx, \
 					eta0, Hi, u0, v0, \
 					args.nx, args.ny, \
 					dx, dy, dt, \
@@ -131,7 +152,7 @@ def initCDKLM():
 	if (args.block_height != None):
 		kwargs['block_height'] = args.block_height
 		
-	sim = CDKLM16.CDKLM16(cl_ctx, \
+	sim = CDKLM16.CDKLM16(gpu_ctx, \
 					eta0, u0, v0, Hi, \
 					args.nx, args.ny, \
 					dx, dy, dt, \
@@ -168,7 +189,7 @@ def initFBL():
 	if (args.block_height != None):
 		kwargs['block_height'] = args.block_height
 		
-	sim = FBL.FBL(cl_ctx, \
+	sim = FBL.FBL(gpu_ctx, \
 					h0, eta0, u0, v0, \
 					args.nx, args.ny, \
 					dx, dy, dt, \
@@ -209,7 +230,7 @@ def initCTCS():
 	if (args.block_height != None):
 		kwargs['block_height'] = args.block_height
 		
-	sim = CTCS.CTCS(cl_ctx, \
+	sim = CTCS.CTCS(gpu_ctx, \
 					h0, eta0, u0, v0, \
 					args.nx, args.ny, \
 					dx, dy, dt, \
@@ -254,11 +275,11 @@ for i in range(args.iterations):
 	print("{:03.0f} %".format(100*(i+1) / args.iterations))
 	tic = time.time()
 	t = sim.step(args.steps_per_download*dt)
+	#gpu_ctx.synchronize() # FIXME!!! OpenCL: Need to synch queue, not context.
 	toc = time.time()
 	mcells = args.nx*args.ny*args.steps_per_download/(1e6*(toc-tic))
 	max_mcells = max(mcells, max_mcells);
 	print(" `-> {:02.4f} s: ".format(toc-tic) + "Step, " + "{:02.4f} mcells/sec".format(mcells))
-	
 	tic = time.time()
 	eta1, u1, v1 = sim.download()
 	toc = time.time()
@@ -272,3 +293,14 @@ for i in range(args.iterations):
 
 	
 print(" === Maximum megacells: {:02.8f} ===".format(max_mcells))
+
+# Save benchmarking data to file 
+# (if file exists, we append if data for scheme is not added and overwrite if already added)
+if (args.output):
+    if(os.path.isfile(args.output)):
+        with np.load(args.output) as file_data:
+            data = dict(file_data)
+    else:
+        data = {}
+    data[args.simulator] = max_mcells
+np.savez(args.output, **data)
