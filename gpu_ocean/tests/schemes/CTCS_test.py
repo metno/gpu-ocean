@@ -337,3 +337,67 @@ class CTCStest(unittest.TestCase):
         self.refVRange = self.vRange
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+    def test_betamodel_central(self):
+        self.setBoundaryConditions()
+        makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
+        self.f = 0.01
+        beta = 1e-6
+        self.sim = CTCS.CTCS(self.gpu_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, coriolis_beta=beta, \
+                             boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("CTCS", "betamodel", "central")
+        self.refEtaRange = self.etaRange
+        self.refURange = self.uRange
+        self.refVRange = self.vRange
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+
+        
+    def test_bathymetry_coriolis_central(self):
+        self.setBoundaryConditions()
+        makeBottomTopography(self.h0, self.nx, self.ny, self.dx, self.dy, self.ghosts, intersections=False)
+        makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
+        self.f = 0.01
+        self.sim = CTCS.CTCS(self.gpu_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("CTCS", "coriolis", "central", "bathymetry_")
+        self.refEtaRange = self.etaRange
+        self.refURange = self.uRange
+        self.refVRange = self.vRange
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+
+        
+    def test_bathymetry_central(self):
+        self.setBoundaryConditions()
+        makeBottomTopography(self.h0, self.nx, self.ny, self.dx, self.dy, self.ghosts, intersections=False)
+        makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
+        self.sim = CTCS.CTCS(self.gpu_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("CTCS", "wallBC", "central", "bathymetry_")
+        self.refEtaRange = self.etaRange
+        self.refURange = self.uRange
+        self.refVRange = self.vRange
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
