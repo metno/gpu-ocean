@@ -17,8 +17,15 @@ from SWESimulators import FBL, CTCS, KP07, CDKLM16, Common
 
 from SWESimulators.BathymetryAndICs import *
 
+import importlib
+importlib.reload(FBL)
+importlib.reload(CTCS)
+importlib.reload(KP07)
+importlib.reload(CDKLM16)
+importlib.reload(Common)
 
-def runBenchmark(simulator, sim_args, sim_ic):
+
+def runBenchmark(simulator, sim_args, sim_ic, iterations, steps_per_download):
     print("Creating context", flush=True)
     cuda_context = Common.CUDAContext()
 
@@ -29,11 +36,9 @@ def runBenchmark(simulator, sim_args, sim_ic):
 
     print("Simulating", flush=True)
     #Run a simulation and plot it
-    nt = 5
-    step_size = 50
-    for i in range(nt):
+    for i in range(iterations):
         print(".", end='', flush=True)
-        sim.step(step_size)
+        sim.step(steps_per_download*sim_args['dt'])
         eta1, u1, v1 = sim.download()
     print("", flush=True)
 
@@ -112,8 +117,8 @@ if __name__ == '__main__':
     sim_args_parser.add_argument('-r', type=np.float32, default=0.0)
     
     profiling_args_parser = argparse.ArgumentParser()
-    profiling_args_parser.add_argument('-i', '--iterations', default=1)
-    profiling_args_parser.add_argument('-t', '--end_time', default=10)
+    profiling_args_parser.add_argument('-i', '--iterations', type=int, default=5)
+    profiling_args_parser.add_argument('--steps_per_download', type=int, default=50)
     profiling_args_parser.add_argument('-fbl', '--fbl', dest='simulators', action='append_const', const=FBL.FBL)
     profiling_args_parser.add_argument('-ctcs', '--ctcs', dest='simulators', action='append_const', const=CTCS.CTCS)
     profiling_args_parser.add_argument('-kp', '--kp', dest='simulators', action='append_const', const=KP07.KP07)
@@ -130,10 +135,10 @@ if __name__ == '__main__':
         sys.exit(-1)
     
     for simulator in profiling_args.simulators:
-        print("Running " + simulator.__name__ + " with " + str(sim_args))
+        print("Running " + simulator.__name__ + " with " + str(sim_args) + ", " + str(vars(profiling_args)))
         
         sim_ic = genInitialConditions(simulator, sim_args)
-        runBenchmark(simulator, sim_args, sim_ic)
+        runBenchmark(simulator, sim_args, sim_ic, profiling_args.iterations, profiling_args.steps_per_download)
         
         
         
