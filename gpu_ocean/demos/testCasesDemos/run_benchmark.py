@@ -25,7 +25,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import sys, os
-sys.path.insert(0, os.path.abspath(os.path.join(os.getcwd(), '../../')))
+current_dir = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../')))
 
 import argparse
 parser = argparse.ArgumentParser(description='Benchmark a simulator.')
@@ -36,6 +37,7 @@ parser.add_argument('--block_height', type=int)
 parser.add_argument('--steps_per_download', type=int, default=2000)
 parser.add_argument('--iterations', type=int, default=1)
 parser.add_argument('--simulator', type=str)
+parser.add_argument('--output', type=str, default=None)
 args = parser.parse_args()
 
 
@@ -270,11 +272,11 @@ for i in range(args.iterations):
 	print("{:03.0f} %".format(100*(i+1) / args.iterations))
 	tic = time.time()
 	t = sim.step(args.steps_per_download*dt)
+	gpu_ctx.synchronize()
 	toc = time.time()
 	mcells = args.nx*args.ny*args.steps_per_download/(1e6*(toc-tic))
 	max_mcells = max(mcells, max_mcells);
 	print(" `-> {:02.4f} s: ".format(toc-tic) + "Step, " + "{:02.4f} mcells/sec".format(mcells))
-	
 	tic = time.time()
 	eta1, u1, v1 = sim.download()
 	toc = time.time()
@@ -288,3 +290,14 @@ for i in range(args.iterations):
 
 	
 print(" === Maximum megacells: {:02.8f} ===".format(max_mcells))
+
+# Save benchmarking data to file 
+# (if file exists, we append if data for scheme is not added and overwrite if already added)
+if (args.output):
+    if(os.path.isfile(args.output)):
+        with np.load(args.output) as file_data:
+            data = dict(file_data)
+    else:
+        data = {}
+    data[args.simulator] = max_mcells
+    np.savez(args.output, **data)
