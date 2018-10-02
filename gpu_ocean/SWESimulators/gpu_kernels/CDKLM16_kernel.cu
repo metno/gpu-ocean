@@ -377,7 +377,7 @@ __global__ void swe_2D(
             Qx[1][j][i] = minmodSlope(left_v, center_v, right_v, theta_);
 
             // Qx[2] = Kx, which we need to find differently than ux and vx
-            float global_thread_y = by + j;
+            float global_thread_y = by + j + 2; // including ghost cells
             const float coriolis_f = f_ + beta_ * (global_thread_y-y_zero_reference_cell_ + 0.5f)*dy_;
             float V_constant = dx_*coriolis_f/(2.0f*g_);
 
@@ -414,7 +414,7 @@ __global__ void swe_2D(
                 Qy[1][j][i] = minmodSlope(lower_v, center_v, upper_v, theta_);
             }
 
-            float global_thread_y = by + j;
+            float global_thread_y = by + j - 1 + 2; // Global id + ghost cells
             const float center_coriolis_f = f_ + beta_ * (global_thread_y-y_zero_reference_cell_        + 0.5f)*dy_;
             const float lower_coriolis_f  = f_ + beta_ * (global_thread_y-y_zero_reference_cell_ - 1.0f + 0.5f)*dy_;
             const float upper_coriolis_f  = f_ + beta_ * (global_thread_y-y_zero_reference_cell_ + 1.0f + 0.5f)*dy_;
@@ -436,10 +436,10 @@ __global__ void swe_2D(
     __syncthreads();
 
     
-    //Compute Coriolis terms needed for fluxes
-    const float coriolis_f_lower   = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ - 1.0f + 0.5f)*dy_;
-    const float coriolis_f_central = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ +        0.5f)*dy_;
-    const float coriolis_f_upper   = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ + 1.0f + 0.5f)*dy_;
+    //Compute Coriolis terms needed for fluxes (tj = by + ty + 2)
+    const float coriolis_f_lower   = f_ + beta_ * (tj-y_zero_reference_cell_ - 1.0f + 0.5f)*dy_;
+    const float coriolis_f_central = f_ + beta_ * (tj-y_zero_reference_cell_ +        0.5f)*dy_;
+    const float coriolis_f_upper   = f_ + beta_ * (tj-y_zero_reference_cell_ + 1.0f + 0.5f)*dy_;
 
     //Compute fluxes along the x and y axis    
     const float3 f_flux_diff = computeFFaceFlux(tx+1, ty, R, Qx, Hi,g_, coriolis_f_central, dx_) 
