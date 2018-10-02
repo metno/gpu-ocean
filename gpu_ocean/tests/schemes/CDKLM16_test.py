@@ -371,7 +371,26 @@ class CDKLM16test(unittest.TestCase):
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
+    def test_betamodel_central(self):
+        self.setBoundaryConditions()
+        self.allocData()
+        self.f = 0.01
+        beta = 1e-6
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
+                                   self.eta0, self.u0, self.v0, self.Hi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r, coriolis_beta=beta)
+    #, boundary_conditions=self.boundaryConditions)
 
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("CDKLM16", "betamodel", "central")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+        
     def test_bathymetry_central(self):
         self.setBoundaryConditions()
         self.allocData() 

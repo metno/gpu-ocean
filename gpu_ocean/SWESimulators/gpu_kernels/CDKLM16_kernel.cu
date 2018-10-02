@@ -171,7 +171,7 @@ __global__ void swe_2D(
 
         const float f_, //< Coriolis coefficient
         const float beta_, //< Coriolis force f_ + beta_*(y-y0)
-        const float y_zero_reference_cell_,  // the cell row representing y0 (y0 at southern face)
+        const float y_zero_reference_cell_,  // the cell row representing y0 (y0=0 represent southernmost ghost cell)
 
         const float r_, //< Bottom friction coefficient
 
@@ -272,9 +272,10 @@ __global__ void swe_2D(
     
     
     //Compute Coriolis terms needed for fluxes etc.
-    const float coriolis_f_lower   = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ - 1.0f + 0.5f)*dy_;
-    const float coriolis_f_central = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ +        0.5f)*dy_;
-    const float coriolis_f_upper   = f_ + beta_ * ((by+ty)-y_zero_reference_cell_ + 1.0f + 0.5f)*dy_;
+    // Global id should be including the 
+    const float coriolis_f_lower   = f_ + beta_ * ((by+ty+2)-y_zero_reference_cell_ - 1.0f + 0.5f)*dy_;
+    const float coriolis_f_central = f_ + beta_ * ((by+ty+2)-y_zero_reference_cell_ +        0.5f)*dy_;
+    const float coriolis_f_upper   = f_ + beta_ * ((by+ty+2)-y_zero_reference_cell_ + 1.0f + 0.5f)*dy_;
 
 
 
@@ -359,6 +360,8 @@ __global__ void swe_2D(
 
 
     //Reconstruct slopes along x axis
+    // Write result into shmem Qx = [u_x, v_x, K_x]
+    // Qx is used as if its size was Qx[3][block_height][block_width + 2]
     for (int j=ty; j<block_height; j+=blockDim.y) {
         const int l = j + 2; //Skip ghost cells
         for (int i=tx; i<block_width+2; i+=blockDim.x) {
@@ -380,10 +383,11 @@ __global__ void swe_2D(
             const float right_v  = R[2][l][k+1];
             Qx[1][j][i] = minmodSlope(left_v, center_v, right_v, theta_);
 
-            // Qx[2] = Kx, which we need to find differently than ux and vx
-            const float coriolis_f = f_ + beta_ * ((by + j)-y_zero_reference_cell_ + 0.5f)*dy_;
+            // by + j + 2 = global thread id + ghost cells
+            const float coriolis_f = f_ + beta_ * ((by + j + 2)-y_zero_reference_cell_ + 0.5f)*dy_;
             const float V_constant = dx_*coriolis_f/(2.0f*g_);
 
+            // Qx[2] = Kx, which we need to find differently than ux and vx
             const float backward = theta_*g_*(center_eta - left_eta   - V_constant*(center_v + left_v ) );
             const float central  =   0.5f*g_*(right_eta  - left_eta   - V_constant*(right_v + 2*center_v + left_v) );
             const float forward  = theta_*g_*(right_eta  - center_eta - V_constant*(center_v + right_v) );
@@ -401,6 +405,9 @@ __global__ void swe_2D(
     __syncthreads();
 
     //Reconstruct slopes along y axis
+    // Write result into shmem Qx = [u_y, v_y, L_y]
+    // Qx is now used as if its size was Qx[3][block_height+2][block_width]
+
     for (int j=ty; j<block_height+2; j+=blockDim.y) {
         const int l = j + 1;
         for (int i=tx; i<block_width; i+=blockDim.x) {
@@ -423,7 +430,7 @@ __global__ void swe_2D(
                 Qx[1][j][i] = minmodSlope(lower_v, center_v, upper_v, theta_);
             }
 
-            const float thread_y_diff = by + j - y_zero_reference_cell_;
+            const float thread_y_diff = by + j - 1 + 2 - y_zero_reference_cell_; // (by + j - 1) + 2 = global cell id + ghost cell
             const float center_coriolis_f = f_ + beta_ * (thread_y_diff        + 0.5f)*dy_;
             const float lower_coriolis_f  = f_ + beta_ * (thread_y_diff - 1.0f + 0.5f)*dy_;
             const float upper_coriolis_f  = f_ + beta_ * (thread_y_diff + 1.0f + 0.5f)*dy_;
