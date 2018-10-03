@@ -275,7 +275,7 @@ for i in range(args.iterations):
 	print("{:03.0f} %".format(100*(i+1) / args.iterations))
 	tic = time.time()
 	t = sim.step(args.steps_per_download*dt)
-	#gpu_ctx.synchronize() # FIXME!!! OpenCL: Need to synch queue, not context.
+	sim.cl_queue.finish()
 	toc = time.time()
 	mcells = args.nx*args.ny*args.steps_per_download/(1e6*(toc-tic))
 	max_mcells = max(mcells, max_mcells);
@@ -303,4 +303,4 @@ if (args.output):
     else:
         data = {}
     data[args.simulator] = max_mcells
-np.savez(args.output, **data)
+    np.savez(args.output, **data)
