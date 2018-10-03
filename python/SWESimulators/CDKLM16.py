@@ -136,10 +136,12 @@ class CDKLM16(Simulator.Simulator):
 
         #--------------------------------------------!
         # Create compiler options here!
+        compiler_options = ['-cl-fast-relaxed-math']
         #--------------------------------------------!
         
         #Get kernels
-        self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
+        self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height, \
+                                        options=compiler_options)
         
         #Create data by uploading to device
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
