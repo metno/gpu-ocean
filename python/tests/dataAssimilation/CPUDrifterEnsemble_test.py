@@ -3,7 +3,6 @@ import time
 import numpy as np
 import sys
 import gc
-import pyopencl
 
 import abc
 
@@ -29,8 +28,7 @@ class CPUDrifterEnsembleTest(BaseDrifterEnsembleTest):
 
     #@abc.abstractmethod
     def create_small_particle_set(self):
-        self.smallParticleSet = CPUDrifterEnsemble.CPUDrifterEnsemble(self.cl_ctx,
-                                                                      self.numParticles,
+        self.smallParticleSet = CPUDrifterEnsemble.CPUDrifterEnsemble(self.numParticles,
                                                                       self.observationVariance)
         self.smallParticleSet.setGridInfo(self.nx, self.ny, self.dx, self.dy, self.dt,
                                           self.boundaryCondition)
@@ -40,8 +38,7 @@ class CPUDrifterEnsembleTest(BaseDrifterEnsembleTest):
 
     #@abc.abstractmethod
     def create_resampling_particle_set(self):
-        self.resamplingParticleSet = CPUDrifterEnsemble.CPUDrifterEnsemble(self.cl_ctx,
-                                                                           self.resampleNumParticles,
+        self.resamplingParticleSet = CPUDrifterEnsemble.CPUDrifterEnsemble(self.resampleNumParticles,
                                                                            observation_variance=self.resamplingObservationVariance)
         self.resamplingParticleSet.setGridInfo(self.nx, self.ny, self.dx, self.dy, self.dt)
         self.resamplingParticleSet.setParameters()
@@ -50,8 +47,7 @@ class CPUDrifterEnsembleTest(BaseDrifterEnsembleTest):
 
     #@abc.abstractmethod
     def create_large_particle_set(self, size, domain_x, domain_y):
-        largeParticleSet = CPUDrifterEnsemble.CPUDrifterEnsemble(self.cl_ctx,
-                                                                 size)
+        largeParticleSet = CPUDrifterEnsemble.CPUDrifterEnsemble(size)
         largeParticleSet.setGridInfo(10, 10, domain_x/10.0, domain_y/10.0, self.dt,
                                      self.boundaryCondition)
         largeParticleSet.setParameters()

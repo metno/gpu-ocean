@@ -3,7 +3,6 @@ import time
 import numpy as np
 import sys
 import gc
-import pyopencl
 
 import abc
 
@@ -26,6 +25,8 @@ class BaseDrifterTest(unittest.TestCase):
         super(BaseDrifterTest, cls).setUpClass()
     
     def setUp(self):
+        self.gpu_ctx = None
+        
         self.numDrifters = 3
         self.observationVariance = 0.25
         self.boundaryCondition = Common.BoundaryConditions(2,2,2,2)
@@ -46,12 +47,21 @@ class BaseDrifterTest(unittest.TestCase):
         # to be initialized by child class wit resampleNumDrifters only.
 
         self.resamplingVar = 1e-8
+
+        self.largeDrifterSet = None
+
         
     def tearDown(self):
-        pass
-        #self.cl_ctx = None
-        #self.smallDrifterSet.cleanUp()
-    
+        if self.smallDrifterSet is not None:
+            self.smallDrifterSet.cleanUp()
+            del self.smallDrifterSet
+        if self.resamplingDrifterSet is not None:
+            self.resamplingDrifterSet.cleanUp()
+            del self.resamplingDrifterSet
+        if self.largeDrifterSet is not None:
+            self.largeDrifterSet.cleanUp()
+            del self.largeDrifterSet
+            
     ### set observation and drifter positions to the test cases
     def set_positions_small_set(self):
         self.create_small_drifter_set()
@@ -300,15 +310,15 @@ class BaseDrifterTest(unittest.TestCase):
         
         domain_x = 10.3
         domain_y = 5.4
-        largeDrifterSet = self.create_large_drifter_set(1000,
-                                                          domain_x,
-                                                          domain_y)
-        largeDrifterSet.initializeUniform()
+        self.create_large_drifter_set(1000,
+                                      domain_x,
+                                      domain_y)
+        self.largeDrifterSet.initializeUniform()
 
-        self.assertEqual(largeDrifterSet.getDomainSizeX(), domain_x)
-        self.assertEqual(largeDrifterSet.getDomainSizeY(), domain_y)
+        self.assertEqual(self.largeDrifterSet.getDomainSizeX(), domain_x)
+        self.assertEqual(self.largeDrifterSet.getDomainSizeY(), domain_y)
 
-        p = largeDrifterSet.getDrifterPositions()
+        p = self.largeDrifterSet.getDrifterPositions()
         self.assertGreaterEqual(np.min(p[:,0]), 0.0)
         self.assertLessEqual(np.max(p[:,0]), domain_x)
         self.assertGreaterEqual(np.min(p[:,1]) , 0.0)

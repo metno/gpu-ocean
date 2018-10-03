@@ -3,7 +3,7 @@ import time
 import numpy as np
 import sys
 import gc
-import pyopencl
+import pycuda.driver as cuda
 
 from testUtils import *
 
@@ -12,12 +12,12 @@ from SWESimulators import Common
 
 #reload(GlobalParticles)
 
-class OpenCLArray2DTest(unittest.TestCase):
+class CUDAArray2DTest(unittest.TestCase):
 
     def setUp(self):
 
         #Set which CL device to use, and disable kernel caching
-        self.cl_ctx = make_cl_ctx()
+        self.gpu_ctx = Common.CUDAContext()
                     
         # Make some host data which we can play with
         self.nx = 3
@@ -39,83 +39,85 @@ class OpenCLArray2DTest(unittest.TestCase):
                 
         self.explicit_free = False
         
-        self.device_name = self.cl_ctx.devices[0].name
-        self.cl_queue = pyopencl.CommandQueue(self.cl_ctx)
+        self.device_name = self.gpu_ctx.cuda_device.name()
+        self.gpu_stream = cuda.Stream()
+
         self.tests_failed = True
 
-        self.clarray = Common.OpenCLArray2D(self.cl_ctx, \
+        self.cudaarray = Common.CUDAArray2D(self.gpu_stream, \
                                             self.nx, self.ny, \
                                             self.nx_halo, self.ny_halo, \
                                             self.buf1)
 
-        self.double_clarray = None
+        self.double_cudaarray = None
 
         
     def tearDown(self):
         if self.tests_failed:
-            print "Device name: " + self.device_name
+            print("Device name: " + self.device_name)
         if not self.explicit_free:
-            self.clarray.release()
-        if self.double_clarray is not None:
-            self.double_clarray.release()
+            self.cudaarray.release()
+        if self.double_cudaarray is not None:
+            self.double_cudaarray.release()
+        del self.gpu_ctx
 
     ### Utils ###
     def init_double(self):
-        self.double_clarray = Common.OpenCLArray2D(self.cl_ctx, \
-                                                   self.nx, self.ny, \
-                                                   self.nx_halo, self.ny_halo, \
-                                                   self.dbuf1, \
-                                                   double_precision=True)
+        self.double_cudaarray = Common.CUDAArray2D(self.gpu_stream, \
+                                                 self.nx, self.ny, \
+                                                 self.nx_halo, self.ny_halo, \
+                                                 self.dbuf1, \
+                                                 double_precision=True)
             
     ### START TESTS ###
 
     def test_init(self):
-        self.assertEqual(self.clarray.nx,  self.nx)
-        self.assertEqual(self.clarray.ny, self.ny)
-        self.assertEqual(self.clarray.nx_halo, self.nx + 2*self.nx_halo)
-        self.assertEqual(self.clarray.ny_halo, self.ny + 2*self.ny_halo)
+        self.assertEqual(self.cudaarray.nx,  self.nx)
+        self.assertEqual(self.cudaarray.ny, self.ny)
+        self.assertEqual(self.cudaarray.nx_halo, self.nx + 2*self.nx_halo)
+        self.assertEqual(self.cudaarray.ny_halo, self.ny + 2*self.ny_halo)
         
-        self.assertTrue(self.clarray.holds_data)
-        self.assertEqual(self.clarray.bytes_per_float, 4)
-        self.assertEqual(self.clarray.pitch, 4*(self.nx + 2*self.nx_halo))
+        self.assertTrue(self.cudaarray.holds_data)
+        self.assertEqual(self.cudaarray.bytes_per_float, 4)
+        self.assertEqual(self.cudaarray.pitch, 4*(self.nx + 2*self.nx_halo))
         self.tests_failed = False
         
     def test_release(self):
         #self.explicit_free = True
-        self.clarray.release()
-        self.assertFalse(self.clarray.holds_data)
+        self.cudaarray.release()
+        self.assertFalse(self.cudaarray.holds_data)
 
         with self.assertRaises(RuntimeError):
-            self.clarray.download(self.cl_queue)
+            self.cudaarray.download(self.gpu_stream)
 
         with self.assertRaises(RuntimeError):
-            self.clarray.upload(self.cl_queue, self.buf3)
+            self.cudaarray.upload(self.gpu_stream, self.buf3)
         
         self.tests_failed = False
     
 
     def test_download(self):
         
-        host_data = self.clarray.download(self.cl_queue)
+        host_data = self.cudaarray.download(self.gpu_stream)
         self.assertEqual(host_data.tolist(), self.buf1.tolist())
         self.tests_failed = False
 
     def test_upload(self):
-        self.clarray.upload(self.cl_queue, self.buf3)
-        host_data = self.clarray.download(self.cl_queue)
+        self.cudaarray.upload(self.gpu_stream, self.buf3)
+        host_data = self.cudaarray.download(self.gpu_stream)
         self.assertEqual(host_data.tolist(), self.buf3.tolist())
         self.tests_failed = False
 
     def test_copy_buffer(self):
-        clarray2 = Common.OpenCLArray2D(self.cl_ctx, \
-                                        self.nx, self.ny, self.nx_halo, self.ny_halo, \
-                                        self.buf3)
+        clarray2 = Common.CUDAArray2D(self.gpu_stream, \
+                                      self.nx, self.ny, self.nx_halo, self.ny_halo, \
+                                      self.buf3)
 
-        host_data_pre_copy = self.clarray.download(self.cl_queue)
+        host_data_pre_copy = self.cudaarray.download(self.gpu_stream)
         self.assertEqual(host_data_pre_copy.tolist(), self.buf1.tolist())
         
-        self.clarray.copyBuffer(self.cl_queue, clarray2)
-        host_data_post_copy = self.clarray.download(self.cl_queue)
+        self.cudaarray.copyBuffer(self.gpu_stream, clarray2)
+        host_data_post_copy = self.cudaarray.download(self.gpu_stream)
         self.assertEqual(host_data_post_copy.tolist(), self.buf3.tolist())
         
         self.tests_failed = False
@@ -124,27 +126,27 @@ class OpenCLArray2DTest(unittest.TestCase):
     def test_double_init(self):
         self.init_double()
 
-        self.assertEqual(self.double_clarray.nx,  self.nx)
-        self.assertEqual(self.double_clarray.ny, self.ny)
-        self.assertEqual(self.double_clarray.nx_halo, self.nx + 2*self.nx_halo)
-        self.assertEqual(self.double_clarray.ny_halo, self.ny + 2*self.ny_halo)
+        self.assertEqual(self.double_cudaarray.nx,  self.nx)
+        self.assertEqual(self.double_cudaarray.ny, self.ny)
+        self.assertEqual(self.double_cudaarray.nx_halo, self.nx + 2*self.nx_halo)
+        self.assertEqual(self.double_cudaarray.ny_halo, self.ny + 2*self.ny_halo)
         
-        self.assertTrue(self.double_clarray.holds_data)
-        self.assertEqual(self.double_clarray.bytes_per_float, 8)
-        self.assertEqual(self.double_clarray.pitch, 8*(self.nx + 2*self.nx_halo))
+        self.assertTrue(self.double_cudaarray.holds_data)
+        self.assertEqual(self.double_cudaarray.bytes_per_float, 8)
+        self.assertEqual(self.double_cudaarray.pitch, 8*(self.nx + 2*self.nx_halo))
         self.tests_failed = False
 
     def test_double_release(self):
         self.init_double()
         
-        self.double_clarray.release()
-        self.assertFalse(self.double_clarray.holds_data)
+        self.double_cudaarray.release()
+        self.assertFalse(self.double_cudaarray.holds_data)
 
         with self.assertRaises(RuntimeError):
-            self.double_clarray.download(self.cl_queue)
+            self.double_cudaarray.download(self.gpu_stream)
 
         with self.assertRaises(RuntimeError):
-            self.double_clarray.upload(self.cl_queue, self.dbuf3)
+            self.double_cudaarray.upload(self.gpu_stream, self.dbuf3)
         
         self.tests_failed = False
     
@@ -152,32 +154,32 @@ class OpenCLArray2DTest(unittest.TestCase):
     def test_double_download(self):
         self.init_double()
         
-        host_data = self.double_clarray.download(self.cl_queue)
+        host_data = self.double_cudaarray.download(self.gpu_stream)
         self.assertEqual(host_data.tolist(), self.dbuf1.tolist())
         self.tests_failed = False
 
     def test_double_upload(self):
         self.init_double()
 
-        self.double_clarray.upload(self.cl_queue, self.dbuf3)
-        host_data = self.double_clarray.download(self.cl_queue)
+        self.double_cudaarray.upload(self.gpu_stream, self.dbuf3)
+        host_data = self.double_cudaarray.download(self.gpu_stream)
         self.assertEqual(host_data.tolist(), self.dbuf3.tolist())
         self.tests_failed = False
 
     def test_double_copy_buffer(self):
         self.init_double()
         
-        double_clarray2 = Common.OpenCLArray2D(self.cl_ctx, \
+        double_cudaarray2 = Common.CUDAArray2D(self.gpu_stream, \
                                                self.nx, self.ny, \
                                                self.nx_halo, self.ny_halo, \
                                                self.dbuf3, \
                                                double_precision=True)
 
-        host_data_pre_copy = self.double_clarray.download(self.cl_queue)
+        host_data_pre_copy = self.double_cudaarray.download(self.gpu_stream)
         self.assertEqual(host_data_pre_copy.tolist(), self.dbuf1.tolist())
         
-        self.double_clarray.copyBuffer(self.cl_queue, double_clarray2)
-        host_data_post_copy = self.double_clarray.download(self.cl_queue)
+        self.double_cudaarray.copyBuffer(self.gpu_stream, double_cudaarray2)
+        host_data_post_copy = self.double_cudaarray.download(self.gpu_stream)
         self.assertEqual(host_data_post_copy.tolist(), self.dbuf3.tolist())
         
         self.tests_failed = False
@@ -185,16 +187,16 @@ class OpenCLArray2DTest(unittest.TestCase):
     def test_cross_precision_copy_buffer(self):
         self.init_double()
         
-        single_clarray2 = Common.OpenCLArray2D(self.cl_ctx, \
+        single_cudaarray2 = Common.CUDAArray2D(self.gpu_stream, \
                                                self.nx, self.ny, \
                                                self.nx_halo, self.ny_halo, \
                                                self.buf3)
 
-        host_data_pre_copy = self.double_clarray.download(self.cl_queue)
+        host_data_pre_copy = self.double_cudaarray.download(self.gpu_stream)
         self.assertEqual(host_data_pre_copy.tolist(), self.dbuf1.tolist())
         
         with self.assertRaises(AssertionError):
-            self.double_clarray.copyBuffer(self.cl_queue, single_clarray2)
+            self.double_cudaarray.copyBuffer(self.gpu_stream, single_cudaarray2)
         
         self.tests_failed = False
 

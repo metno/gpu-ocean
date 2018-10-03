@@ -13,15 +13,15 @@ from schemes.CDKLM16_test import CDKLM16test
 from schemes.KP07_test import KP07test
 
 def printSupportedSchemes():
-    print ("Supported schemes:")
-    print ("0: All, 1: FBL, 2: CTCS, 3: CDKLM16, 4: KP07")
+    print("Supported schemes:")
+    print("0: All, 1: FBL, 2: CTCS, 3: CDKLM16, 4: KP07")
     
 
 if (len(sys.argv) < 2):
-    print ("Usage:")
-    print ("\t %s scheme [jenkins]" % sys.argv[0])
+    print("Usage:")
+    print("\t %s scheme [jenkins]" % sys.argv[0])
     printSupportedSchemes()
-    exit()
+    sys.exit()
 scheme = int(sys.argv[1])
 
 # In order to format the test report so that Jenkins can read it:
