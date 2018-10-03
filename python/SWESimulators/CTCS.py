@@ -226,6 +226,9 @@ class CTCS(Simulator.Simulator):
         Function which steps n timesteps
         """
         n = int(t_end / self.dt + 1)
+        if (n % 2 == 0):
+            n+=1
+			
         if self.t == 0:
             #print "N: ", n
             #print "np.float(min(self.dt, t_end-n*self.dt))", np.float32(min(self.dt, t_end-(n-1)*self.dt))
@@ -247,7 +250,12 @@ class CTCS(Simulator.Simulator):
             # cl_data.u1 => U^{n+1} (U kernel has been executed)
             # Now we are ready for the next time step
             
-            local_dt = np.float32(min(self.dt, t_end-i*self.dt))
+            #Add 1% of final timestep to this one
+            #This makes final timestep 99% as large as the others
+            #making sure that the last timestep is not incredibly small
+            local_dt = (t_end / n)
+            local_dt = local_dt + (local_dt / (100*n)) 
+            local_dt = np.float32(min(local_dt, t_end-i*local_dt))
             
             if (local_dt <= 0.0):
                 break
