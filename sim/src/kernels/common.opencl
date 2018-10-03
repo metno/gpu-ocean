@@ -566,105 +566,26 @@ float wind_v(float wind_speed, float wind_direction) {
 	return -wind_speed * cos(wind_direction * PI_OVER_180);
 }
 
-float windStressX(__global const wind_stress_params *wind_stress_,
-                float dx_, float dy_, float dt_,
-				float t_) {
-    float X = 0.0f;
-    
-    switch (wind_stress_->type) {
-    case NO_WIND:
-    	break;
-    case GENERIC_UNIFORM:
-		{
-			/*
-			 * C_drag as defined by Engedahl (1995)
-			 *
-			 * (See "Documentation of simple ocean models for use in ensemble predictions. Part II: Benchmark cases"
-			 * at https://www.met.no/publikasjoner/met-report/met-report-2012 for details.)
-			 */
-			const float C_drag = (wind_stress_->wind_speed < 11) ? 0.0012f : (0.49f + 0.065f)*wind_stress_->wind_speed;
-
-			X = wind_stress_->rho_air * C_drag * wind_u(wind_stress_->wind_speed, wind_stress_->wind_direction);
-		}
-		break;
-    case ALONGSHORE_UNIFORM:
-        {
-            const float y = (get_global_id(1)+0.5f)*dy_;
-            X = wind_stress_->tau0/wind_stress_->rho * exp(-wind_stress_->alpha*y);
-            //X = 0.2f;
-        }
-        break;
-    case ALONGSHORE_BELLSHAPED:
-        if (t_ <= 48.0f*3600.0f) {
-            const float a = wind_stress_->alpha*((get_global_id(0)+0.5f)*dx_-wind_stress_->xm);
-            const float aa = a*a;
-            const float y = (get_global_id(1)+0.5f)*dy_;
-            X = wind_stress_->tau0/wind_stress_->rho * exp(-aa) * exp(-wind_stress_->alpha*y);
-        }
-        break;
-    case MOVING_CYCLONE:
-        {
-            const float x = (get_global_id(0))*dx_;
-            const float y = (get_global_id(1)+0.5f)*dy_;
-            const float a = (x-wind_stress_->x0-wind_stress_->u0*(t_+dt_));
-            const float aa = a*a;
-            const float b = (y-wind_stress_->y0-wind_stress_->v0*(t_+dt_));
-            const float bb = b*b;
-            const float r = sqrt(aa+bb);
-            const float c = 1.0f - r/wind_stress_->Rc;
-            const float xi = c*c;
-            
-            X = -(wind_stress_->tau0/wind_stress_->rho) * (b/wind_stress_->Rc) * exp(-0.5f*xi);
-        }
-        break;
-    }
-
-    return X;
+float windStressX(float wind_stress_, float dx_, float dy_, float dt, float t_) {
+    /*******************************************************************************
+    *******************************************************************************
+    *******************************************************************************
+    WARNING: Returning 0.0
+    *******************************************************************************
+    *******************************************************************************
+    *******************************************************************************/
+    return 0.0f;
 }
 
-float windStressY(__global const wind_stress_params *wind_stress_,
-                float dx_, float dy_, float dt_,
-	            float t_) {
-    float Y = 0.0f;
-
-    switch (wind_stress_->type) {
-    case NO_WIND:
-    	break;
-    case GENERIC_UNIFORM:
-		{
-			/*
-			 * C_drag as defined by Engedahl (1995)
-			 *
-			 * (See "Documentation of simple ocean models for use in ensemble predictions. Part II: Benchmark cases"
-			 * at https://www.met.no/publikasjoner/met-report/met-report-2012 for details.)
-			 */
-			const float C_drag = (wind_stress_->wind_speed < 11) ? 0.0012f : (0.49f + 0.065f)*wind_stress_->wind_speed;
-
-			Y = wind_stress_->rho_air * C_drag * wind_v(wind_stress_->wind_speed, wind_stress_->wind_direction);
-		}
-		break;
-    case ALONGSHORE_UNIFORM:
-    	break;
-    case ALONGSHORE_BELLSHAPED:
-    	break;
-    case MOVING_CYCLONE:
-        {
-            const float x = (get_global_id(0)+0.5f)*dx_; 
-            const float y = (get_global_id(1))*dy_;
-            const float a = (x-wind_stress_->x0-wind_stress_->u0*(t_+dt_));
-            const float aa = a*a;
-            const float b = (y-wind_stress_->y0-wind_stress_->v0*(t_+dt_));
-            const float bb = b*b;
-            const float r = sqrt(aa+bb);
-            const float c = 1.0f - r/wind_stress_->Rc;
-            const float xi = c*c;
-            
-            Y = (wind_stress_->tau0/wind_stress_->rho) * (a/wind_stress_->Rc) * exp(-0.5f*xi);
-        }
-        break;
-    }
-
-    return Y;
+float windStressY(float wind_stress_t, float dx_, float dy_, float dt, float t_) {
+    /*******************************************************************************
+    *******************************************************************************
+    *******************************************************************************
+    WARNING: Returning 0.0
+    *******************************************************************************
+    *******************************************************************************
+    *******************************************************************************/
+    return 0.0f;
 }
 
 
