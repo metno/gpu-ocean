@@ -1,6 +1,6 @@
 # Assumes that conda, pip and build-essentials are installed
 ---
-name: gpuocean
+name: gpuocean-opencl
 channels:
 - conda-forge
 
@@ -13,6 +13,8 @@ dependencies:
 - pytest
 - xmlrunner
 - scipy
+- pandas
+- nb_conda_kernels
 - pip:
   - pyopencl==2015.1
 # on Windows: make sure your visual studio c++ compiler is available in PATH
