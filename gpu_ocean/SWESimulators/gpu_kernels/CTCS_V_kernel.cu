@@ -23,16 +23,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "common.cu"
 
-// Finds the coriolis term based on the linear Coriolis force
-// f = \tilde{f} + beta*(y-y0)
-__device__ float linear_coriolis_term(const float f, const float beta,
-			   const float tj, const float dy,
-			   const float y_zero_reference_cell) {
-    // y_0 is at the southern face of the row y_zero_reference_cell.
-    const float y = (tj-y_zero_reference_cell + 0.0f)*dy;
-    return f + beta * y;
-}
-
 
 /**
   * Kernel that evolves V one step in time.
@@ -94,11 +84,14 @@ __global__ void computeVKernel(
     if (ti >= 1 && ti <= nx_ && tj >= 1+closed_boundary_cell_south && tj <= ny_+1-closed_boundary_cell_north) {        
         V0 = V0_row[ti];
     }
+	
 
     //Read H and eta into shared memory: (nx+2)*(ny+1) cells
     for (int j=ty; j<block_height+1; j+=blockDim.y) {
         // "fake" global ghost cells by clamping
         // const int l = clamp(by + j, 1, ny_);
+		
+		
         const int l = by + j - 1;
         if (l >= 0 && l <= ny_+1) {
         
@@ -109,7 +102,8 @@ __global__ void computeVKernel(
             for (int i=tx; i<block_width+2; i+=blockDim.x) {
                 // "fake" global ghost cells by clamping
                 // const int k = clamp(bx + i - 1, 1, nx_);
-                const int k = bx + i - 1;
+                
+				const int k = bx + i - 1;
                 if (k >= 0 && k <= nx_+1) {
                     H_shared[j][i] = H_row[k];
                     eta1_shared[j][i] = eta1_row[k];
@@ -122,6 +116,7 @@ __global__ void computeVKernel(
     for (int j=ty; j<block_height+1; j+=blockDim.y) {
         // "fake" ghost cells by clamping
         // const int l = clamp(by + j, 1, ny_);
+		
         const int l = by + j - 1;
         if ( l >= 0 && l <= ny_+1) {
 
@@ -131,7 +126,8 @@ __global__ void computeVKernel(
             for (int i=tx; i<block_width+1; i+=blockDim.x) {
                 // Prevent out-of-bounds
                 // const int k = clamp(bx + i - 1, 0, nx_);
-                const int k = bx + i;
+                
+				const int k = bx + i;
                 if ( k >= 0 && k <= nx_+2) {                
                     U1_shared[j][i] = U1_row[k];
                 }
@@ -144,6 +140,7 @@ __global__ void computeVKernel(
     for (int j=ty; j<block_height+2; j+=blockDim.y) {
         // Prevent out-of-bounds
         // const int l = clamp(by + j - 1, 0, ny_);
+		
         const int l = by + j - 1;
         if (l >= 0 && l <= ny_+2) {
 
@@ -153,7 +150,8 @@ __global__ void computeVKernel(
             for (int i=tx; i<block_width+2; i+=blockDim.x) {
                 // "fake" ghost cells by clamping
                 // const int k = clamp(bx + i - 1, 1, nx_);
-                const int k = bx + i - 1;
+                
+				const int k = bx + i - 1;
                 if (k >= 0 && k <= nx_+1) {
                     V1_shared[j][i] = V1_row[k];
                 }
@@ -198,10 +196,9 @@ __global__ void computeVKernel(
     const float eta_pp = eta1_shared[ty+1][tx+2];
 
     // Coriolis at U positions:
-    const float glob_thread_y = blockIdx.y * blockDim.y + threadIdx.y;
-    const float f_u_0 = linear_coriolis_term(f_, beta_, glob_thread_y-0.5f, dy_, y_zero_reference_cell_);
-    const float f_u_p = linear_coriolis_term(f_, beta_, glob_thread_y+0.5f, dy_, y_zero_reference_cell_);
-
+    const float f_u_0 = f_ + beta_ * ((blockIdx.y * blockDim.y + threadIdx.y)-0.5f-y_zero_reference_cell_)*dy_;
+    const float f_u_p = f_ + beta_ * ((blockIdx.y * blockDim.y + threadIdx.y)+0.5f-y_zero_reference_cell_)*dy_;	
+	
     //Reconstruct H_bar and H_y (at the V position)
     const float H_bar_m0 = 0.25f*(H_m0 + H_mp + H_00 + H_0p);
     const float H_bar_00 = 0.25f*(H_00 + H_0p + H_p0 + H_pp);
@@ -225,12 +222,12 @@ __global__ void computeVKernel(
     const float P_y = -g_*h_y*(eta_0p - eta_00) + P_y_hat;
     
     //Calculate nonlinear effects
-    const float N_a = (V_0p + V_00)*(V_0p + V_00) / (H_0p + eta_0p);
-    const float N_b = (V_00 + V_0m)*(V_00 + V_0m) / (H_00 + eta_00);
-    const float N_c = (U_0p + U_00)*(V_p0 + V_00) / (H_bar_00 + eta_bar_00);
-    const float N_d = (U_mp + U_m0)*(V_00 + V_m0) / (H_bar_m0 + eta_bar_m0);
-    const float N = 0.25f*( N_a - N_b + (dy_/dx_)*(N_c - N_d) );
-    
+	const float N_a = (V_0p + V_00)*(V_0p + V_00) / (H_0p + eta_0p);
+	const float N_b = (V_00 + V_0m)*(V_00 + V_0m) / (H_00 + eta_00);
+	const float N_c = (U_0p + U_00)*(V_p0 + V_00) / (H_bar_00 + eta_bar_00);
+	const float N_d = (U_mp + U_m0)*(V_00 + V_m0) / (H_bar_m0 + eta_bar_m0);
+	const float N = 0.25f*( N_a - N_b + (dy_/dx_)*(N_c - N_d) );
+	
     //Calculate eddy viscosity term
     const float E = (V_p0 - V0 + V_m0)/(dx_*dx_) + (V_0p - V0 + V_0m)/(dy_*dy_);
 
@@ -240,13 +237,9 @@ __global__ void computeVKernel(
     //WARNING Check coordinates (ti_, tj_) here!!!
     const float Y = windStressY(wind_stress_t_, ti+0.5, tj, nx_, ny_);
     
-    // Finding the contribution from Coriolis
-    const float global_thread_y = blockIdx.y * blockDim.y + threadIdx.y;
-    const float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_, y_zero_reference_cell_);
-
     //Compute the V at the next timestep
     const float V2 = (V0 + 2.0f*dt_*(-fU_bar + (N + P_y)/dy_ + Y + A_*E) ) / C;
-
+    
     //Write to main memory for internal cells
     //if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
     //if ( ti >= 1 && ti <= nx_ && tj >= 2 && tj <= ny_) {

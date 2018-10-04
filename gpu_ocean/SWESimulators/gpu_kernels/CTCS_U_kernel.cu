@@ -24,16 +24,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "common.cu"
 
 
-// Finds the coriolis term based on the linear Coriolis force
-// f = \tilde{f} + beta*(y-y0)
-__device__ float linear_coriolis_term(const float f, const float beta,
-			   const float tj, const float dy,
-			   const float y_zero_reference_cell) {
-    // y_0 is at the southern face of the row y_zero_reference_cell.
-    const float y = (tj-y_zero_reference_cell + 0.5f)*dy;
-    return f + beta * y;
-}
-
 /**
   * Kernel that evolves U one step in time.
   */
@@ -206,19 +196,18 @@ __global__ void computeUKernel(
     const float eta_pp = eta1_shared[ty+2][tx+1];
 
     // Coriolis at U positions:
-    const float glob_thread_y = blockIdx.y * blockDim.y + threadIdx.y;
-    const float f_v_0 = linear_coriolis_term(f_, beta_, glob_thread_y+0.5f, dy_, y_zero_reference_cell_);
-    const float f_v_m = linear_coriolis_term(f_, beta_, glob_thread_y-0.5f, dy_, y_zero_reference_cell_);
-    
+    const float f_v_0 = f_ + beta_ * ((blockIdx.y * blockDim.y + threadIdx.y)+0.5f-y_zero_reference_cell_ + 0.5f)*dy_;
+	const float f_v_m = f_ + beta_ * ((blockIdx.y * blockDim.y + threadIdx.y)-0.5f-y_zero_reference_cell_ + 0.5f)*dy_;
+
     //Reconstruct H_bar and H_x (at the U position)
     const float H_bar_0m = 0.25f*(H_0m + H_pm + H_00 + H_p0);
     const float H_bar_00 = 0.25f*(H_00 + H_p0 + H_0p + H_pp);
     const float H_x = 0.5f*(H_00 + H_p0);
     
-    //Reconstruct Eta_bar at the V position
-    const float eta_bar_0m = 0.25f*(eta_0m + eta_pm + eta_00 + eta_p0);
-    const float eta_bar_00 = 0.25f*(eta_00 + eta_p0 + eta_0p + eta_pp);
-
+	//Reconstruct Eta_bar at the V position
+	const float eta_bar_0m = 0.25f*(eta_0m + eta_pm + eta_00 + eta_p0);
+	const float eta_bar_00 = 0.25f*(eta_00 + eta_p0 + eta_0p + eta_pp);
+	
     //Reconstruct fV at the U position
     const float fV_bar = 0.25f*( f_v_m*(V_0m + V_pm) + f_v_0*(V_00 + V_p0) );
 
@@ -228,16 +217,16 @@ __global__ void computeUKernel(
     //Calculate the pressure/gravitational effect
     const float h_p0 = H_p0 + eta_p0;
     const float h_00 = H_00 + eta_00;
-    const float h_x = 0.5f*(h_00 + h_p0); //Could possibly use h for pressure terms instead of H
-    const float P_x_hat = -0.5f*g_*(eta_p0*eta_p0 - eta_00*eta_00);
-    const float P_x = -g_*h_x*(eta_p0 - eta_00) + P_x_hat;
-    
+	const float h_x = 0.5f*(h_00 + h_p0); //Could possibly use h for pressure terms instead of H
+	const float P_x_hat = -0.5f*g_*(eta_p0*eta_p0 - eta_00*eta_00);
+	const float P_x = -g_*h_x*(eta_p0 - eta_00) + P_x_hat;
+	
     //Calculate nonlinear effects
-    const float N_a = (U_p0 + U_00)*(U_p0 + U_00) / (H_p0 + eta_p0);
-    const float N_b = (U_00 + U_m0)*(U_00 + U_m0) / (H_00 + eta_00);
-    const float N_c = (U_0p + U_00)*(V_p0 + V_00) / (H_bar_00 + eta_bar_00);
-    const float N_d = (U_00 + U_0m)*(V_pm + V_0m) / (H_bar_0m + eta_bar_0m);
-    const float N = 0.25f*( N_a - N_b + (dx_/dy_)*(N_c - N_d) );
+	const float N_a = (U_p0 + U_00)*(U_p0 + U_00) / (H_p0 + eta_p0);
+	const float N_b = (U_00 + U_m0)*(U_00 + U_m0) / (H_00 + eta_00);
+	const float N_c = (U_0p + U_00)*(V_p0 + V_00) / (H_bar_00 + eta_bar_00);
+	const float N_d = (U_00 + U_0m)*(V_pm + V_0m) / (H_bar_0m + eta_bar_0m);
+	const float N = 0.25f*( N_a - N_b + (dx_/dy_)*(N_c - N_d) );
     
     //Calculate eddy viscosity term
     const float E = (U_p0 - U0 + U_m0)/(dx_*dx_) + (U_0p - U0 + U_0m)/(dy_*dy_);
@@ -248,13 +237,9 @@ __global__ void computeUKernel(
     //WARNING Check coordinates (ti_, tj_) here!!!
     const float X = windStressX(wind_stress_t_, ti, tj+0.5, nx_, ny_);
 
-    // Finding the contribution from Coriolis
-    const float global_thread_y = blockIdx.y * blockDim.y + threadIdx.y;
-    const float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_, y_zero_reference_cell_);
-    
     //Compute the V at the next timestep
     const float U2 = (U0 + 2.0f*dt_*(fV_bar + (N + P_x)/dx_ + X + A_*E) ) / C;
-
+	
     //Write to main memory for internal cells
     // if (ti > 0 && ti < nx_ && tj > 0 && tj < ny_+1) {
     //if (ti > halo_x_-1+1 && ti < nx_ + 2*halo_x_-1+1 && tj > halo_y_-1 && tj < ny_+halo_y_) {
