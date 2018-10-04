@@ -31,7 +31,7 @@ extern "C" {
 __global__ void computeVKernel(
         //Discretization parameters
         const int nx_, const int ny_,
-        const int bc_north_, const int bc_south_,
+		const int wall_bc_,
         const float dx_, const float dy_, const float dt_,
     
         //Physical parameters
@@ -62,9 +62,12 @@ __global__ void computeVKernel(
     //Index of thread within block
     const int tx = threadIdx.x;
     const int ty = threadIdx.y;
-
-    const int closed_boundary_cell_north = (int)(bc_north_ == 1);
-    const int closed_boundary_cell_south = (int)(bc_south_ == 1);
+	
+	const int closed_boundary_cell_north = (int)((wall_bc_ & 0x01) != 0);
+    const int closed_boundary_cell_south = (int)((wall_bc_ & 0x04) != 0);
+    
+	//const int closed_boundary_cell_north = (int)(bc_north_ == 1);
+    //const int closed_boundary_cell_south = (int)(bc_south_ == 1);
     
     //Start of block within domain
     const int bx = blockDim.x * blockIdx.x + 1; //Skip global ghost cells

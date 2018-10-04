@@ -31,7 +31,7 @@ extern "C" {
 __global__ void computeUKernel(
         //Discretization parameters
         const int nx_, const int ny_,
-        const int bc_east_, const int bc_west_,
+		const int wall_bc_,
         const float dx_, const float dy_, const float dt_,
     
         //Physical parameters
@@ -63,8 +63,8 @@ __global__ void computeUKernel(
     const int tx = threadIdx.x;
     const int ty = threadIdx.y;
 
-    const int closed_boundary_cell_east = (int)(bc_east_ == 1);
-    const int closed_boundary_cell_west = (int)(bc_west_ == 1);
+    const int closed_boundary_cell_east = (int)((wall_bc_ & 0x02) != 0);
+    const int closed_boundary_cell_west = (int)((wall_bc_ & 0x08) != 0);
     
     //Start of block within domain
     const int bx = blockDim.x * blockIdx.x + 1 + closed_boundary_cell_west; //Skip global ghost cells

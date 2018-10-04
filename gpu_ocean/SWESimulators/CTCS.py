@@ -119,7 +119,7 @@ class CTCS(Simulator.Simulator):
         self.interior_domain_indices = np.array([-1,-1,1,1])
         self._set_interior_domain_from_sponge_cells()
 
-		#Get kernels
+        #Get kernels
         self.kernel = gpu_ctx.get_kernel("CDKLM16_kernel.cu", 
                 defines={'block_width': block_width, 'block_height': block_height}, 
                 compile_args={
@@ -134,26 +134,12 @@ class CTCS(Simulator.Simulator):
                 }
                 )
         
-		
+        
         #Get kernels
         self.u_kernel = gpu_ctx.get_kernel("CTCS_U_kernel.cu", 
-				defines={'block_width': block_width, 'block_height': block_height},
-				compile_args={
-					'no_extern_c': True
-                    #'options': ["--use_fast_math"]
-                    #'options': ["--generate-line-info"], 
-                    #'options': ["--maxrregcount=39"],
-                    #'arch': "compute_50", 
-                    #'code': "sm_50"
-                },
-                jit_compile_args={
-					#jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
-                }
-		)
-        self.v_kernel = gpu_ctx.get_kernel("CTCS_V_kernel.cu", 
-				defines={'block_width': block_width, 'block_height': block_height},
-				compile_args={
-					'no_extern_c': True,
+                defines={'block_width': block_width, 'block_height': block_height},
+                compile_args={
+                    'no_extern_c': True,
                     #'options': ["--use_fast_math"]
                     #'options': ["--generate-line-info"], 
                     'options': ["--maxrregcount=32"]
@@ -161,9 +147,23 @@ class CTCS(Simulator.Simulator):
                     #'code': "sm_50"
                 },
                 jit_compile_args={
-					#jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
+                    #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
                 }
-		)
+        )
+        self.v_kernel = gpu_ctx.get_kernel("CTCS_V_kernel.cu", 
+                defines={'block_width': block_width, 'block_height': block_height},
+                compile_args={
+                    'no_extern_c': True,
+                    #'options': ["--use_fast_math"]
+                    #'options': ["--generate-line-info"], 
+                    'options': ["--maxrregcount=32"]
+                    #'arch': "compute_50", 
+                    #'code': "sm_50"
+                },
+                jit_compile_args={
+                    #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
+                }
+        )
         self.eta_kernel = gpu_ctx.get_kernel("CTCS_eta_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
         
         # Get CUDA functions 
@@ -172,8 +172,8 @@ class CTCS(Simulator.Simulator):
         self.computeEtaKernel = self.eta_kernel.get_function("computeEtaKernel")
         
         # Prepare kernel lauches
-        self.computeUKernel.prepare("iiiifffffffffPiPiPiPiPif")
-        self.computeVKernel.prepare("iiiifffffffffPiPiPiPiPif")
+        self.computeUKernel.prepare("iiifffffffffPiPiPiPiPif")
+        self.computeVKernel.prepare("iiifffffffffPiPiPiPiPif")
         self.computeEtaKernel.prepare("iiffffffffPiPiPi")
         
         # Set up textures
@@ -196,6 +196,20 @@ class CTCS(Simulator.Simulator):
                                                  self.boundary_conditions, \
                                                  halo_x, halo_y \
         )
+        
+         #"Beautify" code a bit by packing four bools into a single int
+        #Note: Must match code in kernel!
+        self.wall_bc = np.int32(0)
+        if (self.boundary_conditions.north == 1):
+            self.wall_bc = self.wall_bc | 0x01
+        if (self.boundary_conditions.east == 1):
+            self.wall_bc = self.wall_bc | 0x02
+        if (self.boundary_conditions.south == 1):
+            self.wall_bc = self.wall_bc | 0x04
+        if (self.boundary_conditions.west == 1):
+            self.wall_bc = self.wall_bc | 0x08
+        #self.wall_bc = np.int32(self.wall_bc)
+        
         
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
@@ -313,6 +327,18 @@ class CTCS(Simulator.Simulator):
             if (local_dt <= 0.0):
                 break
                 
+            #"Beautify" code a bit by packing four bools into a single int
+            #Note: Must match code in kernel!
+            boundary_conditions = np.int32(0)
+            if (self.boundary_conditions.north == 1):
+                boundary_conditions = boundary_conditions | 0x01
+            if (self.boundary_conditions.east == 1):
+                boundary_conditions = boundary_conditions | 0x02
+            if (self.boundary_conditions.south == 1):
+                boundary_conditions = boundary_conditions | 0x04
+            if (self.boundary_conditions.west == 1):
+                boundary_conditions = boundary_conditions | 0x08
+                
             self.update_wind_stress(self.u_kernel, self.computeUKernel)
             wind_stress_t = np.float32(self.update_wind_stress(self.v_kernel, self.computeVKernel))
             
@@ -328,7 +354,7 @@ class CTCS(Simulator.Simulator):
             
             self.computeUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                     self.nx, self.ny, \
-                    self.boundary_conditions.east, self.boundary_conditions.west, \
+                    boundary_conditions, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, \
                     self.r, self.A,\
@@ -343,7 +369,7 @@ class CTCS(Simulator.Simulator):
             
             self.computeVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                     self.nx, self.ny, \
-                    self.boundary_conditions.north, self.boundary_conditions.south, \
+                    boundary_conditions, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, \
                     self.r, self.A,\
