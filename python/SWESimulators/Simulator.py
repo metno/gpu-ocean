@@ -23,7 +23,11 @@ import pyopencl as cl #OpenCL in Python
 from SWESimulators import Common, SimWriter
 import gc
 from abc import ABCMeta, abstractmethod
-from importlib import reload
+
+import sys
+
+if sys.version_info.major > 2:
+    from importlib import reload
 
 reload(Common)
 

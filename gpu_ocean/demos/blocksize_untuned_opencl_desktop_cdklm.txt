@@ -1,0 +1,258 @@
+##########################################################################
+Using simulator CDKLM.
+##########################################################################
+=========================================
+CDKLM [04 x 04]
+-----------------------------------------
+b'0.7660 s: Imported packages\nUsing  GeForce GTX 780\n0.8729 s: Created context on GeForce GTX 780\n0.0265 s: Generated initial conditions\n0.8164 s: Created CDKLM simulator\n0.0658 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 4] ===\n100 %\n `-> 16.6860 s: Step, 119.8608 mcells/sec\n `-> 1.5594 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 119.86082178 ===\n'
+=========================================
+
+CDKLM [04 x 04] completed in 20.94 s
+=========================================
+CDKLM [04 x 08]
+-----------------------------------------
+b'0.7527 s: Imported packages\nUsing  GeForce GTX 780\n0.8969 s: Created context on GeForce GTX 780\n0.0275 s: Generated initial conditions\n0.8424 s: Created CDKLM simulator\n0.0672 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 8] ===\n100 %\n `-> 15.1363 s: Step, 132.1328 mcells/sec\n `-> 1.4117 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 132.13275141 ===\n'
+=========================================
+
+CDKLM [04 x 08] completed in 19.28 s
+=========================================
+CDKLM [04 x 12]
+-----------------------------------------
+b'0.7464 s: Imported packages\nUsing  GeForce GTX 780\n0.8514 s: Created context on GeForce GTX 780\n0.0264 s: Generated initial conditions\n0.8200 s: Created CDKLM simulator\n0.0610 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 12] ===\n100 %\n `-> 14.9260 s: Step, 133.9948 mcells/sec\n `-> 1.3939 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 133.99475858 ===\n'
+=========================================
+
+CDKLM [04 x 12] completed in 18.98 s
+=========================================
+CDKLM [04 x 16]
+-----------------------------------------
+b'0.7378 s: Imported packages\nUsing  GeForce GTX 780\n0.8538 s: Created context on GeForce GTX 780\n0.0262 s: Generated initial conditions\n0.8177 s: Created CDKLM simulator\n0.0609 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 16] ===\n100 %\n `-> 15.3232 s: Step, 130.5213 mcells/sec\n `-> 1.4337 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 130.52125537 ===\n'
+=========================================
+
+CDKLM [04 x 16] completed in 19.41 s
+=========================================
+CDKLM [04 x 24]
+-----------------------------------------
+b'0.7506 s: Imported packages\nUsing  GeForce GTX 780\n0.8508 s: Created context on GeForce GTX 780\n0.0274 s: Generated initial conditions\n0.8161 s: Created CDKLM simulator\n0.0739 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 24] ===\n100 %\n `-> 16.8321 s: Step, 118.8204 mcells/sec\n `-> 1.5703 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 118.82044945 ===\n'
+=========================================
+
+CDKLM [04 x 24] completed in 21.07 s
+=========================================
+CDKLM [04 x 32]
+-----------------------------------------
+b'0.7544 s: Imported packages\nUsing  GeForce GTX 780\n0.8548 s: Created context on GeForce GTX 780\n0.0273 s: Generated initial conditions\n0.8204 s: Created CDKLM simulator\n0.0540 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 32] ===\n100 %\n `-> 13.2032 s: Step, 151.4781 mcells/sec\n `-> 1.2338 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 151.47806177 ===\n'
+=========================================
+
+CDKLM [04 x 32] completed in 17.10 s
+=========================================
+CDKLM [08 x 04]
+-----------------------------------------
+b'0.7547 s: Imported packages\nUsing  GeForce GTX 780\n0.8841 s: Created context on GeForce GTX 780\n0.0277 s: Generated initial conditions\n0.8312 s: Created CDKLM simulator\n0.0568 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 4] ===\n100 %\n `-> 14.0528 s: Step, 142.3207 mcells/sec\n `-> 1.3128 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 142.32068202 ===\n'
+=========================================
+
+CDKLM [08 x 04] completed in 18.07 s
+=========================================
+CDKLM [08 x 08]
+-----------------------------------------
+b'0.7347 s: Imported packages\nUsing  GeForce GTX 780\n0.8471 s: Created context on GeForce GTX 780\n0.0276 s: Generated initial conditions\n0.8261 s: Created CDKLM simulator\n0.0496 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 8] ===\n100 %\n `-> 11.8526 s: Step, 168.7390 mcells/sec\n `-> 1.1079 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 168.73899394 ===\n'
+=========================================
+
+CDKLM [08 x 08] completed in 15.61 s
+=========================================
+CDKLM [08 x 12]
+-----------------------------------------
+b'0.7604 s: Imported packages\nUsing  GeForce GTX 780\n0.8480 s: Created context on GeForce GTX 780\n0.0267 s: Generated initial conditions\n0.8223 s: Created CDKLM simulator\n0.0493 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 12] ===\n100 %\n `-> 11.8316 s: Step, 169.0387 mcells/sec\n `-> 1.1056 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 169.03869936 ===\n'
+=========================================
+
+CDKLM [08 x 12] completed in 15.59 s
+=========================================
+CDKLM [08 x 16]
+-----------------------------------------
+b'0.7345 s: Imported packages\nUsing  GeForce GTX 780\n0.8489 s: Created context on GeForce GTX 780\n0.0265 s: Generated initial conditions\n0.8208 s: Created CDKLM simulator\n0.0508 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 16] ===\n100 %\n `-> 11.8472 s: Step, 168.8165 mcells/sec\n `-> 1.1081 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 168.81651977 ===\n'
+=========================================
+
+CDKLM [08 x 16] completed in 15.59 s
+=========================================
+CDKLM [08 x 24]
+-----------------------------------------
+b'0.7573 s: Imported packages\nUsing  GeForce GTX 780\n0.8504 s: Created context on GeForce GTX 780\n0.0262 s: Generated initial conditions\n0.8165 s: Created CDKLM simulator\n0.0502 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 24] ===\n100 %\n `-> 11.9660 s: Step, 167.1396 mcells/sec\n `-> 1.1190 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 167.13962011 ===\n'
+=========================================
+
+CDKLM [08 x 24] completed in 15.74 s
+=========================================
+CDKLM [08 x 32]
+-----------------------------------------
+b'0.7471 s: Imported packages\nUsing  GeForce GTX 780\n0.8544 s: Created context on GeForce GTX 780\n0.0267 s: Generated initial conditions\n0.8203 s: Created CDKLM simulator\n0.0700 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 32] ===\n100 %\n `-> 18.1186 s: Step, 110.3841 mcells/sec\n `-> 1.6918 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 110.38407386 ===\n'
+=========================================
+
+CDKLM [08 x 32] completed in 22.48 s
+=========================================
+CDKLM [12 x 04]
+-----------------------------------------
+b'0.7712 s: Imported packages\nUsing  GeForce GTX 780\n0.8897 s: Created context on GeForce GTX 780\n0.0275 s: Generated initial conditions\n0.8365 s: Created CDKLM simulator\n0.0602 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 4] ===\n100 %\n `-> 13.6600 s: Step, 146.4125 mcells/sec\n `-> 1.2739 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 146.41250265 ===\n'
+=========================================
+
+CDKLM [12 x 04] completed in 17.67 s
+=========================================
+CDKLM [12 x 08]
+-----------------------------------------
+b'0.7634 s: Imported packages\nUsing  GeForce GTX 780\n0.8646 s: Created context on GeForce GTX 780\n0.0274 s: Generated initial conditions\n0.8239 s: Created CDKLM simulator\n0.0501 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 8] ===\n100 %\n `-> 11.9965 s: Step, 166.7148 mcells/sec\n `-> 1.1244 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 166.71480138 ===\n'
+=========================================
+
+CDKLM [12 x 08] completed in 15.82 s
+=========================================
+CDKLM [12 x 12]
+-----------------------------------------
+b'0.7361 s: Imported packages\nUsing  GeForce GTX 780\n0.8599 s: Created context on GeForce GTX 780\n0.0264 s: Generated initial conditions\n0.8196 s: Created CDKLM simulator\n0.0464 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 12] ===\n100 %\n `-> 10.8478 s: Step, 184.3684 mcells/sec\n `-> 1.0147 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 184.36839851 ===\n'
+=========================================
+
+CDKLM [12 x 12] completed in 14.51 s
+=========================================
+CDKLM [12 x 16]
+-----------------------------------------
+b'0.7815 s: Imported packages\nUsing  GeForce GTX 780\n0.8644 s: Created context on GeForce GTX 780\n0.0267 s: Generated initial conditions\n0.8231 s: Created CDKLM simulator\n0.0561 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 16] ===\n100 %\n `-> 12.1520 s: Step, 164.5814 mcells/sec\n `-> 1.1339 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 164.58143616 ===\n'
+=========================================
+
+CDKLM [12 x 16] completed in 15.99 s
+=========================================
+CDKLM [12 x 24]
+-----------------------------------------
+b'0.7502 s: Imported packages\nUsing  GeForce GTX 780\n0.8633 s: Created context on GeForce GTX 780\n0.0263 s: Generated initial conditions\n0.8194 s: Created CDKLM simulator\n0.0648 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 24] ===\n100 %\n `-> 16.1547 s: Step, 123.8031 mcells/sec\n `-> 1.5094 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 123.80310570 ===\n'
+=========================================
+
+CDKLM [12 x 24] completed in 20.34 s
+=========================================
+CDKLM [12 x 32]
+-----------------------------------------
+b'0.7416 s: Imported packages\nUsing  GeForce GTX 780\n0.8586 s: Created context on GeForce GTX 780\n0.0275 s: Generated initial conditions\n0.8317 s: Created CDKLM simulator\n0.0519 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 32] ===\n100 %\n `-> 12.5544 s: Step, 159.3067 mcells/sec\n `-> 1.1733 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 159.30671582 ===\n'
+=========================================
+
+CDKLM [12 x 32] completed in 16.39 s
+=========================================
+CDKLM [16 x 04]
+-----------------------------------------
+b'0.7262 s: Imported packages\nUsing  GeForce GTX 780\n0.8517 s: Created context on GeForce GTX 780\n0.0263 s: Generated initial conditions\n0.8200 s: Created CDKLM simulator\n0.0557 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 4] ===\n100 %\n `-> 13.7437 s: Step, 145.5216 mcells/sec\n `-> 1.2852 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 145.52162173 ===\n'
+=========================================
+
+CDKLM [16 x 04] completed in 17.66 s
+=========================================
+CDKLM [16 x 08]
+-----------------------------------------
+b'0.7589 s: Imported packages\nUsing  GeForce GTX 780\n0.8732 s: Created context on GeForce GTX 780\n0.0264 s: Generated initial conditions\n0.8307 s: Created CDKLM simulator\n0.0484 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 8] ===\n100 %\n `-> 11.4863 s: Step, 174.1212 mcells/sec\n `-> 1.0717 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 174.12122584 ===\n'
+=========================================
+
+CDKLM [16 x 08] completed in 15.25 s
+=========================================
+CDKLM [16 x 12]
+-----------------------------------------
+b'0.7505 s: Imported packages\nUsing  GeForce GTX 780\n0.8423 s: Created context on GeForce GTX 780\n0.0261 s: Generated initial conditions\n0.8139 s: Created CDKLM simulator\n0.0490 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 12] ===\n100 %\n `-> 11.6546 s: Step, 171.6062 mcells/sec\n `-> 1.0898 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 171.60617486 ===\n'
+=========================================
+
+CDKLM [16 x 12] completed in 15.38 s
+=========================================
+CDKLM [16 x 16]
+-----------------------------------------
+b'0.7291 s: Imported packages\nUsing  GeForce GTX 780\n0.8535 s: Created context on GeForce GTX 780\n0.0266 s: Generated initial conditions\n0.8180 s: Created CDKLM simulator\n0.0675 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 16] ===\n100 %\n `-> 17.2572 s: Step, 115.8940 mcells/sec\n `-> 1.6132 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 115.89398420 ===\n'
+=========================================
+
+CDKLM [16 x 16] completed in 21.52 s
+=========================================
+CDKLM [16 x 24]
+-----------------------------------------
+b'0.8183 s: Imported packages\nUsing  GeForce GTX 780\n0.9077 s: Created context on GeForce GTX 780\n0.0274 s: Generated initial conditions\n0.8737 s: Created CDKLM simulator\n0.0582 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 24] ===\n100 %\n `-> 12.0293 s: Step, 166.2613 mcells/sec\n `-> 1.1218 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 166.26132999 ===\n'
+=========================================
+
+CDKLM [16 x 24] completed in 15.99 s
+=========================================
+CDKLM [16 x 32]
+-----------------------------------------
+b'0.7392 s: Imported packages\nUsing  GeForce GTX 780\n0.8846 s: Created context on GeForce GTX 780\n0.0292 s: Generated initial conditions\nTraceback (most recent call last):\n  File "run_benchmark.py", line 249, in <module>\n    sim = initCDKLM()\n  File "run_benchmark.py", line 158, in initCDKLM\n    **kwargs)\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/CDKLM16.py", line 138, in __init__\n    self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/Common.py", line 46, in get_kernel\n    kernel = pyopencl.Program(cl_ctx, kernel_string).build(options)\n  File "/home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/__init__.py", line 203, in build\n    options=options)\n  File "/home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/__init__.py", line 253, in _build_and_catch_errors\n    raise err\npyopencl.RuntimeError: clBuildProgram failed: <unknown error -9999> - \n\nBuild on <pyopencl.Device \'GeForce GTX 780\' on \'NVIDIA CUDA\' at 0x19ad670>:\n\nptxas error   : Entry function \'swe_2D\' uses too much shared data (0xc3c8 bytes, 0xc000 max)\n\n(options: -I ../sim/src/kernels -I ../../sim/src/kernels -I /home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/cl)\nException ignored in: <bound method Simulator.__del__ of <SWESimulators.CDKLM16.CDKLM16 object at 0x7f21bd8fd7b8>>\nTraceback (most recent call last):\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/Simulator.py", line 135, in __del__\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/CDKLM16.py", line 186, in cleanUp\nAttributeError: \'CDKLM16\' object has no attribute \'cl_data\'\n'
+=========================================
+
+CDKLM [16 x 32] completed in 2.09 s
+=========================================
+CDKLM [24 x 04]
+-----------------------------------------
+b'0.7390 s: Imported packages\nUsing  GeForce GTX 780\n0.8530 s: Created context on GeForce GTX 780\n0.0263 s: Generated initial conditions\n0.8284 s: Created CDKLM simulator\n0.0603 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 4] ===\n100 %\n `-> 15.0854 s: Step, 132.5790 mcells/sec\n `-> 1.4099 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 132.57895873 ===\n'
+=========================================
+
+CDKLM [24 x 04] completed in 19.15 s
+=========================================
+CDKLM [24 x 08]
+-----------------------------------------
+b'0.7518 s: Imported packages\nUsing  GeForce GTX 780\n0.8530 s: Created context on GeForce GTX 780\n0.0279 s: Generated initial conditions\n0.8473 s: Created CDKLM simulator\n0.0492 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 8] ===\n100 %\n `-> 11.6792 s: Step, 171.2442 mcells/sec\n `-> 1.0920 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 171.24420125 ===\n'
+=========================================
+
+CDKLM [24 x 08] completed in 15.45 s
+=========================================
+CDKLM [24 x 12]
+-----------------------------------------
+b'0.7557 s: Imported packages\nUsing  GeForce GTX 780\n0.8512 s: Created context on GeForce GTX 780\n0.0265 s: Generated initial conditions\n0.8145 s: Created CDKLM simulator\n0.0630 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 12] ===\n100 %\n `-> 15.8016 s: Step, 126.5692 mcells/sec\n `-> 1.4724 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 126.56920177 ===\n'
+=========================================
+
+CDKLM [24 x 12] completed in 19.94 s
+=========================================
+CDKLM [24 x 16]
+-----------------------------------------
+b'0.7534 s: Imported packages\nUsing  GeForce GTX 780\n0.8601 s: Created context on GeForce GTX 780\n0.0276 s: Generated initial conditions\n0.8203 s: Created CDKLM simulator\n0.0503 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 16] ===\n100 %\n `-> 12.0354 s: Step, 166.1768 mcells/sec\n `-> 1.1241 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 166.17684566 ===\n'
+=========================================
+
+CDKLM [24 x 16] completed in 15.82 s
+=========================================
+CDKLM [24 x 24]
+-----------------------------------------
+b'0.7547 s: Imported packages\nUsing  GeForce GTX 780\n0.8659 s: Created context on GeForce GTX 780\n0.0273 s: Generated initial conditions\nTraceback (most recent call last):\n  File "run_benchmark.py", line 249, in <module>\n    sim = initCDKLM()\n  File "run_benchmark.py", line 158, in initCDKLM\n    **kwargs)\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/CDKLM16.py", line 138, in __init__\n    self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/Common.py", line 46, in get_kernel\n    kernel = pyopencl.Program(cl_ctx, kernel_string).build(options)\n  File "/home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/__init__.py", line 203, in build\n    options=options)\n  File "/home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/__init__.py", line 253, in _build_and_catch_errors\n    raise err\npyopencl.RuntimeError: clBuildProgram failed: <unknown error -9999> - \n\nBuild on <pyopencl.Device \'GeForce GTX 780\' on \'NVIDIA CUDA\' at 0x2f38380>:\n\nptxas error   : Entry function \'swe_2D\' uses too much shared data (0xd8c8 bytes, 0xc000 max)\n\n(options: -I ../sim/src/kernels -I ../../sim/src/kernels -I /home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/cl)\nException ignored in: <bound method Simulator.__del__ of <SWESimulators.CDKLM16.CDKLM16 object at 0x7fa4a0fc4860>>\nTraceback (most recent call last):\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/Simulator.py", line 135, in __del__\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/CDKLM16.py", line 186, in cleanUp\nAttributeError: \'CDKLM16\' object has no attribute \'cl_data\'\n'
+=========================================
+
+CDKLM [24 x 24] completed in 2.09 s
+=========================================
+CDKLM [24 x 32]
+-----------------------------------------
+b'0.7441 s: Imported packages\nUsing  GeForce GTX 780\n0.8706 s: Created context on GeForce GTX 780\n0.0279 s: Generated initial conditions\nTraceback (most recent call last):\n  File "run_benchmark.py", line 249, in <module>\n    sim = initCDKLM()\n  File "run_benchmark.py", line 158, in initCDKLM\n    **kwargs)\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/CDKLM16.py", line 138, in __init__\n    self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/Common.py", line 46, in get_kernel\n    kernel = pyopencl.Program(cl_ctx, kernel_string).build(options)\n  File "/home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/__init__.py", line 203, in build\n    options=options)\n  File "/home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/__init__.py", line 253, in _build_and_catch_errors\n    raise err\npyopencl.RuntimeError: clBuildProgram failed: <unknown error -9999> - \n\nBuild on <pyopencl.Device \'GeForce GTX 780\' on \'NVIDIA CUDA\' at 0x1ad4220>:\n\nptxas error   : Entry function \'swe_2D\' uses too much shared data (0x11c28 bytes, 0xc000 max)\n\n(options: -I ../sim/src/kernels -I ../../sim/src/kernels -I /home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/cl)\nException ignored in: <bound method Simulator.__del__ of <SWESimulators.CDKLM16.CDKLM16 object at 0x7fb40488f8d0>>\nTraceback (most recent call last):\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/Simulator.py", line 135, in __del__\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/CDKLM16.py", line 186, in cleanUp\nAttributeError: \'CDKLM16\' object has no attribute \'cl_data\'\n'
+=========================================
+
+CDKLM [24 x 32] completed in 2.08 s
+=========================================
+CDKLM [32 x 04]
+-----------------------------------------
+b'0.7633 s: Imported packages\nUsing  GeForce GTX 780\n0.8552 s: Created context on GeForce GTX 780\n0.0264 s: Generated initial conditions\n0.8144 s: Created CDKLM simulator\n0.0453 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 4] ===\n100 %\n `-> 10.5418 s: Step, 189.7210 mcells/sec\n `-> 0.9852 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 189.72102311 ===\n'
+=========================================
+
+CDKLM [32 x 04] completed in 14.18 s
+=========================================
+CDKLM [32 x 08]
+-----------------------------------------
+b'0.7618 s: Imported packages\nUsing  GeForce GTX 780\n0.8675 s: Created context on GeForce GTX 780\n0.0275 s: Generated initial conditions\n0.8324 s: Created CDKLM simulator\n0.0622 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 8] ===\n100 %\n `-> 15.7142 s: Step, 127.2736 mcells/sec\n `-> 1.4643 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 127.27362409 ===\n'
+=========================================
+
+CDKLM [32 x 08] completed in 19.88 s
+=========================================
+CDKLM [32 x 12]
+-----------------------------------------
+b'0.7626 s: Imported packages\nUsing  GeForce GTX 780\n0.8457 s: Created context on GeForce GTX 780\n0.0264 s: Generated initial conditions\n0.8194 s: Created CDKLM simulator\n0.0471 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 12] ===\n100 %\n `-> 11.0571 s: Step, 180.8794 mcells/sec\n `-> 1.0332 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 180.87935062 ===\n'
+=========================================
+
+CDKLM [32 x 12] completed in 14.74 s
+=========================================
+CDKLM [32 x 16]
+-----------------------------------------
+b'0.7528 s: Imported packages\nUsing  GeForce GTX 780\n0.8509 s: Created context on GeForce GTX 780\n0.0265 s: Generated initial conditions\nTraceback (most recent call last):\n  File "run_benchmark.py", line 249, in <module>\n    sim = initCDKLM()\n  File "run_benchmark.py", line 158, in initCDKLM\n    **kwargs)\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/CDKLM16.py", line 138, in __init__\n    self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/Common.py", line 46, in get_kernel\n    kernel = pyopencl.Program(cl_ctx, kernel_string).build(options)\n  File "/home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/__init__.py", line 203, in build\n    options=options)\n  File "/home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/__init__.py", line 253, in _build_and_catch_errors\n    raise err\npyopencl.RuntimeError: clBuildProgram failed: <unknown error -9999> - \n\nBuild on <pyopencl.Device \'GeForce GTX 780\' on \'NVIDIA CUDA\' at 0x27371a0>:\n\nptxas error   : Entry function \'swe_2D\' uses too much shared data (0xc3c8 bytes, 0xc000 max)\n\n(options: -I ../sim/src/kernels -I ../../sim/src/kernels -I /home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/cl)\nException ignored in: <bound method Simulator.__del__ of <SWESimulators.CDKLM16.CDKLM16 object at 0x7f3dc7cec898>>\nTraceback (most recent call last):\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/Simulator.py", line 135, in __del__\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/CDKLM16.py", line 186, in cleanUp\nAttributeError: \'CDKLM16\' object has no attribute \'cl_data\'\n'
+=========================================
+
+CDKLM [32 x 16] completed in 2.05 s
+=========================================
+CDKLM [32 x 24]
+-----------------------------------------
+b'0.7465 s: Imported packages\nUsing  GeForce GTX 780\n0.8523 s: Created context on GeForce GTX 780\n0.0264 s: Generated initial conditions\nTraceback (most recent call last):\n  File "run_benchmark.py", line 249, in <module>\n    sim = initCDKLM()\n  File "run_benchmark.py", line 158, in initCDKLM\n    **kwargs)\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/CDKLM16.py", line 138, in __init__\n    self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/Common.py", line 46, in get_kernel\n    kernel = pyopencl.Program(cl_ctx, kernel_string).build(options)\n  File "/home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/__init__.py", line 203, in build\n    options=options)\n  File "/home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/__init__.py", line 253, in _build_and_catch_errors\n    raise err\npyopencl.RuntimeError: clBuildProgram failed: <unknown error -9999> - \n\nBuild on <pyopencl.Device \'GeForce GTX 780\' on \'NVIDIA CUDA\' at 0x311fc70>:\n\nptxas error   : Entry function \'swe_2D\' uses too much shared data (0x11c28 bytes, 0xc000 max)\n\n(options: -I ../sim/src/kernels -I ../../sim/src/kernels -I /home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/cl)\nException ignored in: <bound method Simulator.__del__ of <SWESimulators.CDKLM16.CDKLM16 object at 0x7f77ecfe07b8>>\nTraceback (most recent call last):\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/Simulator.py", line 135, in __del__\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/CDKLM16.py", line 186, in cleanUp\nAttributeError: \'CDKLM16\' object has no attribute \'cl_data\'\n'
+=========================================
+
+CDKLM [32 x 24] completed in 2.05 s
+=========================================
+CDKLM [32 x 32]
+-----------------------------------------
+b'0.7327 s: Imported packages\nUsing  GeForce GTX 780\n0.8546 s: Created context on GeForce GTX 780\n0.0275 s: Generated initial conditions\nTraceback (most recent call last):\n  File "run_benchmark.py", line 249, in <module>\n    sim = initCDKLM()\n  File "run_benchmark.py", line 158, in initCDKLM\n    **kwargs)\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/CDKLM16.py", line 138, in __init__\n    self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/Common.py", line 46, in get_kernel\n    kernel = pyopencl.Program(cl_ctx, kernel_string).build(options)\n  File "/home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/__init__.py", line 203, in build\n    options=options)\n  File "/home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/__init__.py", line 253, in _build_and_catch_errors\n    raise err\npyopencl.RuntimeError: clBuildProgram failed: <unknown error -9999> - \n\nBuild on <pyopencl.Device \'GeForce GTX 780\' on \'NVIDIA CUDA\' at 0x179f380>:\n\nptxas error   : Entry function \'swe_2D\' uses too much shared data (0x17488 bytes, 0xc000 max)\n\n(options: -I ../sim/src/kernels -I ../../sim/src/kernels -I /home/havahol/miniconda3/envs/gpuocean-opencl/lib/python3.5/site-packages/pyopencl/cl)\nException ignored in: <bound method Simulator.__del__ of <SWESimulators.CDKLM16.CDKLM16 object at 0x7efbf1f657b8>>\nTraceback (most recent call last):\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/Simulator.py", line 135, in __del__\n  File "/home/havahol/playground/gpu-ocean/opencl_gpu_ocean/python/SWESimulators/CDKLM16.py", line 186, in cleanUp\nAttributeError: \'CDKLM16\' object has no attribute \'cl_data\'\n'
+=========================================
+
+CDKLM [32 x 32] completed in 2.05 s
+
+
+

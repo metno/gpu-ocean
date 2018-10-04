@@ -1,0 +1,258 @@
+##########################################################################
+Using simulator CDKLM.
+##########################################################################
+=========================================
+CDKLM [04 x 04]
+-----------------------------------------
+b'0.7837 s: Imported packages\nUsing  GeForce GTX 780\n0.8982 s: Created context on GeForce GTX 780\n0.0273 s: Generated initial conditions\n0.7714 s: Created CDKLM simulator\n0.0585 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 4] ===\n100 %\n `-> 13.6118 s: Step, 146.9310 mcells/sec\n `-> 1.2692 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 146.93099718 ===\n'
+=========================================
+
+CDKLM [04 x 04] completed in 17.58 s
+=========================================
+CDKLM [04 x 08]
+-----------------------------------------
+b'0.7578 s: Imported packages\nUsing  GeForce GTX 780\n0.8531 s: Created context on GeForce GTX 780\n0.0261 s: Generated initial conditions\n0.7460 s: Created CDKLM simulator\n0.0353 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 8] ===\n100 %\n `-> 8.6468 s: Step, 231.2988 mcells/sec\n `-> 0.8048 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 231.29883966 ===\n'
+=========================================
+
+CDKLM [04 x 08] completed in 12.02 s
+=========================================
+CDKLM [04 x 12]
+-----------------------------------------
+b'0.7360 s: Imported packages\nUsing  GeForce GTX 780\n0.9089 s: Created context on GeForce GTX 780\n0.0272 s: Generated initial conditions\n0.7646 s: Created CDKLM simulator\n0.0333 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 12] ===\n100 %\n `-> 7.5109 s: Step, 266.2792 mcells/sec\n `-> 0.7024 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 266.27920792 ===\n'
+=========================================
+
+CDKLM [04 x 12] completed in 10.83 s
+=========================================
+CDKLM [04 x 16]
+-----------------------------------------
+b'0.7658 s: Imported packages\nUsing  GeForce GTX 780\n0.8552 s: Created context on GeForce GTX 780\n0.0273 s: Generated initial conditions\n0.7556 s: Created CDKLM simulator\n0.0278 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 16] ===\n100 %\n `-> 6.3288 s: Step, 316.0162 mcells/sec\n `-> 0.5923 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 316.01620004 ===\n'
+=========================================
+
+CDKLM [04 x 16] completed in 9.50 s
+=========================================
+CDKLM [04 x 24]
+-----------------------------------------
+b'0.7391 s: Imported packages\nUsing  GeForce GTX 780\n0.8636 s: Created context on GeForce GTX 780\n0.0261 s: Generated initial conditions\n0.7484 s: Created CDKLM simulator\n0.0267 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 24] ===\n100 %\n `-> 6.0227 s: Step, 332.0761 mcells/sec\n `-> 0.5642 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 332.07609074 ===\n'
+=========================================
+
+CDKLM [04 x 24] completed in 9.14 s
+=========================================
+CDKLM [04 x 32]
+-----------------------------------------
+b'0.7589 s: Imported packages\nUsing  GeForce GTX 780\n0.8545 s: Created context on GeForce GTX 780\n0.0272 s: Generated initial conditions\n0.7541 s: Created CDKLM simulator\n0.0263 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 32] ===\n100 %\n `-> 5.8949 s: Step, 339.2758 mcells/sec\n `-> 0.5521 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 339.27582480 ===\n'
+=========================================
+
+CDKLM [04 x 32] completed in 9.02 s
+=========================================
+CDKLM [08 x 04]
+-----------------------------------------
+b'0.7318 s: Imported packages\nUsing  GeForce GTX 780\n0.8440 s: Created context on GeForce GTX 780\n0.0273 s: Generated initial conditions\n0.7500 s: Created CDKLM simulator\n0.0324 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 4] ===\n100 %\n `-> 7.7322 s: Step, 258.6585 mcells/sec\n `-> 0.7229 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 258.65849594 ===\n'
+=========================================
+
+CDKLM [08 x 04] completed in 10.99 s
+=========================================
+CDKLM [08 x 08]
+-----------------------------------------
+b'0.7273 s: Imported packages\nUsing  GeForce GTX 780\n0.8504 s: Created context on GeForce GTX 780\n0.0272 s: Generated initial conditions\n0.7545 s: Created CDKLM simulator\n0.0240 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 8] ===\n100 %\n `-> 5.1467 s: Step, 388.5982 mcells/sec\n `-> 0.4830 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 388.59823856 ===\n'
+=========================================
+
+CDKLM [08 x 08] completed in 8.16 s
+=========================================
+CDKLM [08 x 12]
+-----------------------------------------
+b'0.7582 s: Imported packages\nUsing  GeForce GTX 780\n0.8919 s: Created context on GeForce GTX 780\n0.0272 s: Generated initial conditions\n0.7605 s: Created CDKLM simulator\n0.0224 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 12] ===\n100 %\n `-> 4.6726 s: Step, 428.0286 mcells/sec\n `-> 0.4385 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 428.02857379 ===\n'
+=========================================
+
+CDKLM [08 x 12] completed in 7.72 s
+=========================================
+CDKLM [08 x 16]
+-----------------------------------------
+b'0.7377 s: Imported packages\nUsing  GeForce GTX 780\n0.8428 s: Created context on GeForce GTX 780\n0.0262 s: Generated initial conditions\n0.7634 s: Created CDKLM simulator\n0.0218 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 16] ===\n100 %\n `-> 4.5033 s: Step, 444.1195 mcells/sec\n `-> 0.4214 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 444.11951455 ===\n'
+=========================================
+
+CDKLM [08 x 16] completed in 7.47 s
+=========================================
+CDKLM [08 x 24]
+-----------------------------------------
+b'0.7804 s: Imported packages\nUsing  GeForce GTX 780\n0.8544 s: Created context on GeForce GTX 780\n0.0261 s: Generated initial conditions\n0.7500 s: Created CDKLM simulator\n0.0214 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 24] ===\n100 %\n `-> 4.3545 s: Step, 459.2902 mcells/sec\n `-> 0.4071 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 459.29024870 ===\n'
+=========================================
+
+CDKLM [08 x 24] completed in 7.35 s
+=========================================
+CDKLM [08 x 32]
+-----------------------------------------
+b'0.7514 s: Imported packages\nUsing  GeForce GTX 780\n0.8949 s: Created context on GeForce GTX 780\n0.0262 s: Generated initial conditions\n0.7568 s: Created CDKLM simulator\n0.0226 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 32] ===\n100 %\n `-> 4.7836 s: Step, 418.0956 mcells/sec\n `-> 0.4480 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 418.09560886 ===\n'
+=========================================
+
+CDKLM [08 x 32] completed in 7.83 s
+=========================================
+CDKLM [12 x 04]
+-----------------------------------------
+b'0.7313 s: Imported packages\nUsing  GeForce GTX 780\n0.8757 s: Created context on GeForce GTX 780\n0.0272 s: Generated initial conditions\n0.7518 s: Created CDKLM simulator\n0.0268 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 4] ===\n100 %\n `-> 6.0335 s: Step, 331.4849 mcells/sec\n `-> 0.5634 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 331.48488974 ===\n'
+=========================================
+
+CDKLM [12 x 04] completed in 9.16 s
+=========================================
+CDKLM [12 x 08]
+-----------------------------------------
+b'0.7865 s: Imported packages\nUsing  GeForce GTX 780\n0.9375 s: Created context on GeForce GTX 780\n0.0272 s: Generated initial conditions\n0.7674 s: Created CDKLM simulator\n0.0225 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 8] ===\n100 %\n `-> 4.7209 s: Step, 423.6441 mcells/sec\n `-> 0.4427 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 423.64413401 ===\n'
+=========================================
+
+CDKLM [12 x 08] completed in 7.85 s
+=========================================
+CDKLM [12 x 12]
+-----------------------------------------
+b'0.7647 s: Imported packages\nUsing  GeForce GTX 780\n0.8552 s: Created context on GeForce GTX 780\n0.0273 s: Generated initial conditions\n0.7692 s: Created CDKLM simulator\n0.0212 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 12] ===\n100 %\n `-> 4.3243 s: Step, 462.4998 mcells/sec\n `-> 0.4062 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 462.49981668 ===\n'
+=========================================
+
+CDKLM [12 x 12] completed in 7.32 s
+=========================================
+CDKLM [12 x 16]
+-----------------------------------------
+b'0.7700 s: Imported packages\nUsing  GeForce GTX 780\n0.8639 s: Created context on GeForce GTX 780\n0.0262 s: Generated initial conditions\n0.7441 s: Created CDKLM simulator\n0.0210 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 16] ===\n100 %\n `-> 4.2830 s: Step, 466.9604 mcells/sec\n `-> 0.4023 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 466.96040882 ===\n'
+=========================================
+
+CDKLM [12 x 16] completed in 7.26 s
+=========================================
+CDKLM [12 x 24]
+-----------------------------------------
+b'0.7536 s: Imported packages\nUsing  GeForce GTX 780\n0.8609 s: Created context on GeForce GTX 780\n0.0261 s: Generated initial conditions\n0.7474 s: Created CDKLM simulator\n0.0215 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 24] ===\n100 %\n `-> 4.4081 s: Step, 453.7127 mcells/sec\n `-> 0.4125 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 453.71268060 ===\n'
+=========================================
+
+CDKLM [12 x 24] completed in 7.38 s
+=========================================
+CDKLM [12 x 32]
+-----------------------------------------
+b'0.7541 s: Imported packages\nUsing  GeForce GTX 780\n0.8620 s: Created context on GeForce GTX 780\n0.0262 s: Generated initial conditions\n0.7568 s: Created CDKLM simulator\n0.0220 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 32] ===\n100 %\n `-> 4.5660 s: Step, 438.0234 mcells/sec\n `-> 0.4290 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 438.02339819 ===\n'
+=========================================
+
+CDKLM [12 x 32] completed in 7.57 s
+=========================================
+CDKLM [16 x 04]
+-----------------------------------------
+b'0.7527 s: Imported packages\nUsing  GeForce GTX 780\n0.8729 s: Created context on GeForce GTX 780\n0.0272 s: Generated initial conditions\n0.7507 s: Created CDKLM simulator\n0.0236 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 4] ===\n100 %\n `-> 5.0644 s: Step, 394.9137 mcells/sec\n `-> 0.4730 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 394.91368457 ===\n'
+=========================================
+
+CDKLM [16 x 04] completed in 8.13 s
+=========================================
+CDKLM [16 x 08]
+-----------------------------------------
+b'0.7444 s: Imported packages\nUsing  GeForce GTX 780\n0.8482 s: Created context on GeForce GTX 780\n0.0266 s: Generated initial conditions\n0.7464 s: Created CDKLM simulator\n0.0210 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 8] ===\n100 %\n `-> 4.2110 s: Step, 474.9453 mcells/sec\n `-> 0.3940 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 474.94525475 ===\n'
+=========================================
+
+CDKLM [16 x 08] completed in 7.14 s
+=========================================
+CDKLM [16 x 12]
+-----------------------------------------
+b'0.7458 s: Imported packages\nUsing  GeForce GTX 780\n0.8549 s: Created context on GeForce GTX 780\n0.0272 s: Generated initial conditions\n0.7591 s: Created CDKLM simulator\n0.0205 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 12] ===\n100 %\n `-> 4.0563 s: Step, 493.0551 mcells/sec\n `-> 0.3813 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 493.05511555 ===\n'
+=========================================
+
+CDKLM [16 x 12] completed in 7.00 s
+=========================================
+CDKLM [16 x 16]
+-----------------------------------------
+b'0.7452 s: Imported packages\nUsing  GeForce GTX 780\n0.8543 s: Created context on GeForce GTX 780\n0.0261 s: Generated initial conditions\n0.7480 s: Created CDKLM simulator\n0.0215 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 16] ===\n100 %\n `-> 4.4293 s: Step, 451.5416 mcells/sec\n `-> 0.4141 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 451.54162459 ===\n'
+=========================================
+
+CDKLM [16 x 16] completed in 7.39 s
+=========================================
+CDKLM [16 x 24]
+-----------------------------------------
+b'0.7398 s: Imported packages\nUsing  GeForce GTX 780\n0.8497 s: Created context on GeForce GTX 780\n0.0263 s: Generated initial conditions\n0.7465 s: Created CDKLM simulator\n0.0208 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 24] ===\n100 %\n `-> 4.2353 s: Step, 472.2208 mcells/sec\n `-> 0.3962 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 472.22076173 ===\n'
+=========================================
+
+CDKLM [16 x 24] completed in 7.16 s
+=========================================
+CDKLM [16 x 32]
+-----------------------------------------
+b'0.7501 s: Imported packages\nUsing  GeForce GTX 780\n0.8544 s: Created context on GeForce GTX 780\n0.0262 s: Generated initial conditions\n0.7558 s: Created CDKLM simulator\n0.0229 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 32] ===\n100 %\n `-> 4.8609 s: Step, 411.4432 mcells/sec\n `-> 0.4531 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 411.44317704 ===\n'
+=========================================
+
+CDKLM [16 x 32] completed in 7.88 s
+=========================================
+CDKLM [24 x 04]
+-----------------------------------------
+b'0.7579 s: Imported packages\nUsing  GeForce GTX 780\n0.8492 s: Created context on GeForce GTX 780\n0.0265 s: Generated initial conditions\n0.7693 s: Created CDKLM simulator\n0.0231 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 4] ===\n100 %\n `-> 4.8668 s: Step, 410.9464 mcells/sec\n `-> 0.4549 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 410.94637107 ===\n'
+=========================================
+
+CDKLM [24 x 04] completed in 7.92 s
+=========================================
+CDKLM [24 x 08]
+-----------------------------------------
+b'0.7498 s: Imported packages\nUsing  GeForce GTX 780\n0.9024 s: Created context on GeForce GTX 780\n0.0273 s: Generated initial conditions\n0.7675 s: Created CDKLM simulator\n0.0207 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 8] ===\n100 %\n `-> 4.0804 s: Step, 490.1468 mcells/sec\n `-> 0.3822 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 490.14679440 ===\n'
+=========================================
+
+CDKLM [24 x 08] completed in 7.09 s
+=========================================
+CDKLM [24 x 12]
+-----------------------------------------
+b'0.7452 s: Imported packages\nUsing  GeForce GTX 780\n0.8575 s: Created context on GeForce GTX 780\n0.0265 s: Generated initial conditions\n0.7497 s: Created CDKLM simulator\n0.0209 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 12] ===\n100 %\n `-> 4.2400 s: Step, 471.6952 mcells/sec\n `-> 0.3966 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 471.69519453 ===\n'
+=========================================
+
+CDKLM [24 x 12] completed in 7.19 s
+=========================================
+CDKLM [24 x 16]
+-----------------------------------------
+b'0.7416 s: Imported packages\nUsing  GeForce GTX 780\n0.8573 s: Created context on GeForce GTX 780\n0.0273 s: Generated initial conditions\n0.7586 s: Created CDKLM simulator\n0.0211 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 16] ===\n100 %\n `-> 4.2634 s: Step, 469.1098 mcells/sec\n `-> 0.3992 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 469.10978275 ===\n'
+=========================================
+
+CDKLM [24 x 16] completed in 7.22 s
+=========================================
+CDKLM [24 x 24]
+-----------------------------------------
+b'0.7523 s: Imported packages\nUsing  GeForce GTX 780\n0.8509 s: Created context on GeForce GTX 780\n0.0264 s: Generated initial conditions\n0.7597 s: Created CDKLM simulator\n0.0219 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 24] ===\n100 %\n `-> 4.5425 s: Step, 440.2859 mcells/sec\n `-> 0.4253 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 440.28592997 ===\n'
+=========================================
+
+CDKLM [24 x 24] completed in 7.53 s
+=========================================
+CDKLM [24 x 32]
+-----------------------------------------
+b'0.7813 s: Imported packages\nUsing  GeForce GTX 780\n0.8670 s: Created context on GeForce GTX 780\n0.0264 s: Generated initial conditions\n0.7529 s: Created CDKLM simulator\n0.0277 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 32] ===\n100 %\n `-> 6.3168 s: Step, 316.6147 mcells/sec\n `-> 0.5895 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 316.61467575 ===\n'
+=========================================
+
+CDKLM [24 x 32] completed in 9.51 s
+=========================================
+CDKLM [32 x 04]
+-----------------------------------------
+b'0.7565 s: Imported packages\nUsing  GeForce GTX 780\n0.8830 s: Created context on GeForce GTX 780\n0.0276 s: Generated initial conditions\n0.7743 s: Created CDKLM simulator\n0.0206 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 4] ===\n100 %\n `-> 4.1553 s: Step, 481.3117 mcells/sec\n `-> 0.3860 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 481.31165247 ===\n'
+=========================================
+
+CDKLM [32 x 04] completed in 7.15 s
+=========================================
+CDKLM [32 x 08]
+-----------------------------------------
+b'0.7431 s: Imported packages\nUsing  GeForce GTX 780\n0.8595 s: Created context on GeForce GTX 780\n0.0264 s: Generated initial conditions\n0.7530 s: Created CDKLM simulator\n0.0199 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 8] ===\n100 %\n `-> 3.8684 s: Step, 517.0064 mcells/sec\n `-> 0.3637 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 517.00644886 ===\n'
+=========================================
+
+CDKLM [32 x 08] completed in 6.79 s
+=========================================
+CDKLM [32 x 12]
+-----------------------------------------
+b'0.7987 s: Imported packages\nUsing  GeForce GTX 780\n0.8557 s: Created context on GeForce GTX 780\n0.0270 s: Generated initial conditions\n0.7498 s: Created CDKLM simulator\n0.0195 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 12] ===\n100 %\n `-> 3.7719 s: Step, 530.2337 mcells/sec\n `-> 0.3548 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 530.23374294 ===\n'
+=========================================
+
+CDKLM [32 x 12] completed in 6.73 s
+=========================================
+CDKLM [32 x 16]
+-----------------------------------------
+b'0.7336 s: Imported packages\nUsing  GeForce GTX 780\n0.8540 s: Created context on GeForce GTX 780\n0.0264 s: Generated initial conditions\n0.7466 s: Created CDKLM simulator\n0.0208 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 16] ===\n100 %\n `-> 4.1896 s: Step, 477.3759 mcells/sec\n `-> 0.3923 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 477.37588401 ===\n'
+=========================================
+
+CDKLM [32 x 16] completed in 7.11 s
+=========================================
+CDKLM [32 x 24]
+-----------------------------------------
+b'0.7259 s: Imported packages\nUsing  GeForce GTX 780\n0.8511 s: Created context on GeForce GTX 780\n0.0273 s: Generated initial conditions\n0.7425 s: Created CDKLM simulator\n0.0249 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 24] ===\n100 %\n `-> 5.4827 s: Step, 364.7835 mcells/sec\n `-> 0.5139 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 364.78348160 ===\n'
+=========================================
+
+CDKLM [32 x 24] completed in 8.52 s
+=========================================
+CDKLM [32 x 32]
+-----------------------------------------
+b'0.7603 s: Imported packages\nUsing  GeForce GTX 780\n0.8489 s: Created context on GeForce GTX 780\n0.0262 s: Generated initial conditions\n0.7440 s: Created CDKLM simulator\n0.0227 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 32] ===\n100 %\n `-> 4.8056 s: Step, 416.1824 mcells/sec\n `-> 0.4510 s: Download\n `-> t_sim=19.0473, h_max=0.9993\n === Maximum megacells: 416.18242909 ===\n'
+=========================================
+
+CDKLM [32 x 32] completed in 7.81 s
+
+
+
