@@ -120,27 +120,11 @@ class CTCS(Simulator.Simulator):
         self._set_interior_domain_from_sponge_cells()
 
         #Get kernels
-        self.kernel = gpu_ctx.get_kernel("CDKLM16_kernel.cu", 
-                defines={'block_width': block_width, 'block_height': block_height}, 
-                compile_args={
-                    'options': ["--use_fast_math"]
-                    #'options': ["--generate-line-info"], 
-                    #nvcc_options=["--maxrregcount=39"],
-                    #'arch': "compute_50", 
-                    #'code': "sm_50"
-                },
-                jit_compile_args={
-                #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
-                }
-                )
-        
-        
-        #Get kernels
         self.u_kernel = gpu_ctx.get_kernel("CTCS_U_kernel.cu", 
                 defines={'block_width': block_width, 'block_height': block_height},
                 compile_args={
                     'no_extern_c': True,
-                    #'options': ["--use_fast_math"]
+                    'options': ["--use_fast_math"],
                     #'options': ["--generate-line-info"], 
                     'options': ["--maxrregcount=32"]
                     #'arch': "compute_50", 
@@ -154,7 +138,7 @@ class CTCS(Simulator.Simulator):
                 defines={'block_width': block_width, 'block_height': block_height},
                 compile_args={
                     'no_extern_c': True,
-                    #'options': ["--use_fast_math"]
+                    'options': ["--use_fast_math"],
                     #'options': ["--generate-line-info"], 
                     'options': ["--maxrregcount=32"]
                     #'arch': "compute_50", 
@@ -164,8 +148,21 @@ class CTCS(Simulator.Simulator):
                     #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
                 }
         )
-        self.eta_kernel = gpu_ctx.get_kernel("CTCS_eta_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
-        
+        self.eta_kernel = gpu_ctx.get_kernel("CTCS_eta_kernel.cu", 
+                defines={'block_width': block_width, 'block_height': block_height},
+                compile_args={
+                    'no_extern_c': True,
+                    'options': ["--use_fast_math"],
+                    #'options': ["--generate-line-info"], 
+                    #'options': ["--maxrregcount=32"]
+                    #'arch': "compute_50", 
+                    #'code': "sm_50"
+                },
+                jit_compile_args={
+                    #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
+                }
+		)
+		
         # Get CUDA functions 
         self.computeUKernel = self.u_kernel.get_function("computeUKernel")
         self.computeVKernel = self.v_kernel.get_function("computeVKernel")
