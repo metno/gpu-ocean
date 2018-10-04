@@ -245,7 +245,7 @@ __kernel void computeVKernel(
     float E = (V_p0 - V0 + V_m0)/(dx_*dx_) + (V_0p - V0 + V_0m)/(dy_*dy_);
 
     //Calculate the wind shear stress
-    float Y = windStressY(wind_stress_, dx_, dy_, dt_, t_);
+    float Y = windStressY(0.25f, dx_, dy_, dt_, t_);
     
     // Finding the contribution from Coriolis
     float global_thread_y = get_global_id(1);
