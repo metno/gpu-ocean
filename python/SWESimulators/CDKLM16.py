@@ -133,9 +133,15 @@ class CDKLM16(Simulator.Simulator):
         #     self.interior_domain_indices[3]:self.interior_domain_indices[1] ]
         self.interior_domain_indices = np.array([-2,-2,2,2])
         self._set_interior_domain_from_sponge_cells()
+
+        #--------------------------------------------!
+        # Create compiler options here!
+        compiler_options = ['-cl-fast-relaxed-math']
+        #--------------------------------------------!
         
         #Get kernels
-        self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height)
+        self.kernel = Common.get_kernel(self.cl_ctx, "CDKLM16_kernel.opencl", block_width, block_height, \
+                                        options=compiler_options)
         
         #Create data by uploading to device
         self.cl_data = Common.SWEDataArakawaA(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
@@ -366,6 +372,21 @@ class CDKLM16(Simulator.Simulator):
                    h_in, hu_in, hv_in, \
                    h_out, hu_out, hv_out, \
                    local_dt, rk_step):
+
+        #"Beautify" code a bit by packing four bools into a single int
+        #Note: Must match code in kernel!
+        boundary_conditions = np.int32(0)
+        if (self.boundary_conditions.north == 1):
+            boundary_conditions = boundary_conditions | 0x01
+        if (self.boundary_conditions.east == 1):
+            boundary_conditions = boundary_conditions | 0x02
+        if (self.boundary_conditions.south == 1):
+            boundary_conditions = boundary_conditions | 0x04
+        if (self.boundary_conditions.west == 1):
+            boundary_conditions = boundary_conditions | 0x08
+                
+        wind_stress_t = np.float32(0.1)
+
         self.kernel.swe_2D(self.cl_queue, self.global_size, self.local_size, \
                            self.nx, self.ny, \
                            self.dx, self.dy, local_dt, \
@@ -385,13 +406,8 @@ class CDKLM16(Simulator.Simulator):
                            hv_out.data, hv_out.pitch, \
                            self.bathymetry.Bi.data, self.bathymetry.Bi.pitch, \
                            self.bathymetry.Bm.data, self.bathymetry.Bm.pitch, \
-                           self.wind_stress_dev, \
-                           self.t, \
-                           self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
-                           self.reportGeostrophicEquilibrium, \
-                           self.geoEq_uxpvy.data, self.geoEq_uxpvy.pitch, \
-                           self.geoEq_Kx.data, self.geoEq_Kx.pitch, \
-                           self.geoEq_Ly.data, self.geoEq_Ly.pitch )
+                           wind_stress_t, \
+                           np.int32(boundary_conditions))
             
     
     def perturbState(self, q0_scale=None):

@@ -2,18 +2,20 @@ import unittest
 import time
 import numpy as np
 import sys
+import os
 import gc
 
 from testUtils import *
 
-sys.path.insert(0, '../')
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')))
+
 from SWESimulators import Common, CDKLM16
 
 
 class CDKLM16test(unittest.TestCase):
 
     def setUp(self):
-        self.cl_ctx = make_cl_ctx()
+        self.gpu_ctx = make_cl_ctx()
 
         self.nx = 50
         self.ny = 70
@@ -27,9 +29,7 @@ class CDKLM16test(unittest.TestCase):
         self.r = 0.0
         self.A = 1
         
-        #self.h0 = np.ones((self.ny+2, self.nx+2), dtype=np.float32) * 60;
         self.waterHeight = 60
-        self.h0 = None
         self.eta0 = None
         self.u0 = None
         self.v0 = None
@@ -37,8 +37,8 @@ class CDKLM16test(unittest.TestCase):
         
         self.ghosts = [2,2,2,2] # north, east, south, west
         self.validDomain = np.array([2,2,2,2])
-        self.refRange = [-3, -3, 3, 3]
         self.dataRange = [-2, -2, 2, 2]
+        self.refRange = self.dataRange
         self.boundaryConditions = None
 
         self.T = 50.0
@@ -49,12 +49,16 @@ class CDKLM16test(unittest.TestCase):
             self.sim.cleanUp()
             self.sim = None
 
-        self.h0 = None
         self.eta0 = None
         self.u0 = None
         self.v0 = None
         self.Hi = None
-        self.cl_ctx = None
+        
+        if self.gpu_ctx is not None:
+            self.assertEqual(sys.getrefcount(self.gpu_ctx), 2)
+            self.gpu_ctx = None
+
+        
         gc.collect() # Force run garbage collection to free up memory
         
 
@@ -63,7 +67,6 @@ class CDKLM16test(unittest.TestCase):
     def allocData(self):
         dataShape = (self.ny + self.ghosts[0]+self.ghosts[2], 
                      self.nx + self.ghosts[1]+self.ghosts[3])
-        self.h0 = np.ones( dataShape, dtype=np.float32) * self.waterHeight
         self.eta0 = np.zeros(dataShape, dtype=np.float32);
         self.u0 = np.zeros(dataShape, dtype=np.float32)
         self.v0 = np.zeros(dataShape, dtype=np.float32)
@@ -90,45 +93,41 @@ class CDKLM16test(unittest.TestCase):
         diffEta = np.linalg.norm(eta1[self.dataRange[2]:self.dataRange[0], 
                                       self.dataRange[3]:self.dataRange[1]] - 
                                  etaRef[self.refRange[2]:self.refRange[0],
-                                        self.refRange[3]:self.refRange[1]])
+                                        self.refRange[3]:self.refRange[1]]) / np.max(np.abs(etaRef))
         diffU = np.linalg.norm(u1[self.dataRange[2]:self.dataRange[0],
                                   self.dataRange[3]:self.dataRange[1]] -
                                uRef[self.refRange[2]:self.refRange[0],
-                                    self.refRange[3]:self.refRange[1]])
+                                    self.refRange[3]:self.refRange[1]]) / np.max(np.abs(uRef))
         diffV = np.linalg.norm(v1[self.dataRange[2]:self.dataRange[0],
                                   self.dataRange[3]:self.dataRange[1]] - 
                                vRef[ self.refRange[2]:self.refRange[0],
-                                     self.refRange[3]:self.refRange[1]])
+                                     self.refRange[3]:self.refRange[1]]) / np.max(np.abs(vRef))
         maxDiffEta = np.max(eta1[self.dataRange[2]:self.dataRange[0], 
                                  self.dataRange[3]:self.dataRange[1]] - 
                             etaRef[self.refRange[2]:self.refRange[0],
-                                   self.refRange[3]:self.refRange[1]])
+                                   self.refRange[3]:self.refRange[1]]) / np.max(np.abs(etaRef))
         maxDiffU = np.max(u1[self.dataRange[2]:self.dataRange[0],
                              self.dataRange[3]:self.dataRange[1]] -
                           uRef[self.refRange[2]:self.refRange[0],
-                               self.refRange[3]:self.refRange[1]])
+                               self.refRange[3]:self.refRange[1]]) / np.max(np.abs(uRef))
         maxDiffV = np.max(v1[self.dataRange[2]:self.dataRange[0],
                              self.dataRange[3]:self.dataRange[1]] - 
                           vRef[ self.refRange[2]:self.refRange[0],
-                                self.refRange[3]:self.refRange[1]])
+                                self.refRange[3]:self.refRange[1]]) / np.max(np.abs(vRef))
         
-        self.assertAlmostEqual(maxDiffEta, 0.0, places=0,
-                               msg='Unexpected eta difference! Max diff: ' + str(maxDiffEta) + ', L2 diff: ' + str(diffEta))
-        #
-        # W A R N I N G ! ! ! W A R N I N G ! ! ! W A R N I N G ! ! !
-        #                             Disabled tests for u and v
-        #
-        #self.assertAlmostEqual(maxDiffU, 0.0, places=0,
-        #                       msg='Unexpected U difference: ' + str(maxDiffU) + ', L2 diff: ' + str(diffU))
-        #self.assertAlmostEqual(maxDiffV, 0.0, places=0,
-        #                       msg='Unexpected V difference: ' + str(maxDiffV) + ', L2 diff: ' + str(diffV))
+        self.assertAlmostEqual(maxDiffEta, 0.0, places=3,
+                               msg='Unexpected eta difference! Max rel diff: ' + str(maxDiffEta) + ', L2 rel diff: ' + str(diffEta))
+        self.assertAlmostEqual(maxDiffU, 0.0, places=3,
+                               msg='Unexpected U relative difference: ' + str(maxDiffU) + ', L2 rel diff: ' + str(diffU))
+        self.assertAlmostEqual(maxDiffV, 0.0, places=3,
+                               msg='Unexpected V relative difference: ' + str(maxDiffV) + ', L2 rel diff: ' + str(diffV))
     ## Wall boundary conditions
     
     def test_wall_central(self):
         self.setBoundaryConditions()
         self.allocData()
-        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
                                    self.dx, self.dy, self.dt, \
@@ -145,8 +144,8 @@ class CDKLM16test(unittest.TestCase):
     def test_wall_corner(self):
         self.setBoundaryConditions()
         self.allocData()
-        addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+        addCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
                                    self.dx, self.dy, self.dt, \
@@ -161,8 +160,8 @@ class CDKLM16test(unittest.TestCase):
     def test_wall_upperCorner(self):
         self.setBoundaryConditions()
         self.allocData()
-        addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+        addUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
                                    self.dx, self.dy, self.dt, \
@@ -180,8 +179,8 @@ class CDKLM16test(unittest.TestCase):
     def test_periodic_central(self):
         self.setBoundaryConditions(bcSettings=2)
         self.allocData()
-        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
                                    self.dx, self.dy, self.dt, \
@@ -197,8 +196,8 @@ class CDKLM16test(unittest.TestCase):
     def test_periodic_corner(self):
         self.setBoundaryConditions(bcSettings=2)
         self.allocData()
-        addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+        addCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
                                    self.dx, self.dy, self.dt, \
@@ -213,8 +212,8 @@ class CDKLM16test(unittest.TestCase):
     def test_periodic_upperCorner(self):
         self.setBoundaryConditions(bcSettings=2)
         self.allocData()
-        addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+        addUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
                                    self.dx, self.dy, self.dt, \
@@ -232,8 +231,8 @@ class CDKLM16test(unittest.TestCase):
     def test_periodicNS_central(self):
         self.setBoundaryConditions(bcSettings=3)
         self.allocData()
-        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
                                    self.dx, self.dy, self.dt, \
@@ -249,8 +248,8 @@ class CDKLM16test(unittest.TestCase):
     def test_periodicNS_corner(self):
         self.setBoundaryConditions(bcSettings=3)
         self.allocData()
-        addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+        addCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
                                    self.dx, self.dy, self.dt, \
@@ -270,8 +269,8 @@ class CDKLM16test(unittest.TestCase):
     def test_periodicNS_upperCorner(self):
         self.setBoundaryConditions(bcSettings=3)
         self.allocData()
-        addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+        addUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
                                    self.dx, self.dy, self.dt, \
@@ -288,8 +287,8 @@ class CDKLM16test(unittest.TestCase):
     def test_periodicEW_central(self):
         self.setBoundaryConditions(bcSettings=4)
         self.allocData()
-        addCentralBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
                                    self.dx, self.dy, self.dt, \
@@ -305,8 +304,8 @@ class CDKLM16test(unittest.TestCase):
     def test_periodicEW_corner(self):
         self.setBoundaryConditions(bcSettings=4)
         self.allocData()
-        addCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+        addCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
                                    self.dx, self.dy, self.dt, \
@@ -321,8 +320,8 @@ class CDKLM16test(unittest.TestCase):
     def test_periodicEW_upperCorner(self):
         self.setBoundaryConditions(bcSettings=4)
         self.allocData()
-        addUpperCornerBump(self.h0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+        addUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
                                    self.dx, self.dy, self.dt, \
@@ -340,7 +339,7 @@ class CDKLM16test(unittest.TestCase):
         self.allocData()
         self.f = 0.01
         addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
-        self.sim = CDKLM16.CDKLM16(self.cl_ctx, \
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
                                    self.eta0, self.u0, self.v0, self.Hi, \
                                    self.nx, self.ny, \
                                    self.dx, self.dy, self.dt, \
@@ -351,3 +350,61 @@ class CDKLM16test(unittest.TestCase):
         eta2, u2, v2 = loadResults("CDKLM16", "coriolis", "central")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+
+    def test_betamodel_central(self):
+        self.setBoundaryConditions()
+        self.allocData()
+        self.f = 0.01
+        beta = 1e-6
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
+                                   self.eta0, self.u0, self.v0, self.Hi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r, coriolis_beta=beta)
+    #, boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("CDKLM16", "betamodel", "central")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+    def test_betamodel_central(self):
+        self.setBoundaryConditions()
+        self.allocData()
+        self.f = 0.01
+        beta = 1e-6
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
+                                   self.eta0, self.u0, self.v0, self.Hi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r, coriolis_beta=beta)
+    #, boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("CDKLM16", "betamodel", "central")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+        
+    def test_bathymetry_central(self):
+        self.setBoundaryConditions()
+        self.allocData() 
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        makeBottomTopography(self.Hi, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
+                                   self.eta0, self.u0, self.v0, self.Hi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("CDKLM16", "wallBC", "central", "bathymetry_")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+       

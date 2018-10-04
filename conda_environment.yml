@@ -1,0 +1,21 @@
+# Assumes that conda, pip and build-essentials are installed
+---
+name: gpuocean-opencl
+channels:
+- conda-forge
+
+dependencies:
+- python=3.5
+- numpy
+- matplotlib ==2.2.2
+- jupyter
+- netcdf4
+- pytest
+- xmlrunner
+- scipy
+- pandas
+- nb_conda_kernels
+- pip:
+  - pyopencl==2015.1
+# on Windows: make sure your visual studio c++ compiler is available in PATH
+# PATH should have something like C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\

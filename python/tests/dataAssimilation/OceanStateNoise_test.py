@@ -3,7 +3,7 @@ import time
 import numpy as np
 import sys
 import gc
-import pyopencl
+import pycuda.driver as cuda
 
 from testUtils import *
 
@@ -15,9 +15,9 @@ from SWESimulators.OceanStateNoise import *
 class OceanStateNoiseTest(unittest.TestCase):
 
     def setUp(self):
-        self.cl_ctx = make_cl_ctx()
-        self.cl_queue = pyopencl.CommandQueue(self.cl_ctx)
-
+        self.gpu_ctx = Common.CUDAContext()
+        self.gpu_stream = cuda.Stream()
+        
         self.nx = 30
         self.ny = 40
         self.dx = 1.0
@@ -38,13 +38,14 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.periodicNS = True
         self.periodicEW = True
 
-        # Multiplies of block size: 16, 32, 48, 64
-        self.glob_size_x = 16*2
-        self.glob_size_y = 16*3
-        self.glob_size_x_nonperiodic = 16*3
-        self.glob_size_y_nonperiodic = 16*3
-        self.glob_size_random_x = 16*1
-        self.glob_size_random_x_nonperiodic = 16*2
+        # Total number of threads should be: 16, 32, 48, 64
+        # Corresponding to the number of blocks: 1, 2, 3, 4
+        self.glob_size_x = 2
+        self.glob_size_y = 3
+        self.glob_size_x_nonperiodic = 3
+        self.glob_size_y_nonperiodic = 3
+        self.glob_size_random_x = 1
+        self.glob_size_random_x_nonperiodic = 2
 
         self.large_nx = 400
         self.large_ny = 400
@@ -73,6 +74,11 @@ class OceanStateNoiseTest(unittest.TestCase):
             self.hv.release()
         if self.H is not None:
             self.H.release()
+        if self.gpu_ctx is not None:
+            self.assertEqual(sys.getrefcount(self.gpu_ctx), 2)
+            self.gpu_ctx = None
+   
+        gc.collect()
             
     def create_noise(self):
         n,e,s,w = 1,1,1,1
@@ -80,7 +86,7 @@ class OceanStateNoiseTest(unittest.TestCase):
             n,s = 2,2
         if self.periodicEW:
             e,w = 2,2
-        self.noise = OceanStateNoise(self.cl_ctx, self.cl_queue,
+        self.noise = OceanStateNoise(self.gpu_ctx, self.gpu_stream,
                                      self.nx, self.ny,
                                      self.dx, self.dy,
                                      Common.BoundaryConditions(n,e,s,w),
@@ -91,7 +97,7 @@ class OceanStateNoiseTest(unittest.TestCase):
             n,s = 2,2
         if self.periodicEW:
             e,w = 2,2
-        self.large_noise = OceanStateNoise(self.cl_ctx, self.cl_queue,
+        self.large_noise = OceanStateNoise(self.gpu_ctx, self.gpu_stream,
                                            self.large_nx, self.large_ny,
                                            self.dx, self.dy,
                                            Common.BoundaryConditions(n,e,s,w),
@@ -99,10 +105,10 @@ class OceanStateNoiseTest(unittest.TestCase):
 
     def allocateBuffers(self, HCPU):
         host_buffer = np.zeros((self.ny, self.nx))
-        self.eta = Common.OpenCLArray2D(self.cl_ctx, self.nx, self.ny, 0, 0, host_buffer)
-        self.hu = Common.OpenCLArray2D(self.cl_ctx, self.nx, self.ny, 0, 0, host_buffer)
-        self.hv = Common.OpenCLArray2D(self.cl_ctx, self.nx, self.ny, 0, 0, host_buffer)
-        self.H = Common.OpenCLArray2D(self.cl_ctx, self.nx+1, self.ny+1, 0, 0, HCPU)
+        self.eta = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, 0, 0, host_buffer)
+        self.hu = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, 0, 0, host_buffer)
+        self.hv = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, 0, 0, host_buffer)
+        self.H = Common.CUDAArray2D(self.gpu_stream, self.nx+1, self.ny+1, 0, 0, HCPU)
         del host_buffer
         
     def compare_random(self, tol, msg):
@@ -210,12 +216,44 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.assertAlmostEqual(mean, 0.5, 2)
         self.assertAlmostEqual(var, 1.0/12.0, 2)
 
+
+    def test_random_uniform_CPU(self):
+        self.create_large_noise()
+
+        self.large_noise.generateUniformDistributionCPU()
+
+        U = self.large_noise.getRandomNumbersCPU()
+
+        mean = np.mean(U)
+        var = np.var(U)
+
+        # Check the mean and var with very low accuracy.
+        # Gives error if the distribution is way off
+        self.assertAlmostEqual(mean, 0.5, 2)
+        self.assertAlmostEqual(var, 1.0/12.0, 2)
+
     def test_random_normal(self):
         self.create_large_noise()
 
         self.large_noise.generateNormalDistribution()
 
         U = self.large_noise.getRandomNumbers()
+
+        mean = np.mean(U)
+        var = np.var(U)
+
+        # Check the mean and var with very low accuracy.
+        # Gives error if the distribution is way off
+        self.assertAlmostEqual(mean, 0.0, 2)
+        self.assertAlmostEqual(var, 1.0, 1)
+
+        
+    def test_random_normal_CPU(self):
+        self.create_large_noise()
+
+        self.large_noise.generateNormalDistributionCPU()
+
+        U = self.large_noise.getRandomNumbersCPU()
 
         mean = np.mean(U)
         var = np.var(U)
@@ -251,7 +289,7 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.noise.perturbOceanState(self.eta, self.hu, self.hv, self.H,
                                      self.f, self.beta, self.g)
         self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True)
-        etaFromGPU = self.eta.download(self.cl_queue)
+        etaFromGPU = self.eta.download(self.gpu_stream)
 
         # Scale so that largest value becomes ~ 1
         maxVal = np.max(etaCPU)
@@ -293,8 +331,8 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.noise.perturbOceanStateCPU(etaCPU, huCPU, hvCPU, HCPU,
                                         self.f, self.beta, self.g,
                                         use_existing_GPU_random_numbers=True)
-        huFromGPU = self.hu.download(self.cl_queue)
-        hvFromGPU = self.hv.download(self.cl_queue)
+        huFromGPU = self.hu.download(self.gpu_stream)
+        hvFromGPU = self.hv.download(self.gpu_stream)
 
         # Scale so that largest value becomes ~ 1:
         maxVal = np.max(huCPU)

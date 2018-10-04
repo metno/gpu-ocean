@@ -7,16 +7,23 @@ import xmlrunner
 # $ sudo easy_install unittest-xml-reporting
 
 #import testUtils
-from pyopenclTests.OpenCLArray2D_test import OpenCLArray2DTest
+from dataAssimilation.OceanStateNoise_test import OceanStateNoiseTest
 
-if (len(sys.argv) < 1):
+def printSupportedTests():
+    print ("Supported tests:")
+    print ("0: All, 1: OceanStateNoise")
+
+
+if (len(sys.argv) < 2):
     print ("Usage:")
-    print ("\t %s  [jenkins]" % sys.argv[0])
+    print ("\t %s tests  [jenkins]" % sys.argv[0])
+    printSupportedTests()
     exit()
+tests = int(sys.argv[1])
 
 # In order to format the test report so that Jenkins can read it:
 jenkins = False
-if (len(sys.argv) > 1):
+if (len(sys.argv) > 2):
     if (sys.argv[1].lower() == "jenkins"):
         jenkins = True
 
@@ -26,9 +33,16 @@ if (jenkins):
 
 # Define the tests that will be part of our test suite:
 test_classes_to_run = None
-test_classes_to_run = [OpenCLArray2DTest]
+if tests == 0:
+    test_classes_to_run = [OceanStateNoiseTest]
+elif tests == 1:
+    test_classes_to_run = [OceanStateNoiseTest]
+else:
+    print ("Error: " + str(tests) + " is not a supported test number...")
+    printSupportedTests()
+    exit()
 
-
+    
 loader = unittest.TestLoader()
 suite_list = []
 for test_class in test_classes_to_run:
