@@ -122,10 +122,49 @@ class FBL(Simulator.Simulator):
         
         
         #Get kernels
-        self.u_kernel = gpu_ctx.get_kernel("FBL_U_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
-        self.v_kernel = gpu_ctx.get_kernel("FBL_V_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
-        self.eta_kernel = gpu_ctx.get_kernel("FBL_eta_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
-
+        self.u_kernel = gpu_ctx.get_kernel("FBL_U_kernel.cu", 
+                defines={'block_width': block_width, 'block_height': block_height},
+                compile_args={
+                    'no_extern_c': True,
+                    'options': ["--use_fast_math"],
+                    #'options': ["--generate-line-info"], 
+                    #'options': ["--maxrregcount=32"]
+                    #'arch': "compute_50", 
+                    #'code': "sm_50"
+                },
+                jit_compile_args={
+                    #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
+                }
+        )
+        self.v_kernel = gpu_ctx.get_kernel("FBL_V_kernel.cu", 
+                defines={'block_width': block_width, 'block_height': block_height},
+                compile_args={
+                    'no_extern_c': True,
+                    'options': ["--use_fast_math"],
+                    #'options': ["--generate-line-info"], 
+                    #'options': ["--maxrregcount=32"]
+                    #'arch': "compute_50", 
+                    #'code': "sm_50"
+                },
+                jit_compile_args={
+                    #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
+                }
+        )
+        self.eta_kernel = gpu_ctx.get_kernel("FBL_eta_kernel.cu", 
+                defines={'block_width': block_width, 'block_height': block_height},
+                compile_args={
+                    'no_extern_c': True,
+                    'options': ["--use_fast_math"],
+                    #'options': ["--generate-line-info"], 
+                    #'options': ["--maxrregcount=32"]
+                    #'arch': "compute_50", 
+                    #'code': "sm_50"
+                },
+                jit_compile_args={
+                    #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
+                }
+        )
+        
         # Get CUDA functions 
         self.computeUKernel = self.u_kernel.get_function("computeUKernel")
         self.computeVKernel = self.v_kernel.get_function("computeVKernel")
