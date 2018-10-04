@@ -29,7 +29,7 @@ import gc
 from SWESimulators import Common, SimWriter, SimReader
 from SWESimulators import Simulator
 from SWESimulators import WindStress
-from SWESimulators import OceanStateNoise
+#from SWESimulators import OceanStateNoise
 
 
 class CDKLM16(Simulator.Simulator):
@@ -173,10 +173,11 @@ class CDKLM16(Simulator.Simulator):
         self.small_scale_perturbation = small_scale_perturbation
         self.small_scale_model_error = None
         if small_scale_perturbation:
-            if small_scale_perturbation_amplitude is None:
-                self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self)
-            else:
-                self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, soar_q0=small_scale_perturbation_amplitude)
+            #if small_scale_perturbation_amplitude is None:
+            #    self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self)
+            #else:
+            #    self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, soar_q0=small_scale_perturbation_amplitude)
+            pass
         
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
