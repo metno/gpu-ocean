@@ -29,7 +29,7 @@ __device__ float linear_coriolis_term(const float f, const float beta,
 			   const float tj, const float dy,
 			   const float y_zero_reference_cell) {
     // y_0 is at the southern face of the row y_zero_reference_cell.
-    float y = (tj-y_zero_reference_cell + 0.0f)*dy;
+    const float y = (tj-y_zero_reference_cell + 0.0f)*dy;
     return f + beta * y;
 }
 
@@ -40,29 +40,29 @@ __device__ float linear_coriolis_term(const float f, const float beta,
 extern "C" {
 __global__ void computeVKernel(
         //Discretization parameters
-        int nx_, int ny_,
-        int bc_north_, int bc_south_,
-        float dx_, float dy_, float dt_,
+        const int nx_, const int ny_,
+        const int bc_north_, const int bc_south_,
+        const float dx_, const float dy_, const float dt_,
     
         //Physical parameters
-        float g_, //< Gravitational constant
-        float f_, //< Coriolis coefficient
-        float beta_, //< Coriolis force f_ + beta_*(y-y0)
-        float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
-        float r_, //< Bottom friction coefficient
+        const float g_, //< Gravitational constant
+        const float f_, //< Coriolis coefficient
+        const float beta_, //< Coriolis force f_ + beta_*(y-y0)
+        const float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
+        const float r_, //< Bottom friction coefficient
     
         //Numerical diffusion
-        float A_,
+        const float A_,
     
         //Data
-        float* H_ptr_, int H_pitch_,
-        float* eta1_ptr_, int eta1_pitch_, // eta^n
-        float* U1_ptr_, int U1_pitch_, // U^n
-        float* V0_ptr_, int V0_pitch_, // V^n-1, also output V^n+1
-        float* V1_ptr_, int V1_pitch_, // V^n
+        float* H_ptr_, const int H_pitch_,
+        float* eta1_ptr_, const int eta1_pitch_, // eta^n
+        float* U1_ptr_, const int U1_pitch_, // U^n
+        float* V0_ptr_, const int V0_pitch_, // V^n-1, also output V^n+1
+        float* V1_ptr_, const int V1_pitch_, // V^n
     
         // Wind stress parameters
-		float wind_stress_t_) {
+		const float wind_stress_t_) {
         
     __shared__ float H_shared[block_height+1][block_width+2];
     __shared__ float eta1_shared[block_height+1][block_width+2];
@@ -229,23 +229,23 @@ __global__ void computeVKernel(
     const float N_b = (V_00 + V_0m)*(V_00 + V_0m) / (H_00 + eta_00);
     const float N_c = (U_0p + U_00)*(V_p0 + V_00) / (H_bar_00 + eta_bar_00);
     const float N_d = (U_mp + U_m0)*(V_00 + V_m0) / (H_bar_m0 + eta_bar_m0);
-    float N = 0.25f*( N_a - N_b + (dy_/dx_)*(N_c - N_d) );
+    const float N = 0.25f*( N_a - N_b + (dy_/dx_)*(N_c - N_d) );
     
     //Calculate eddy viscosity term
-    float E = (V_p0 - V0 + V_m0)/(dx_*dx_) + (V_0p - V0 + V_0m)/(dy_*dy_);
+    const float E = (V_p0 - V0 + V_m0)/(dx_*dx_) + (V_0p - V0 + V_0m)/(dy_*dy_);
 
     //Calculate the wind shear stress
     //FIXME Check coordinates (ti_, tj_) here!!!
     //TODO Check coordinates (ti_, tj_) here!!!
     //WARNING Check coordinates (ti_, tj_) here!!!
-    float Y = windStressY(wind_stress_t_, ti+0.5, tj, nx_, ny_);
+    const float Y = windStressY(wind_stress_t_, ti+0.5, tj, nx_, ny_);
     
     // Finding the contribution from Coriolis
-    float global_thread_y = blockIdx.y * blockDim.y + threadIdx.y;
-    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_, y_zero_reference_cell_);
+    const float global_thread_y = blockIdx.y * blockDim.y + threadIdx.y;
+    const float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_, y_zero_reference_cell_);
 
     //Compute the V at the next timestep
-    float V2 = (V0 + 2.0f*dt_*(-fU_bar + (N + P_y)/dy_ + Y + A_*E) ) / C;
+    const float V2 = (V0 + 2.0f*dt_*(-fU_bar + (N + P_y)/dy_ + Y + A_*E) ) / C;
 
     //Write to main memory for internal cells
     //if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {

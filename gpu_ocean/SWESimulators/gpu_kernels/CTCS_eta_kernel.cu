@@ -27,7 +27,7 @@ __device__ float linear_coriolis_term(const float f, const float beta,
 			   const float tj, const float dy,
 			   const float y_zero_reference_cell) {
     // y_0 is at the southern face of the row y_zero_reference_cell.
-    float y = (tj-y_zero_reference_cell + 0.5f)*dy;
+    const float y = (tj-y_zero_reference_cell + 0.5f)*dy;
     return f + beta * y;
 }
 
@@ -37,20 +37,20 @@ __device__ float linear_coriolis_term(const float f, const float beta,
 extern "C" {
 __global__ void computeEtaKernel(
         //Discretization parameters
-        int nx_, int ny_,
-        float dx_, float dy_, float dt_,
+        const int nx_, const int ny_,
+        const float dx_, const float dy_, const float dt_,
     
         //Physical parameters
-        float g_, //< Gravitational constant
-        float f_, //< Coriolis coefficient
-	float beta_, //< Coriolis force f_ + beta_*(y-y0)
-	float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
-        float r_, //< Bottom friction coefficient
+        const float g_, //< Gravitational constant
+        const float f_, //< Coriolis coefficient
+		const float beta_, //< Coriolis force f_ + beta_*(y-y0)
+		const float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
+        const float r_, //< Bottom friction coefficient
     
         //Data
-        float* eta0_ptr_, int eta0_pitch_, //eta^n-1 (also used as output, that is eta^n+1)
-        float* U1_ptr_, int U1_pitch_, // U^n
-        float* V1_ptr_, int V1_pitch_ // V^n
+        float* eta0_ptr_, const int eta0_pitch_, //eta^n-1 (also used as output, that is eta^n+1)
+        float* U1_ptr_, const int U1_pitch_, // U^n
+        float* V1_ptr_, const int V1_pitch_ // V^n
         ) {
     
     //Index of thread within block
@@ -120,8 +120,8 @@ __global__ void computeEtaKernel(
     __syncthreads();
 
     //Compute the H at the next timestep
-    float eta2 = eta0 - 2.0f*dt_/dx_ * (U1_shared[ty][tx+1] - U1_shared[ty][tx])
-                      - 2.0f*dt_/dy_ * (V1_shared[ty+1][tx] - V1_shared[ty][tx]);
+    const float eta2 = eta0 - 2.0f*dt_/dx_ * (U1_shared[ty][tx+1] - U1_shared[ty][tx])
+							- 2.0f*dt_/dy_ * (V1_shared[ty+1][tx] - V1_shared[ty][tx]);
     
     //Write to main memory
     //if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
