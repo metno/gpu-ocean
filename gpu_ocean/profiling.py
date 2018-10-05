@@ -123,12 +123,22 @@ if __name__ == '__main__':
     profiling_args_parser.add_argument('-ctcs', '--ctcs', dest='simulators', action='append_const', const=CTCS.CTCS)
     profiling_args_parser.add_argument('-kp', '--kp', dest='simulators', action='append_const', const=KP07.KP07)
     profiling_args_parser.add_argument('-cdklm', '--cdklm', dest='simulators', action='append_const', const=CDKLM16.CDKLM16)
-    
+    profiling_args_parser.add_argument('--block_width', type=int)
+    profiling_args_parser.add_argument('--block_height', type=int)
     
     profiling_args, remaining = profiling_args_parser.parse_known_args()
     sim_vars, remaining = sim_args_parser.parse_known_args(args=remaining)
     sim_args = vars(sim_vars)
-        
+
+    
+    if (profiling_args.block_width != None):
+        sim_args['block_width'] = profiling_args.block_width
+    if (profiling_args.block_height != None):
+        sim_args['block_height'] = profiling_args.block_height
+	
+
+    
+    
     if (remaining):
         sim_args_parser.print_help()
         profiling_args_parser.print_help()
