@@ -127,9 +127,9 @@ class CTCS(Simulator.Simulator):
                 defines={'block_width': block_width, 'block_height': block_height},
                 compile_args={
                     'no_extern_c': True,
-                    'options': ["--use_fast_math"],
+                    'options': ["--use_fast_math"]
                     #'options': ["--generate-line-info"], 
-                    'options': ["--maxrregcount=32"]
+                    #'options': ["--maxrregcount=32"]
                     #'arch': "compute_50", 
                     #'code': "sm_50"
                 },
@@ -141,9 +141,9 @@ class CTCS(Simulator.Simulator):
                 defines={'block_width': block_width, 'block_height': block_height},
                 compile_args={
                     'no_extern_c': True,
-                    'options': ["--use_fast_math"],
+                    'options': ["--use_fast_math"]
                     #'options': ["--generate-line-info"], 
-                    'options': ["--maxrregcount=32"]
+                    #'options': ["--maxrregcount=32"]
                     #'arch': "compute_50", 
                     #'code': "sm_50"
                 },
