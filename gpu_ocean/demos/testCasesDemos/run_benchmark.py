@@ -46,7 +46,8 @@ tic = time.time();
 # Import packages we need
 import os
 import numpy as np
-from SWESimulators import FBL, CTCS, KP07, CDKLM16, PlotHelper, Common
+#from SWESimulators import FBL, CTCS, KP07, CDKLM16, PlotHelper, Common
+from SWESimulators import FBL, CTCS, KP07, PlotHelper, Common
 
 
 toc = time.time()
@@ -230,6 +231,7 @@ def initCTCS():
 					args.nx, args.ny, \
 					dx, dy, dt, \
 					g, f, r, A, \
+                                        write_netcdf=True, \
 					**kwargs)
 	toc = time.time()
 	print("{:02.4f} s: ".format(toc-tic) + "Created CTCS simulator")
