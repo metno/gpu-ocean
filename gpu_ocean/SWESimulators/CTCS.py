@@ -26,6 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import gc
+import pycuda.driver as cuda
 
 from SWESimulators import Common, SimWriter, SimReader
 from SWESimulators import Simulator
@@ -111,6 +112,8 @@ class CTCS(Simulator.Simulator):
                                    ignore_ghostcells, \
                                    offset_x, offset_y, \
                                    block_width, block_height)
+
+        self.gpu_streams = [self.gpu_stream, cuda.Stream(), cuda.Stream()]
             
         # Index range for interior domain (north, east, south, west)
         # so that interior domain of eta is
@@ -338,8 +341,13 @@ class CTCS(Simulator.Simulator):
                 
             self.update_wind_stress(self.u_kernel, self.computeUKernel)
             wind_stress_t = np.float32(self.update_wind_stress(self.v_kernel, self.computeVKernel))
+
+            # streams are [U-stream, V-stream, eta-stream]
+            # self.gpu_streams = [self.gpu_stream, cuda.Stream(), cuda.Stream()]
+
+            events = [cuda.Event(), cuda.Event(), cuda.Event()]
             
-            self.computeEtaKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.computeEtaKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_streams[0], \
                     self.nx, self.ny, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
@@ -347,9 +355,10 @@ class CTCS(Simulator.Simulator):
                     self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch,   # U^{n} \
                     self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch)   # V^{n}
 
-            self.bc_kernel.boundaryConditionEta(self.gpu_stream, self.gpu_data.h0)
+            self.bc_kernel.boundaryConditionEta(self.gpu_streams[0], self.gpu_data.h0)
+            #
             
-            self.computeUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.computeUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_streams[1], \
                     self.nx, self.ny, \
                     boundary_conditions, \
                     self.dx, self.dy, local_dt, \
@@ -362,9 +371,10 @@ class CTCS(Simulator.Simulator):
                     self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch,    # V^{n} \
                     wind_stress_t)
 
-            self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu0)
+            self.bc_kernel.boundaryConditionU(self.gpu_streams[1], self.gpu_data.hu0)
+            events[1].record(self.gpu_streams[1])
             
-            self.computeVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.computeVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_streams[2], \
                     self.nx, self.ny, \
                     boundary_conditions, \
                     self.dx, self.dy, local_dt, \
@@ -377,8 +387,19 @@ class CTCS(Simulator.Simulator):
                     self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch,   # V^{n} \
                     wind_stress_t)
 
-            self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv0)
+            self.bc_kernel.boundaryConditionV(self.gpu_streams[2], self.gpu_data.hv0)
+            events[2].record(self.gpu_streams[2])
             
+
+            #for event in events:
+            #    event.synchronize()
+            self.gpu_streams[0].wait_for_event(events[1])
+            self.gpu_streams[0].wait_for_event(events[2])
+            events[0].record(self.gpu_streams[0])
+            
+            self.gpu_streams[1].wait_for_event(events[0])
+            self.gpu_streams[2].wait_for_event(events[0])
+                        
             #After the kernels, swap the data pointers
             self.gpu_data.swap()
             
