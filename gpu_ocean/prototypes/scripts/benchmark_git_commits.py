@@ -168,28 +168,6 @@ logger.debug(stdout)
 
 
 
-def block_string(block_size):
-    return "block_width="+str(block_size[0])+", block_height="+str(block_size[1])
-
-# Function to change block sizes according to the git commit list
-def patch_block_sizes(cdklm_py_file_path, old_block_sizes, new_block_sizes):
-    old_string = block_string(old_block_sizes)
-    new_string = block_string(new_block_sizes)
-    
-    # create temporary file
-    tmpfile, tmpfile_abs_path = tempfile.mkstemp()
-    with os.fdopen(tmpfile, 'w') as new_file:
-        with open(cdklm_py_file_path) as old_file:
-            for line in old_file:
-                new_file.write(line.replace(old_string, new_string))
-    # Remove original file
-    os.remove(cdklm_py_file_path)
-    # Move the new file
-    shutil.move(tmpfile_abs_path, cdklm_py_file_path)
-
-
-
-
 # Loop through the git_versions and run each benchmark
 for version, log, laptop_block, desktop_block, supercomputer_block in git_versions:
     logger.debug("checkout " + version)
@@ -202,27 +180,22 @@ for version, log, laptop_block, desktop_block, supercomputer_block in git_versio
     logger.debug("stdout: " + str(stdout))
         
     if architecture == Architecture.DESKTOP or architecture == Architecture.SUPERCOMPUTER:
-        cdklm_abs_path = os.path.join(git_clone, cdklm_python_class_relpath)
+        block_size_options = None
+        
+        if architecture == Architecture.LAPTOP:
+            block_size_options = ["--block_width", str(laptop_block[0]), "--block_height", str(laptop_block[1])] 
+
+            
         if architecture == Architecture.DESKTOP:
-            patch_block_sizes(cdklm_abs_path, laptop_block, desktop_block)
-            logger.debug("Changed blocksizes from " + str(laptop_block) + " to " + str(desktop_block))
-    
+            block_size_options = ["--block_width", str(desktop_block[0]), "--block_height", str(desktop_block[1])]
+            
         if architecture == Architecture.SUPERCOMPUTER:
-            patch_block_sizes(cdklm_abs_path, laptop_block, supercomputer_block)
-            logger.debug("Changed blocksizes from " + str(laptop_block) + " to " + str(desktop_block))
-        
-        # Grep on file to check that we succeeded:
-        try:
-            cmd = ["grep", "block_width=", cdklm_abs_path]
-            a = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=shell, cwd=tmpdir, env=my_env)
-        except subprocess.CalledProcessError as e:
-            logger.error("Failed, return code " + str(e.returncode) + "\n" + str(e.output))
-        logger.debug("Confirming block sizes through grep:\n" + a.decode("utf-8"))
-        
+            block_size_options = ["--block_width", str(supercomputer_block[0]), "--block_height", str(supercomputer_block[1])]
+                   
     a = None
     try:
         #cmd = ["python", "--version"]
-        cmd = ["python", os.path.join(git_clone, benchmark_script_relpath)] + benchmark_script_options + ["--output", "benchmark_" + version + ".npz"]
+        cmd = ["python", os.path.join(git_clone, benchmark_script_relpath)] + benchmark_script_options + ["--output", "benchmark_" + version + ".npz"] + block_size_options
         a = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=shell, cwd=tmpdir, env=my_env)
     except subprocess.CalledProcessError as e:
         logger.error("Failed, return code " + str(e.returncode) + "\n" + str(e.output))
