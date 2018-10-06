@@ -72,7 +72,7 @@ def runBenchmark(filename, simulator):
                     test_file.write("=========================================\n")
                     test_file.write(sim[k] + " [{:02d} x {:02d}]\n".format(block_width[i,j], block_height[i,j]))
                     test_file.write("-----------------------------------------\n")
-                    cmd = [ "python", "run_benchmark.py", "--block_width", str(block_width[i,j]), \
+                    cmd = [ "python3", "run_benchmark.py", "--block_width", str(block_width[i,j]), \
                            "--block_height", str(block_height[i,j]), "--simulator", sim[k]]
                     p = subprocess.Popen(cmd, shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                     output = p.stdout.read()
@@ -172,4 +172,4 @@ if __name__ == "__main__":
         print("Maximum={:.2f}".format(maximum))
         print("Minimum={:.2f}".format(minimum))
         print("Mean={:.2f}".format(mean))
-        
+
