@@ -309,7 +309,7 @@ class FBL(Simulator.Simulator):
             wind_stress_t = np.float32(self.update_wind_stress(self.v_kernel, self.computeVKernel))
 
             self.computeUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
-                    self.nx_halo, self.ny, \
+                    self.nx, self.ny, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
                     self.H.data.gpudata, self.H.pitch, \
@@ -322,7 +322,7 @@ class FBL(Simulator.Simulator):
             self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu0)
             
             self.computeVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
-                    self.nx, self.ny_halo, \
+                    self.nx, self.ny, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
                     self.H.data.gpudata, self.H.pitch, \
@@ -420,8 +420,8 @@ class FBL_periodic_boundary:
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height, 1) # WARNING::: MUST MATCH defines of block_width/height in kernels!
         self.global_size = ( \
-                int(np.ceil((self.nx_halo+2) / float(self.local_size[0]))), \
-                int(np.ceil((self.ny_halo+3) / float(self.local_size[1]))) )
+                int(np.ceil((self.nx+2) / float(self.local_size[0]))), \
+                int(np.ceil((self.ny+3) / float(self.local_size[1]))) )
 
     
 

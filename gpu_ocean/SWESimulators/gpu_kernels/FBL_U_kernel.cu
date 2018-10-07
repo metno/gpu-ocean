@@ -109,13 +109,13 @@ __global__ void computeUKernel(
     }
 
     //Read V into shared memory [block_height+3][block_width+2]
-    for (int j=ty; j<block_height+3; j+=blockDim.y) {
+    for (int j=threadIdx.y; j<block_height+3; j+=blockDim.y) {
         const int l = by + j;
         
         //Compute the pointer to current row in the V array
         float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*l);
         
-        for (int i=tx; i<block_width+2; i+=blockDim.x) {
+        for (int i=threadIdx.x; i<block_width+2; i+=blockDim.x) {
             const int k = bx + i;
             
             if (k < nx_+2 && l < ny_+3) {
@@ -162,7 +162,7 @@ __global__ void computeUKernel(
     }
 
     //Write to main memory for internal cells
-    if (ti < nx_ && tj > 0 && tj < ny_) {
+    if (ti < nx_ && tj > 0 && tj < ny_+1) {
         U_row[ti] = U_next;
     }
 

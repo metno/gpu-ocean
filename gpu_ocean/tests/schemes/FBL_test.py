@@ -162,7 +162,7 @@ class FBLtest(unittest.TestCase):
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
         
 
-    def atest_periodic_corner(self):
+    def test_periodic_corner(self):
         self.setBoundaryConditions(2)
         self.createHostData()
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
@@ -174,7 +174,7 @@ class FBLtest(unittest.TestCase):
                            boundary_conditions=self.boundaryConditions)
         
         t = self.sim.step(self.T)
-        eta1, u1, v1 = self.sim.download()
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
         eta2, u2, v2 = loadResults("FBL", "periodicAll", "corner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
@@ -199,7 +199,7 @@ class FBLtest(unittest.TestCase):
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
         
 
-    def atest_periodicNS_corner(self):
+    def test_periodicNS_corner(self):
         self.setBoundaryConditions(3)
         self.createHostData()
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
@@ -217,7 +217,7 @@ class FBLtest(unittest.TestCase):
         self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
         
 
-    def atest_periodicEW_central(self):
+    def test_periodicEW_central(self):
         self.setBoundaryConditions(4)
         self.createHostData()
         makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
@@ -235,7 +235,7 @@ class FBLtest(unittest.TestCase):
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
         
 
-    def atest_periodicEW_corner(self):
+    def test_periodicEW_corner(self):
         self.setBoundaryConditions(4)
         self.createHostData()
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
@@ -247,7 +247,7 @@ class FBLtest(unittest.TestCase):
                            boundary_conditions=self.boundaryConditions)
         
         t = self.sim.step(self.T)
-        eta1, u1, v1 = self.sim.download()
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
         eta2, u2, v2 = loadResults("FBL", "periodicEW", "corner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)

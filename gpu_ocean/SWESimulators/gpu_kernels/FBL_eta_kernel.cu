@@ -109,8 +109,8 @@ __global__ void computeEtaKernel(
     float eta_next = eta_current - dt_/dx_ * (U_shared[ty][tx] - U_shared[ty][tx-1])
                                  - dt_/dy_ * (V_shared[ty+1][tx] - V_shared[ty][tx]);
     
-    //Write to main memory
-    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
+    //Write to main memory.
+    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
         eta_row[ti] = eta_next;
     }
 }

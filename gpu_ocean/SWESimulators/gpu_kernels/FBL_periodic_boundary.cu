@@ -51,7 +51,7 @@ __global__ void closedBoundaryUKernel(
     
     // We set U = 0 outside of the boundary as well, on north and south.
     if ( ( ((tj == 0    ) && (bc_south_ == 1)) ||
-           ((tj == ny_+1) && (bc_north_ == 1))    ) && ti < nx_) {
+           ((tj == ny_+1) && (bc_north_ == 1))    ) && ti < nx_+1) {
         U_row[ti] = 0.0f;
     }
     
@@ -79,7 +79,7 @@ __global__ void periodicBoundaryUKernel_NS(
     if (((tj == 0) || (tj == ny_ + 1)) && (ti > 0) && (ti < nx_))  {
         float* ghost_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);
         float* opposite_row = (float*) ((char*) U_ptr_ + U_pitch_*opposite_row_index);
-        ghost_row[ti] = opposite_row[ti];  
+        ghost_row[ti] = opposite_row[ti];
     }
 }
 } // extern "C"
@@ -142,7 +142,7 @@ __global__ void closedBoundaryVKernel(
     
     // We set V = 0 outside of the east and west boundary as well
     if ( ( ((ti == 0    ) && (bc_west_ == 1)) ||
-           ((ti == nx_+1) && (bc_east_ == 1))    ) && tj < ny_) {
+           ((ti == nx_+1) && (bc_east_ == 1))    ) && tj < ny_+3) {
         V_row[ti] = 0.0f;
     }
     
@@ -167,8 +167,11 @@ __global__ void periodicBoundaryVKernel_NS(
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     int opposite_row_index = ny_;
-    if (tj > ny_) {
-        opposite_row_index = tj - ny_;
+    if (tj == ny_+ 1) {
+        opposite_row_index = 1;
+    }
+    if (tj == ny_+2) {
+        opposite_row_index = 2;
     }
     
     // Set ghost cells equal to inner neighbour's value
@@ -176,7 +179,7 @@ __global__ void periodicBoundaryVKernel_NS(
           && (ti > 0) && (ti < nx_+1) )  {
         float* ghost_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
         float* opposite_row = (float*) ((char*) V_ptr_ + V_pitch_*opposite_row_index);
-        ghost_row[ti] = opposite_row[ti];  
+        ghost_row[ti] = opposite_row[ti]; 
     }
 }
 } // extern "C"
@@ -195,12 +198,12 @@ __global__ void periodicBoundaryVKernel_EW(
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     int opposite_col_index = nx_;
-    if (ti > nx_+1) {
+    if (ti == nx_+1) {
         opposite_col_index = 1;
     }
     
     // Check if thread is in the domain:
-    if ( ((ti == 0) || (ti == nx_)) && (tj <  ny_+3) ) {
+    if ( ((ti == 0) || (ti == nx_+1)) && (tj <  ny_+3) ) {
         float* V_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
         V_row[ti] = V_row[opposite_col_index];
     }
