@@ -54,7 +54,10 @@ __global__ void computeVKernel(
         float* U_ptr_, int U_pitch_,
         float* V_ptr_, int V_pitch_,
         float* eta_ptr_, int eta_pitch_,
-    
+        
+        // Wall boundary conditions packed as bit-wise boolean
+        int wall_bc_,
+        
         // Wind stress parameters
         float wind_stress_t_) {
         
@@ -151,10 +154,10 @@ __global__ void computeVKernel(
     //Compute the V at the next timestep
     float V_next = B*(V_current + dt_*(-fU_m + P + Y) );
     
-    // TODO: CHECK BOUNDARY CONDITIONS
-    // if (tj == 1 && bc_south_ == 1) {
-    //     V_next = 0.0f;
-    // }
+    // Checking wall boundary conditions
+    if ((tj == 1) && (wall_bc_ & 0x04)) {
+        V_next = 0.0f;
+    }
 
     //Write to main memory
     if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {

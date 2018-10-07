@@ -161,8 +161,8 @@ class FBL(Simulator.Simulator):
         self.computeEtaKernel = self.eta_kernel.get_function("computeEtaKernel")
         
         # Prepare kernel lauches
-        self.computeUKernel.prepare("iiffffffffPiPiPiPif")
-        self.computeVKernel.prepare("iiffffffffPiPiPiPif")
+        self.computeUKernel.prepare("iiffffffffPiPiPiPiif")
+        self.computeVKernel.prepare("iiffffffffPiPiPiPiif")
         self.computeEtaKernel.prepare("iiffffffffPiPiPiPi")
         
         # Set up textures
@@ -181,6 +181,17 @@ class FBL(Simulator.Simulator):
                                                self.ny, \
                                                self.boundary_conditions
         )
+        
+        # Bit-wise boolean for wall boundary conditions
+        self.wall_bc = np.int32(0)
+        if (self.boundary_conditions.north == 1):
+            self.wall_bc = self.wall_bc | 0x01
+        if (self.boundary_conditions.east == 1):
+            self.wall_bc = self.wall_bc | 0x02
+        if (self.boundary_conditions.south == 1):
+            self.wall_bc = self.wall_bc | 0x04
+        if (self.boundary_conditions.west == 1):
+            self.wall_bc = self.wall_bc | 0x08
 
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
@@ -305,7 +316,7 @@ class FBL(Simulator.Simulator):
                     self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
                     self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
                     self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch, \
-                    wind_stress_t)
+                    self.wall_bc, wind_stress_t)
 
             # Fix U boundary
             self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu0)
@@ -318,7 +329,7 @@ class FBL(Simulator.Simulator):
                     self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
                     self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
                     self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch, \
-                    wind_stress_t)
+                    self.wall_bc, wind_stress_t)
 
             # Fix V boundary
             self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv0)

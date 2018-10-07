@@ -56,6 +56,9 @@ __global__ void computeUKernel(
         float* V_ptr_, int V_pitch_,
         float* eta_ptr_, int eta_pitch_,
     
+        // Wall boundary conditions packed as bit-wise boolean
+        int wall_bc_,
+        
         // Wind stress parameters
         float wind_stress_t_) {
     
@@ -154,10 +157,10 @@ __global__ void computeUKernel(
     //Compute the U at the next timestep
     float U_next = B*(U_current + dt_*(fV_m + P + X) );
     
-    // TODO: CHECK BOUNDARY CONDITIONS
-    // if (ti == 0 && bc_west_ == 1) {
-    //     U_next = 0.0f;
-    // }
+    // Checking wall boundary conditions
+    if ((ti == 0) && (wall_bc_ & 0x08)) {
+        U_next = 0.0f;
+    }
 
     //Write to main memory for internal cells
     if (ti < nx_ && tj > 1 && tj < ny_+1) {
