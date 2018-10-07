@@ -261,6 +261,14 @@ class FBL(Simulator.Simulator):
         self.gpu_ctx = None
         gc.collect()
         
+    # Over-riding Simulator's download.
+    def download(self, interior_domain_only=False):
+        """
+        Download the latest time step from the GPU
+        """
+        return self.gpu_data.download(self.gpu_stream, \
+                                      interior_domain_only=interior_domain_only)
+        
     def step(self, t_end=0.0):
         """
         Function which steps n timesteps

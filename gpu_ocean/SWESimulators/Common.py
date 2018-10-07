@@ -487,6 +487,8 @@ class SWEDataArakawaC:
         #FIXME: This at least works for 0 and 1 ghost cells, but not convinced it generalizes
         assert(halo_x <= 1 and halo_y <= 1)
         
+        self.fbl = fbl
+        
         if (fbl):
             self.h0   = CUDAArray2D(gpu_stream, nx  , ny  , halo_x, halo_y, h0)
             self.hu0  = CUDAArray2D(gpu_stream, nx-1, ny  , halo_x, halo_y, hu0)
@@ -521,13 +523,17 @@ class SWEDataArakawaC:
         self.hu1, self.hu0 = self.hu0, self.hu1
         self.hv1, self.hv0 = self.hv0, self.hv1
         
-    def download(self, gpu_stream):
+    def download(self, gpu_stream, interior_domain_only=False):
         """
         Enables downloading data from CUDA device to Python
         """
         h_cpu  = self.h0.download(gpu_stream)
         hu_cpu = self.hu0.download(gpu_stream)
         hv_cpu = self.hv0.download(gpu_stream)
+        
+        if (interior_domain_only and self.fbl):
+            #print("Sneaking in some FBL specific functionality")
+            return h_cpu[1:-1, 1:-1], hu_cpu[1:-1,:], hv_cpu[1:-1, 1:-1]
         
         return h_cpu, hu_cpu, hv_cpu
 
