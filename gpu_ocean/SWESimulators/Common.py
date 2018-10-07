@@ -488,13 +488,13 @@ class SWEDataArakawaC:
         assert(halo_x <= 1 and halo_y <= 1)
         
         if (fbl):
-            self.h0   = CUDAArray2D(gpu_stream, nx  , ny, halo_x, halo_y, h0)
-            self.hu0  = CUDAArray2D(gpu_stream, nx-1, ny, halo_x, halo_y, hu0)
-            self.hv0  = CUDAArray2D(gpu_stream, nx  , ny, halo_x, halo_y, hv0)
-            
-            self.h1   = CUDAArray2D(gpu_stream, nx  , ny, halo_x, halo_y, h0)
-            self.hu1  = CUDAArray2D(gpu_stream, nx-1, ny, halo_x, halo_y, hu0)
-            self.hv1  = CUDAArray2D(gpu_stream, nx  , ny, halo_x, halo_y, hv0)
+            self.h0   = CUDAArray2D(gpu_stream, nx  , ny  , halo_x, halo_y, h0)
+            self.hu0  = CUDAArray2D(gpu_stream, nx-1, ny  , halo_x, halo_y, hu0)
+            self.hv0  = CUDAArray2D(gpu_stream, nx  , ny+1, halo_x, halo_y, hv0)
+                                                          
+            self.h1   = CUDAArray2D(gpu_stream, nx  , ny  , halo_x, halo_y, h0)
+            self.hu1  = CUDAArray2D(gpu_stream, nx-1, ny  , halo_x, halo_y, hu0)
+            self.hv1  = CUDAArray2D(gpu_stream, nx  , ny+1, halo_x, halo_y, hv0)
             
             return
 

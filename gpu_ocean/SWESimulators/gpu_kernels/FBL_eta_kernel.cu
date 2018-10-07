@@ -32,8 +32,8 @@ __global__ void computeEtaKernel(
         //Physical parameters
         float g_, //< Gravitational constant
         float f_, //< Coriolis coefficient
-	float beta_, //< Coriolis force f_ + beta_*(y-y0)
-	float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
+        float beta_, //< Coriolis force f_ + beta_*(y-y0)
+        float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
         float r_, //< Bottom friction coefficient
     
         //Data
@@ -42,8 +42,8 @@ __global__ void computeEtaKernel(
         float* V_ptr_, int V_pitch_,
         float* eta_ptr_, int eta_pitch_) {
     //Index of thread within block
-    const int tx = threadIdx.x;
-    const int ty = threadIdx.y;
+    const int tx = threadIdx.x + 1; // Including ghost cell
+    const int ty = threadIdx.y + 1; // Including ghost cell
     
     //Index of block within domain
     const int bx = blockDim.x * blockIdx.x;
@@ -53,28 +53,28 @@ __global__ void computeEtaKernel(
     const int ti = bx + tx; 
     const int tj = by + ty;
     
-    __shared__ float U_shared[block_height][block_width+1];
-    __shared__ float V_shared[block_height+1][block_width];
+    __shared__ float U_shared[block_height+2][block_width+1];
+    __shared__ float V_shared[block_height+3][block_width+2];
     
     //Compute pointer to current row in the U array
     float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);
 
     //Read current eta
     float eta_current = 0.0f;
-    if (ti < nx_ && tj < ny_) {
+    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
         eta_current = eta_row[ti];
     }
     
-    //Read U into shared memory
-    for (int j=ty; j<block_height; j+=blockDim.y) {
+    //Read U into shared memory [block_height+2][block_width+1]
+    for (int j=threadIdx.y; j<block_height+2; j+=blockDim.y) {
         const unsigned int l = by + j;
         
         //Compute the pointer to current row in the V array
         float* const U_row = (float*) ((char*) U_ptr_ + U_pitch_*l);
         
-        for (int i=tx; i<block_width+1; i+=blockDim.x) {
+        for (int i=threadIdx.x; i<block_width+1; i+=blockDim.x) {
             const unsigned int k = bx + i;
-            if (k < nx_+1 && l < ny_) {
+            if (k < nx_+1 && l < ny_+2) {
                 U_shared[j][i] = U_row[k];
             }
             else {
@@ -83,14 +83,17 @@ __global__ void computeEtaKernel(
         }
     }
     
-    //Read V into shared memory
-    for (int j=ty; j<block_height+1; j+=blockDim.y) {
+    //Read V into shared memory [block_height+3][block_width+2]
+    for (int j=threadIdx.y; j<block_height+3; j+=blockDim.y) {
         const unsigned int l = by + j;
+        
         //Compute the pointer to current row in the V array
         float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*l);
-        for (int i=tx; i<block_width; i+=blockDim.x) {
+        
+        for (int i=threadIdx.x; i<block_width+2; i+=blockDim.x) {
             const unsigned int k = bx + i;
-            if (k < nx_ && l < ny_+1) {
+            
+            if (k < nx_+2 && l < ny_+3) {
                 V_shared[j][i] = V_row[k];
             }
             else {
@@ -103,11 +106,11 @@ __global__ void computeEtaKernel(
     __syncthreads();
 
     //Compute the eta at the next timestep
-    float eta_next = eta_current - dt_/dx_ * (U_shared[ty][tx+1] - U_shared[ty][tx])
+    float eta_next = eta_current - dt_/dx_ * (U_shared[ty][tx] - U_shared[ty][tx-1])
                                  - dt_/dy_ * (V_shared[ty+1][tx] - V_shared[ty][tx]);
     
     //Write to main memory
-    if (ti < nx_ && tj < ny_) {
+    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
         eta_row[ti] = eta_next;
     }
 }
