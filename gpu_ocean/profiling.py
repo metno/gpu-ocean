@@ -58,20 +58,24 @@ def genInitialConditions(simulator, sim_args):
     H_staggering = None
     
     if (simulator == FBL.FBL):
-        ghost_cells = {'north': 0, 'east': 0, 'west': 0, 'south': 0}
-        uv_staggering = 1
+        ghost_cells = {'north': 1, 'east': 1, 'west': 1, 'south': 1}
+        u_staggering = -1
+        v_staggering = 1
         H_staggering = 0
     elif (simulator == CTCS.CTCS):
         ghost_cells = {'north': 1, 'east': 1, 'west': 1, 'south': 1}
-        uv_staggering = 1
+        u_staggering = 1
+        v_staggering = 1
         H_staggering = 0
     elif (simulator == KP07.KP07):
         ghost_cells = {'north': 2, 'east': 2, 'west': 2, 'south': 2}
-        uv_staggering = 0
+        u_staggering = 0
+        v_staggering = 0
         H_staggering = 1
     elif (simulator == CDKLM16.CDKLM16):
         ghost_cells = {'north': 2, 'east': 2, 'west': 2, 'south': 2}
-        uv_staggering = 0
+        u_staggering = 0
+        v_staggering = 0
         H_staggering = 1
         
         
@@ -80,8 +84,8 @@ def genInitialConditions(simulator, sim_args):
 
     H0 = np.ones((dataShape[0] + H_staggering, dataShape[1]+H_staggering), dtype=np.float32) * 60
     eta0 = np.zeros(dataShape, dtype=np.float32)
-    hu0 = np.zeros((dataShape[0], dataShape[1]+uv_staggering), dtype=np.float32)
-    hv0 = np.zeros((dataShape[0]+uv_staggering, dataShape[1]), dtype=np.float32)
+    hu0 = np.zeros((dataShape [0], dataShape[1]+u_staggering), dtype=np.float32)
+    hv0 = np.zeros((dataShape[0]+v_staggering, dataShape[1]), dtype=np.float32)
         
     #Create bump in to lower left of domain for testing
     print("Adding bump", flush=True)
