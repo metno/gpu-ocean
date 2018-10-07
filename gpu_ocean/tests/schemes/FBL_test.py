@@ -127,7 +127,7 @@ class FBLtest(unittest.TestCase):
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
-    def atest_wall_corner(self):
+    def test_wall_corner(self):
         self.setBoundaryConditions(1)
         self.createHostData()
         makeCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
@@ -138,7 +138,7 @@ class FBLtest(unittest.TestCase):
                            self.g, self.f, self.r)
         
         t = self.sim.step(self.T)
-        eta1, u1, v1 = self.sim.download()
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
         eta2, u2, v2 = loadResults("FBL", "wallBC", "corner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)

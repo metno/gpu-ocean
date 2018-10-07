@@ -83,7 +83,7 @@ __global__ void computeUKernel(
 
     //Read current U
     float U_current = 0.0f;
-    if (ti < nx_ + 1 && tj > 0 && tj < ny_+1) {
+    if (ti < nx_ && tj > 0 && tj < ny_+1) {
         U_current = U_row[ti];
     }
 
@@ -141,7 +141,6 @@ __global__ void computeUKernel(
     //Reconstruct f*V at the U position
     float fV_m = 0.25f*( f_v_m*(V_shared[ty  ][tx] + V_shared[ty  ][tx+1])
                        + f_v_p*(V_shared[ty+1][tx] + V_shared[ty+1][tx+1]) );
-    
 
     //Calculate the friction coefficient
     float B = H_m/(H_m + r_*dt_);
@@ -157,13 +156,13 @@ __global__ void computeUKernel(
     //Compute the U at the next timestep
     float U_next = B*(U_current + dt_*(fV_m + P + X) );
     
-    // Checking wall boundary conditions
+    // Checking wall boundary conditions west
     if ((ti == 0) && (wall_bc_ & 0x08)) {
         U_next = 0.0f;
     }
 
     //Write to main memory for internal cells
-    if (ti < nx_ && tj > 1 && tj < ny_+1) {
+    if (ti < nx_ && tj > 0 && tj < ny_) {
         U_row[ti] = U_next;
     }
 
