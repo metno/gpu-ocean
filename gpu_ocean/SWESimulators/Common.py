@@ -479,21 +479,24 @@ class SWEDataArakawaC:
     We use h as cell centers
     """
     def __init__(self, gpu_stream, nx, ny, halo_x, halo_y, h0, hu0, hv0, \
-                 asymHalo=None):
+                 fbl=False):
         """
         Uploads initial data to the CUDA device
         asymHalo needs to be on the form [north, east, south, west]
         """
         #FIXME: This at least works for 0 and 1 ghost cells, but not convinced it generalizes
         assert(halo_x <= 1 and halo_y <= 1)
-        # FIXME: asymHalo has not been tested for other values either.
-        asymHaloU = asymHalo
-        asymHaloV = asymHalo
-        if (asymHalo is not None):
-            #print(asymHalo)
-            assert(max(asymHalo) <= 1)
-            asymHaloU = [asymHalo[0], 0, asymHalo[2], 0]
-            asymHaloV = [0, asymHalo[1], 0, asymHalo[3]]
+        
+        if (fbl):
+            self.h0   = CUDAArray2D(gpu_stream, nx  , ny, halo_x, halo_y, h0)
+            self.hu0  = CUDAArray2D(gpu_stream, nx-1, ny, halo_x, halo_y, hu0)
+            self.hv0  = CUDAArray2D(gpu_stream, nx  , ny, halo_x, halo_y, hv0)
+            
+            self.h1   = CUDAArray2D(gpu_stream, nx  , ny, halo_x, halo_y, h0)
+            self.hu1  = CUDAArray2D(gpu_stream, nx-1, ny, halo_x, halo_y, hu0)
+            self.hv1  = CUDAArray2D(gpu_stream, nx  , ny, halo_x, halo_y, hv0)
+            
+            return
 
         #print "SWEDataArakawaC"
         #print "(h0.shape, (nx, ny), asymHalo,  (halo_x, halo_y)): ", (h0.shape, (nx, ny), asymHalo,  (halo_x, halo_y))

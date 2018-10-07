@@ -44,7 +44,7 @@ class FBL(Simulator.Simulator):
                  g, f, r, \
                  t=0.0, \
                  coriolis_beta=0.0, \
-                 y_zero_reference_cell = 0, \
+                 y_zero_reference_cell = 1, \
                  wind_stress=WindStress.WindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
@@ -73,31 +73,21 @@ class FBL(Simulator.Simulator):
         """
         
         #Create data by uploading to device
-        ghost_cells_x = 0
-        ghost_cells_y = 0
+        ghost_cells_x = 1
+        ghost_cells_y = 1
         y_zero_reference_cell = y_zero_reference_cell
-        self.asym_ghost_cells = [0, 0, 0, 0] # [N, E, S, W]
         
         # Index range for interior domain (north, east, south, west)
         # so that interior domain of eta is
         # eta[self.interior_domain_indices[2]:self.interior_domain_indices[0], \
         #     self.interior_domain_indices[3]:self.interior_domain_indices[1] ]
-        self.interior_domain_indices = np.array([None, None, 0, 0])
+        self.interior_domain_indices = np.array([-1, -1, 1, 1])
         
         self.boundary_conditions = boundary_conditions
-        # Add asym ghost cell if periodic boundary condition:
-        if (self.boundary_conditions.north == 2) or \
-           (self.boundary_conditions.south == 2):
-            self.asym_ghost_cells[0] = 1
-            self.interior_domain_indices[0] = -1
-        if (self.boundary_conditions.east == 2) or \
-           (self.boundary_conditions.west == 2):
-            self.asym_ghost_cells[1] = 1
-            self.interior_domain_indices[1] = -1
 
         if boundary_conditions.isSponge():
-            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3]# - self.asym_ghost_cells[1] - self.asym_ghost_cells[3]
-            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2]# - self.asym_ghost_cells[0] - self.asym_ghost_cells[2]
+            nx = nx - 2 + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3]# - self.asym_ghost_cells[1] - self.asym_ghost_cells[3]
+            ny = ny - 2 + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2]# - self.asym_ghost_cells[0] - self.asym_ghost_cells[2]
             y_zero_reference_cell = y_zero_reference_cell + boundary_conditions.spongeCells[2]
           
         rk_order = None
@@ -179,18 +169,17 @@ class FBL(Simulator.Simulator):
         self.update_wind_stress(self.u_kernel, self.computeUKernel)
         self.update_wind_stress(self.v_kernel, self.computeVKernel)
         
-        self.H = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H, self.asym_ghost_cells)
-        self.gpu_data = Common.SWEDataArakawaC(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, self.asym_ghost_cells)
+        self.H = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H)
+        self.gpu_data = Common.SWEDataArakawaC(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, fbl=True)
         
-        # Overwrite halo with asymetric ghost cells
-        self.nx_halo = np.int32(nx + self.asym_ghost_cells[1] + self.asym_ghost_cells[3])
-        self.ny_halo = np.int32(ny + self.asym_ghost_cells[0] + self.asym_ghost_cells[2])
+        # Domain including ghost cells
+        self.nx_halo = np.int32(nx + 2)
+        self.ny_halo = np.int32(ny + 2)
        
         self.bc_kernel = FBL_periodic_boundary(self.gpu_ctx, \
                                                self.nx, \
                                                self.ny, \
-                                               self.boundary_conditions, \
-                                               self.asym_ghost_cells
+                                               self.boundary_conditions
         )
 
         if self.write_netcdf:
@@ -350,7 +339,7 @@ class FBL_periodic_boundary:
     def __init__(self, \
                  gpu_ctx, \
                  nx, ny, \
-                 boundary_conditions, asym_ghost_cells, \
+                 boundary_conditions, asym_ghost_cells=[0,0,0,0], \
                  block_width=16, block_height=16 ):
 
         self.boundary_conditions = boundary_conditions
