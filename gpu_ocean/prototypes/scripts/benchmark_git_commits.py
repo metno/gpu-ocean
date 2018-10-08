@@ -180,8 +180,9 @@ for version, log, laptop_block, desktop_block, supercomputer_met_block, supercom
     stdout = git(git_clone, ["checkout", "--force", '-q', benchmark_script_version, "--", benchmark_script_relpath])
     logger.debug("stdout: " + str(stdout))
         
+    block_size_options = None
+
     if architecture == Architecture.DESKTOP or architecture == Architecture.SUPERCOMPUTER_MET or architecture == Architecture.SUPERCOMPUTER_UIO:
-        block_size_options = None
         
         if architecture == Architecture.LAPTOP:
             block_size_options = ["--block_width", str(laptop_block[0]), "--block_height", str(laptop_block[1])] 
