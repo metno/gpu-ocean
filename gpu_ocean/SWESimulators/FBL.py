@@ -325,8 +325,9 @@ class FBL_periodic_boundary:
 
         # Debugging variables
         debug = False
-        self.firstU = debug
-        self.firstV = debug
+        self.firstU = True
+        self.firstV = True
+        self.firstEta = True
         self.firstGhostU = debug
         self.firstGhostV = debug
         self.firstGhostEta = debug
@@ -381,10 +382,10 @@ class FBL_periodic_boundary:
         # Start with fixing the potential sponge
         self.callSpongeNS(gpu_stream, hu0, 1, 0)
         
-        if (self.boundary_conditions.east == 1 or \
-            self.boundary_conditions.west == 1 or \
-            self.boundary_conditions.north == 1 or \
-            self.boundary_conditions.south == 1):
+        if self.firstU and (self.boundary_conditions.east == 1 or \
+                            self.boundary_conditions.west == 1 or \
+                            self.boundary_conditions.north == 1 or \
+                            self.boundary_conditions.south == 1):
             
             self.closedBoundaryUKernel.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
                         self.nx, self.ny, \
@@ -400,7 +401,7 @@ class FBL_periodic_boundary:
                         self.nx, self.ny, \
                         hu0.data.gpudata, hu0.pitch)
         
-         
+        self.firstU = False
 
     def boundaryConditionV(self, gpu_stream, hv0):
         """
@@ -410,10 +411,10 @@ class FBL_periodic_boundary:
         # Start with fixing the potential sponge
         self.callSpongeNS(gpu_stream, hv0, 0, 1)
         
-        if (self.boundary_conditions.east == 1 or \
-            self.boundary_conditions.west == 1 or \
-            self.boundary_conditions.north == 1 or \
-            self.boundary_conditions.south == 1):
+        if self.firstV and (self.boundary_conditions.east == 1 or \
+                            self.boundary_conditions.west == 1 or \
+                            self.boundary_conditions.north == 1 or \
+                            self.boundary_conditions.south == 1):
             
             self.closedBoundaryVKernel.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
                         self.nx, self.ny, \
@@ -429,7 +430,7 @@ class FBL_periodic_boundary:
                         self.nx, self.ny, \
                         hv0.data.gpudata, hv0.pitch)
         
-       
+        self.firstV = False
         
 
     def boundaryConditionEta(self, gpu_stream, eta0):
@@ -439,10 +440,10 @@ class FBL_periodic_boundary:
         # Start with fixing the potential sponge
         self.callSpongeNS(gpu_stream, eta0, 0, 0)
         
-        if (self.boundary_conditions.east == 1 or \
-            self.boundary_conditions.west == 1 or \
-            self.boundary_conditions.north == 1 or \
-            self.boundary_conditions.south == 1):
+        if self.firstEta and (self.boundary_conditions.east == 1 or \
+                              self.boundary_conditions.west == 1 or \
+                              self.boundary_conditions.north == 1 or \
+                              self.boundary_conditions.south == 1):
             
             self.closedBoundaryEtaKernel.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
                         self.nx, self.ny, \
@@ -459,7 +460,7 @@ class FBL_periodic_boundary:
                         eta0.data.gpudata, eta0.pitch)
                         
                         
-         
+        self.firstEta = False
 
         
     def callSpongeNS(self, gpu_stream, data, staggered_x, staggered_y):
