@@ -112,7 +112,7 @@ class FBL(Simulator.Simulator):
         
         
         #Get kernels
-        self.u_kernel = gpu_ctx.get_kernel("FBL_U_kernel.cu", 
+        self.step_kernel = gpu_ctx.get_kernel("FBL_step_kernel.cu", 
                 defines={'block_width': block_width, 'block_height': block_height},
                 compile_args={
                     'no_extern_c': True,
@@ -126,48 +126,15 @@ class FBL(Simulator.Simulator):
                     #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
                 }
         )
-        self.v_kernel = gpu_ctx.get_kernel("FBL_V_kernel.cu", 
-                defines={'block_width': block_width, 'block_height': block_height},
-                compile_args={
-                    'no_extern_c': True,
-                    'options': ["--use_fast_math"],
-                    #'options': ["--generate-line-info"], 
-                    #'options': ["--maxrregcount=32"]
-                    #'arch': "compute_50", 
-                    #'code': "sm_50"
-                },
-                jit_compile_args={
-                    #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
-                }
-        )
-        self.eta_kernel = gpu_ctx.get_kernel("FBL_eta_kernel.cu", 
-                defines={'block_width': block_width, 'block_height': block_height},
-                compile_args={
-                    'no_extern_c': True,
-                    'options': ["--use_fast_math"],
-                    #'options': ["--generate-line-info"], 
-                    #'options': ["--maxrregcount=32"]
-                    #'arch': "compute_50", 
-                    #'code': "sm_50"
-                },
-                jit_compile_args={
-                    #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
-                }
-        )
-        
+         
         # Get CUDA functions 
-        self.computeUKernel = self.u_kernel.get_function("computeUKernel")
-        self.computeVKernel = self.v_kernel.get_function("computeVKernel")
-        self.computeEtaKernel = self.eta_kernel.get_function("computeEtaKernel")
+        self.fblStepKernel = self.step_kernel.get_function("fblStepKernel")
         
         # Prepare kernel lauches
-        self.computeUKernel.prepare("iiffffffffPiPiPiPiif")
-        self.computeVKernel.prepare("iiffffffffPiPiPiPiif")
-        self.computeEtaKernel.prepare("iiffffffffPiPiPiPi")
+        self.fblStepKernel.prepare("iiffffffffPiPiPiPiif")
         
         # Set up textures
-        self.update_wind_stress(self.u_kernel, self.computeUKernel)
-        self.update_wind_stress(self.v_kernel, self.computeVKernel)
+        self.update_wind_stress(self.step_kernel, self.fblStepKernel)
         
         self.H = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H)
         self.gpu_data = Common.SWEDataArakawaC(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, fbl=True)
@@ -305,10 +272,9 @@ class FBL(Simulator.Simulator):
             if (local_dt <= 0.0):
                 break
                 
-            self.update_wind_stress(self.u_kernel, self.computeUKernel)
-            wind_stress_t = np.float32(self.update_wind_stress(self.v_kernel, self.computeVKernel))
+            wind_stress_t = np.float32(self.update_wind_stress(self.step_kernel, self.fblStepKernel))
 
-            self.computeUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.fblStepKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                     self.nx, self.ny, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
@@ -317,32 +283,14 @@ class FBL(Simulator.Simulator):
                     self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
                     self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch, \
                     self.wall_bc, wind_stress_t)
-
+            
             # Fix U boundary
             self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu0)
             
-            self.computeVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
-                    self.nx, self.ny, \
-                    self.dx, self.dy, local_dt, \
-                    self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
-                    self.H.data.gpudata, self.H.pitch, \
-                    self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
-                    self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
-                    self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch, \
-                    self.wall_bc, wind_stress_t)
-
             # Fix V boundary
             self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv0)
             
-            self.computeEtaKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
-                    self.nx, self.ny, \
-                    self.dx, self.dy, local_dt, \
-                    self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
-                    self.H.data.gpudata, self.H.pitch, \
-                    self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
-                    self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
-                    self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch)
-
+            # Fix V boundary
             self.bc_kernel.boundaryConditionEta(self.gpu_stream, self.gpu_data.h0)
    
             self.t += np.float64(local_dt)
