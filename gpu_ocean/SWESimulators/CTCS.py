@@ -26,6 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import gc
+import pycuda.driver as cuda
 
 from SWESimulators import Common, SimWriter, SimReader
 from SWESimulators import Simulator
@@ -111,6 +112,8 @@ class CTCS(Simulator.Simulator):
                                    ignore_ghostcells, \
                                    offset_x, offset_y, \
                                    block_width, block_height)
+
+        self.gpu_streams = [self.gpu_stream, cuda.Stream(), cuda.Stream()]
             
         # Index range for interior domain (north, east, south, west)
         # so that interior domain of eta is
@@ -124,9 +127,9 @@ class CTCS(Simulator.Simulator):
                 defines={'block_width': block_width, 'block_height': block_height},
                 compile_args={
                     'no_extern_c': True,
-                    'options': ["--use_fast_math"],
+                    'options': ["--use_fast_math"]
                     #'options': ["--generate-line-info"], 
-                    'options': ["--maxrregcount=32"]
+                    #'options': ["--maxrregcount=32"]
                     #'arch': "compute_50", 
                     #'code': "sm_50"
                 },
@@ -138,9 +141,9 @@ class CTCS(Simulator.Simulator):
                 defines={'block_width': block_width, 'block_height': block_height},
                 compile_args={
                     'no_extern_c': True,
-                    'options': ["--use_fast_math"],
+                    'options': ["--use_fast_math"]
                     #'options': ["--generate-line-info"], 
-                    'options': ["--maxrregcount=32"]
+                    #'options': ["--maxrregcount=32"]
                     #'arch': "compute_50", 
                     #'code': "sm_50"
                 },
@@ -338,8 +341,13 @@ class CTCS(Simulator.Simulator):
                 
             self.update_wind_stress(self.u_kernel, self.computeUKernel)
             wind_stress_t = np.float32(self.update_wind_stress(self.v_kernel, self.computeVKernel))
+
+            # streams are [U-stream, V-stream, eta-stream]
+            # self.gpu_streams = [self.gpu_stream, cuda.Stream(), cuda.Stream()]
+
+            events = [cuda.Event(), cuda.Event(), cuda.Event()]
             
-            self.computeEtaKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.computeEtaKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_streams[0], \
                     self.nx, self.ny, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
@@ -347,9 +355,10 @@ class CTCS(Simulator.Simulator):
                     self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch,   # U^{n} \
                     self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch)   # V^{n}
 
-            self.bc_kernel.boundaryConditionEta(self.gpu_stream, self.gpu_data.h0)
+            self.bc_kernel.boundaryConditionEta(self.gpu_streams[0], self.gpu_data.h0)
+            #
             
-            self.computeUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.computeUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_streams[1], \
                     self.nx, self.ny, \
                     boundary_conditions, \
                     self.dx, self.dy, local_dt, \
@@ -362,9 +371,10 @@ class CTCS(Simulator.Simulator):
                     self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch,    # V^{n} \
                     wind_stress_t)
 
-            self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu0)
+            self.bc_kernel.boundaryConditionU(self.gpu_streams[1], self.gpu_data.hu0)
+            events[1].record(self.gpu_streams[1])
             
-            self.computeVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.computeVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_streams[2], \
                     self.nx, self.ny, \
                     boundary_conditions, \
                     self.dx, self.dy, local_dt, \
@@ -377,8 +387,19 @@ class CTCS(Simulator.Simulator):
                     self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch,   # V^{n} \
                     wind_stress_t)
 
-            self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv0)
+            self.bc_kernel.boundaryConditionV(self.gpu_streams[2], self.gpu_data.hv0)
+            events[2].record(self.gpu_streams[2])
             
+
+            #for event in events:
+            #    event.synchronize()
+            self.gpu_streams[0].wait_for_event(events[1])
+            self.gpu_streams[0].wait_for_event(events[2])
+            events[0].record(self.gpu_streams[0])
+            
+            self.gpu_streams[1].wait_for_event(events[0])
+            self.gpu_streams[2].wait_for_event(events[0])
+                        
             #After the kernels, swap the data pointers
             self.gpu_data.swap()
             
@@ -410,21 +431,37 @@ class CTCS_boundary_condition:
         self.nx_halo = np.int32(nx + 2*halo_x) 
         self.ny_halo = np.int32(ny + 2*halo_y)
 
+
+        # Set kernel launch parameters
+        self.local_size = (block_width, block_height, 1)
+        self.global_size = ( \
+                             int(np.ceil((self.nx_halo + 1)/float(self.local_size[0]))), \
+                             int(np.ceil((self.ny_halo + 1)/float(self.local_size[1]))) )
+
+        self.local_size_NS = (64, 4, 1)
+        self.global_size_NS = (int(np.ceil((self.nx_halo + 1)/float(self.local_size[0]))), 1)
+
+        self.local_size_EW = (4, 64, 1)
+        self.global_size_EW = (1, int(np.ceil((self.ny_halo+1)/float(self.local_size_NS[1]))) )
+
+        
         # Load kernel for periodic boundary
         self.boundaryKernels = gpu_ctx.get_kernel("CTCS_boundary.cu", defines={'block_width': block_width, 'block_height': block_height})
+        self.boundaryKernels_NS = gpu_ctx.get_kernel("CTCS_boundary_NS.cu", defines={'block_width': self.local_size_NS[0], 'block_height': self.local_size_NS[1]})
+        self.boundaryKernels_EW = gpu_ctx.get_kernel("CTCS_boundary_EW.cu", defines={'block_width': self.local_size_EW[0], 'block_height': self.local_size_EW[1]})
         
         # Get CUDA functions and define data types for prepared_{async_}call()
-        self.boundaryUKernel_NS = self.boundaryKernels.get_function("boundaryUKernel_NS")
+        self.boundaryUKernel_NS = self.boundaryKernels_NS.get_function("boundaryUKernel_NS")
         self.boundaryUKernel_NS.prepare("iiiiiiPi")
-        self.boundaryUKernel_EW = self.boundaryKernels.get_function("boundaryUKernel_EW")
+        self.boundaryUKernel_EW = self.boundaryKernels_EW.get_function("boundaryUKernel_EW")
         self.boundaryUKernel_EW.prepare("iiiiiiPi")
-        self.boundaryVKernel_NS = self.boundaryKernels.get_function("boundaryVKernel_NS")
+        self.boundaryVKernel_NS = self.boundaryKernels_NS.get_function("boundaryVKernel_NS")
         self.boundaryVKernel_NS.prepare("iiiiiiPi")
-        self.boundaryVKernel_EW = self.boundaryKernels.get_function("boundaryVKernel_EW")
+        self.boundaryVKernel_EW = self.boundaryKernels_EW.get_function("boundaryVKernel_EW")
         self.boundaryVKernel_EW.prepare("iiiiiiPi")
-        self.boundaryEtaKernel_NS = self.boundaryKernels.get_function("boundaryEtaKernel_NS")
+        self.boundaryEtaKernel_NS = self.boundaryKernels_NS.get_function("boundaryEtaKernel_NS")
         self.boundaryEtaKernel_NS.prepare("iiiiiiPi")
-        self.boundaryEtaKernel_EW = self.boundaryKernels.get_function("boundaryEtaKernel_EW")
+        self.boundaryEtaKernel_EW = self.boundaryKernels_EW.get_function("boundaryEtaKernel_EW")
         self.boundaryEtaKernel_EW.prepare("iiiiiiPi")
         self.boundary_linearInterpol_NS = self.boundaryKernels.get_function("boundary_linearInterpol_NS")
         self.boundary_linearInterpol_NS.prepare("iiiiiiiiiiPi")
@@ -435,11 +472,6 @@ class CTCS_boundary_condition:
         self.boundary_flowRelaxationScheme_EW = self.boundaryKernels.get_function("boundary_flowRelaxationScheme_EW")
         self.boundary_flowRelaxationScheme_EW.prepare("iiiiiiiiiiPi")
 
-        # Set kernel launch parameters
-        self.local_size = (block_width, block_height, 1)
-        self.global_size = ( \
-                             int(np.ceil((self.nx_halo + 1)/float(self.local_size[0]))), \
-                             int(np.ceil((self.ny_halo + 1)/float(self.local_size[1]))) )
 
         
        
@@ -450,7 +482,7 @@ class CTCS_boundary_condition:
        
         if (self.bc_north < 3) or (self.bc_south < 3):
             self.boundaryUKernel_NS.prepared_async_call( \
-                self.global_size, self.local_size, gpu_stream, \
+                self.global_size_NS, self.local_size_NS, gpu_stream, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 self.bc_north, self.bc_south, \
@@ -460,7 +492,7 @@ class CTCS_boundary_condition:
         
         if (self.bc_east < 3) or (self.bc_west < 3):
             self.boundaryUKernel_EW.prepared_async_call( \
-                self.global_size, self.local_size, gpu_stream, \
+                self.global_size_EW, self.local_size_EW, gpu_stream, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 self.bc_east, self.bc_west, \
@@ -477,7 +509,7 @@ class CTCS_boundary_condition:
 
         if (self.bc_north < 3) or (self.bc_south < 3):
             self.boundaryVKernel_NS.prepared_async_call( \
-                self.global_size, self.local_size, gpu_stream, \
+                self.global_size_NS, self.local_size_NS, gpu_stream, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 self.bc_north, self.bc_south, \
@@ -487,7 +519,7 @@ class CTCS_boundary_condition:
         
         if (self.bc_east < 3) or (self.bc_west < 3):
             self.boundaryVKernel_EW.prepared_async_call( \
-                self.global_size, self.local_size, gpu_stream, \
+                self.global_size_EW, self.local_size_EW, gpu_stream, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 self.bc_east, self.bc_west, \
@@ -502,7 +534,7 @@ class CTCS_boundary_condition:
 
         if (self.bc_north < 3) or (self.bc_south < 3):
             self.boundaryEtaKernel_NS.prepared_async_call( \
-                self.global_size, self.local_size, gpu_stream, \
+                self.global_size_NS, self.local_size_NS, gpu_stream, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 self.bc_north, self.bc_south, \
@@ -511,7 +543,7 @@ class CTCS_boundary_condition:
             
         if (self.bc_east < 3) or (self.bc_west < 3):
             self.boundaryEtaKernel_EW.prepared_async_call( \
-                self.global_size, self.local_size, gpu_stream, \
+                self.global_size_EW, self.local_size_EW, gpu_stream, \
                 self.nx, self.ny, \
                 self.halo_x, self.halo_y, \
                 self.bc_east, self.bc_west, \
