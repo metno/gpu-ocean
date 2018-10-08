@@ -217,7 +217,7 @@ versions, labels, laptop_block, desktop_block, supercomputer_met_block, supercom
 megacells = np.full((len(versions)), np.nan)
 
 for i, ver in enumerate(git_versions):
-    version, log, l_block, d_block, hpc_block  = ver
+    version, log, l_block, d_block, s_met_block, s_uio_block = ver
     filename = os.path.join(tmpdir, "benchmark_" + version + ".npz")
     with np.load(filename) as version_data:
         megacells[i] = version_data['CDKLM']
