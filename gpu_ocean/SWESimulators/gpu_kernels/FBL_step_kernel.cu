@@ -68,7 +68,7 @@ __global__ void fblStepKernel(
     __shared__ float eta_shared[block_height+2][block_width+2];
 
     //Index of thread within block
-    const int tx_u = threadIdx.x;
+    const int tx_u = threadIdx.x;   // U has no ghost cells in x-dir
     const int tx = threadIdx.x + 1; // Including ghost cell
     const int ty = threadIdx.y + 1; // Including ghost cell
 
@@ -81,33 +81,6 @@ __global__ void fblStepKernel(
     const int ti = bx + tx;
     const int tj = by + ty;
     
-    //Compute pointer to row "tj" in the U array
-    float* const U_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);
-
-    //Read current U
-    float U_current = 0.0f;
-    if (ti_u < nx_ && tj > 0 && tj < ny_+1) {
-        U_current = U_row[ti_u];
-    }
-    
-    //Compute pointer to current row in the V array
-    float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
-
-    //Read current V
-    float V_current = 0.0f;
-    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
-        V_current = V_row[ti];
-    }
-    
-    //Compute pointer to current row in the U array
-    float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);
-
-    //Read current eta
-    float eta_current = 0.0f;
-    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
-        eta_current = eta_row[ti];
-    }
-
     //Read H and eta into shared memory [block_height+2][block_width+2]
     for (int j=threadIdx.y; j<block_height+2; j+=blockDim.y) {
         const int l = by + j;
@@ -147,26 +120,6 @@ __global__ void fblStepKernel(
             }
         }
     }
-
-    /*
-    //Read U into shared memory [block_height+2][block_width+1]
-    for (int j=threadIdx.y; j<block_height+2; j+=blockDim.y) {
-        const int l = by + j;
-        
-        //Compute the pointer to current row in the V array
-        float* const U_row = (float*) ((char*) U_ptr_ + U_pitch_*l);
-        
-        for (int i=threadIdx.x; i<block_width+1; i+=blockDim.x) {
-            const int k = bx + i;
-            if (k < nx_+1 && l < ny_+2) {
-                U_shared[j][i] = U_row[k];
-            }
-            else {
-                U_shared[j][i] = 0.0f;
-            }
-        }
-    }
-    */
 
     //Make sure all threads have read into shared mem
     __syncthreads();
@@ -282,24 +235,21 @@ __global__ void fblStepKernel(
     float eta_next = eta_shared[ty][tx] - dt_/dx_ * (U_shared[ty][tx] - U_shared[ty][tx-1])
                                         - dt_/dy_ * (V_shared[ty+1][tx] - V_shared[ty][tx]);
     
-    //Write to main memory.
-    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
-        eta_row[ti] = eta_next;
-    }
     
     //Write to main memory for internal cells
     if (ti_u < nx_ && tj > 0 && tj < ny_+1) {
+        float* const U_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);
         U_row[ti_u] = U_shared[ty][tx_u];
     }
     
-    //Write to main memory
+    //Write to V and eta to main memory
     if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
+        
+        float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
         V_row[ti] = V_shared[ty][tx];
+        
+        float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);
+        eta_row[ti] = eta_next;
     }
-
-    
-    // TODO:
-    // Currently, boundary conditions are individual kernels.
-    // They should be moved to be within-kernel functions.
 }
 } // extern "C" 
