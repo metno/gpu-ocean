@@ -63,11 +63,9 @@ __global__ void computeUKernel(
     const int tx = threadIdx.x;
     const int ty = threadIdx.y;
 
-    const int closed_boundary_cell_east = (int)((wall_bc_ & 0x02) != 0);
-    const int closed_boundary_cell_west = (int)((wall_bc_ & 0x08) != 0);
-    
+   
     //Start of block within domain
-    const int bx = blockDim.x * blockIdx.x + 1 + closed_boundary_cell_west; //Skip global ghost cells
+    const int bx = blockDim.x * blockIdx.x + 1; //Skip global ghost cells
     const int by = blockDim.y * blockIdx.y + 1; //Skip global ghost cells
 
     //Index of cell within domain
@@ -82,7 +80,7 @@ __global__ void computeUKernel(
     //if (ti > 0 && ti < nx_ && tj > 0 && tj < ny_+1) {
     //if (ti > halo_x_-1+1 && ti < nx_ + 2*halo_x_-1+1 && tj > halo_y_-1 && tj < ny_+halo_y_) {
     //if (ti >= 2 && ti <= nx_ && tj >= 1 && tj <= ny_) {
-    if (ti >= closed_boundary_cell_west+1 && ti <= nx_+1-closed_boundary_cell_east && tj >= 1 && tj <= ny_) {
+    if (ti > 0 && ti < nx_+2 && tj > 0 && tj < ny_+1) {
         U0 = U0_row[ti];
     }
 
@@ -238,13 +236,18 @@ __global__ void computeUKernel(
     const float X = windStressX(wind_stress_t_, ti, tj+0.5, nx_, ny_);
 
     //Compute the V at the next timestep
-    const float U2 = (U0 + 2.0f*dt_*(fV_bar + (N + P_x)/dx_ + X + A_*E) ) / C;
+    float U2 = (U0 + 2.0f*dt_*(fV_bar + (N + P_x)/dx_ + X + A_*E) ) / C;
 	
+    // Set wall boundary conditions
+    if ( (ti == 1 && (wall_bc_ & 0x08)) || ((ti == nx_ +1) && (wall_bc_ & 0x02)) ) {
+        U2 = 0.0f;
+    }
+    
     //Write to main memory for internal cells
     // if (ti > 0 && ti < nx_ && tj > 0 && tj < ny_+1) {
     //if (ti > halo_x_-1+1 && ti < nx_ + 2*halo_x_-1+1 && tj > halo_y_-1 && tj < ny_+halo_y_) {
     // if (ti >= 2 && ti <= nx_ && tj >= 1 && tj <= ny_) {
-    if (ti >= closed_boundary_cell_west+1 && ti <= nx_+1-closed_boundary_cell_east && tj >= 1 && tj <= ny_) {
+    if (ti > 0 && ti < nx_+2 && tj > 0 && tj < ny_+1) {
         U0_row[ti] = U2;
     }
 }

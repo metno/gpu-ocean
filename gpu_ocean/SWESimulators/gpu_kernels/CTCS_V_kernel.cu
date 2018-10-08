@@ -63,15 +63,11 @@ __global__ void computeVKernel(
     const int tx = threadIdx.x;
     const int ty = threadIdx.y;
 	
-	const int closed_boundary_cell_north = (int)((wall_bc_ & 0x01) != 0);
-    const int closed_boundary_cell_south = (int)((wall_bc_ & 0x04) != 0);
-    
-	//const int closed_boundary_cell_north = (int)(bc_north_ == 1);
-    //const int closed_boundary_cell_south = (int)(bc_south_ == 1);
-    
+	
+	  
     //Start of block within domain
     const int bx = blockDim.x * blockIdx.x + 1; //Skip global ghost cells
-    const int by = blockDim.y * blockIdx.y + 1 + closed_boundary_cell_south; //Skip global ghost cells
+    const int by = blockDim.y * blockIdx.y + 1; //Skip global ghost cells
 
     //Index of cell within domain
     const int ti = bx + tx;
@@ -84,7 +80,7 @@ __global__ void computeVKernel(
     float V0 = 0.0f;
     // if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
     //if ( ti >= 1 && ti <= nx_ && tj >= 2 && tj <= ny_) {
-    if (ti >= 1 && ti <= nx_ && tj >= 1+closed_boundary_cell_south && tj <= ny_+1-closed_boundary_cell_north) {        
+    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+2) {        
         V0 = V0_row[ti];
     }
 	
@@ -199,8 +195,8 @@ __global__ void computeVKernel(
     const float eta_pp = eta1_shared[ty+1][tx+2];
 
     // Coriolis at U positions:
-    const float f_u_0 = f_ + beta_ * ((blockIdx.y * blockDim.y + threadIdx.y)-0.5f-y_zero_reference_cell_)*dy_;
-    const float f_u_p = f_ + beta_ * ((blockIdx.y * blockDim.y + threadIdx.y)+0.5f-y_zero_reference_cell_)*dy_;	
+    const float f_u_0 = f_ + beta_ * ((blockIdx.y * blockDim.y + threadIdx.y+1)-0.5f-y_zero_reference_cell_)*dy_;
+    const float f_u_p = f_ + beta_ * ((blockIdx.y * blockDim.y + threadIdx.y+1)+0.5f-y_zero_reference_cell_)*dy_;	
 	
     //Reconstruct H_bar and H_y (at the V position)
     const float H_bar_m0 = 0.25f*(H_m0 + H_mp + H_00 + H_0p);
@@ -241,12 +237,16 @@ __global__ void computeVKernel(
     const float Y = windStressY(wind_stress_t_, ti+0.5, tj, nx_, ny_);
     
     //Compute the V at the next timestep
-    const float V2 = (V0 + 2.0f*dt_*(-fU_bar + (N + P_y)/dy_ + Y + A_*E) ) / C;
+    float V2 = (V0 + 2.0f*dt_*(-fU_bar + (N + P_y)/dy_ + Y + A_*E) ) / C;
+    
+    if ( ((tj == 0) && (wall_bc_ & 0x04)) || ((tj == ny_+1) && (wall_bc_ & 0x01)) ) {
+        V2 = 0.0f;
+    }
     
     //Write to main memory for internal cells
     //if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
     //if ( ti >= 1 && ti <= nx_ && tj >= 2 && tj <= ny_) {
-    if (ti >= 1 && ti <= nx_ && tj >= 1+closed_boundary_cell_south && tj <= ny_+1-closed_boundary_cell_north) {        
+    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+2) {        
         V0_row[ti] = V2;
     }
 }
