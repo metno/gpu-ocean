@@ -401,3 +401,49 @@ class CTCStest(unittest.TestCase):
         self.refVRange = self.vRange
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
+        
+    def test_periodic_boundary_conditions(self):
+        self.setBoundaryConditions(2)
+        self.eta0 = np.random.rand(self.eta0.shape[0], self.eta0.shape[1])
+        self.u0   = np.random.rand(self.u0.shape[0],   self.u0.shape[1])
+        self.v0   = np.random.rand(self.v0.shape[0],   self.v0.shape[1])
+        self.sim = CTCS.CTCS(self.gpu_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+        self.sim._call_all_boundary_conditions()
+        
+        eta, u, v = self.sim.download(interior_domain_only=False)
+        
+        # Check periodic bc east-west
+        self.assertListEqual(eta[:,0].tolist(), eta[:,self.nx  ].tolist())
+        self.assertListEqual(eta[:,1].tolist(), eta[:,self.nx+1].tolist())
+
+        self.assertListEqual(  u[:,0].tolist(),   u[:,self.nx  ].tolist())
+        self.assertListEqual(  u[:,1].tolist(),   u[:,self.nx+1].tolist())
+        self.assertListEqual(  u[:,2].tolist(),   u[:,self.nx+2].tolist())
+
+        self.assertListEqual(  v[:,0].tolist(),   v[:,self.nx  ].tolist())
+        self.assertListEqual(  v[:,1].tolist(),   v[:,self.nx+1].tolist())
+        
+        
+        # Check periodic bc north-south
+        self.assertListEqual(eta[0,:].tolist(), eta[self.ny  ,:].tolist())
+        self.assertListEqual(eta[1,:].tolist(), eta[self.ny+1,:].tolist())
+        
+        self.assertListEqual(  u[0,:].tolist(),   u[self.ny  ,:].tolist())
+        self.assertListEqual(  u[1,:].tolist(),   u[self.ny+1,:].tolist())
+        
+        self.assertListEqual(  v[0,:].tolist(),   v[self.ny  ,:].tolist())
+        self.assertListEqual(  v[1,:].tolist(),   v[self.ny+1,:].tolist())
+        self.assertListEqual(  v[2,:].tolist(),   v[self.ny+2,:].tolist())
+        
+        
+        #maxDiffEta, 0.0, places=5,
+        #                       msg='Unexpected eta difference! Max diff: ' + str(maxDiffEta) + ', L2 diff: ' + str(diffEta))
+       
+        
+    
+    
+    

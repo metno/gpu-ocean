@@ -74,7 +74,7 @@ __global__ void boundaryUKernel_NS(
         // Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
-	int bc_north_, int bc_south_,
+        int bc_north_, int bc_south_,
 
         // Data
         float* U_ptr_, int U_pitch_) {
@@ -90,20 +90,21 @@ __global__ void boundaryUKernel_NS(
     
     // Check if thread is in the domain:
     if (ti <= nx_+2 && tj <= ny_+1) {
-	// The thread's row:
-	float* u_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);
+        // The thread's row:
+        float* u_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);
 
-	 int opposite_row_index = ny_;
-	 if ( (tj == ny_+1 && bc_north_ == 2) || (tj == 0 && bc_south_ == 1) ) {
-	     opposite_row_index = 1;
-	 }
-	
-	 if ( ((tj == 0     && bc_south_ < 3)  ||
-	       (tj == ny_+1 && bc_north_ < 3)) &&
-	      ti > 0 && ti < nx_+1 ) {
-	    float* u_opposite_row = (float*) ((char*) U_ptr_ + U_pitch_*opposite_row_index);
-	    u_row[ti] = u_opposite_row[ti];
-         }
+        int opposite_row_index = ny_;
+        if ( (tj == ny_+1 && bc_north_ == 2) || (tj == 0 && bc_south_ == 1) ) {
+            opposite_row_index = 1;
+        }
+        
+        if ( ((tj == 0     && bc_south_ < 3)  ||
+              (tj == ny_+1 && bc_north_ < 3)) &&
+              ti < nx_+3) {
+              //ti > 0 && ti < nx_+1 ) {
+            float* u_opposite_row = (float*) ((char*) U_ptr_ + U_pitch_*opposite_row_index);
+            u_row[ti] = u_opposite_row[ti];
+        }
     } 
 }
 } // extern "C"
@@ -115,7 +116,7 @@ __global__ void boundaryVKernel_NS(
         // Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
-	int bc_north_, int bc_south_,
+        int bc_north_, int bc_south_,
 
         // Data
         float* V_ptr_, int V_pitch_) {
@@ -133,24 +134,27 @@ __global__ void boundaryVKernel_NS(
 
     // Check if thread is in the domain:
     if (ti <= nx_+1 && tj <= ny_+2) {	
-	float* v_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
+        float* v_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
 
-	
-	if ( (tj < 2 && bc_south_ == 1 ) || (tj > ny_ && bc_north_ == 1) ) {
-	    v_row[ti] = 0;
-	}
-	else if (bc_north_ == 2) { // implicit bc_south_ == 2
-	    // Periodic
-	    int opposite_row_index = ny_;
-	    if (tj == ny_+2) {
-		opposite_row_index = 1;
-	    }
-	    
-	    if ( (tj == 0 || tj == ny_+2) && ti > 0 && ti < nx_+1 ) {
-		float* v_opposite_row = (float*) ((char*) V_ptr_ + V_pitch_*opposite_row_index);
-		v_row[ti] = v_opposite_row[ti];
-	    }
-	}
+        
+        if ( (tj < 2 && bc_south_ == 1 ) || (tj > ny_ && bc_north_ == 1) ) {
+            v_row[ti] = 0;
+        }
+        else if (bc_north_ == 2) { // implicit bc_south_ == 2
+            // Periodic
+            int opposite_row_index = ny_;
+            if (tj == ny_+2) {
+                opposite_row_index = 2; // 2 and ny_+1 -> 1
+            }
+            if (tj == ny_+1) {
+                opposite_row_index = 1;
+            }
+            
+            if ( (tj == 0 || tj > ny_) && ti > 0 && ti < nx_+1 ) {
+                float* v_opposite_row = (float*) ((char*) V_ptr_ + V_pitch_*opposite_row_index);
+                v_row[ti] = v_opposite_row[ti];
+            }
+        }
     }
 }
 } // extern "C"

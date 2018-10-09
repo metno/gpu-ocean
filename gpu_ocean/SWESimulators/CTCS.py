@@ -412,6 +412,15 @@ class CTCS(Simulator.Simulator):
         return self.t
 
         
+    def _call_all_boundary_conditions(self):
+        self.bc_kernel.boundaryConditionEta(self.gpu_stream, self.gpu_data.h0)
+        self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu0)
+        self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv0)
+        self.bc_kernel.boundaryConditionEta(self.gpu_stream, self.gpu_data.h1)
+        self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu1)
+        self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv1)
+        
+        
 class CTCS_boundary_condition:
     def __init__(self, gpu_ctx, nx, ny, \
                  boundary_conditions, halo_x, halo_y, \

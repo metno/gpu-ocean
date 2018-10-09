@@ -73,7 +73,7 @@ __global__ void boundaryUKernel_EW(
         // Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
-	int bc_east_, int bc_west_,
+        int bc_east_, int bc_west_,
 	
         // Data
         float* U_ptr_, int U_pitch_) {
@@ -91,24 +91,24 @@ __global__ void boundaryUKernel_EW(
     
     // Check if thread is in the domain:
     if (ti <= nx_+2 && tj <= ny_+1) {	
-	float* u_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);
+        float* u_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);
 
-	if ( (ti < 2 && bc_west_ == 1) || (ti > nx_ && bc_east_ == 1) ) {
-	    u_row[ti] = 0;
-	}
-	else if (bc_west_ == 2) { // bc_east is then automatically also 2
-	    // Periodic
-	    int opposite_col_index = nx_+1;
-	    if (ti == nx_+2) {
-		opposite_col_index = 1;
-	    }
-	    
-	    // We should have computed both u_row[1] and u_row[nx_+1],
-	    // and these two should already have the same values.
-	    if ( ti == 0 || ti == nx_+2) {
-		u_row[ti] = u_row[opposite_col_index];
-	    }
-	}
+        if ( (ti < 2 && bc_west_ == 1) || (ti > nx_ && bc_east_ == 1) ) {
+            u_row[ti] = 0;
+        }
+        else if (bc_west_ == 2) { // bc_east is then automatically also 2
+            // Periodic
+            int opposite_col_index = nx_;
+            if (ti > nx_) {
+                opposite_col_index = ti - nx_;
+            }
+            
+            // We should have computed both u_row[1] and u_row[nx_+1],
+            // and these two should already have the same values.
+            if ( ti == 0 || ti > nx_) {
+                u_row[ti] = u_row[opposite_col_index];
+            }
+        }
     }
 }
 } // extern "C"
@@ -135,19 +135,19 @@ __global__ void boundaryVKernel_EW(
 
     // Check if thread is in the domain:
     if (ti <= nx_+1 && tj <= ny_+2) {	
-	float* v_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
+        float* v_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
 
-	 int opposite_col_index = nx_;
-	 if ( (ti == nx_+1 && bc_east_ == 2) || (ti == 0 && bc_west_ == 1) ) {
-	     opposite_col_index = 1;
-	 }
-	
-	// We should have computed both u_row[1] and u_row[nx_+1],
-	// and these two should already have the same values.
-	 if ( (ti == 0 && bc_west_ < 3) || (ti == nx_+1 && bc_east_ < 3) )   {
+        int opposite_col_index = nx_;
+        if ( (ti == nx_+1 && bc_east_ == 2) || (ti == 0 && bc_west_ == 1) ) {
+             opposite_col_index = 1;
+        }
+        
+        // We should have computed both u_row[1] and u_row[nx_+1],
+        // and these two should already have the same values.
+         if ( (ti == 0 && bc_west_ < 3) || (ti == nx_+1 && bc_east_ < 3) )   {
 
-	     v_row[ti] = v_row[opposite_col_index];
-	}
+            v_row[ti] = v_row[opposite_col_index];
+        }
     }
 }
 } // extern "C" 

@@ -246,7 +246,7 @@ __global__ void computeVKernel(
     //Write to main memory for internal cells
     //if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_) {
     //if ( ti >= 1 && ti <= nx_ && tj >= 2 && tj <= ny_) {
-    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+2) {        
+    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+2) {
         V0_row[ti] = V2;
     }
 }
