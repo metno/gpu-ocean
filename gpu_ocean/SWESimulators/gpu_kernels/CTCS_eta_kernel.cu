@@ -63,8 +63,7 @@ __global__ void computeEtaKernel(
 
     //Read current eta
     float eta0 = 0.0f;
-    // if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
-    if ( ti >= 1 && ti <= nx_ && tj >= 1 && tj <= ny_) {
+    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
         eta0 = eta0_row[ti];
     }
     
@@ -114,8 +113,7 @@ __global__ void computeEtaKernel(
 							- 2.0f*dt_/dy_ * (V1_shared[ty+1][tx] - V1_shared[ty][tx]);
     
     //Write to main memory
-    //if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
-    if ( ti >= 1 && ti <= nx_ && tj >= 1 && tj <= ny_ ) {
+    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
         eta0_row[ti] = eta2;
     }
 }
