@@ -30,8 +30,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../')))
 
 import argparse
 parser = argparse.ArgumentParser(description='Benchmark a simulator.')
-parser.add_argument('--nx', type=int, default=1000)
-parser.add_argument('--ny', type=int, default=1000)
+parser.add_argument('--nx', type=int, default=2048)
+parser.add_argument('--ny', type=int, default=2048)
 parser.add_argument('--block_width', type=int)
 parser.add_argument('--block_height', type=int)
 parser.add_argument('--steps_per_download', type=int, default=2000)

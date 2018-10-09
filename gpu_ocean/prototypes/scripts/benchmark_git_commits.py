@@ -78,22 +78,22 @@ if args.git_commits is not None:
 else:
     git_versions = [
         #(git hash, git commit message, block size laptop, block size desktop, block size supercomputer)
-        ("a126bab97e690b7c642814e3c8b96f9879adf487", "original (per arch optimized block size)", (32,4), (12,12), (16, 16)), #Change blocksize here!
-        ("5d817bb7cd2b369039117d19aae7d669a9a2e53a", "Optimized shared memory use Hm", (32,4), (12,12), (16, 16)),
-        ("2e5da01457874ad5087398da77b9102ee991fb94", "Optimized shared memory use RHx/RHy", (32,4), (12,12), (16, 16)),
-        ("fcd145c8c29f3d38a024685fdd0fc3cf9580366c", "Optimized shared memory use Q", (32,4), (12,12), (16, 16)),
-        ("74e957bb41e391a5c5fbb19c3cac393079272dd3", "Optimized shared memory use F", (32,4), (12,12), (16, 16)),
-        ("5aba525d1d64937c03e8d2b33bb7f6d80b97a81a", "Optimized shared memory use G", (32,4), (12,12), (16, 16)),
-        ("addb061fe1cfccebb6fab70f9826be3752162b0b", "Optimized shared memory use Qy", (32,4), (12,12), (16, 16)),
-        ("aab115045fd6d313940fa37be3149155ba4ead70", "Made variables const", (32,4), (12,12), (16, 16)),
-        ("f6a911368b429df608eb5e1218c28bc14d6ffbe2", "Updated blocksize experiment code", (32,4), (12,12), (16, 16)),
-        ("339eb0c9a3bf04875507fab24d8924e24718a2eb", "Changed default block size", (16,8), (24,8), (16, 16)), #Change blocksize here!
-        ("1319edf92c20b8d5fd9fc8c0e0ed58176f9cc2ba", "Tried to reduce register use", (16,8), (24,8), (16, 16)),
-        ("6de871265b820aecc63d68a2e1f858605eb367c7", "Refactored to optimize register use", (16,8), (24,8), (16, 16)),
-        ("f6d1727d747b486203df91079b83a9e717668852", "Added logger to CDKLM", (16,8), (24,8), (16, 16)),
-        ("40f9d4817fa084de7cebfd3cf6d20254b93e7393", "Added fast math compilation flag", (16,8), (24,8), (16, 16)),
-        #("e2af2159becbd3c8769903eb4bea602a96d6c3a1", "Compilation flags experimentation", (16,8), (24,8), (16, 16)),
-        ("12536844bdc4459dcf4cc92776faea3a81d0a32c", "New optimal block size", (32,8), (32,12), (16, 16)) #Change blocksize here!
+        ("a126bab97e690b7c642814e3c8b96f9879adf487", "original (per arch optimized block size)", (32,4), (12,12), (16, 16), (12, 12)), #Change blocksize here!
+        ("5d817bb7cd2b369039117d19aae7d669a9a2e53a", "Optimized shared memory use Hm", (32,4), (12,12), (16, 16), (12, 12)),
+        ("2e5da01457874ad5087398da77b9102ee991fb94", "Optimized shared memory use RHx/RHy", (32,4), (12,12), (16, 16), (12, 12)),
+        ("fcd145c8c29f3d38a024685fdd0fc3cf9580366c", "Optimized shared memory use Q", (32,4), (12,12), (16, 16), (12, 12)),
+        ("74e957bb41e391a5c5fbb19c3cac393079272dd3", "Optimized shared memory use F", (32,4), (12,12), (16, 16), (12, 12)),
+        ("5aba525d1d64937c03e8d2b33bb7f6d80b97a81a", "Optimized shared memory use G", (32,4), (12,12), (16, 16), (12, 12)),
+        ("addb061fe1cfccebb6fab70f9826be3752162b0b", "Optimized shared memory use Qy", (32,4), (12,12), (16, 16), (12, 12)),
+        ("aab115045fd6d313940fa37be3149155ba4ead70", "Made variables const", (32,4), (12,12), (16, 16), (12, 12)),
+        ("f6a911368b429df608eb5e1218c28bc14d6ffbe2", "Updated blocksize experiment code", (32,4), (12,12), (16, 16), (12, 12)),
+        ("339eb0c9a3bf04875507fab24d8924e24718a2eb", "Changed default block size", (16,8), (24,8), (16, 16), (32, 12)), #Change blocksize here!
+        ("1319edf92c20b8d5fd9fc8c0e0ed58176f9cc2ba", "Tried to reduce register use", (16,8), (24,8), (16, 16), (32, 12)),
+        ("6de871265b820aecc63d68a2e1f858605eb367c7", "Refactored to optimize register use", (16,8), (24,8), (16, 16), (32, 12)),
+        ("f6d1727d747b486203df91079b83a9e717668852", "Added logger to CDKLM", (16,8), (24,8), (16, 16), (32, 12)),
+        ("40f9d4817fa084de7cebfd3cf6d20254b93e7393", "Added fast math compilation flag", (16,8), (24,8), (16, 16), (32, 12)),
+        #("e2af2159becbd3c8769903eb4bea602a96d6c3a1", "Compilation flags experimentation", (16,8), (24,8), (16, 16), (32, 12)),
+        ("12536844bdc4459dcf4cc92776faea3a81d0a32c", "New optimal block size", (32,8), (32,12), (16, 16), (32, 12)) #Change blocksize here!
     ]
 
 
@@ -101,13 +101,14 @@ else:
 class Architecture(enum.Enum):
     LAPTOP = 1
     DESKTOP = 2
-    SUPERCOMPUTER = 3
+    SUPERCOMPUTER_MET = 3
+    SUPERCOMPUTER_UIO = 4
 	
 architecture = None
 try:
 	architecture = Architecture[args.architecture_type.upper()]
 except KeyError:
-	print("ERROR: architecture_type must be one of the following: [laptop, desktop, supercomputer]")
+	print("ERROR: architecture_type must be one of the following: [laptop, desktop, supercomputer_met, supercomputer_uio]")
 	sys.exit(-1)
 
 if not (args.simulator == "CDKLM" or args.simulator == "FBL" or args.simulator == "CTCS"):
@@ -142,7 +143,7 @@ benchmark_script_version = "5c2214573269367fbdb6d67ace07f2ffa57d37ba"
 benchmark_script_options = ["--simulator", "CDKLM", '--steps_per_download', '10', '--iterations', '3']
 outfile = os.path.join(os.getcwd(), "output_" + time.strftime("%Y_%m_%d-%H_%M_%S") + ".npz")
 
-for version, log, laptop, desktop, supercomputer in git_versions:
+for version, log, laptop, desktop, supercomputer_met, supercomputer_uio in git_versions:
     logger.info(version + " - " + log)
 
 
@@ -169,7 +170,7 @@ logger.debug(stdout)
 
 
 # Loop through the git_versions and run each benchmark
-for version, log, laptop_block, desktop_block, supercomputer_block in git_versions:
+for version, log, laptop_block, desktop_block, supercomputer_met_block, supercomputer_uio_block in git_versions:
     logger.debug("checkout " + version)
     logger.debug("    with commit msg: " + log)
     stdout = git(git_clone, ["checkout", "--force", '-q', version])
@@ -179,8 +180,9 @@ for version, log, laptop_block, desktop_block, supercomputer_block in git_versio
     stdout = git(git_clone, ["checkout", "--force", '-q', benchmark_script_version, "--", benchmark_script_relpath])
     logger.debug("stdout: " + str(stdout))
         
-    if architecture == Architecture.DESKTOP or architecture == Architecture.SUPERCOMPUTER:
-        block_size_options = None
+    block_size_options = None
+
+    if architecture == Architecture.DESKTOP or architecture == Architecture.SUPERCOMPUTER_MET or architecture == Architecture.SUPERCOMPUTER_UIO:
         
         if architecture == Architecture.LAPTOP:
             block_size_options = ["--block_width", str(laptop_block[0]), "--block_height", str(laptop_block[1])] 
@@ -189,8 +191,11 @@ for version, log, laptop_block, desktop_block, supercomputer_block in git_versio
         if architecture == Architecture.DESKTOP:
             block_size_options = ["--block_width", str(desktop_block[0]), "--block_height", str(desktop_block[1])]
             
-        if architecture == Architecture.SUPERCOMPUTER:
-            block_size_options = ["--block_width", str(supercomputer_block[0]), "--block_height", str(supercomputer_block[1])]
+        if architecture == Architecture.SUPERCOMPUTER_MET:
+            block_size_options = ["--block_width", str(supercomputer_met_block[0]), "--block_height", str(supercomputer_met_block[1])]
+            
+        if architecture == Architecture.SUPERCOMPUTER_UIO:
+            block_size_options = ["--block_width", str(supercomputer_uio_block[0]), "--block_height", str(supercomputer_uio_block[1])]
                    
     a = None
     try:
@@ -208,11 +213,11 @@ print("benchmarking finished")
 
 
 
-versions, labels, laptop_block, desktop_block, supercomputer_block = list(zip(*git_versions))
+versions, labels, laptop_block, desktop_block, supercomputer_met_block, supercomputer_uio_block = list(zip(*git_versions))
 megacells = np.full((len(versions)), np.nan)
 
 for i, ver in enumerate(git_versions):
-    version, log, l_block, d_block, hpc_block  = ver
+    version, log, l_block, d_block, s_met_block, s_uio_block = ver
     filename = os.path.join(tmpdir, "benchmark_" + version + ".npz")
     with np.load(filename) as version_data:
         megacells[i] = version_data['CDKLM']
