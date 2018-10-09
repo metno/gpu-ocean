@@ -54,11 +54,11 @@ __global__ void computeUKernel(
         // Wind stress parameters
         const float wind_stress_t_) {
         
-    __shared__ float H_shared[block_height+2][block_width+1];
-    __shared__ float eta1_shared[block_height+2][block_width+1];
+    __shared__ float H_shared[block_height+2][block_width+2];
+    __shared__ float eta1_shared[block_height+2][block_width+2];
     __shared__ float U1_shared[block_height+2][block_width+2];
-    __shared__ float V1_shared[block_height+1][block_width+1];
-
+    __shared__ float V1_shared[block_height+2][block_width+2];
+    
     //Index of thread within block
     const int tx = threadIdx.x;
     const int ty = threadIdx.y;
@@ -97,7 +97,7 @@ __global__ void computeUKernel(
             float* const H_row = (float*) ((char*) H_ptr_ + H_pitch_*l);
             float* const eta1_row = (float*) ((char*) eta1_ptr_ + eta1_pitch_*l);
 
-            for (int i=tx; i<block_width+1; i+=blockDim.x) {
+            for (int i=tx; i<block_width+2; i+=blockDim.x) {
                 // "fake" global ghost cells by clamping
                 //const int k = clamp(bx + i, 1, nx_);
                 
@@ -135,17 +135,17 @@ __global__ void computeUKernel(
     
 
     //Read V into shared memory: (nx+1)*(ny+1) cells
-    for (int j=ty; j<block_height+1; j+=blockDim.y) {
+    for (int j=ty; j<block_height+2; j+=blockDim.y) {
         // Prevent out-of-bounds
         // const int l = clamp(by + j - 1, 0, ny_);
         
-        const int l = by + j;
+        const int l = by + j - 1;
         if (l >= 0 && l <= ny_+2) {
 
             //Compute the pointer to current row in the U array
             float* const V1_row = (float*) ((char*) V1_ptr_ + V1_pitch_*l);
 
-            for (int i=tx; i<block_width+1; i+=blockDim.x) {
+            for (int i=tx; i<block_width+2; i+=blockDim.x) {
                 // "fake" ghost cells by clamping
                 // const int k = clamp(bx + i, halo_x_, nx_+halo_x_);
 
@@ -174,10 +174,11 @@ __global__ void computeUKernel(
     const float U_p0 = U1_shared[ty+1][tx+2]; //U at "east"
     const float U_m0 = U1_shared[ty+1][tx  ]; //U at "west"
     
-    const float V_00 = V1_shared[ty+1][tx  ];
-    const float V_p0 = V1_shared[ty+1][tx+1];
-    const float V_0m = V1_shared[ty  ][tx  ];
-    const float V_pm = V1_shared[ty  ][tx+1];
+    // First row of V1_shared is intentionally never used
+    const float V_00 = V1_shared[ty+1+1][tx  ];
+    const float V_p0 = V1_shared[ty+1+1][tx+1];
+    const float V_0m = V1_shared[ty+1  ][tx  ];
+    const float V_pm = V1_shared[ty+1  ][tx+1];
     
     const float H_0m = H_shared[ty  ][tx  ]; 
     const float H_00 = H_shared[ty+1][tx  ]; 
