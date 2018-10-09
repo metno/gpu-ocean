@@ -45,8 +45,8 @@ __global__ void computeVKernel(
         //Physical parameters
         float g_, //< Gravitational constant
         float f_, //< Coriolis coefficient
-	float beta_, //< Coriolis force f_ + beta_*(y-y0)
-	float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
+        float beta_, //< Coriolis force f_ + beta_*(y-y0)
+        float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
         float r_, //< Bottom friction coefficient
     
         //Data
@@ -54,17 +54,20 @@ __global__ void computeVKernel(
         float* U_ptr_, int U_pitch_,
         float* V_ptr_, int V_pitch_,
         float* eta_ptr_, int eta_pitch_,
-    
+        
+        // Wall boundary conditions packed as bit-wise boolean
+        int wall_bc_,
+        
         // Wind stress parameters
         float wind_stress_t_) {
         
-    __shared__ float H_shared[block_height+1][block_width];
-    __shared__ float U_shared[block_height+1][block_width+1];
-    __shared__ float eta_shared[block_height+1][block_width];
+    __shared__ float H_shared[block_height+2][block_width+2];
+    __shared__ float U_shared[block_height+2][block_width+1];
+    __shared__ float eta_shared[block_height+2][block_width+2];
 
     //Index of thread within block
-    const int tx = threadIdx.x;
-    const int ty = threadIdx.y;
+    const int tx = threadIdx.x + 1; // Including ghost cell
+    const int ty = threadIdx.y + 1; // Including ghost cell
 
     //Index of block within domain
     const int bx = blockDim.x * blockIdx.x;
@@ -79,21 +82,21 @@ __global__ void computeVKernel(
 
     //Read current V
     float V_current = 0.0f;
-    if (ti < nx_ && tj < ny_+1) {
+    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
         V_current = V_row[ti];
     }
 
-    //Read H and eta into shared memory
-    for (int j=ty; j<block_height+1; j+=blockDim.y) {
-        const int l = by + j - 1;
+    //Read H and eta into shared memory [block_height+2][block_width+2]
+    for (int j=threadIdx.y; j<block_height+2; j+=blockDim.y) {
+        const int l = by + j;
         
         //Compute the pointer to current row in the H and eta arrays
         float* const H_row = (float*) ((char*) H_ptr_ + H_pitch_*l);
         float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*l);
         
-        for (int i=tx; i<block_width; i+=blockDim.x) {
+        for (int i=threadIdx.x; i<block_width+2; i+=blockDim.x) {
             const int k = bx + i;
-            if (k < nx_ && l >= 0 && l < ny_) {
+            if (k < nx_+2 && l < ny_+2) {
                 H_shared[j][i] = H_row[k];
                 eta_shared[j][i] = eta_row[k];
             }
@@ -104,16 +107,16 @@ __global__ void computeVKernel(
         }
     }
 
-    //Read U into shared memory
-    for (int j=ty; j<block_height+1; j+=blockDim.y) {
-        const int l = by + j - 1;
+    //Read U into shared memory [block_height+2][block_width+1]
+    for (int j=threadIdx.y; j<block_height+2; j+=blockDim.y) {
+        const int l = by + j;
         
         //Compute the pointer to current row in the V array
         float* const U_row = (float*) ((char*) U_ptr_ + U_pitch_*l);
         
-        for (int i=tx; i<block_width+1; i+=blockDim.x) {
+        for (int i=threadIdx.x; i<block_width+1; i+=blockDim.x) {
             const int k = bx + i;
-            if (k < nx_+1 && l >= 0 && l < ny_) {
+            if (k < nx_+1 && l < ny_+2) {
                 U_shared[j][i] = U_row[k];
             }
             else {
@@ -126,7 +129,7 @@ __global__ void computeVKernel(
     __syncthreads();
 
     //Reconstruct H at the V position
-    float H_m = 0.5f*(H_shared[ty][tx] + H_shared[ty+1][tx]);
+    float H_m = 0.5f*(H_shared[ty-1][tx] + H_shared[ty][tx]);
 
     // Coriolis forces at V position and U positions
     float f_v   = linear_coriolis_term(f_, beta_, tj,      dy_, y_zero_reference_cell_);
@@ -134,25 +137,14 @@ __global__ void computeVKernel(
     float f_u_m = linear_coriolis_term(f_, beta_, tj-0.5f, dy_, y_zero_reference_cell_); 
     
     //Reconstruct f*U at the V position
-    float fU_m;
-    if (ti==0) {
-	// Using Coriolis at V postiion
-        fU_m = 0.5f*f_v*(U_shared[ty][tx+1] + U_shared[ty+1][tx+1]);
-    }
-    else if (ti==nx_-1) {
-	// Using Coriolis at V postiion
-        fU_m = 0.5f*f_v*(U_shared[ty][tx] + U_shared[ty+1][tx]);
-    }
-    else {
-        fU_m = 0.25f*( f_u_m*(U_shared[ty  ][tx] + U_shared[ty  ][tx+1])
-		     + f_u_p*(U_shared[ty+1][tx] + U_shared[ty+1][tx+1]) );
-    }
+    float fU_m = 0.25f*( f_u_m*(U_shared[ty-1][tx-1] + U_shared[ty-1][tx])
+                       + f_u_p*(U_shared[ty  ][tx-1] + U_shared[ty  ][tx]) );
 
     //Calculate the friction coefficient
     float B = H_m/(H_m + r_*dt_);
 
     //Calculate the gravitational effect
-    float P = g_*H_m*(eta_shared[ty][tx] - eta_shared[ty+1][tx])/dy_;
+    float P = g_*H_m*(eta_shared[ty-1][tx] - eta_shared[ty][tx])/dy_;
 
     //FIXME Check coordinates (ti_, tj_) here!!!
     //TODO Check coordinates (ti_, tj_) here!!!
@@ -161,9 +153,14 @@ __global__ void computeVKernel(
 
     //Compute the V at the next timestep
     float V_next = B*(V_current + dt_*(-fU_m + P + Y) );
+    
+    // Checking wall boundary conditions
+    if ((tj == 1) && (wall_bc_ & 0x04)) {
+        V_next = 0.0f;
+    }
 
     //Write to main memory
-    if (ti < nx_ && tj > 0 && tj < ny_ ) {
+    if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {
         V_row[ti] = V_next;
     }
 
