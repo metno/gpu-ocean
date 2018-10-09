@@ -505,13 +505,13 @@ class SWEDataArakawaC:
         #print "(hu0.shape, (nx, ny), asymHalo, (halo_x, halo_y)): ", (hu0.shape, (nx+1, ny), asymHaloU,  (halo_x, halo_y))
         #print "(hv0.shape, (nx, ny), asymHalo,  (halo_x, halo_y)): ", (hv0.shape, (nx, ny+1), asymHaloV, (halo_x, halo_y))
 
-        self.h0   = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, h0, asymHalo)
-        self.hu0  = CUDAArray2D(gpu_stream, nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
-        self.hv0  = CUDAArray2D(gpu_stream, nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
+        self.h0   = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, h0)
+        self.hu0  = CUDAArray2D(gpu_stream, nx+1, ny, halo_x, halo_y, hu0)
+        self.hv0  = CUDAArray2D(gpu_stream, nx, ny+1, halo_x, halo_y, hv0)
         
-        self.h1   = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, h0, asymHalo)
-        self.hu1  = CUDAArray2D(gpu_stream, nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
-        self.hv1  = CUDAArray2D(gpu_stream, nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
+        self.h1   = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, h0)
+        self.hu1  = CUDAArray2D(gpu_stream, nx+1, ny, halo_x, halo_y, hu0)
+        self.hv1  = CUDAArray2D(gpu_stream, nx, ny+1, halo_x, halo_y, hv0)
                    
         
     def swap(self):
