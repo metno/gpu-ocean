@@ -32,10 +32,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  // Fix north-south boundary before east-west (to get the corners right)
  extern "C" {
 __global__ void boundaryEtaKernel_NS(
-	// Discretization parameters
+        // Discretization parameters
         int nx_, int ny_,
         int halo_x_, int halo_y_,
-	int bc_north_, int bc_south_,
+        int bc_north_, int bc_south_,
 	
         // Data
         float* eta_ptr_, int eta_pitch_) {
@@ -52,16 +52,16 @@ __global__ void boundaryEtaKernel_NS(
     int opposite_row_index = ny_;
     //if (tj == ny_+1) {
     if ( (tj == ny_+1 && bc_north_ == 2) || (tj == 0 && bc_south_ == 1) ) {
-	opposite_row_index = 1;
+        opposite_row_index = 1;
     }
     
     // Set ghost cells equal to inner neighbour's value
     if (((tj == 0     && bc_south_ < 3)  ||
-	 (tj == ny_+1 && bc_north_ < 3)) &&
-	ti > 0 && ti < nx_+1) {
-	float* ghost_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);
-	float* opposite_row = (float*) ((char*) eta_ptr_ + eta_pitch_*opposite_row_index);
-	ghost_row[ti] = opposite_row[ti];
+         (tj == ny_+1 && bc_north_ < 3)) &&
+        ti > -1 && ti < nx_+2) {
+        float* ghost_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);
+        float* opposite_row = (float*) ((char*) eta_ptr_ + eta_pitch_*opposite_row_index);
+        ghost_row[ti] = opposite_row[ti];
     }
     // TODO: USE HALO PARAMS
 }
@@ -150,7 +150,7 @@ __global__ void boundaryVKernel_NS(
                 opposite_row_index = 1;
             }
             
-            if ( (tj == 0 || tj > ny_) && ti > 0 && ti < nx_+1 ) {
+            if ( (tj == 0 || tj > ny_) && ti < nx_+2 ) {
                 float* v_opposite_row = (float*) ((char*) V_ptr_ + V_pitch_*opposite_row_index);
                 v_row[ti] = v_opposite_row[ti];
             }

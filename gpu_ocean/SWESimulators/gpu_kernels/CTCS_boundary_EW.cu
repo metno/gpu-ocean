@@ -32,10 +32,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Fix north-south boundary before east-west (to get the corners right)
 extern "C" {
 __global__ void boundaryEtaKernel_EW(
-	// Discretization parameters
+        // Discretization parameters
         int nx_, int ny_,
         int halo_x_, int halo_y_,
-	int bc_east_, int bc_west_,
+        int bc_east_, int bc_west_,
 
         // Data
         float* eta_ptr_, int eta_pitch_) {
@@ -52,15 +52,14 @@ __global__ void boundaryEtaKernel_EW(
 
     int opposite_col_index = nx_;
     if ( (ti == nx_+1 && bc_east_ == 2) || (ti == 0 && bc_west_ == 1) ) {
-	opposite_col_index = 1;
+        opposite_col_index = 1;
     }
     
     // Set ghost cells equal to inner neighbour's value
-    if (((ti == 0     && bc_west_ < 3)  ||
-	 (ti == nx_+1 && bc_east_ < 3)) &&
-	tj > -1 && tj < ny_+2) {
-	float* eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);
-	eta_row[ti] = eta_row[opposite_col_index];
+    if (((ti == 0     && bc_west_ < 3) ||
+         (ti == nx_+1 && bc_east_ < 3)    ) &&  tj < ny_+2) {
+        float* eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);
+        eta_row[ti] = eta_row[opposite_col_index];
     }
     // TODO: USE HALO PARAMS
 }

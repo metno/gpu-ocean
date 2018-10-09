@@ -113,7 +113,6 @@ class CTCS(Simulator.Simulator):
                                    offset_x, offset_y, \
                                    block_width, block_height)
 
-        self.gpu_streams = [self.gpu_stream, cuda.Stream(), cuda.Stream()]
             
         # Index range for interior domain (north, east, south, west)
         # so that interior domain of eta is
@@ -122,36 +121,7 @@ class CTCS(Simulator.Simulator):
         self.interior_domain_indices = np.array([-1,-1,1,1])
         self._set_interior_domain_from_sponge_cells()
 
-        #Get kernels
-        self.u_kernel = gpu_ctx.get_kernel("CTCS_U_kernel.cu", 
-                defines={'block_width': block_width, 'block_height': block_height},
-                compile_args={
-                    'no_extern_c': True,
-                    'options': ["--use_fast_math"]
-                    #'options': ["--generate-line-info"], 
-                    #'options': ["--maxrregcount=32"]
-                    #'arch': "compute_50", 
-                    #'code': "sm_50"
-                },
-                jit_compile_args={
-                    #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
-                }
-        )
-        self.v_kernel = gpu_ctx.get_kernel("CTCS_V_kernel.cu", 
-                defines={'block_width': block_width, 'block_height': block_height},
-                compile_args={
-                    'no_extern_c': True,
-                    'options': ["--use_fast_math"]
-                    #'options': ["--generate-line-info"], 
-                    #'options': ["--maxrregcount=32"]
-                    #'arch': "compute_50", 
-                    #'code': "sm_50"
-                },
-                jit_compile_args={
-                    #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
-                }
-        )
-        self.eta_kernel = gpu_ctx.get_kernel("CTCS_eta_kernel.cu", 
+        self.step_kernel = gpu_ctx.get_kernel("CTCS_step_kernel.cu", 
                 defines={'block_width': block_width, 'block_height': block_height},
                 compile_args={
                     'no_extern_c': True,
@@ -165,20 +135,15 @@ class CTCS(Simulator.Simulator):
                     #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
                 }
 		)
-		
+        
         # Get CUDA functions 
-        self.computeUKernel = self.u_kernel.get_function("computeUKernel")
-        self.computeVKernel = self.v_kernel.get_function("computeVKernel")
-        self.computeEtaKernel = self.eta_kernel.get_function("computeEtaKernel")
+        self.ctcsStepKernel = self.step_kernel.get_function("ctcsStepKernel")
         
         # Prepare kernel lauches
-        self.computeUKernel.prepare("iiifffffffffPiPiPiPiPif")
-        self.computeVKernel.prepare("iiifffffffffPiPiPiPiPif")
-        self.computeEtaKernel.prepare("iiffffffffPiPiPi")
+        self.ctcsStepKernel.prepare("iiifffffffffPiPiPiPiPiPiPif")
         
         # Set up textures
-        self.update_wind_stress(self.u_kernel, self.computeUKernel)
-        self.update_wind_stress(self.v_kernel, self.computeVKernel)
+        self.update_wind_stress(self.step_kernel, self.ctcsStepKernel)
         
         #Create data by uploading to device     
         self.H = Common.CUDAArray2D(self.gpu_stream, nx, ny, halo_x, halo_y, H)
@@ -339,67 +304,30 @@ class CTCS(Simulator.Simulator):
             if (self.boundary_conditions.west == 1):
                 boundary_conditions = boundary_conditions | 0x08
                 
-            self.update_wind_stress(self.u_kernel, self.computeUKernel)
-            wind_stress_t = np.float32(self.update_wind_stress(self.v_kernel, self.computeVKernel))
+            wind_stress_t = np.float32(self.update_wind_stress(self.step_kernel, self.ctcsStepKernel))
 
-            # streams are [U-stream, V-stream, eta-stream]
-            # self.gpu_streams = [self.gpu_stream, cuda.Stream(), cuda.Stream()]
-
-            events = [cuda.Event(), cuda.Event(), cuda.Event()]
-            
-            self.computeEtaKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_streams[0], \
+            self.ctcsStepKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                     self.nx, self.ny, \
+                    boundary_conditions, \
                     self.dx, self.dy, local_dt, \
-                    self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
+                    self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, \
+                    self.r, self.A,\
+                    
                     self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch,     # eta^{n-1} => eta^{n+1} \
-                    self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch,   # U^{n} \
-                    self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch)   # V^{n}
-
-            self.bc_kernel.boundaryConditionEta(self.gpu_streams[0], self.gpu_data.h0)
-            #
-            
-            self.computeUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_streams[1], \
-                    self.nx, self.ny, \
-                    boundary_conditions, \
-                    self.dx, self.dy, local_dt, \
-                    self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, \
-                    self.r, self.A,\
-                    self.H.data.gpudata, self.H.pitch, \
-                    self.gpu_data.h1.data.gpudata, self.gpu_data.h1.pitch,      # eta^{n} \
-                    self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch,    # U^{n-1} => U^{n+1} \
-                    self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch,    # U^{n} \
-                    self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch,    # V^{n} \
-                    wind_stress_t)
-
-            self.bc_kernel.boundaryConditionU(self.gpu_streams[1], self.gpu_data.hu0)
-            events[1].record(self.gpu_streams[1])
-            
-            self.computeVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_streams[2], \
-                    self.nx, self.ny, \
-                    boundary_conditions, \
-                    self.dx, self.dy, local_dt, \
-                    self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, \
-                    self.r, self.A,\
-                    self.H.data.gpudata, self.H.pitch, \
+                    self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch,   # U^{n-1} => U^{n+1} \
+                    self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch,   # V^{n-1} => V^{n+1} \
+                    
+                    self.H.data.gpudata, self.H.pitch,                         # H (bathymetry) \        
                     self.gpu_data.h1.data.gpudata, self.gpu_data.h1.pitch,     # eta^{n} \
                     self.gpu_data.hu1.data.gpudata, self.gpu_data.hu1.pitch,   # U^{n} \
-                    self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch,   # V^{n-1} => V^{n+1} \
                     self.gpu_data.hv1.data.gpudata, self.gpu_data.hv1.pitch,   # V^{n} \
+
                     wind_stress_t)
-
-            self.bc_kernel.boundaryConditionV(self.gpu_streams[2], self.gpu_data.hv0)
-            events[2].record(self.gpu_streams[2])
+                   
+            self.bc_kernel.boundaryConditionEta(self.gpu_stream, self.gpu_data.h0)
+            self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu0)
+            self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv0)
             
-
-            #for event in events:
-            #    event.synchronize()
-            self.gpu_streams[0].wait_for_event(events[1])
-            self.gpu_streams[0].wait_for_event(events[2])
-            events[0].record(self.gpu_streams[0])
-            
-            self.gpu_streams[1].wait_for_event(events[0])
-            self.gpu_streams[2].wait_for_event(events[0])
-                        
             #After the kernels, swap the data pointers
             self.gpu_data.swap()
             
