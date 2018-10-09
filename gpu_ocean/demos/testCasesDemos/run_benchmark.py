@@ -38,6 +38,8 @@ parser.add_argument('--steps_per_download', type=int, default=2000)
 parser.add_argument('--iterations', type=int, default=1)
 parser.add_argument('--simulator', type=str)
 parser.add_argument('--output', type=str, default=None)
+parser.add_argument("--new_fbl", type=int, default=0)
+
 args = parser.parse_args()
 
 
@@ -166,14 +168,18 @@ Initializes the FBL simulator
 """
 def initFBL():
 	tic = time.time()
+	dataShape = (args.ny, args.nx)
 	
-	dataShape = (args.ny+2, args.nx+2)
-
 	eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
-	u0 = np.zeros((dataShape[0]+0, dataShape[1]-1), dtype=np.float32);
+	u0 = np.zeros((dataShape[0]+0, dataShape[1]+1), dtype=np.float32);
 	v0 = np.zeros((dataShape[0]+1, dataShape[1]+0), dtype=np.float32);
 	h0 = np.ones(dataShape, dtype=np.float32) * waterHeight;
-
+	if args.new_fbl:
+		dataShape = (args.ny+2, args.nx+2)
+		eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+		u0 = np.zeros((dataShape[0]+0, dataShape[1]-1), dtype=np.float32);
+		v0 = np.zeros((dataShape[0]+1, dataShape[1]+0), dtype=np.float32);
+		h0 = np.ones(dataShape, dtype=np.float32) * waterHeight;
 	toc = time.time()
 	print("{:02.4f} s: ".format(toc-tic) + "Generated initial conditions")
 			
