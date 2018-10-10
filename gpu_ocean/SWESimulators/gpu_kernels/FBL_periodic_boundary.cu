@@ -42,7 +42,7 @@ __global__ void closedBoundaryUKernel(
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     //Compute pointer to current row in the U array
-    float* const U_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);	
+    float* const U_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);   
     
     if ( ( ((ti == 0  ) && (bc_west_ == 1)) || 
            ((ti == nx_) && (bc_east_ == 1))    ) && tj < ny_ + 2) {
@@ -61,9 +61,9 @@ __global__ void closedBoundaryUKernel(
  // Fix north-south boundary before east-west (to get the corners right)
  extern "C" {
 __global__ void periodicBoundaryUKernel_NS(
-	// Discretization parameters
+        // Discretization parameters
         int nx_, int ny_,
-	
+    
         // Data
         float* U_ptr_, int U_pitch_) {
     // Index of cell within domain
@@ -88,7 +88,7 @@ extern "C" {
 __global__ void periodicBoundaryUKernel_EW(
         // Discretization parameters
         int nx_, int ny_,
-	
+    
         // Data
         float* U_ptr_, int U_pitch_) {
     // U has no ghost cells in x-directions, but the values 
@@ -132,7 +132,7 @@ __global__ void closedBoundaryVKernel(
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     //Compute pointer to current row in the V array
-    float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);	
+    float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);   
     
     if ( ( ((tj < 2  ) && (bc_south_ == 1)) || 
            (((tj == ny_+1) || (tj == ny_+2)) && (bc_north_ == 1)) )
@@ -153,9 +153,9 @@ __global__ void closedBoundaryVKernel(
  // Fix north-south boundary before east-west (to get the corners right)
  extern "C" {
 __global__ void periodicBoundaryVKernel_NS(
-	// Discretization parameters
+        // Discretization parameters
         int nx_, int ny_,
-	
+    
         // Data
         float* V_ptr_, int V_pitch_) {
     // One row of ghost values must be updated with the opposite 
@@ -188,7 +188,7 @@ extern "C" {
 __global__ void periodicBoundaryVKernel_EW(
         // Discretization parameters
         int nx_, int ny_,
-	
+    
         // Data
         float* V_ptr_, int V_pitch_) {
     // Straight forward with one ghost column on each side
@@ -231,7 +231,7 @@ __global__ void closedBoundaryEtaKernel(
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     //Compute pointer to current row in the eta array
-    float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);	
+    float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj); 
     
     if ( (  ((tj == 0  ) && (bc_south_ == 1)) || 
             ((tj == ny_+1)  && (bc_north_ == 1)) )

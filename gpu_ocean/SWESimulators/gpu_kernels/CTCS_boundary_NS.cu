@@ -36,7 +36,7 @@ __global__ void boundaryEtaKernel_NS(
         int nx_, int ny_,
         int halo_x_, int halo_y_,
         int bc_north_, int bc_south_,
-	
+    
         // Data
         float* eta_ptr_, int eta_pitch_) {
     // Global thread sizes:
@@ -132,7 +132,7 @@ __global__ void boundaryVKernel_NS(
 
 
     // Check if thread is in the domain:
-    if (ti <= nx_+1 && tj <= ny_+2) {	
+    if (ti <= nx_+1 && tj <= ny_+2) {   
         float* v_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
 
         

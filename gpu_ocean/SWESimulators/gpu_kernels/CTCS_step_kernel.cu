@@ -31,7 +31,7 @@ extern "C" {
 __global__ void ctcsStepKernel(
         //Discretization parameters
         const int nx_, const int ny_,
-		const int wall_bc_,
+        const int wall_bc_,
         const float dx_, const float dy_, const float dt_,
     
         //Physical parameters
@@ -306,7 +306,7 @@ __global__ void ctcsStepKernel(
 
         // Coriolis at U positions:
         const float f_u_0 = f_ + beta_ * ((blockIdx.y * blockDim.y + threadIdx.y+1)-0.5f-y_zero_reference_cell_)*dy_;
-        const float f_u_p = f_ + beta_ * ((blockIdx.y * blockDim.y + threadIdx.y+1)+0.5f-y_zero_reference_cell_)*dy_;	
+        const float f_u_p = f_ + beta_ * ((blockIdx.y * blockDim.y + threadIdx.y+1)+0.5f-y_zero_reference_cell_)*dy_;   
         
         //Reconstruct H_bar and H_y (at the V position)
         const float H_bar_m0 = 0.25f*(H_m0 + H_mp + H_00 + H_0p);
@@ -362,7 +362,7 @@ __global__ void ctcsStepKernel(
     //Compute the eta at the next timestep
     //We intentionally do not read first row and first col of U1_shared and V1_shared
     const float eta2 = eta0 - 2.0f*dt_/dx_ * (U1_shared[ty+1][tx+1+1] - U1_shared[ty+1][tx+1])
-							- 2.0f*dt_/dy_ * (V1_shared[ty+1+1][tx+1] - V1_shared[ty+1][tx+1]);
+                            - 2.0f*dt_/dy_ * (V1_shared[ty+1+1][tx+1] - V1_shared[ty+1][tx+1]);
     
     //Write to main memory for internal cells
     if (ti > 0 && ti < nx_+1 && tj > 0 && tj < ny_+1) {

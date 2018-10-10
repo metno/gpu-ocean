@@ -72,7 +72,7 @@ __global__ void boundaryUKernel_EW(
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
         int bc_east_, int bc_west_,
-	
+    
         // Data
         float* U_ptr_, int U_pitch_) {
     // Global thread sizes:
@@ -88,7 +88,7 @@ __global__ void boundaryUKernel_EW(
 
     
     // Check if thread is in the domain:
-    if (ti <= nx_+2 && tj <= ny_+1) {	
+    if (ti <= nx_+2 && tj <= ny_+1) {   
         float* u_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);
 
         if ( (ti < 2 && bc_west_ == 1) || (ti > nx_ && bc_east_ == 1) ) {
@@ -117,7 +117,7 @@ __global__ void boundaryVKernel_EW(
         // Discretization parameters
         int nx_, int ny_,
         int nx_halo_, int ny_halo_,
-	int bc_east_, int bc_west_,
+        int bc_east_, int bc_west_,
 
         // Data
         float* V_ptr_, int V_pitch_) {
@@ -132,7 +132,7 @@ __global__ void boundaryVKernel_EW(
     const int ti = (thread_id == 1) ? nx_ + 1 : thread_id;
 
     // Check if thread is in the domain:
-    if (ti <= nx_+1 && tj <= ny_+2) {	
+    if (ti <= nx_+1 && tj <= ny_+2) {   
         float* v_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
 
         int opposite_col_index = nx_;
