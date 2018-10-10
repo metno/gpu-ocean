@@ -376,10 +376,10 @@ class CTCS_boundary_condition:
                              int(np.ceil((self.ny_halo + 1)/float(self.local_size[1]))) )
 
         self.local_size_NS = (64, 4, 1)
-        self.global_size_NS = (int(np.ceil((self.nx_halo + 1)/float(self.local_size[0]))), 1)
+        self.global_size_NS = (int(np.ceil((self.nx_halo + 1)/float(self.local_size_NS[0]))), 1)
 
         self.local_size_EW = (4, 64, 1)
-        self.global_size_EW = (1, int(np.ceil((self.ny_halo+1)/float(self.local_size_NS[1]))) )
+        self.global_size_EW = (1, int(np.ceil((self.ny_halo+1)/float(self.local_size_EW[1]))) )
 
         
         # Load kernel for periodic boundary
