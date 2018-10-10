@@ -24,60 +24,48 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "common.cu"
 
 
-// Finds the coriolis term based on the linear Coriolis force
-// f = \tilde{f} + beta*(y-y0)
-__device__ float linear_coriolis_term(const float f, const float beta,
-			   const float tj, const float dy,
-			   const float y_zero_reference_cell) {
-    // y_0 is at the southern face of the row y_zero_reference_cell.
-    float y = (tj-y_zero_reference_cell + 0.5f)*dy;
-    return f + beta * y;
-}
-
 /**
   * Kernel that evolves U one step in time.
   */
 extern "C" {
 __global__ void computeUKernel(
         //Discretization parameters
-        int nx_, int ny_,
-        int bc_east_, int bc_west_,
-        float dx_, float dy_, float dt_,
+        const int nx_, const int ny_,
+		const int wall_bc_,
+        const float dx_, const float dy_, const float dt_,
     
         //Physical parameters
-        float g_, //< Gravitational constant
-        float f_, //< Coriolis coefficient
-        float beta_, //< Coriolis force f_ + beta_*(y-y0)
-        float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
-        float r_, //< Bottom friction coefficient
+        const float g_, //< Gravitational constant
+        const float f_, //< Coriolis coefficient
+        const float beta_, //< Coriolis force f_ + beta_*(y-y0)
+        const float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
+        const float r_, //< Bottom friction coefficient
     
         //Numerical diffusion
-        float A_,
+        const float A_,
     
         //Data
-        float* H_ptr_, int H_pitch_,
-        float* eta1_ptr_, int eta1_pitch_, // eta^n
-        float* U0_ptr_, int U0_pitch_, // U^n-1, also output, U^n+1
-        float* U1_ptr_, int U1_pitch_, // U^n
-        float* V1_ptr_, int V1_pitch_, // V^n
+        float* H_ptr_, const int H_pitch_,
+        float* eta1_ptr_, const int eta1_pitch_, // eta^n
+        float* U0_ptr_, const int U0_pitch_, // U^n-1, also output, U^n+1
+        float* U1_ptr_, const int U1_pitch_, // U^n
+        float* V1_ptr_, const int V1_pitch_, // V^n
     
         // Wind stress parameters
-        float wind_stress_t_) {
+        const float wind_stress_t_) {
         
-    __shared__ float H_shared[block_height+2][block_width+1];
-    __shared__ float eta1_shared[block_height+2][block_width+1];
+    __shared__ float H_shared[block_height+2][block_width+2];
+    __shared__ float eta1_shared[block_height+2][block_width+2];
     __shared__ float U1_shared[block_height+2][block_width+2];
-    __shared__ float V1_shared[block_height+1][block_width+1];
-
+    __shared__ float V1_shared[block_height+2][block_width+2];
+    
     //Index of thread within block
     const int tx = threadIdx.x;
     const int ty = threadIdx.y;
 
-    const int closed_boundary_cell_east = (int)(bc_east_ == 1);
-    const int closed_boundary_cell_west = (int)(bc_west_ == 1);
-    
+   
     //Start of block within domain
-    const int bx = blockDim.x * blockIdx.x + 1 + closed_boundary_cell_west; //Skip global ghost cells
+    const int bx = blockDim.x * blockIdx.x + 1; //Skip global ghost cells
     const int by = blockDim.y * blockIdx.y + 1; //Skip global ghost cells
 
     //Index of cell within domain
@@ -92,7 +80,7 @@ __global__ void computeUKernel(
     //if (ti > 0 && ti < nx_ && tj > 0 && tj < ny_+1) {
     //if (ti > halo_x_-1+1 && ti < nx_ + 2*halo_x_-1+1 && tj > halo_y_-1 && tj < ny_+halo_y_) {
     //if (ti >= 2 && ti <= nx_ && tj >= 1 && tj <= ny_) {
-    if (ti >= closed_boundary_cell_west+1 && ti <= nx_+1-closed_boundary_cell_east && tj >= 1 && tj <= ny_) {
+    if (ti > 0 && ti < nx_+2 && tj > 0 && tj < ny_+1) {
         U0 = U0_row[ti];
     }
 
@@ -109,7 +97,7 @@ __global__ void computeUKernel(
             float* const H_row = (float*) ((char*) H_ptr_ + H_pitch_*l);
             float* const eta1_row = (float*) ((char*) eta1_ptr_ + eta1_pitch_*l);
 
-            for (int i=tx; i<block_width+1; i+=blockDim.x) {
+            for (int i=tx; i<block_width+2; i+=blockDim.x) {
                 // "fake" global ghost cells by clamping
                 //const int k = clamp(bx + i, 1, nx_);
                 
@@ -147,17 +135,17 @@ __global__ void computeUKernel(
     
 
     //Read V into shared memory: (nx+1)*(ny+1) cells
-    for (int j=ty; j<block_height+1; j+=blockDim.y) {
+    for (int j=ty; j<block_height+2; j+=blockDim.y) {
         // Prevent out-of-bounds
         // const int l = clamp(by + j - 1, 0, ny_);
         
-        const int l = by + j;
+        const int l = by + j - 1;
         if (l >= 0 && l <= ny_+2) {
 
             //Compute the pointer to current row in the U array
             float* const V1_row = (float*) ((char*) V1_ptr_ + V1_pitch_*l);
 
-            for (int i=tx; i<block_width+1; i+=blockDim.x) {
+            for (int i=tx; i<block_width+2; i+=blockDim.x) {
                 // "fake" ghost cells by clamping
                 // const int k = clamp(bx + i, halo_x_, nx_+halo_x_);
 
@@ -186,10 +174,11 @@ __global__ void computeUKernel(
     const float U_p0 = U1_shared[ty+1][tx+2]; //U at "east"
     const float U_m0 = U1_shared[ty+1][tx  ]; //U at "west"
     
-    const float V_00 = V1_shared[ty+1][tx  ];
-    const float V_p0 = V1_shared[ty+1][tx+1];
-    const float V_0m = V1_shared[ty  ][tx  ];
-    const float V_pm = V1_shared[ty  ][tx+1];
+    // First row of V1_shared is intentionally never used
+    const float V_00 = V1_shared[ty+1+1][tx  ];
+    const float V_p0 = V1_shared[ty+1+1][tx+1];
+    const float V_0m = V1_shared[ty+1  ][tx  ];
+    const float V_pm = V1_shared[ty+1  ][tx+1];
     
     const float H_0m = H_shared[ty  ][tx  ]; 
     const float H_00 = H_shared[ty+1][tx  ]; 
@@ -206,19 +195,18 @@ __global__ void computeUKernel(
     const float eta_pp = eta1_shared[ty+2][tx+1];
 
     // Coriolis at U positions:
-    const float glob_thread_y = blockIdx.y * blockDim.y + threadIdx.y;
-    float f_v_0 = linear_coriolis_term(f_, beta_, glob_thread_y+0.5f, dy_, y_zero_reference_cell_);
-    float f_v_m = linear_coriolis_term(f_, beta_, glob_thread_y-0.5f, dy_, y_zero_reference_cell_);
-    
+    const float f_v_0 = f_ + beta_ * ((blockIdx.y * blockDim.y + threadIdx.y)+0.5f-y_zero_reference_cell_ + 0.5f)*dy_;
+	const float f_v_m = f_ + beta_ * ((blockIdx.y * blockDim.y + threadIdx.y)-0.5f-y_zero_reference_cell_ + 0.5f)*dy_;
+
     //Reconstruct H_bar and H_x (at the U position)
     const float H_bar_0m = 0.25f*(H_0m + H_pm + H_00 + H_p0);
     const float H_bar_00 = 0.25f*(H_00 + H_p0 + H_0p + H_pp);
     const float H_x = 0.5f*(H_00 + H_p0);
     
-    //Reconstruct Eta_bar at the V position
-    const float eta_bar_0m = 0.25f*(eta_0m + eta_pm + eta_00 + eta_p0);
-    const float eta_bar_00 = 0.25f*(eta_00 + eta_p0 + eta_0p + eta_pp);
-
+	//Reconstruct Eta_bar at the V position
+	const float eta_bar_0m = 0.25f*(eta_0m + eta_pm + eta_00 + eta_p0);
+	const float eta_bar_00 = 0.25f*(eta_00 + eta_p0 + eta_0p + eta_pp);
+	
     //Reconstruct fV at the U position
     const float fV_bar = 0.25f*( f_v_m*(V_0m + V_pm) + f_v_0*(V_00 + V_p0) );
 
@@ -228,38 +216,39 @@ __global__ void computeUKernel(
     //Calculate the pressure/gravitational effect
     const float h_p0 = H_p0 + eta_p0;
     const float h_00 = H_00 + eta_00;
-    const float h_x = 0.5f*(h_00 + h_p0); //Could possibly use h for pressure terms instead of H
-    const float P_x_hat = -0.5f*g_*(eta_p0*eta_p0 - eta_00*eta_00);
-    const float P_x = -g_*h_x*(eta_p0 - eta_00) + P_x_hat;
-    
+	const float h_x = 0.5f*(h_00 + h_p0); //Could possibly use h for pressure terms instead of H
+	const float P_x_hat = -0.5f*g_*(eta_p0*eta_p0 - eta_00*eta_00);
+	const float P_x = -g_*h_x*(eta_p0 - eta_00) + P_x_hat;
+	
     //Calculate nonlinear effects
-    const float N_a = (U_p0 + U_00)*(U_p0 + U_00) / (H_p0 + eta_p0);
-    const float N_b = (U_00 + U_m0)*(U_00 + U_m0) / (H_00 + eta_00);
-    const float N_c = (U_0p + U_00)*(V_p0 + V_00) / (H_bar_00 + eta_bar_00);
-    const float N_d = (U_00 + U_0m)*(V_pm + V_0m) / (H_bar_0m + eta_bar_0m);
-    float N = 0.25f*( N_a - N_b + (dx_/dy_)*(N_c - N_d) );
+	const float N_a = (U_p0 + U_00)*(U_p0 + U_00) / (H_p0 + eta_p0);
+	const float N_b = (U_00 + U_m0)*(U_00 + U_m0) / (H_00 + eta_00);
+	const float N_c = (U_0p + U_00)*(V_p0 + V_00) / (H_bar_00 + eta_bar_00);
+	const float N_d = (U_00 + U_0m)*(V_pm + V_0m) / (H_bar_0m + eta_bar_0m);
+	const float N = 0.25f*( N_a - N_b + (dx_/dy_)*(N_c - N_d) );
     
     //Calculate eddy viscosity term
-    float E = (U_p0 - U0 + U_m0)/(dx_*dx_) + (U_0p - U0 + U_0m)/(dy_*dy_);
+    const float E = (U_p0 - U0 + U_m0)/(dx_*dx_) + (U_0p - U0 + U_0m)/(dy_*dy_);
     
     //Calculate the wind shear stress
     //FIXME Check coordinates (ti_, tj_) here!!!
     //TODO Check coordinates (ti_, tj_) here!!!
     //WARNING Check coordinates (ti_, tj_) here!!!
-    float X = windStressX(wind_stress_t_, ti, tj+0.5, nx_, ny_);
+    const float X = windStressX(wind_stress_t_, ti, tj+0.5, nx_, ny_);
 
-    // Finding the contribution from Coriolis
-    float global_thread_y = blockIdx.y * blockDim.y + threadIdx.y;
-    float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y, dy_, y_zero_reference_cell_);
-    
     //Compute the V at the next timestep
     float U2 = (U0 + 2.0f*dt_*(fV_bar + (N + P_x)/dx_ + X + A_*E) ) / C;
-
+	
+    // Set wall boundary conditions
+    if ( (ti == 1 && (wall_bc_ & 0x08)) || ((ti == nx_ +1) && (wall_bc_ & 0x02)) ) {
+        U2 = 0.0f;
+    }
+    
     //Write to main memory for internal cells
     // if (ti > 0 && ti < nx_ && tj > 0 && tj < ny_+1) {
     //if (ti > halo_x_-1+1 && ti < nx_ + 2*halo_x_-1+1 && tj > halo_y_-1 && tj < ny_+halo_y_) {
     // if (ti >= 2 && ti <= nx_ && tj >= 1 && tj <= ny_) {
-    if (ti >= closed_boundary_cell_west+1 && ti <= nx_+1-closed_boundary_cell_east && tj >= 1 && tj <= ny_) {
+    if (ti > 0 && ti < nx_+2 && tj > 0 && tj < ny_+1) {
         U0_row[ti] = U2;
     }
 }

@@ -479,34 +479,39 @@ class SWEDataArakawaC:
     We use h as cell centers
     """
     def __init__(self, gpu_stream, nx, ny, halo_x, halo_y, h0, hu0, hv0, \
-                 asymHalo=None):
+                 fbl=False):
         """
         Uploads initial data to the CUDA device
         asymHalo needs to be on the form [north, east, south, west]
         """
         #FIXME: This at least works for 0 and 1 ghost cells, but not convinced it generalizes
         assert(halo_x <= 1 and halo_y <= 1)
-        # FIXME: asymHalo has not been tested for other values either.
-        asymHaloU = asymHalo
-        asymHaloV = asymHalo
-        if (asymHalo is not None):
-            #print(asymHalo)
-            assert(max(asymHalo) <= 1)
-            asymHaloU = [asymHalo[0], 0, asymHalo[2], 0]
-            asymHaloV = [0, asymHalo[1], 0, asymHalo[3]]
+        
+        self.fbl = fbl
+        
+        if (fbl):
+            self.h0   = CUDAArray2D(gpu_stream, nx  , ny  , halo_x, halo_y, h0)
+            self.hu0  = CUDAArray2D(gpu_stream, nx-1, ny  , halo_x, halo_y, hu0)
+            self.hv0  = CUDAArray2D(gpu_stream, nx  , ny+1, halo_x, halo_y, hv0)
+                                                          
+            self.h1   = CUDAArray2D(gpu_stream, nx  , ny  , halo_x, halo_y, h0)
+            self.hu1  = CUDAArray2D(gpu_stream, nx-1, ny  , halo_x, halo_y, hu0)
+            self.hv1  = CUDAArray2D(gpu_stream, nx  , ny+1, halo_x, halo_y, hv0)
+            
+            return
 
         #print "SWEDataArakawaC"
         #print "(h0.shape, (nx, ny), asymHalo,  (halo_x, halo_y)): ", (h0.shape, (nx, ny), asymHalo,  (halo_x, halo_y))
         #print "(hu0.shape, (nx, ny), asymHalo, (halo_x, halo_y)): ", (hu0.shape, (nx+1, ny), asymHaloU,  (halo_x, halo_y))
         #print "(hv0.shape, (nx, ny), asymHalo,  (halo_x, halo_y)): ", (hv0.shape, (nx, ny+1), asymHaloV, (halo_x, halo_y))
 
-        self.h0   = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, h0, asymHalo)
-        self.hu0  = CUDAArray2D(gpu_stream, nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
-        self.hv0  = CUDAArray2D(gpu_stream, nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
+        self.h0   = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, h0)
+        self.hu0  = CUDAArray2D(gpu_stream, nx+1, ny, halo_x, halo_y, hu0)
+        self.hv0  = CUDAArray2D(gpu_stream, nx, ny+1, halo_x, halo_y, hv0)
         
-        self.h1   = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, h0, asymHalo)
-        self.hu1  = CUDAArray2D(gpu_stream, nx+1, ny, halo_x, halo_y, hu0, asymHaloU)
-        self.hv1  = CUDAArray2D(gpu_stream, nx, ny+1, halo_x, halo_y, hv0, asymHaloV)
+        self.h1   = CUDAArray2D(gpu_stream, nx, ny, halo_x, halo_y, h0)
+        self.hu1  = CUDAArray2D(gpu_stream, nx+1, ny, halo_x, halo_y, hu0)
+        self.hv1  = CUDAArray2D(gpu_stream, nx, ny+1, halo_x, halo_y, hv0)
                    
         
     def swap(self):
@@ -518,13 +523,17 @@ class SWEDataArakawaC:
         self.hu1, self.hu0 = self.hu0, self.hu1
         self.hv1, self.hv0 = self.hv0, self.hv1
         
-    def download(self, gpu_stream):
+    def download(self, gpu_stream, interior_domain_only=False):
         """
         Enables downloading data from CUDA device to Python
         """
         h_cpu  = self.h0.download(gpu_stream)
         hu_cpu = self.hu0.download(gpu_stream)
         hv_cpu = self.hv0.download(gpu_stream)
+        
+        if (interior_domain_only and self.fbl):
+            #print("Sneaking in some FBL specific functionality")
+            return h_cpu[1:-1, 1:-1], hu_cpu[1:-1,:], hv_cpu[1:-1, 1:-1]
         
         return h_cpu, hu_cpu, hv_cpu
 
