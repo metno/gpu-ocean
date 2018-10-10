@@ -310,8 +310,8 @@ class FBL_periodic_boundary:
                  block_width=16, block_height=16 ):
 
         self.boundary_conditions = boundary_conditions
-        self.ghostsX = np.int32(1)
-        self.ghostsY = np.int32(1)
+        self.ghostsX = np.int32(2)
+        self.ghostsY = np.int32(2)
 
         self.bc_north = np.int32(boundary_conditions.north)
         self.bc_east  = np.int32(boundary_conditions.east)

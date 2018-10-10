@@ -162,7 +162,7 @@ class CTCS(Simulator.Simulator):
                                                  halo_x, halo_y \
         )
         
-         #"Beautify" code a bit by packing four bools into a single int
+        #"Beautify" code a bit by packing four bools into a single int
         #Note: Must match code in kernel!
         self.wall_bc = np.int32(0)
         if (self.boundary_conditions.north == 1):
@@ -173,7 +173,6 @@ class CTCS(Simulator.Simulator):
             self.wall_bc = self.wall_bc | 0x04
         if (self.boundary_conditions.west == 1):
             self.wall_bc = self.wall_bc | 0x08
-        #self.wall_bc = np.int32(self.wall_bc)
         
         
         if self.write_netcdf:
@@ -291,24 +290,12 @@ class CTCS(Simulator.Simulator):
             
             if (local_dt <= 0.0):
                 break
-                
-            #"Beautify" code a bit by packing four bools into a single int
-            #Note: Must match code in kernel!
-            boundary_conditions = np.int32(0)
-            if (self.boundary_conditions.north == 1):
-                boundary_conditions = boundary_conditions | 0x01
-            if (self.boundary_conditions.east == 1):
-                boundary_conditions = boundary_conditions | 0x02
-            if (self.boundary_conditions.south == 1):
-                boundary_conditions = boundary_conditions | 0x04
-            if (self.boundary_conditions.west == 1):
-                boundary_conditions = boundary_conditions | 0x08
-                
+            
             wind_stress_t = np.float32(self.update_wind_stress(self.step_kernel, self.ctcsStepKernel))
 
             self.ctcsStepKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                     self.nx, self.ny, \
-                    boundary_conditions, \
+                    self.wall_bc, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, \
                     self.r, self.A,\
