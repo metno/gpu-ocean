@@ -45,19 +45,19 @@ class FBL(Simulator.Simulator):
                  g, f, r, \
                  t=0.0, \
                  coriolis_beta=0.0, \
-                 y_zero_reference_cell = 0, \
+                 y_zero_reference_cell = 1, \
                  wind_stress=WindStress.NoWindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0, \
-                 block_width=32, block_height=32):
+                 block_width=16, block_height=16):
         """
         Initialization routine
         H: Water depth incl ghost cells, (nx+2)*(ny+2) cells
         eta0: Initial deviation from mean sea level incl ghost cells, (nx+2)*(ny+2) cells
         hu0: Initial momentum along x-axis incl ghost cells, (nx+1)*(ny+2) cells
-        hv0: Initial momentum along y-axis incl ghost cells, (nx+2)*(ny+1) cells
+        hv0: Initial momentum along y-axis incl ghost cells, (nx+2)*(ny+3) cells
         nx: Number of cells along x-axis
         ny: Number of cells along y-axis
         dx: Grid cell spacing along x-axis (20 000 m)
@@ -74,33 +74,23 @@ class FBL(Simulator.Simulator):
         """
         
         #Create data by uploading to device
-        ghost_cells_x = 0
-        ghost_cells_y = 0
+        ghost_cells_x = 1
+        ghost_cells_y = 1
         y_zero_reference_cell = y_zero_reference_cell
-        self.asym_ghost_cells = [0, 0, 0, 0] # [N, E, S, W]
         
         # Index range for interior domain (north, east, south, west)
         # so that interior domain of eta is
         # eta[self.interior_domain_indices[2]:self.interior_domain_indices[0], \
         #     self.interior_domain_indices[3]:self.interior_domain_indices[1] ]
-        self.interior_domain_indices = np.array([None, None, 0, 0])
+        self.interior_domain_indices = np.array([-1, -1, 1, 1])
         
         self.boundary_conditions = boundary_conditions
-        # Add asym ghost cell if periodic boundary condition:
-        if (self.boundary_conditions.north == 2) or \
-           (self.boundary_conditions.south == 2):
-            self.asym_ghost_cells[0] = 1
-            self.interior_domain_indices[0] = -1
-        if (self.boundary_conditions.east == 2) or \
-           (self.boundary_conditions.west == 2):
-            self.asym_ghost_cells[1] = 1
-            self.interior_domain_indices[1] = -1
-
+        
         if boundary_conditions.isSponge():
-            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3]# - self.asym_ghost_cells[1] - self.asym_ghost_cells[3]
-            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2]# - self.asym_ghost_cells[0] - self.asym_ghost_cells[2]
+            nx = nx - 2 + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3]
+            ny = ny - 2 + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2]
             y_zero_reference_cell = y_zero_reference_cell + boundary_conditions.spongeCells[2]
-          
+        
         rk_order = None
         theta = None
         A = None
@@ -123,28 +113,40 @@ class FBL(Simulator.Simulator):
         
         self._set_interior_domain_from_sponge_cells()
         
+        #--------------------------------------------!
+        # Create compiler options here!
+        compiler_options = ['-cl-fast-relaxed-math']
+        #--------------------------------------------!
         
         #Get kernels
-        self.u_kernel = Common.get_kernel(self.cl_ctx, "FBL_U_kernel.opencl", block_width, block_height)
-        self.v_kernel = Common.get_kernel(self.cl_ctx, "FBL_V_kernel.opencl", block_width, block_height)
-        self.eta_kernel = Common.get_kernel(self.cl_ctx, "FBL_eta_kernel.opencl", block_width, block_height)
-
+        self.step_kernel = Common.get_kernel(self.cl_ctx, "FBL_step_kernel.opencl", \
+                                             block_width, block_height, \
+                                             options = compiler_options)
+                                            
+        self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, H)
+        self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, fbl=True)
         
-        self.H = Common.OpenCLArray2D(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, H, self.asym_ghost_cells)
-        self.cl_data = Common.SWEDataArakawaC(self.cl_ctx, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, self.asym_ghost_cells)
+        # Overwrite halo including ghost cells
+        self.nx_halo = np.int32(nx + 2)
+        self.ny_halo = np.int32(ny + 2)
         
-        # Overwrite halo with asymetric ghost cells
-        self.nx_halo = np.int32(nx + self.asym_ghost_cells[1] + self.asym_ghost_cells[3])
-        self.ny_halo = np.int32(ny + self.asym_ghost_cells[0] + self.asym_ghost_cells[2])
-       
         self.bc_kernel = FBL_periodic_boundary(self.cl_ctx, \
                                                self.nx, \
                                                self.ny, \
-                                               self.boundary_conditions, \
-                                               self.asym_ghost_cells
-        )
+                                               self.boundary_conditions)
 
         self.totalNumIterations = 0
+        # Bit-wise boolean for wall boundary conditions
+        self.wall_bc = np.int32(0)
+        if (self.boundary_conditions.north == 1):
+            self.wall_bc = self.wall_bc | 0x01
+        if (self.boundary_conditions.east == 1):
+            self.wall_bc = self.wall_bc | 0x02
+        if (self.boundary_conditions.south == 1):
+            self.wall_bc = self.wall_bc | 0x04
+        if (self.boundary_conditions.west == 1):
+            self.wall_bc = self.wall_bc | 0x08
+
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
                                     staggered_grid=True, offset_x=self.offset_x, offset_y=self.offset_y)
@@ -217,8 +219,17 @@ class FBL(Simulator.Simulator):
         self.cl_data.release()
         
         self.H.release()
+        self.cl_ctx = None
         gc.collect()
-        
+    
+    # Over-riding Simulator's download.
+    def download(self, interior_domain_only=False):
+        """
+        Download the latest time step from the GPU
+        """
+        return self.cl_data.download(self.cl_queue, \
+                                     interior_domain_only=interior_domain_only)
+       
     def step(self, t_end=0.0):
         """
         Function which steps n timesteps
@@ -243,44 +254,26 @@ class FBL(Simulator.Simulator):
 
             if (local_dt <= 0.0):
                 break
+                
+            wind_stress_t = np.float32(1.2)
 
-            self.u_kernel.computeUKernel(self.cl_queue, self.global_size, self.local_size, \
-                    self.nx_halo, self.ny, \
-                    self.dx, self.dy, local_dt, \
-                    self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
-                    self.H.data, self.H.pitch, \
-                    self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
-                    self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
-                    self.cl_data.h0.data, self.cl_data.h0.pitch, \
-                    self.wind_stress_dev, \
-                    self.t)
-
-            # Fix U boundary
-            self.bc_kernel.boundaryConditionU(self.cl_queue, self.cl_data.hu0)
-            
-            self.v_kernel.computeVKernel(self.cl_queue, self.global_size, self.local_size, \
-                    self.nx, self.ny_halo, \
-                    self.dx, self.dy, local_dt, \
-                    self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
-                    self.H.data, self.H.pitch, \
-                    self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
-                    self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
-                    self.cl_data.h0.data, self.cl_data.h0.pitch, \
-                    self.wind_stress_dev, \
-                    self.t)
-
-            # Fix V boundary
-            self.bc_kernel.boundaryConditionV(self.cl_queue, self.cl_data.hv0)
-            
-            self.eta_kernel.computeEtaKernel(self.cl_queue, self.global_size, self.local_size, \
+            self.step_kernel.fblStepKernel(self.cl_queue, self.global_size, self.local_size, \
                     self.nx, self.ny, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
                     self.H.data, self.H.pitch, \
                     self.cl_data.hu0.data, self.cl_data.hu0.pitch, \
                     self.cl_data.hv0.data, self.cl_data.hv0.pitch, \
-                    self.cl_data.h0.data, self.cl_data.h0.pitch)
+                    self.cl_data.h0.data, self.cl_data.h0.pitch, \
+                    self.wall_bc, wind_stress_t)
 
+            # Fix U boundary
+            self.bc_kernel.boundaryConditionU(self.cl_queue, self.cl_data.hu0)
+            
+            # Fix V boundary
+            self.bc_kernel.boundaryConditionV(self.cl_queue, self.cl_data.hv0)
+            
+            # Fix eta boundary
             self.bc_kernel.boundaryConditionEta(self.cl_queue, self.cl_data.h0)
    
             self.t += local_dt
@@ -294,14 +287,12 @@ class FBL(Simulator.Simulator):
 
 class FBL_periodic_boundary:
     def __init__(self, cl_ctx, nx, ny, \
-                 boundary_conditions, asym_ghost_cells, \
+                 boundary_conditions, \
                  block_width=16, block_height=16 ):
 
-        self.cl_ctx = cl_ctx
         self.boundary_conditions = boundary_conditions
-        self.asym_ghost_cells = asym_ghost_cells
-        self.ghostsX = np.int32(self.asym_ghost_cells[1] + self.asym_ghost_cells[3])
-        self.ghostsY = np.int32(self.asym_ghost_cells[0] + self.asym_ghost_cells[2])
+        self.ghostsX = np.int32(2)
+        self.ghostsY = np.int32(2)
 
         self.bc_north = np.int32(boundary_conditions.north)
         self.bc_east  = np.int32(boundary_conditions.east)
@@ -315,26 +306,27 @@ class FBL_periodic_boundary:
 
         # Debugging variables
         debug = False
-        self.firstU = debug
-        self.firstV = debug
+        self.firstU = True
+        self.firstV = True
+        self.firstEta = True
         self.firstGhostU = debug
         self.firstGhostV = debug
         self.firstGhostEta = debug
         
         # Load kernel for periodic boundary.
         self.periodicBoundaryKernel \
-            = Common.get_kernel(self.cl_ctx,\
+            = Common.get_kernel(cl_ctx,\
             "FBL_periodic_boundary.opencl", block_width, block_height)
 
         # Reuse CTCS kernels for Flow Relaxation Scheme
-        self.CTCSBoundaryKernels = Common.get_kernel(self.cl_ctx,\
+        self.CTCSBoundaryKernels = Common.get_kernel(cl_ctx,\
                      "CTCS_boundary.opencl", block_width, block_height)
         
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height) # WARNING::: MUST MATCH defines of block_width/height in kernels!
         self.global_size = ( \
-                int(np.ceil((self.nx_halo+1) / float(self.local_size[0])) * self.local_size[0]), \
-                int(np.ceil((self.ny_halo+1) / float(self.local_size[1])) * self.local_size[1]) )
+                int(np.ceil((self.nx+2) / float(self.local_size[0])) * self.local_size[0]), \
+                int(np.ceil((self.ny+3) / float(self.local_size[1])) * self.local_size[1]) )
 
     
 
@@ -346,47 +338,26 @@ class FBL_periodic_boundary:
         # Start with fixing the potential sponge
         self.callSpongeNS(cl_queue, hu0, 1, 0)
         
-        if (self.boundary_conditions.east == 1 and \
-            self.boundary_conditions.west == 1):
-            if (self.nx_halo > self.nx):
-                print("Closed east-west boundary, but nx_halo > nx")
-                return
+        if self.firstU and (self.boundary_conditions.east == 1 or \
+                            self.boundary_conditions.west == 1 or \
+                            self.boundary_conditions.north == 1 or \
+                            self.boundary_conditions.south == 1):
+            
             self.periodicBoundaryKernel.closedBoundaryUKernel(cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
-                        self.nx_halo, self.ny_halo, \
+                        self.bc_north, self.bc_east, self.bc_south, self.bc_west, \
                         hu0.data, hu0.pitch)
 
-        elif (self.boundary_conditions.east == 2):
-            ## Currently, this only works with 0 ghost cells:
-            assert(hu0.nx == hu0.nx_halo), \
-                "The current data does not have zero ghost cells"
-
-            ## Call kernel that swaps the boundaries.
-            if self.firstU:
-                print("Periodic boundary conditions - U")
-                self.firstU = False
-                print("[nx, ny, nx_halo, ny_halo]")
-                print([self.nx, self.ny, self.nx_halo, self.ny_halo])
-                
-            self.periodicBoundaryKernel.periodicBoundaryUKernel(cl_queue, self.global_size, self.local_size, \
+        if (self.boundary_conditions.north == 2):
+            self.periodicBoundaryKernel.periodicBoundaryUKernel_NS(cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
-                        self.nx_halo, self.ny_halo, \
+                        hu0.data, hu0.pitch)
+        if (self.boundary_conditions.east == 2):
+            self.periodicBoundaryKernel.periodicBoundaryUKernel_EW(cl_queue, self.global_size, self.local_size, \
+                        self.nx, self.ny, \
                         hu0.data, hu0.pitch)
         
-        
-        # Nonthereless: If there are ghost cells in north-south direction, update them!
-        # TODO: Generalize to both ghost_north and ghost_south
-        # Updating northern ghost cells
-        if (self.ny_halo > self.ny):
-            if self.firstGhostU:
-                print("Updating U ghosts in north-south")
-                self.firstGhostU = False
-            
-            self.periodicBoundaryKernel.updateGhostCellsUKernel(cl_queue, self.global_size, self.local_size, \
-                        self.nx, self.ny, \
-                        self.nx_halo, self.ny_halo, \
-                        hu0.data, hu0.pitch)
-            
+        self.firstU = False    
 
     def boundaryConditionV(self, cl_queue, hv0):
         """
@@ -396,48 +367,26 @@ class FBL_periodic_boundary:
         # Start with fixing the potential sponge
         self.callSpongeNS(cl_queue, hv0, 0, 1)
         
-        if (self.boundary_conditions.north == 1 and \
-            self.boundary_conditions.south == 1):
-            if (self.ny_halo > self.ny):
-                print("Closed north-south boundary, but ny_halo > ny")
-                return
+        if self.firstV and (self.boundary_conditions.east == 1 or \
+                            self.boundary_conditions.west == 1 or \
+                            self.boundary_conditions.north == 1 or \
+                            self.boundary_conditions.south == 1):
+          
             self.periodicBoundaryKernel.closedBoundaryVKernel(cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
-                        self.nx_halo, self.ny_halo, \
+                        self.bc_north, self.bc_east, self.bc_south, self.bc_west, \
                         hv0.data, hv0.pitch)
 
-        elif (self.boundary_conditions.north == 2):
-            # Periodic
-            ## Currently, this only works with 0 ghost cells:
-            assert(hv0.ny == hv0.ny_halo), \
-                "The current data does not have zero ghost cells"
-        
-            ## Call kernel that swaps the boundaries.
-            #print("Periodic boundary conditions")
-            if self.firstV:
-                print("Periodic boundary conditions - V")
-                self.firstV = False
-                print("[nx, ny, nx_halo, ny_halo]")
-                print([self.nx, self.ny, self.nx_halo, self.ny_halo])
-                
-            self.periodicBoundaryKernel.periodicBoundaryVKernel(cl_queue, self.global_size, self.local_size, \
+        if (self.boundary_conditions.north == 2):
+            self.periodicBoundaryKernel.periodicBoundaryVKernel_NS(cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
-                        self.nx_halo, self.ny_halo, \
+                        hv0.data, hv0.pitch)
+        if (self.boundary_conditions.east == 2):
+            self.periodicBoundaryKernel.periodicBoundaryVKernel_EW(cl_queue, self.global_size, self.local_size, \
+                        self.nx, self.ny, \
                         hv0.data, hv0.pitch)
         
-
-        # Nonthereless: If there are ghost cells in east-west direction, update them!
-        # TODO: Generalize to both ghost_east and ghost_west
-        # Updating eastern ghost cells
-        if (self.nx_halo > self.nx):
-            if self.firstGhostV:
-                print("Updating V ghosts in east-west")
-                self.firstGhostV = False
-            
-            self.periodicBoundaryKernel.updateGhostCellsVKernel(cl_queue, self.global_size, self.local_size, \
-                        self.nx, self.ny, \
-                        self.nx_halo, self.ny_halo, \
-                        hv0.data, hv0.pitch)
+        self.firstV = False
         
 
     def boundaryConditionEta(self, cl_queue, eta0):
@@ -447,23 +396,27 @@ class FBL_periodic_boundary:
         # Start with fixing the potential sponge
         self.callSpongeNS(cl_queue, eta0, 0, 0)
         
-        if (self.boundary_conditions.north == 2 or
-            self.boundary_conditions.east == 2):
-            # Periodic
-
-            if self.firstGhostEta:
-                print("Updating eta ghosts")
-                self.firstGhostEta = False
-                print("[nx, ny, nx_halo, ny_halo]")
-                print([self.nx, self.ny, self.nx_halo, self.ny_halo])
-                    
-            ## Call kernel that swaps the boundaries.
-            #print("Periodic boundary conditions")
-            self.periodicBoundaryKernel.periodicBoundaryEtaKernel(cl_queue, self.global_size, self.local_size, \
+        if self.firstEta and (self.boundary_conditions.east == 1 or \
+                              self.boundary_conditions.west == 1 or \
+                              self.boundary_conditions.north == 1 or \
+                              self.boundary_conditions.south == 1):
+            
+            # self.closedBoundaryEtaKernel
+            self.periodicBoundaryKernel.closedBoundaryEtaKernel(cl_queue, self.global_size, self.local_size, \
                         self.nx, self.ny, \
-                        self.nx_halo, self.ny_halo, \
+                        self.bc_north, self.bc_east, self.bc_south, self.bc_west, \
                         eta0.data, eta0.pitch)
-
+                              
+        if (self.boundary_conditions.north == 2):
+            self.periodicBoundaryKernel.periodicBoundaryEtaKernel_NS(cl_queue, self.global_size, self.local_size, \
+                        self.nx, self.ny, \
+                        eta0.data, eta0.pitch)
+        if (self.boundary_conditions.east == 2):
+            self.periodicBoundaryKernel.periodicBoundaryEtaKernel_EW(cl_queue, self.global_size, self.local_size, \
+                        self.nx, self.ny, \
+                        eta0.data, eta0.pitch)
+                  
+        self.firstEta = False
         
     def callSpongeNS(self, cl_queue, data, staggered_x, staggered_y):
         staggered_x_int32 = np.int32(staggered_x)
