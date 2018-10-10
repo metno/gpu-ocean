@@ -63,7 +63,6 @@ __global__ void boundaryEtaKernel_NS(
         float* opposite_row = (float*) ((char*) eta_ptr_ + eta_pitch_*opposite_row_index);
         ghost_row[ti] = opposite_row[ti];
     }
-    // TODO: USE HALO PARAMS
 }
 } // extern "C"
 

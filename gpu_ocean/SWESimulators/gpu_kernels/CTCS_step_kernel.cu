@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 /**
-  * Kernel that evolves U one step in time.
+  * Kernel that evolves U, V and eta one step in time.
   */
 extern "C" {
 __global__ void ctcsStepKernel(
@@ -98,7 +98,7 @@ __global__ void ctcsStepKernel(
         eta0 = eta0_row[ti];
     }
 
-    //Read H and eta into shared memory: (nx+1)*(ny+2) cells
+    //Read H and eta into shared memory: (nx+2)*(ny+2) cells
     for (int j=ty; j<block_height+2; j+=blockDim.y) {
         // "fake" global ghost cells by clamping
         // const int l = clamp(by + j - 1, 1, ny_);
@@ -148,7 +148,7 @@ __global__ void ctcsStepKernel(
     }
     
 
-    //Read V into shared memory: (nx+1)*(ny+1) cells
+    //Read V into shared memory: (nx+2)*(ny+2) cells
     for (int j=ty; j<block_height+2; j+=blockDim.y) {
         // Prevent out-of-bounds
         // const int l = clamp(by + j - 1, 0, ny_);

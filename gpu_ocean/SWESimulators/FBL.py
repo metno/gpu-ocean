@@ -56,7 +56,7 @@ class FBL(Simulator.Simulator):
         H: Water depth incl ghost cells, (nx+2)*(ny+2) cells
         eta0: Initial deviation from mean sea level incl ghost cells, (nx+2)*(ny+2) cells
         hu0: Initial momentum along x-axis incl ghost cells, (nx+1)*(ny+2) cells
-        hv0: Initial momentum along y-axis incl ghost cells, (nx+2)*(ny+1) cells
+        hv0: Initial momentum along y-axis incl ghost cells, (nx+2)*(ny+3) cells
         nx: Number of cells along x-axis
         ny: Number of cells along y-axis
         dx: Grid cell spacing along x-axis (20 000 m)
@@ -86,8 +86,8 @@ class FBL(Simulator.Simulator):
         self.boundary_conditions = boundary_conditions
 
         if boundary_conditions.isSponge():
-            nx = nx - 2 + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3]# - self.asym_ghost_cells[1] - self.asym_ghost_cells[3]
-            ny = ny - 2 + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2]# - self.asym_ghost_cells[0] - self.asym_ghost_cells[2]
+            nx = nx - 2 + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3]
+            ny = ny - 2 + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2]
             y_zero_reference_cell = y_zero_reference_cell + boundary_conditions.spongeCells[2]
           
         rk_order = None
@@ -290,7 +290,7 @@ class FBL(Simulator.Simulator):
             # Fix V boundary
             self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv0)
             
-            # Fix V boundary
+            # Fix eta boundary
             self.bc_kernel.boundaryConditionEta(self.gpu_stream, self.gpu_data.h0)
    
             self.t += np.float64(local_dt)
@@ -310,8 +310,8 @@ class FBL_periodic_boundary:
                  block_width=16, block_height=16 ):
 
         self.boundary_conditions = boundary_conditions
-        self.ghostsX = np.int32(0) #self.asym_ghost_cells[1] + self.asym_ghost_cells[3])
-        self.ghostsY = np.int32(0) #self.asym_ghost_cells[0] + self.asym_ghost_cells[2])
+        self.ghostsX = np.int32(1)
+        self.ghostsY = np.int32(1)
 
         self.bc_north = np.int32(boundary_conditions.north)
         self.bc_east  = np.int32(boundary_conditions.east)
