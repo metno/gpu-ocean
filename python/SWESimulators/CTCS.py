@@ -275,6 +275,7 @@ class CTCS(Simulator.Simulator):
                 boundary_conditions = boundary_conditions | 0x04
             if (self.boundary_conditions.west == 1):
                 boundary_conditions = boundary_conditions | 0x08
+            boundary_conditions = np.int32(boundary_conditions)
             
             wind_stress_t = np.float32(1.2);
             

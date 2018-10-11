@@ -146,6 +146,7 @@ class FBL(Simulator.Simulator):
             self.wall_bc = self.wall_bc | 0x04
         if (self.boundary_conditions.west == 1):
             self.wall_bc = self.wall_bc | 0x08
+        self.wall_bc = np.int32(self.wall_bc)
 
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
