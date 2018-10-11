@@ -90,7 +90,7 @@ logger.info("Added " + current_dir + " to path")
 #Parse arguments
 import argparse
 parser = argparse.ArgumentParser(description='Benchmark a simulator across git commits.')
-parser.add_argument('--run_benchmark_opts', type=str, default=None, required=True, help="\"--simulator=CDKLM --steps_per_download 10 --iterations 3\" (note the quotation marks)")
+parser.add_argument('--run_benchmark_opts', type=str, default=None, required=True, help="\"--simulator=CDKLM --steps_per_download 100 --iterations 3\" (note the quotation marks)")
 parser.add_argument('csv_file', default=None, help="CSV file with columns git_commit,label,block_width,block_height (note no spaces in column names)")
 parser.add_argument('--add_exe_path', action='append', type=str, default=[])
 parser.add_argument('--outfile_basename', type=str, default=None, help="The basename (in os.path.basename terms) of the filename to write to")
@@ -107,6 +107,13 @@ df = pd.read_csv(args.csv_file, comment='#')
 logger.info(df)
 
 
+# Commits where we need the new_fbl flag
+commits_requireing_new_fbl = [
+    "fa2dc111750a08760a27d2d47c2aaebc3aded911", 
+    "38ff9b268a84e3f4a0805c67041b336f396e9a31",
+    "964e98a5831950724002674b216dfe28f2d7ffd2",
+    "92353c0254c69ab9025cb594e9e7165b9535d2ed"
+]
 
 
 #Set git options
@@ -172,6 +179,11 @@ for index, row in df.iterrows():
     options = args.run_benchmark_opts.split(' ')
     options += ["--output", "benchmark_" + row['git_commit'] + ".npz"] 
     options += ["--block_width", str(row['block_width']), "--block_height", str(row['block_height'])]
+
+    # Check if we need the new fbl flag
+    if row['git_commit'] in commits_requireing_new_fbl:
+        options += ["--new_fbl", "1"]
+
     cmd = [args.python, benchmark_script_abspath] + options
     stdout = safe_call(cmd, cwd=tmpdir, env=my_env)
     if isinstance(stdout, bytes):
