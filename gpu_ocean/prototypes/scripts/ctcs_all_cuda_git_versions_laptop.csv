@@ -1,0 +1,10 @@
+git_commit,label,block_width,block_height
+"9507b86aa57bdcedccdf3840435b31b20005dc11", "original CTCS CUDA",       32, 8
+"06e92ae9da98e74e1a41e94d90081a349a3b66ad", "const everywhere",         32, 8
+"b0faacf64a4be91442095153b8cec7d1efff37a1", "maxrregcount=32",          32, 8
+"0aa5f2483a3c8ad75552fd2141f8cc3ea5d67f38", "pack wall_bc",             32, 8
+"08eaf4636238d0553cea7d307253ef44cc380106", "fast math flag",           32, 8
+"22d25b210baddd14f1ffb0bdba358995eb746b43", "multiple streams",         32, 8
+"2d90aae49a63f5904897d3417a8678f1a57d3e8d", "reduing BC blocks",        32, 8
+"1ff345b57211f828c2e9cc9f7a879a2a909b2f62", "removing maxrregcount",    32, 8
+"c39c8ba8701fdf708dadafd12cc76f809aeb8cb0", "optimized CTCS CUDA",      32, 4 

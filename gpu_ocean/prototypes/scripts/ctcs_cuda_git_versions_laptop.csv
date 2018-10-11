@@ -1,0 +1,3 @@
+git_commit,label,block_width,block_height
+"9507b86aa57bdcedccdf3840435b31b20005dc11", "original CTCS CUDA",       32, 8
+"c39c8ba8701fdf708dadafd12cc76f809aeb8cb0", "optimized CTCS CUDA",      32, 4 
