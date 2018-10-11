@@ -90,8 +90,8 @@ logger.info("Added " + current_dir + " to path")
 #Parse arguments
 import argparse
 parser = argparse.ArgumentParser(description='Benchmark a simulator across git commits.')
-parser.add_argument('--run_benchmark_opts', type=str, default=None, required=True, help="--simulator=CDKLM --steps_per_download 10 --iterations 3")
-parser.add_argument('csv_file', default=None, help="CSV file with columns git_commit, label, block_width, block_height")
+parser.add_argument('--run_benchmark_opts', type=str, default=None, required=True, help="\"--simulator=CDKLM --steps_per_download 10 --iterations 3\" (note the quotation marks)")
+parser.add_argument('csv_file', default=None, help="CSV file with columns git_commit,label,block_width,block_height (note no spaces in column names)")
 parser.add_argument('--add_exe_path', action='append', type=str, default=[])
 parser.add_argument('--outfile_basename', type=str, default="git_benchmark", help="The basename (in os.path.basename terms) of the filename to write to")
 parser.add_argument('--python', type=str, default='python', help="Path to python executable")
