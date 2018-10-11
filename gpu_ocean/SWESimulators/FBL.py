@@ -72,6 +72,28 @@ class FBL(Simulator.Simulator):
         write_netcdf: Write the results after each superstep to a netCDF file
         """
         
+        #### THIS ALLOWS MAKES IT POSSIBLE TO GIVE THE OLD INPUT SHAPES TO NEW GHOST CELL REGIME: Only valid for benchmarking!
+        if (eta0.shape == (ny, nx)):
+            new_eta = np.zeros((ny+2, nx+2),  dtype=np.float32)
+            new_eta[:ny, :nx] = eta0.copy()
+            eta0 = new_eta.copy()
+        if (H.shape == (ny, nx)):
+            new_H = np.ones((ny+2, nx+2),  dtype=np.float32)*np.max(H)
+            new_H[:ny,:nx] = H.copy()
+            H = new_H.copy()
+        if (hu0.shape == (ny, nx+1)):
+            new_hu = np.zeros((ny+2, nx+1),  dtype=np.float32)
+            new_hu[:ny, :nx+1] = hu0.copy()
+            hu0 = new_hu.copy()
+        if (hv0.shape == (ny+1, nx)):
+            new_hv = np.zeros((ny+3, nx+2),  dtype=np.float32)
+            new_hv[:ny+1,:nx] = hv0.copy()
+            hv0 = new_hv.copy()
+        
+            
+         
+        
+        
         #Create data by uploading to device
         ghost_cells_x = 1
         ghost_cells_y = 1
