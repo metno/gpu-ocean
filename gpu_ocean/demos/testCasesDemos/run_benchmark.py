@@ -26,7 +26,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys, os
 current_dir = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../')))
+
+
+if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../SWESimulators'))):
+        sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../')))
+if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../../python/SWESimulators'))):
+        sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../../python/')))
 
 import argparse
 parser = argparse.ArgumentParser(description='Benchmark a simulator.')
@@ -53,14 +58,41 @@ import json
 from SWESimulators import FBL, CTCS, KP07, CDKLM16, PlotHelper, Common
 
 
+
+def openCLContext():
+        print("Creating openCL context within run_benchmark.py")
+        #Make sure we get compiler output from OpenCL
+        os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
+        
+        #Set which CL device to use, and disable kernel caching
+        if (str.lower(sys.platform).startswith("linux")):
+                os.environ["PYOPENCL_CTX"] = "0"
+        else:
+                os.environ["PYOPENCL_CTX"] = "1"
+                os.environ["CUDA_CACHE_DISABLE"] = "1"
+                os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
+                os.environ["PYOPENCL_NO_CACHE"] = "1"
+    
+        #Create OpenCL context
+        cl_ctx = pyopencl.create_some_context()
+        device_name = cl_ctx.devices[0].name
+        return cl_ctx, device_name
+
+
+
 toc = time.time()
 print("{:02.4f} s: ".format(toc-tic) + "Imported packages")
 
 # Create CUDA context
 tic = time.time()
-gpu_ctx = Common.CUDAContext()
+try:
+        gpu_ctx = Common.CUDAContext()
+        device_name = gpu_ctx.cuda_device.name()
+except AttributeError:
+        import pyopencl
+        gpu_ctx, device_name = openCLContext()
 toc = time.time()
-print("{:02.4f} s: ".format(toc-tic) + "Created context on " + gpu_ctx.cuda_device.name())
+print("{:02.4f} s: ".format(toc-tic) + "Created context on " + device_name)
 
 # Set benchmark sizes
 dx = 200.0
