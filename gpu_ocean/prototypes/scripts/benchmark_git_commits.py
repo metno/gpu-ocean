@@ -36,6 +36,7 @@ import tempfile
 import shutil
 import logging
 import urllib
+import json
 
 
 
@@ -89,9 +90,10 @@ logger.info("Added " + current_dir + " to path")
 #Parse arguments
 import argparse
 parser = argparse.ArgumentParser(description='Benchmark a simulator across git commits.')
-parser.add_argument('--run_benchmark_opts', type=str, default="--simulator CDKLM --steps_per_download 10 --iterations 3")
+parser.add_argument('--run_benchmark_opts', type=str, default=None, required=True, help="--simulator=CDKLM --steps_per_download 10 --iterations 3")
 parser.add_argument('csv_file', default=None, help="CSV file with columns git_commit, label, block_width, block_height")
 parser.add_argument('--add_exe_path', action='append', type=str, default=[])
+parser.add_argument('--outfile_basename', type=str, default="git_benchmark", help="The basename (in os.path.basename terms) of the filename to write to")
 args = parser.parse_args()
 logger.info(args)
 
@@ -144,8 +146,6 @@ logger.debug(stdout)
 benchmark_script_relpath = os.path.normpath("gpu_ocean/demos/testCasesDemos/run_benchmark.py")
 benchmark_script_abspath = os.path.join(git_clone, benchmark_script_relpath)
 benchmark_script_version = "90fabc6528a426926069019560fa84e7592d3138"
-outfile = os.path.join(os.getcwd(), "output_" + time.strftime("%Y_%m_%d-%H_%M_%S") + ".npz")
-
 
 
 
@@ -194,7 +194,9 @@ for index, row in df.iterrows():
     with np.load(filename) as version_data:
         megacells[index] = version_data['megacells']
 
-np.savez(outfile, versions=df['git_commit'], labels=df['label'], megacells=megacells)
+current_time = time.strftime("%Y_%m_%d-%H_%M_%S")
+outfile = os.path.join(os.getcwd(), args.outfile_basename + "_" + current_time + ".npz")
+np.savez(outfile, versions=df['git_commit'], labels=df['label'], megacells=megacells, args=json.dumps(vars(args)), timestamp=current_time)
 
 
 
