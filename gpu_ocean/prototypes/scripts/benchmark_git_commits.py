@@ -192,7 +192,18 @@ megacells = np.full((len(df.index)), np.nan)
 for index, row in df.iterrows():
     filename = os.path.join(tmpdir, "benchmark_" + row['git_commit'] + ".npz")
     with np.load(filename) as version_data:
-        megacells[i] = version_data['megacells']
+        megacells[index] = version_data['megacells']
 
 np.savez(outfile, versions=df['git_commit'], labels=df['label'], megacells=megacells)
 
+
+
+
+#Remove temporary directory
+def remove_readonly(func, path, _):
+    "Clear the readonly bit and reattempt the removal"
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+shutil.rmtree(tmpdir, onerror=remove_readonly)
+logger.debug("Removed tempdir " + tmpdir)
