@@ -93,7 +93,7 @@ parser = argparse.ArgumentParser(description='Benchmark a simulator across git c
 parser.add_argument('--run_benchmark_opts', type=str, default=None, required=True, help="\"--simulator=CDKLM --steps_per_download 10 --iterations 3\" (note the quotation marks)")
 parser.add_argument('csv_file', default=None, help="CSV file with columns git_commit,label,block_width,block_height (note no spaces in column names)")
 parser.add_argument('--add_exe_path', action='append', type=str, default=[])
-parser.add_argument('--outfile_basename', type=str, default="git_benchmark", help="The basename (in os.path.basename terms) of the filename to write to")
+parser.add_argument('--outfile_basename', type=str, default=None, help="The basename (in os.path.basename terms) of the filename to write to")
 parser.add_argument('--python', type=str, default='python', help="Path to python executable")
 args = parser.parse_args()
 logger.info(args)
@@ -158,7 +158,7 @@ benchmark_script_version = "90fabc6528a426926069019560fa84e7592d3138"
 # Loop through the git_versions and run each benchmark
 for index, row in df.iterrows():
     logger.debug("= Start new benchmark ==========================================")
-    print(index)
+    print("Benchmark number " + str(index+1) + " / " + str(len(df.index)))
     print(row)
     print(row['git_commit'])
     logger.debug(str(index) + ": " + str(row['label']))
@@ -196,7 +196,11 @@ for index, row in df.iterrows():
         megacells[index] = version_data['megacells']
 
 current_time = time.strftime("%Y_%m_%d-%H_%M_%S")
-outfile = os.path.join(os.getcwd(), args.outfile_basename + "_" + current_time + ".npz")
+basename = args.outfile_basename
+if (basename == None):
+    basename = os.path.splitext(os.path.basename(args.csv_file))[0]
+outfile = os.path.join(os.getcwd(), basename + "_" + current_time + ".npz")
+logger.debug("Writing results to " + outfile)
 np.savez(outfile, versions=df['git_commit'], labels=df['label'], megacells=megacells, args=json.dumps(vars(args)), timestamp=current_time)
 
 
