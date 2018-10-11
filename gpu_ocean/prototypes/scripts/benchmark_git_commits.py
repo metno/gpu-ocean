@@ -153,12 +153,11 @@ logger.debug(stdout)
 #Set options for benchmark script
 benchmark_script_relpath = os.path.normpath("gpu_ocean/demos/testCasesDemos/run_benchmark.py")
 benchmark_script_abspath = os.path.join(git_clone, benchmark_script_relpath)
-benchmark_script_version = "90fabc6528a426926069019560fa84e7592d3138"
+benchmark_script_version = "77b50ac6165f77f500a56ebc7467a6f91ea6fc22"
 
 
-
-    
-
+# Need to manipulate working directory in order to compile opencl code
+benchmark_working_dir = os.path.join(git_clone, "gpu_ocean/")
 
 
 
@@ -177,7 +176,7 @@ for index, row in df.iterrows():
     logger.debug("stdout: \n" + str(stdout))
         
     options = args.run_benchmark_opts.split(' ')
-    options += ["--output", "benchmark_" + row['git_commit'] + ".npz"] 
+    options += ["--output", "../../benchmark_" + row['git_commit'] + ".npz"] 
     options += ["--block_width", str(row['block_width']), "--block_height", str(row['block_height'])]
 
     # Check if we need the new fbl flag
@@ -185,7 +184,7 @@ for index, row in df.iterrows():
         options += ["--new_fbl", "1"]
 
     cmd = [args.python, benchmark_script_abspath] + options
-    stdout = safe_call(cmd, cwd=tmpdir, env=my_env)
+    stdout = safe_call(cmd, cwd=benchmark_working_dir, env=my_env)
     if isinstance(stdout, bytes):
         stdout = stdout.decode("utf-8")
     logger.debug("stdout:\n" + stdout)
