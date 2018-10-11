@@ -1,0 +1,3 @@
+git_commit,label,block_width,block_height
+"da566cda753863617f3520dea82734c77650d92f", "Original FBL CUDA",        8, 8
+"964e98a5831950724002674b216dfe28f2d7ffd2", "Optimized FBL CUDA",       32, 16
