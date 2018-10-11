@@ -48,8 +48,8 @@ import time
 tic = time.time();
 
 # Import packages we need
-import os
 import numpy as np
+import json
 from SWESimulators import FBL, CTCS, KP07, CDKLM16, PlotHelper, Common
 
 
@@ -305,5 +305,6 @@ if (args.output):
             data = dict(file_data)
     else:
         data = {}
-    data[args.simulator] = max_mcells
+    data['megacells'] = max_mcells
+    data['args'] = json.dumps(vars(args))
     np.savez(args.output, **data)
