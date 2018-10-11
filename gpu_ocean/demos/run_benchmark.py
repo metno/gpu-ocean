@@ -168,10 +168,10 @@ Initializes the FBL simulator
 def initFBL():
 	tic = time.time()
 	
-	dataShape = (args.ny, args.nx)
+	dataShape = (args.ny+2, args.nx+2)
 
 	eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
-	u0 = np.zeros((dataShape[0]+0, dataShape[1]+1), dtype=np.float32);
+	u0 = np.zeros((dataShape[0]+0, dataShape[1]-1), dtype=np.float32);
 	v0 = np.zeros((dataShape[0]+1, dataShape[1]+0), dtype=np.float32);
 	h0 = np.ones(dataShape, dtype=np.float32) * waterHeight;
 
