@@ -94,6 +94,7 @@ parser.add_argument('--run_benchmark_opts', type=str, default=None, required=Tru
 parser.add_argument('csv_file', default=None, help="CSV file with columns git_commit, label, block_width, block_height")
 parser.add_argument('--add_exe_path', action='append', type=str, default=[])
 parser.add_argument('--outfile_basename', type=str, default="git_benchmark", help="The basename (in os.path.basename terms) of the filename to write to")
+parser.add_argument('--python', type=str, default='python', help="Path to python executable")
 args = parser.parse_args()
 logger.info(args)
 
@@ -171,7 +172,7 @@ for index, row in df.iterrows():
     options = args.run_benchmark_opts.split(' ')
     options += ["--output", "benchmark_" + row['git_commit'] + ".npz"] 
     options += ["--block_width", str(row['block_width']), "--block_height", str(row['block_height'])]
-    cmd = ["python", benchmark_script_abspath] + options
+    cmd = [args.python, benchmark_script_abspath] + options
     stdout = safe_call(cmd, cwd=tmpdir, env=my_env)
     if isinstance(stdout, bytes):
         stdout = stdout.decode("utf-8")
