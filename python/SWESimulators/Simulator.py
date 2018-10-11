@@ -23,9 +23,9 @@ import pyopencl as cl #OpenCL in Python
 from SWESimulators import Common, SimWriter
 import gc
 from abc import ABCMeta, abstractmethod
-from importlib import reload
+#from importlib import reload
 
-reload(Common)
+#reload(Common)
 
 class Simulator(object):
     """

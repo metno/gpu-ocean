@@ -29,7 +29,7 @@ import gc
 from SWESimulators import Common, SimWriter, SimReader
 from SWESimulators import Simulator
 from SWESimulators import WindStress
-from SWESimulators import OceanStateNoise
+#from SWESimulators import OceanStateNoise
 
 
 class CDKLM16(Simulator.Simulator):
@@ -166,11 +166,11 @@ class CDKLM16(Simulator.Simulator):
         # Small scale perturbation:
         self.small_scale_perturbation = small_scale_perturbation
         self.small_scale_model_error = None
-        if small_scale_perturbation:
-            if small_scale_perturbation_amplitude is None:
-                self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self)
-            else:
-                self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, soar_q0=small_scale_perturbation_amplitude)
+        #if small_scale_perturbation:
+        #    if small_scale_perturbation_amplitude is None:
+        #        self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self)
+        #    else:
+        #        self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, soar_q0=small_scale_perturbation_amplitude)
         
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
@@ -343,17 +343,17 @@ class CDKLM16(Simulator.Simulator):
                         self.cl_data.h0, self.cl_data.hu0, self.cl_data.hv0)
             
             # Perturb ocean state with model error
-            if self.small_scale_perturbation and apply_stochastic_term:
-                self.small_scale_model_error.perturbSim(self)
+            #if self.small_scale_perturbation and apply_stochastic_term:
+            #    self.small_scale_model_error.perturbSim(self)
             
             # Evolve drifters
-            if self.hasDrifters:
-                self.drifters.drift(self.cl_data.h0, self.cl_data.hu0, \
-                                    self.cl_data.hv0, \
-                                    np.float32(self.constant_equilibrium_depth), \
-                                    self.nx, self.ny, self.dx, self.dy, \
-                                    local_dt, \
-                                    np.int32(2), np.int32(2))
+            #if self.hasDrifters:
+            #    self.drifters.drift(self.cl_data.h0, self.cl_data.hu0, \
+            #                        self.cl_data.hv0, \
+            #                        np.float32(self.constant_equilibrium_depth), \
+            #                        self.nx, self.ny, self.dx, self.dy, \
+            #                        local_dt, \
+            #                        np.int32(2), np.int32(2))
             self.t += local_dt
             
         if self.write_netcdf:

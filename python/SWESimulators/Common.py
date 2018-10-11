@@ -1,6 +1,7 @@
 import pyopencl
 import os
 import numpy as np
+import sys
 
 import warnings
 import functools
@@ -46,7 +47,25 @@ def get_kernel(cl_ctx, kernel_filename, block_width, block_height):
     
     
         
-        
+def GPUContext():
+
+    #Make sure we get compiler output from OpenCL
+    os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
+    
+    #Set which CL device to use, and disable kernel caching
+    if (str.lower(sys.platform).startswith("linux")):
+        os.environ["PYOPENCL_CTX"] = "0"
+    else:
+        os.environ["PYOPENCL_CTX"] = "1"
+    os.environ["CUDA_CACHE_DISABLE"] = "1"
+    os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
+    os.environ["PYOPENCL_NO_CACHE"] = "1"
+    
+    #Create OpenCL context
+    cl_ctx = pyopencl.create_some_context()
+    print("Using ", cl_ctx.devices[0].name)
+    return cl_ctx        
+                
         
         
         
