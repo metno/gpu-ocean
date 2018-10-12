@@ -308,6 +308,14 @@ print("=== Running with domain size [{:02d} x {:02d}], block size [{:s} x {:s}] 
 max_mcells = 0;
 for i in range(args.iterations):
         print("{:03.0f} %".format(100*(i+1) / args.iterations))
+
+        # SYNC
+        try:
+                gpu_ctx.synchronize()
+        except AttributeError:
+                # This means that we run an openCL simualtion
+                sim.cl_queue.finish()
+
         tic = time.time()
         t = sim.step(args.steps_per_download*dt)
 
@@ -316,8 +324,8 @@ for i in range(args.iterations):
                 gpu_ctx.synchronize()
         except AttributeError:
                 # This means that we run an openCL simualtion
-                pyopencl.enqueue_barrier(sim.cl_queue)
-
+                sim.cl_queue.finish()
+                
         toc = time.time()
         mcells = args.nx*args.ny*args.steps_per_download/(1e6*(toc-tic))
         max_mcells = max(mcells, max_mcells);
@@ -326,12 +334,13 @@ for i in range(args.iterations):
         eta1, u1, v1 = sim.download()
         toc = time.time()
         print(" `-> {:02.4f} s: ".format(toc-tic) + "Download")
+        print(" '->max(u): " + str(np.max(u1)))
         
         if (np.any(np.isnan(eta1))):
                 print(" `-> ERROR: Not a number in simulation, aborting!")
                 sys.exit(-1)
                 
-        print(" `-> t_sim={:02.4f}".format(t) + ", h_max={:02.4f}".format(np.max(eta1)))
+        print(" `-> t_sim={:02.4f}".format(t) + ", u_max={:02.4f}".format(np.max(u1)))
 
         
 print(" === Maximum megacells: {:02.8f} ===".format(max_mcells))
