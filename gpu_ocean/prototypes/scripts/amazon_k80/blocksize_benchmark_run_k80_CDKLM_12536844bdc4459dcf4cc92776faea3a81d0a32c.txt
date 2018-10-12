@@ -1,0 +1,258 @@
+##########################################################################
+Using simulator CDKLM.
+##########################################################################
+=========================================
+CDKLM [04 x 04]
+-----------------------------------------
+b'0.7105 s: Imported packages\n2.8955 s: Created context on Tesla K80\n0.0350 s: Generated initial conditions\n0.0205 s: Created CDKLM simulator\n0.0606 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 4] ===\n100 %\n `-> 0.0805 s: Step, 6213.3603 mcells/sec\n `-> 4.0947 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6213.36027471 ===\n'
+=========================================
+
+CDKLM [04 x 04] completed in 8.10 s
+=========================================
+CDKLM [04 x 08]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7091 s: Imported packages\n2.5834 s: Created context on Tesla K80\n0.0358 s: Generated initial conditions\n0.5355 s: Created CDKLM simulator\n0.0347 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 8] ===\n100 %\n `-> 0.0798 s: Step, 6265.1486 mcells/sec\n `-> 2.4898 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6265.14864086 ===\n'
+=========================================
+
+CDKLM [04 x 08] completed in 6.69 s
+=========================================
+CDKLM [04 x 12]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.6966 s: Imported packages\n2.5932 s: Created context on Tesla K80\n0.0353 s: Generated initial conditions\n0.5283 s: Created CDKLM simulator\n0.0315 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 12] ===\n100 %\n `-> 0.0803 s: Step, 6230.2870 mcells/sec\n `-> 2.1526 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6230.28704182 ===\n'
+=========================================
+
+CDKLM [04 x 12] completed in 6.32 s
+=========================================
+CDKLM [04 x 16]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7200 s: Imported packages\n2.5809 s: Created context on Tesla K80\n0.0366 s: Generated initial conditions\n0.5319 s: Created CDKLM simulator\n0.0269 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 16] ===\n100 %\n `-> 0.0792 s: Step, 6309.3683 mcells/sec\n `-> 1.6657 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6309.36829659 ===\n'
+=========================================
+
+CDKLM [04 x 16] completed in 5.84 s
+=========================================
+CDKLM [04 x 24]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7139 s: Imported packages\n2.5916 s: Created context on Tesla K80\n0.0384 s: Generated initial conditions\n0.5339 s: Created CDKLM simulator\n0.0243 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 24] ===\n100 %\n `-> 0.0818 s: Step, 6108.8384 mcells/sec\n `-> 1.4278 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6108.83838531 ===\n'
+=========================================
+
+CDKLM [04 x 24] completed in 5.62 s
+=========================================
+CDKLM [04 x 32]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7333 s: Imported packages\n2.6007 s: Created context on Tesla K80\n0.0379 s: Generated initial conditions\n0.5531 s: Created CDKLM simulator\n0.0240 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 32] ===\n100 %\n `-> 0.0811 s: Step, 6165.7004 mcells/sec\n `-> 1.4065 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6165.70037515 ===\n'
+=========================================
+
+CDKLM [04 x 32] completed in 5.67 s
+=========================================
+CDKLM [08 x 04]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7088 s: Imported packages\n2.6168 s: Created context on Tesla K80\n0.0365 s: Generated initial conditions\n0.5443 s: Created CDKLM simulator\n0.0329 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 4] ===\n100 %\n `-> 0.0856 s: Step, 5838.3802 mcells/sec\n `-> 2.2186 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 5838.38018268 ===\n'
+=========================================
+
+CDKLM [08 x 04] completed in 6.46 s
+=========================================
+CDKLM [08 x 08]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.6997 s: Imported packages\n2.5886 s: Created context on Tesla K80\n0.0364 s: Generated initial conditions\n0.5467 s: Created CDKLM simulator\n0.0241 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 8] ===\n100 %\n `-> 0.0820 s: Step, 6100.1137 mcells/sec\n `-> 1.3907 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6100.11373255 ===\n'
+=========================================
+
+CDKLM [08 x 08] completed in 5.60 s
+=========================================
+CDKLM [08 x 12]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7108 s: Imported packages\n2.8838 s: Created context on Tesla K80\n0.0356 s: Generated initial conditions\n0.5456 s: Created CDKLM simulator\n0.0250 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 12] ===\n100 %\n `-> 0.0816 s: Step, 6126.0228 mcells/sec\n `-> 1.2048 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6126.02275549 ===\n'
+=========================================
+
+CDKLM [08 x 12] completed in 5.69 s
+=========================================
+CDKLM [08 x 16]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.6966 s: Imported packages\n2.5727 s: Created context on Tesla K80\n0.0356 s: Generated initial conditions\n0.5458 s: Created CDKLM simulator\n0.0199 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 16] ===\n100 %\n `-> 0.0813 s: Step, 6151.8821 mcells/sec\n `-> 1.0669 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6151.88209894 ===\n'
+=========================================
+
+CDKLM [08 x 16] completed in 5.25 s
+=========================================
+CDKLM [08 x 24]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7444 s: Imported packages\n2.8958 s: Created context on Tesla K80\n0.0356 s: Generated initial conditions\n0.5501 s: Created CDKLM simulator\n0.0237 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 24] ===\n100 %\n `-> 0.0853 s: Step, 5860.5202 mcells/sec\n `-> 1.1327 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 5860.52022669 ===\n'
+=========================================
+
+CDKLM [08 x 24] completed in 5.67 s
+=========================================
+CDKLM [08 x 32]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7231 s: Imported packages\n2.9166 s: Created context on Tesla K80\n0.0360 s: Generated initial conditions\n0.5365 s: Created CDKLM simulator\n0.0222 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 32] ===\n100 %\n `-> 0.0771 s: Step, 6484.7201 mcells/sec\n `-> 1.1074 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6484.72011354 ===\n'
+=========================================
+
+CDKLM [08 x 32] completed in 5.62 s
+=========================================
+CDKLM [12 x 04]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7072 s: Imported packages\n2.8746 s: Created context on Tesla K80\n0.0353 s: Generated initial conditions\n0.5408 s: Created CDKLM simulator\n0.0340 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 4] ===\n100 %\n `-> 0.0857 s: Step, 5834.8552 mcells/sec\n `-> 1.8501 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 5834.85523819 ===\n'
+=========================================
+
+CDKLM [12 x 04] completed in 6.33 s
+=========================================
+CDKLM [12 x 08]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.6963 s: Imported packages\n2.8936 s: Created context on Tesla K80\n0.0384 s: Generated initial conditions\n0.5453 s: Created CDKLM simulator\n0.0250 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 8] ===\n100 %\n `-> 0.0834 s: Step, 5993.5239 mcells/sec\n `-> 1.2014 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 5993.52391949 ===\n'
+=========================================
+
+CDKLM [12 x 08] completed in 5.71 s
+=========================================
+CDKLM [12 x 12]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7282 s: Imported packages\n2.5795 s: Created context on Tesla K80\n0.0351 s: Generated initial conditions\n0.5292 s: Created CDKLM simulator\n0.0209 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 12] ===\n100 %\n `-> 0.0809 s: Step, 6182.1494 mcells/sec\n `-> 1.1146 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6182.14941617 ===\n'
+=========================================
+
+CDKLM [12 x 12] completed in 5.30 s
+=========================================
+CDKLM [12 x 16]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.6995 s: Imported packages\n2.9003 s: Created context on Tesla K80\n0.0354 s: Generated initial conditions\n0.5289 s: Created CDKLM simulator\n0.0238 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 16] ===\n100 %\n `-> 0.0822 s: Step, 6079.3887 mcells/sec\n `-> 1.1351 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6079.38868452 ===\n'
+=========================================
+
+CDKLM [12 x 16] completed in 5.61 s
+=========================================
+CDKLM [12 x 24]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.6967 s: Imported packages\n2.8745 s: Created context on Tesla K80\n0.0360 s: Generated initial conditions\n0.5365 s: Created CDKLM simulator\n0.0241 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 24] ===\n100 %\n `-> 0.0856 s: Step, 5844.4980 mcells/sec\n `-> 1.1273 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 5844.49801435 ===\n'
+=========================================
+
+CDKLM [12 x 24] completed in 5.60 s
+=========================================
+CDKLM [12 x 32]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7150 s: Imported packages\n2.5885 s: Created context on Tesla K80\n0.0357 s: Generated initial conditions\n0.5503 s: Created CDKLM simulator\n0.0207 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 32] ===\n100 %\n `-> 0.0825 s: Step, 6059.9070 mcells/sec\n `-> 1.0807 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6059.90695524 ===\n'
+=========================================
+
+CDKLM [12 x 32] completed in 5.29 s
+=========================================
+CDKLM [16 x 04]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7039 s: Imported packages\n2.6540 s: Created context on Tesla K80\n0.0357 s: Generated initial conditions\n0.5287 s: Created CDKLM simulator\n0.0229 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 4] ===\n100 %\n `-> 0.0851 s: Step, 5878.8380 mcells/sec\n `-> 1.2985 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 5878.83799747 ===\n'
+=========================================
+
+CDKLM [16 x 04] completed in 5.55 s
+=========================================
+CDKLM [16 x 08]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7174 s: Imported packages\n2.5782 s: Created context on Tesla K80\n0.0349 s: Generated initial conditions\n0.5268 s: Created CDKLM simulator\n0.0187 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 8] ===\n100 %\n `-> 0.0770 s: Step, 6490.7011 mcells/sec\n `-> 0.9697 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6490.70105014 ===\n'
+=========================================
+
+CDKLM [16 x 08] completed in 5.15 s
+=========================================
+CDKLM [16 x 12]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7049 s: Imported packages\n2.5848 s: Created context on Tesla K80\n0.0359 s: Generated initial conditions\n0.5398 s: Created CDKLM simulator\n0.0194 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 12] ===\n100 %\n `-> 0.0796 s: Step, 6280.3085 mcells/sec\n `-> 0.9809 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6280.30845250 ===\n'
+=========================================
+
+CDKLM [16 x 12] completed in 5.14 s
+=========================================
+CDKLM [16 x 16]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.6945 s: Imported packages\n2.8849 s: Created context on Tesla K80\n0.0381 s: Generated initial conditions\n0.5485 s: Created CDKLM simulator\n0.0225 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 16] ===\n100 %\n `-> 0.0827 s: Step, 6048.6510 mcells/sec\n `-> 1.0356 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6048.65104957 ===\n'
+=========================================
+
+CDKLM [16 x 16] completed in 5.51 s
+=========================================
+CDKLM [16 x 24]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7128 s: Imported packages\n2.6077 s: Created context on Tesla K80\n0.0355 s: Generated initial conditions\n0.5355 s: Created CDKLM simulator\n0.0200 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 24] ===\n100 %\n `-> 0.0841 s: Step, 5943.3145 mcells/sec\n `-> 0.9815 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 5943.31446839 ===\n'
+=========================================
+
+CDKLM [16 x 24] completed in 5.18 s
+=========================================
+CDKLM [16 x 32]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.6948 s: Imported packages\n2.9030 s: Created context on Tesla K80\n0.0347 s: Generated initial conditions\n0.5330 s: Created CDKLM simulator\n0.0218 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 32] ===\n100 %\n `-> 0.0782 s: Step, 6391.0672 mcells/sec\n `-> 1.0527 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6391.06717296 ===\n'
+=========================================
+
+CDKLM [16 x 32] completed in 5.54 s
+=========================================
+CDKLM [24 x 04]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7180 s: Imported packages\n2.5930 s: Created context on Tesla K80\n0.0348 s: Generated initial conditions\n0.5378 s: Created CDKLM simulator\n0.0210 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 4] ===\n100 %\n `-> 0.0806 s: Step, 6204.2430 mcells/sec\n `-> 1.1075 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6204.24295676 ===\n'
+=========================================
+
+CDKLM [24 x 04] completed in 5.34 s
+=========================================
+CDKLM [24 x 08]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7196 s: Imported packages\n2.5681 s: Created context on Tesla K80\n0.0376 s: Generated initial conditions\n0.5507 s: Created CDKLM simulator\n0.0201 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 8] ===\n100 %\n `-> 0.0822 s: Step, 6084.1154 mcells/sec\n `-> 1.0058 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6084.11543025 ===\n'
+=========================================
+
+CDKLM [24 x 08] completed in 5.19 s
+=========================================
+CDKLM [24 x 12]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7166 s: Imported packages\n2.5780 s: Created context on Tesla K80\n0.0348 s: Generated initial conditions\n0.5365 s: Created CDKLM simulator\n0.0192 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 12] ===\n100 %\n `-> 0.0824 s: Step, 6071.2927 mcells/sec\n `-> 0.9800 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6071.29271237 ===\n'
+=========================================
+
+CDKLM [24 x 12] completed in 5.15 s
+=========================================
+CDKLM [24 x 16]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7030 s: Imported packages\n2.9012 s: Created context on Tesla K80\n0.0356 s: Generated initial conditions\n0.5478 s: Created CDKLM simulator\n0.0240 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 16] ===\n100 %\n `-> 0.0850 s: Step, 5885.4704 mcells/sec\n `-> 1.0780 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 5885.47036851 ===\n'
+=========================================
+
+CDKLM [24 x 16] completed in 5.59 s
+=========================================
+CDKLM [24 x 24]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7267 s: Imported packages\n2.9097 s: Created context on Tesla K80\n0.0354 s: Generated initial conditions\n0.5355 s: Created CDKLM simulator\n0.0244 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 24] ===\n100 %\n `-> 0.0817 s: Step, 6121.2843 mcells/sec\n `-> 1.1663 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6121.28429656 ===\n'
+=========================================
+
+CDKLM [24 x 24] completed in 5.69 s
+=========================================
+CDKLM [24 x 32]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7314 s: Imported packages\n2.5770 s: Created context on Tesla K80\n0.0349 s: Generated initial conditions\n0.5265 s: Created CDKLM simulator\n0.0215 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 32] ===\n100 %\n `-> 0.0776 s: Step, 6442.6654 mcells/sec\n `-> 1.1832 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6442.66535590 ===\n'
+=========================================
+
+CDKLM [24 x 32] completed in 5.35 s
+=========================================
+CDKLM [32 x 04]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.6949 s: Imported packages\n2.8822 s: Created context on Tesla K80\n0.0360 s: Generated initial conditions\n0.5361 s: Created CDKLM simulator\n0.0216 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 4] ===\n100 %\n `-> 0.0824 s: Step, 6065.5857 mcells/sec\n `-> 0.9774 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6065.58571900 ===\n'
+=========================================
+
+CDKLM [32 x 04] completed in 5.43 s
+=========================================
+CDKLM [32 x 08]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7237 s: Imported packages\n2.6080 s: Created context on Tesla K80\n0.0356 s: Generated initial conditions\n0.5418 s: Created CDKLM simulator\n0.0182 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 8] ===\n100 %\n `-> 0.0816 s: Step, 6123.7152 mcells/sec\n `-> 0.8335 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6123.71519342 ===\n'
+=========================================
+
+CDKLM [32 x 08] completed in 5.07 s
+=========================================
+CDKLM [32 x 12]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7225 s: Imported packages\n2.9073 s: Created context on Tesla K80\n0.0356 s: Generated initial conditions\n0.5413 s: Created CDKLM simulator\n0.0216 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 12] ===\n100 %\n `-> 0.0824 s: Step, 6065.8489 mcells/sec\n `-> 0.9439 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6065.84888251 ===\n'
+=========================================
+
+CDKLM [32 x 12] completed in 5.46 s
+=========================================
+CDKLM [32 x 16]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7236 s: Imported packages\n2.9205 s: Created context on Tesla K80\n0.0358 s: Generated initial conditions\n0.5443 s: Created CDKLM simulator\n0.0205 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 16] ===\n100 %\n `-> 0.0820 s: Step, 6101.1075 mcells/sec\n `-> 0.8882 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6101.10754568 ===\n'
+=========================================
+
+CDKLM [32 x 16] completed in 5.43 s
+=========================================
+CDKLM [32 x 24]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7142 s: Imported packages\n2.6040 s: Created context on Tesla K80\n0.0376 s: Generated initial conditions\n0.5376 s: Created CDKLM simulator\n0.0205 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 24] ===\n100 %\n `-> 0.0850 s: Step, 5883.3735 mcells/sec\n `-> 0.9964 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 5883.37345071 ===\n'
+=========================================
+
+CDKLM [32 x 24] completed in 5.21 s
+=========================================
+CDKLM [32 x 32]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CDKLM16.py:150: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7134 s: Imported packages\n2.5738 s: Created context on Tesla K80\n0.0355 s: Generated initial conditions\n0.5447 s: Created CDKLM simulator\n0.0193 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 32] ===\n100 %\n `-> 0.0819 s: Step, 6107.8243 mcells/sec\n `-> 0.9350 s: Download\n `-> t_sim=4.7975, h_max=0.9999\n === Maximum megacells: 6107.82426352 ===\n'
+=========================================
+
+CDKLM [32 x 32] completed in 5.14 s
+
+
+
