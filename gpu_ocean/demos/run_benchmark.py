@@ -271,9 +271,10 @@ print("=== Running with domain size [{:02d} x {:02d}], block size [{:s} x {:s}] 
 max_mcells = 0;
 for i in range(args.iterations):
 	print("{:03.0f} %".format(100*(i+1) / args.iterations))
+	sim.cl_queue.finish()
 	tic = time.time()
 	t = sim.step(args.steps_per_download*dt)
-	pyopencl.enqueue_barrier(sim.cl_queue)
+	sim.cl_queue.finish()
 	toc = time.time()
 	mcells = args.nx*args.ny*args.steps_per_download/(1e6*(toc-tic))
 	max_mcells = max(mcells, max_mcells);
