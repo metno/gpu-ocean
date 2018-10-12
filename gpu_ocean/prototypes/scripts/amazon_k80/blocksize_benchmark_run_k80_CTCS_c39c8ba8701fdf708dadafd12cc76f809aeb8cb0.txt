@@ -1,0 +1,258 @@
+##########################################################################
+Using simulator CTCS.
+##########################################################################
+=========================================
+CTCS [04 x 04]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:386: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  self.boundaryKernels = gpu_ctx.get_kernel("CTCS_boundary.cu", defines={\'block_width\': block_width, \'block_height\': block_height})\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:387: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  self.boundaryKernels_NS = gpu_ctx.get_kernel("CTCS_boundary_NS.cu", defines={\'block_width\': self.local_size_NS[0], \'block_height\': self.local_size_NS[1]})\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:388: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  self.boundaryKernels_EW = gpu_ctx.get_kernel("CTCS_boundary_EW.cu", defines={\'block_width\': self.local_size_EW[0], \'block_height\': self.local_size_EW[1]})\n0.7315 s: Imported packages\n2.6259 s: Created context on Tesla K80\n0.0352 s: Generated initial conditions\n1.4365 s: Created CTCS simulator\n0.0278 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 4] ===\n100 %\n `-> 1.4941 s: Step, 334.6584 mcells/sec\n `-> 0.0101 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 334.65841225 ===\n'
+=========================================
+
+CTCS [04 x 04] completed in 6.59 s
+=========================================
+CTCS [04 x 08]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7278 s: Imported packages\n2.5931 s: Created context on Tesla K80\n0.0346 s: Generated initial conditions\n0.4576 s: Created CTCS simulator\n0.0190 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 8] ===\n100 %\n `-> 0.8788 s: Step, 568.9323 mcells/sec\n `-> 0.0082 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 568.93225639 ===\n'
+=========================================
+
+CTCS [04 x 08] completed in 4.91 s
+=========================================
+CTCS [04 x 12]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7346 s: Imported packages\n2.5666 s: Created context on Tesla K80\n0.0347 s: Generated initial conditions\n0.4643 s: Created CTCS simulator\n0.0170 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 12] ===\n100 %\n `-> 0.7243 s: Step, 690.3306 mcells/sec\n `-> 0.0100 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 690.33064013 ===\n'
+=========================================
+
+CTCS [04 x 12] completed in 4.75 s
+=========================================
+CTCS [04 x 16]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7217 s: Imported packages\n2.5818 s: Created context on Tesla K80\n0.0352 s: Generated initial conditions\n0.4741 s: Created CTCS simulator\n0.0148 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 16] ===\n100 %\n `-> 0.5615 s: Step, 890.5270 mcells/sec\n `-> 0.0102 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 890.52704169 ===\n'
+=========================================
+
+CTCS [04 x 16] completed in 4.59 s
+=========================================
+CTCS [04 x 24]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.6970 s: Imported packages\n2.5905 s: Created context on Tesla K80\n0.0357 s: Generated initial conditions\n0.4671 s: Created CTCS simulator\n0.0139 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 24] ===\n100 %\n `-> 0.4827 s: Step, 1035.9227 mcells/sec\n `-> 0.0103 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1035.92272191 ===\n'
+=========================================
+
+CTCS [04 x 24] completed in 4.49 s
+=========================================
+CTCS [04 x 32]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7141 s: Imported packages\n2.8839 s: Created context on Tesla K80\n0.0354 s: Generated initial conditions\n0.4750 s: Created CTCS simulator\n0.0161 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [4 x 32] ===\n100 %\n `-> 0.5630 s: Step, 888.0491 mcells/sec\n `-> 0.0084 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 888.04913092 ===\n'
+=========================================
+
+CTCS [04 x 32] completed in 4.90 s
+=========================================
+CTCS [08 x 04]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7125 s: Imported packages\n2.8730 s: Created context on Tesla K80\n0.0355 s: Generated initial conditions\n0.4767 s: Created CTCS simulator\n0.0220 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 4] ===\n100 %\n `-> 0.8839 s: Step, 565.6908 mcells/sec\n `-> 0.0100 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 565.69076572 ===\n'
+=========================================
+
+CTCS [08 x 04] completed in 5.21 s
+=========================================
+CTCS [08 x 08]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7016 s: Imported packages\n2.6067 s: Created context on Tesla K80\n0.0354 s: Generated initial conditions\n0.4700 s: Created CTCS simulator\n0.0135 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 8] ===\n100 %\n `-> 0.4713 s: Step, 1060.9976 mcells/sec\n `-> 0.0101 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1060.99762975 ===\n'
+=========================================
+
+CTCS [08 x 08] completed in 4.50 s
+=========================================
+CTCS [08 x 12]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7096 s: Imported packages\n2.8802 s: Created context on Tesla K80\n0.0353 s: Generated initial conditions\n0.4638 s: Created CTCS simulator\n0.0132 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 12] ===\n100 %\n `-> 0.4072 s: Step, 1227.7911 mcells/sec\n `-> 0.0079 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1227.79114895 ===\n'
+=========================================
+
+CTCS [08 x 12] completed in 4.72 s
+=========================================
+CTCS [08 x 16]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7224 s: Imported packages\n2.9043 s: Created context on Tesla K80\n0.0355 s: Generated initial conditions\n0.4711 s: Created CTCS simulator\n0.0132 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 16] ===\n100 %\n `-> 0.4061 s: Step, 1231.2823 mcells/sec\n `-> 0.0101 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1231.28228432 ===\n'
+=========================================
+
+CTCS [08 x 16] completed in 4.78 s
+=========================================
+CTCS [08 x 24]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7113 s: Imported packages\n2.9051 s: Created context on Tesla K80\n0.0357 s: Generated initial conditions\n0.4806 s: Created CTCS simulator\n0.0136 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 24] ===\n100 %\n `-> 0.4046 s: Step, 1235.7975 mcells/sec\n `-> 0.0085 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1235.79746176 ===\n'
+=========================================
+
+CTCS [08 x 24] completed in 4.78 s
+=========================================
+CTCS [08 x 32]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7173 s: Imported packages\n2.6575 s: Created context on Tesla K80\n0.0375 s: Generated initial conditions\n0.4832 s: Created CTCS simulator\n0.0119 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [8 x 32] ===\n100 %\n `-> 0.3448 s: Step, 1450.0338 mcells/sec\n `-> 0.0083 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1450.03381093 ===\n'
+=========================================
+
+CTCS [08 x 32] completed in 4.47 s
+=========================================
+CTCS [12 x 04]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7340 s: Imported packages\n2.5970 s: Created context on Tesla K80\n0.0358 s: Generated initial conditions\n0.4785 s: Created CTCS simulator\n0.0149 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 4] ===\n100 %\n `-> 0.5737 s: Step, 871.5647 mcells/sec\n `-> 0.0100 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 871.56469642 ===\n'
+=========================================
+
+CTCS [12 x 04] completed in 4.65 s
+=========================================
+CTCS [12 x 08]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7367 s: Imported packages\n2.8870 s: Created context on Tesla K80\n0.0355 s: Generated initial conditions\n0.4695 s: Created CTCS simulator\n0.0135 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 8] ===\n100 %\n `-> 0.4139 s: Step, 1207.9276 mcells/sec\n `-> 0.0102 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1207.92762406 ===\n'
+=========================================
+
+CTCS [12 x 08] completed in 4.77 s
+=========================================
+CTCS [12 x 12]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7156 s: Imported packages\n2.8961 s: Created context on Tesla K80\n0.0346 s: Generated initial conditions\n0.4665 s: Created CTCS simulator\n0.0123 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 12] ===\n100 %\n `-> 0.3622 s: Step, 1380.4591 mcells/sec\n `-> 0.0081 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1380.45906646 ===\n'
+=========================================
+
+CTCS [12 x 12] completed in 4.69 s
+=========================================
+CTCS [12 x 16]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7074 s: Imported packages\n2.8903 s: Created context on Tesla K80\n0.0355 s: Generated initial conditions\n0.4711 s: Created CTCS simulator\n0.0130 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 16] ===\n100 %\n `-> 0.3863 s: Step, 1294.1780 mcells/sec\n `-> 0.0085 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1294.17797885 ===\n'
+=========================================
+
+CTCS [12 x 16] completed in 4.72 s
+=========================================
+CTCS [12 x 24]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7190 s: Imported packages\n2.5662 s: Created context on Tesla K80\n0.0347 s: Generated initial conditions\n0.4582 s: Created CTCS simulator\n0.0114 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 24] ===\n100 %\n `-> 0.3213 s: Step, 1556.1467 mcells/sec\n `-> 0.0097 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1556.14670499 ===\n'
+=========================================
+
+CTCS [12 x 24] completed in 4.32 s
+=========================================
+CTCS [12 x 32]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7247 s: Imported packages\n2.8734 s: Created context on Tesla K80\n0.0356 s: Generated initial conditions\n0.4706 s: Created CTCS simulator\n0.0131 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [12 x 32] ===\n100 %\n `-> 0.4064 s: Step, 1230.2220 mcells/sec\n `-> 0.0099 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1230.22196359 ===\n'
+=========================================
+
+CTCS [12 x 32] completed in 4.74 s
+=========================================
+CTCS [16 x 04]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7137 s: Imported packages\n2.5723 s: Created context on Tesla K80\n0.0356 s: Generated initial conditions\n0.4613 s: Created CTCS simulator\n0.0127 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 4] ===\n100 %\n `-> 0.4161 s: Step, 1201.6906 mcells/sec\n `-> 0.0076 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1201.69061088 ===\n'
+=========================================
+
+CTCS [16 x 04] completed in 4.41 s
+=========================================
+CTCS [16 x 08]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7067 s: Imported packages\n2.8938 s: Created context on Tesla K80\n0.0358 s: Generated initial conditions\n0.4723 s: Created CTCS simulator\n0.0121 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 8] ===\n100 %\n `-> 0.3379 s: Step, 1479.5214 mcells/sec\n `-> 0.0084 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1479.52136685 ===\n'
+=========================================
+
+CTCS [16 x 08] completed in 4.68 s
+=========================================
+CTCS [16 x 12]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7194 s: Imported packages\n2.8823 s: Created context on Tesla K80\n0.0353 s: Generated initial conditions\n0.4763 s: Created CTCS simulator\n0.0123 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 12] ===\n100 %\n `-> 0.3567 s: Step, 1401.7993 mcells/sec\n `-> 0.0099 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1401.79927983 ===\n'
+=========================================
+
+CTCS [16 x 12] completed in 4.69 s
+=========================================
+CTCS [16 x 16]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7288 s: Imported packages\n2.5880 s: Created context on Tesla K80\n0.0346 s: Generated initial conditions\n0.4620 s: Created CTCS simulator\n0.0110 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 16] ===\n100 %\n `-> 0.2853 s: Step, 1752.3273 mcells/sec\n `-> 0.0083 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1752.32728461 ===\n'
+=========================================
+
+CTCS [16 x 16] completed in 4.35 s
+=========================================
+CTCS [16 x 24]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7176 s: Imported packages\n2.9048 s: Created context on Tesla K80\n0.0348 s: Generated initial conditions\n0.4648 s: Created CTCS simulator\n0.0125 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 24] ===\n100 %\n `-> 0.3664 s: Step, 1364.7860 mcells/sec\n `-> 0.0083 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1364.78599728 ===\n'
+=========================================
+
+CTCS [16 x 24] completed in 4.72 s
+=========================================
+CTCS [16 x 32]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7272 s: Imported packages\n2.9115 s: Created context on Tesla K80\n0.0376 s: Generated initial conditions\n0.4773 s: Created CTCS simulator\n0.0125 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [16 x 32] ===\n100 %\n `-> 0.3681 s: Step, 1358.2767 mcells/sec\n `-> 0.0102 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1358.27666161 ===\n'
+=========================================
+
+CTCS [16 x 32] completed in 4.75 s
+=========================================
+CTCS [24 x 04]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7210 s: Imported packages\n2.5866 s: Created context on Tesla K80\n0.0358 s: Generated initial conditions\n0.4827 s: Created CTCS simulator\n0.0113 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 4] ===\n100 %\n `-> 0.3171 s: Step, 1576.7337 mcells/sec\n `-> 0.0101 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1576.73369868 ===\n'
+=========================================
+
+CTCS [24 x 04] completed in 4.36 s
+=========================================
+CTCS [24 x 08]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7180 s: Imported packages\n2.6018 s: Created context on Tesla K80\n0.0352 s: Generated initial conditions\n0.4626 s: Created CTCS simulator\n0.0108 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 8] ===\n100 %\n `-> 0.2868 s: Step, 1743.6584 mcells/sec\n `-> 0.0103 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1743.65839078 ===\n'
+=========================================
+
+CTCS [24 x 08] completed in 4.37 s
+=========================================
+CTCS [24 x 12]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7211 s: Imported packages\n2.8937 s: Created context on Tesla K80\n0.0370 s: Generated initial conditions\n0.4760 s: Created CTCS simulator\n0.0114 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 12] ===\n100 %\n `-> 0.3089 s: Step, 1618.3914 mcells/sec\n `-> 0.0100 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1618.39137229 ===\n'
+=========================================
+
+CTCS [24 x 12] completed in 4.66 s
+=========================================
+CTCS [24 x 16]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7373 s: Imported packages\n2.6071 s: Created context on Tesla K80\n0.0382 s: Generated initial conditions\n0.4803 s: Created CTCS simulator\n0.0112 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 16] ===\n100 %\n `-> 0.2978 s: Step, 1678.8632 mcells/sec\n `-> 0.0102 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1678.86322699 ===\n'
+=========================================
+
+CTCS [24 x 16] completed in 4.41 s
+=========================================
+CTCS [24 x 24]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.6997 s: Imported packages\n2.5705 s: Created context on Tesla K80\n0.0356 s: Generated initial conditions\n0.4665 s: Created CTCS simulator\n0.0115 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 24] ===\n100 %\n `-> 0.3359 s: Step, 1488.5570 mcells/sec\n `-> 0.0084 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1488.55697097 ===\n'
+=========================================
+
+CTCS [24 x 24] completed in 4.36 s
+=========================================
+CTCS [24 x 32]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7043 s: Imported packages\n2.5664 s: Created context on Tesla K80\n0.0348 s: Generated initial conditions\n0.4635 s: Created CTCS simulator\n0.0122 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [24 x 32] ===\n100 %\n `-> 0.3790 s: Step, 1319.0896 mcells/sec\n `-> 0.0101 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1319.08962366 ===\n'
+=========================================
+
+CTCS [24 x 32] completed in 4.37 s
+=========================================
+CTCS [32 x 04]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7229 s: Imported packages\n2.9062 s: Created context on Tesla K80\n0.0355 s: Generated initial conditions\n0.4770 s: Created CTCS simulator\n0.0118 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 4] ===\n100 %\n `-> 0.3128 s: Step, 1598.5462 mcells/sec\n `-> 0.0103 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1598.54624396 ===\n'
+=========================================
+
+CTCS [32 x 04] completed in 4.70 s
+=========================================
+CTCS [32 x 08]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7151 s: Imported packages\n2.9054 s: Created context on Tesla K80\n0.0355 s: Generated initial conditions\n0.4706 s: Created CTCS simulator\n0.0119 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 8] ===\n100 %\n `-> 0.3157 s: Step, 1583.5402 mcells/sec\n `-> 0.0100 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1583.54022822 ===\n'
+=========================================
+
+CTCS [32 x 08] completed in 4.68 s
+=========================================
+CTCS [32 x 12]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7017 s: Imported packages\n2.8850 s: Created context on Tesla K80\n0.0353 s: Generated initial conditions\n0.4697 s: Created CTCS simulator\n0.0120 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 12] ===\n100 %\n `-> 0.3350 s: Step, 1492.7475 mcells/sec\n `-> 0.0103 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1492.74749554 ===\n'
+=========================================
+
+CTCS [32 x 12] completed in 4.65 s
+=========================================
+CTCS [32 x 16]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.6981 s: Imported packages\n2.6085 s: Created context on Tesla K80\n0.0355 s: Generated initial conditions\n0.4750 s: Created CTCS simulator\n0.0107 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 16] ===\n100 %\n `-> 0.2678 s: Step, 1867.0278 mcells/sec\n `-> 0.0103 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1867.02775945 ===\n'
+=========================================
+
+CTCS [32 x 16] completed in 4.33 s
+=========================================
+CTCS [32 x 24]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7118 s: Imported packages\n2.8813 s: Created context on Tesla K80\n0.0357 s: Generated initial conditions\n0.4641 s: Created CTCS simulator\n0.0127 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 24] ===\n100 %\n `-> 0.3811 s: Step, 1311.8777 mcells/sec\n `-> 0.0084 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1311.87773210 ===\n'
+=========================================
+
+CTCS [32 x 24] completed in 4.70 s
+=========================================
+CTCS [32 x 32]
+-----------------------------------------
+b'/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/CTCS.py:134: UserWarning: The CUDA compiler succeeded, but said the following:\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(583): warning: dynamic initialization in unreachable code\n\n/home/ubuntu/jupyter_notebooks/gpu-ocean/gpu_ocean/SWESimulators/gpu_kernels/common.cu(613): warning: dynamic initialization in unreachable code\n\n\n  jit_compile_args={\n0.7268 s: Imported packages\n2.5968 s: Created context on Tesla K80\n0.0354 s: Generated initial conditions\n0.4659 s: Created CTCS simulator\n0.0113 s: Spinup of simulator\n=== Running with domain size [1000 x 1000], block size [32 x 32] ===\n100 %\n `-> 0.3091 s: Step, 1617.5376 mcells/sec\n `-> 0.0085 s: Download\n `-> t_sim=4.7975, h_max=1.0000\n === Maximum megacells: 1617.53755662 ===\n'
+=========================================
+
+CTCS [32 x 32] completed in 4.37 s
+
+
+
