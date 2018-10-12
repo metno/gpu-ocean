@@ -1,3 +1,0 @@
-git_commit,label,block_width,block_height
-"a126bab97e690b7c642814e3c8b96f9879adf487", "original (per arch optimized block size)", 12, 12 
-"12536844bdc4459dcf4cc92776faea3a81d0a32c", "New optimal block size",                   32, 12 
