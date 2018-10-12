@@ -153,7 +153,7 @@ logger.debug(stdout)
 #Set options for benchmark script
 benchmark_script_relpath = os.path.normpath("gpu_ocean/demos/testCasesDemos/run_benchmark.py")
 benchmark_script_abspath = os.path.join(git_clone, benchmark_script_relpath)
-benchmark_script_version = "77b50ac6165f77f500a56ebc7467a6f91ea6fc22"
+benchmark_script_version = "6cc7c23c7a244de4a32e4eadc602b30fdc30708c"
 
 
 # Need to manipulate working directory in order to compile opencl code
