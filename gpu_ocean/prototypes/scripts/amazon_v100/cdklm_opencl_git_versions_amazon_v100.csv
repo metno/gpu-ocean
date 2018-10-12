@@ -1,0 +1,3 @@
+git_commit,label,block_width,block_height
+"4113be8accf34aa57ce186f3e236d1c0c14ffd5b", "original CDKLM OpenCL",    32, 4
+"964e98a5831950724002674b216dfe28f2d7ffd2", "tuned CDKLM OpenCL",       32, 4
