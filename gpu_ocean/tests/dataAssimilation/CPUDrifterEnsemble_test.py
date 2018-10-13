@@ -3,7 +3,6 @@ import time
 import numpy as np
 import sys
 import gc
-import pyopencl
 
 import abc
 

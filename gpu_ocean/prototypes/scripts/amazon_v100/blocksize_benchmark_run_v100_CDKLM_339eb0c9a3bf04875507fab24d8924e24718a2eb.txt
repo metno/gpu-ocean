@@ -1,0 +1,258 @@
+##########################################################################
+Using simulator CDKLM.
+##########################################################################
+=========================================
+CDKLM [04 x 04]
+-----------------------------------------
+b'0.6713 s: Imported packages\n0.7549 s: Created context on Tesla V100-SXM2-16GB\n0.1315 s: Generated initial conditions\n0.0563 s: Created CDKLM simulator\n0.0303 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [4 x 4] ===\n100 %\n `-> 18.6526 s: Step, 1124.3200 mcells/sec\n `-> 2.1240 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 1124.31997284 ===\n'
+=========================================
+
+CDKLM [04 x 04] completed in 22.65 s
+=========================================
+CDKLM [04 x 08]
+-----------------------------------------
+b'0.7088 s: Imported packages\n0.7577 s: Created context on Tesla V100-SXM2-16GB\n0.1359 s: Generated initial conditions\n0.0592 s: Created CDKLM simulator\n0.0183 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [4 x 8] ===\n100 %\n `-> 9.9604 s: Step, 2105.4809 mcells/sec\n `-> 1.1410 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2105.48094799 ===\n'
+=========================================
+
+CDKLM [04 x 08] completed in 12.96 s
+=========================================
+CDKLM [04 x 12]
+-----------------------------------------
+b'0.6791 s: Imported packages\n0.7584 s: Created context on Tesla V100-SXM2-16GB\n0.1345 s: Generated initial conditions\n0.0565 s: Created CDKLM simulator\n0.0201 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [4 x 12] ===\n100 %\n `-> 11.3444 s: Step, 1848.6296 mcells/sec\n `-> 1.2982 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 1848.62960897 ===\n'
+=========================================
+
+CDKLM [04 x 12] completed in 14.47 s
+=========================================
+CDKLM [04 x 16]
+-----------------------------------------
+b'0.6791 s: Imported packages\n0.7502 s: Created context on Tesla V100-SXM2-16GB\n0.1374 s: Generated initial conditions\n0.0591 s: Created CDKLM simulator\n0.0166 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [4 x 16] ===\n100 %\n `-> 8.7840 s: Step, 2387.4801 mcells/sec\n `-> 1.0078 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2387.48006918 ===\n'
+=========================================
+
+CDKLM [04 x 16] completed in 11.60 s
+=========================================
+CDKLM [04 x 24]
+-----------------------------------------
+b'0.6540 s: Imported packages\n0.7482 s: Created context on Tesla V100-SXM2-16GB\n0.1321 s: Generated initial conditions\n0.0578 s: Created CDKLM simulator\n0.0161 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [4 x 24] ===\n100 %\n `-> 8.5029 s: Step, 2466.4083 mcells/sec\n `-> 0.9775 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2466.40830655 ===\n'
+=========================================
+
+CDKLM [04 x 24] completed in 11.25 s
+=========================================
+CDKLM [04 x 32]
+-----------------------------------------
+b'0.6632 s: Imported packages\n0.7519 s: Created context on Tesla V100-SXM2-16GB\n0.1312 s: Generated initial conditions\n0.0562 s: Created CDKLM simulator\n0.0159 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [4 x 32] ===\n100 %\n `-> 8.2579 s: Step, 2539.5678 mcells/sec\n `-> 0.9495 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2539.56780691 ===\n'
+=========================================
+
+CDKLM [04 x 32] completed in 10.99 s
+=========================================
+CDKLM [08 x 04]
+-----------------------------------------
+b'0.6732 s: Imported packages\n0.7466 s: Created context on Tesla V100-SXM2-16GB\n0.1304 s: Generated initial conditions\n0.0543 s: Created CDKLM simulator\n0.0184 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [8 x 4] ===\n100 %\n `-> 10.0237 s: Step, 2092.1894 mcells/sec\n `-> 1.1464 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2092.18937125 ===\n'
+=========================================
+
+CDKLM [08 x 04] completed in 12.99 s
+=========================================
+CDKLM [08 x 08]
+-----------------------------------------
+b'0.6648 s: Imported packages\n0.7516 s: Created context on Tesla V100-SXM2-16GB\n0.1319 s: Generated initial conditions\n0.0563 s: Created CDKLM simulator\n0.0168 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [8 x 8] ===\n100 %\n `-> 8.8421 s: Step, 2371.7891 mcells/sec\n `-> 1.0138 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2371.78905457 ===\n'
+=========================================
+
+CDKLM [08 x 08] completed in 11.65 s
+=========================================
+CDKLM [08 x 12]
+-----------------------------------------
+b'0.7006 s: Imported packages\n0.7498 s: Created context on Tesla V100-SXM2-16GB\n0.1270 s: Generated initial conditions\n0.0544 s: Created CDKLM simulator\n0.0163 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [8 x 12] ===\n100 %\n `-> 8.4481 s: Step, 2482.3836 mcells/sec\n `-> 0.9699 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2482.38362248 ===\n'
+=========================================
+
+CDKLM [08 x 12] completed in 11.25 s
+=========================================
+CDKLM [08 x 16]
+-----------------------------------------
+b'0.6910 s: Imported packages\n0.7535 s: Created context on Tesla V100-SXM2-16GB\n0.1326 s: Generated initial conditions\n0.0556 s: Created CDKLM simulator\n0.0158 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [8 x 16] ===\n100 %\n `-> 8.0435 s: Step, 2607.2698 mcells/sec\n `-> 0.9241 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2607.26982557 ===\n'
+=========================================
+
+CDKLM [08 x 16] completed in 10.80 s
+=========================================
+CDKLM [08 x 24]
+-----------------------------------------
+b'0.7026 s: Imported packages\n0.7538 s: Created context on Tesla V100-SXM2-16GB\n0.1318 s: Generated initial conditions\n0.0569 s: Created CDKLM simulator\n0.0153 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [8 x 24] ===\n100 %\n `-> 7.9138 s: Step, 2649.9771 mcells/sec\n `-> 0.9112 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2649.97707571 ===\n'
+=========================================
+
+CDKLM [08 x 24] completed in 10.66 s
+=========================================
+CDKLM [08 x 32]
+-----------------------------------------
+b'0.6784 s: Imported packages\n0.7525 s: Created context on Tesla V100-SXM2-16GB\n0.1338 s: Generated initial conditions\n0.0553 s: Created CDKLM simulator\n0.0157 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [8 x 32] ===\n100 %\n `-> 8.3359 s: Step, 2515.7954 mcells/sec\n `-> 0.9590 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2515.79535022 ===\n'
+=========================================
+
+CDKLM [08 x 32] completed in 11.11 s
+=========================================
+CDKLM [12 x 04]
+-----------------------------------------
+b'0.6684 s: Imported packages\n0.7536 s: Created context on Tesla V100-SXM2-16GB\n0.1317 s: Generated initial conditions\n0.0574 s: Created CDKLM simulator\n0.0207 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [12 x 4] ===\n100 %\n `-> 11.8000 s: Step, 1777.2507 mcells/sec\n `-> 1.3486 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 1777.25066074 ===\n'
+=========================================
+
+CDKLM [12 x 04] completed in 14.95 s
+=========================================
+CDKLM [12 x 08]
+-----------------------------------------
+b'0.6659 s: Imported packages\n0.7487 s: Created context on Tesla V100-SXM2-16GB\n0.1362 s: Generated initial conditions\n0.0588 s: Created CDKLM simulator\n0.0164 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [12 x 8] ===\n100 %\n `-> 8.6783 s: Step, 2416.5378 mcells/sec\n `-> 0.9958 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2416.53775182 ===\n'
+=========================================
+
+CDKLM [12 x 08] completed in 11.47 s
+=========================================
+CDKLM [12 x 12]
+-----------------------------------------
+b'0.6699 s: Imported packages\n0.7492 s: Created context on Tesla V100-SXM2-16GB\n0.1307 s: Generated initial conditions\n0.0571 s: Created CDKLM simulator\n0.0167 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [12 x 12] ===\n100 %\n `-> 8.8253 s: Step, 2376.2978 mcells/sec\n `-> 1.0136 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2376.29780451 ===\n'
+=========================================
+
+CDKLM [12 x 12] completed in 11.64 s
+=========================================
+CDKLM [12 x 16]
+-----------------------------------------
+b'0.6641 s: Imported packages\n0.7500 s: Created context on Tesla V100-SXM2-16GB\n0.1298 s: Generated initial conditions\n0.0576 s: Created CDKLM simulator\n0.0153 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [12 x 16] ===\n100 %\n `-> 7.9049 s: Step, 2652.9705 mcells/sec\n `-> 0.9100 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2652.97052109 ===\n'
+=========================================
+
+CDKLM [12 x 16] completed in 10.61 s
+=========================================
+CDKLM [12 x 24]
+-----------------------------------------
+b'0.6735 s: Imported packages\n0.7504 s: Created context on Tesla V100-SXM2-16GB\n0.1313 s: Generated initial conditions\n0.0573 s: Created CDKLM simulator\n0.0156 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [12 x 24] ===\n100 %\n `-> 8.1603 s: Step, 2569.9523 mcells/sec\n `-> 0.9383 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2569.95231095 ===\n'
+=========================================
+
+CDKLM [12 x 24] completed in 10.89 s
+=========================================
+CDKLM [12 x 32]
+-----------------------------------------
+b'0.6749 s: Imported packages\n0.7508 s: Created context on Tesla V100-SXM2-16GB\n0.1297 s: Generated initial conditions\n0.0571 s: Created CDKLM simulator\n0.0154 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [12 x 32] ===\n100 %\n `-> 8.1294 s: Step, 2579.7221 mcells/sec\n `-> 0.9352 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2579.72213854 ===\n'
+=========================================
+
+CDKLM [12 x 32] completed in 10.85 s
+=========================================
+CDKLM [16 x 04]
+-----------------------------------------
+b'0.6595 s: Imported packages\n0.7492 s: Created context on Tesla V100-SXM2-16GB\n0.1321 s: Generated initial conditions\n0.0563 s: Created CDKLM simulator\n0.0172 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [16 x 4] ===\n100 %\n `-> 9.1721 s: Step, 2286.4411 mcells/sec\n `-> 1.0510 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2286.44110114 ===\n'
+=========================================
+
+CDKLM [16 x 04] completed in 12.01 s
+=========================================
+CDKLM [16 x 08]
+-----------------------------------------
+b'0.6764 s: Imported packages\n0.7474 s: Created context on Tesla V100-SXM2-16GB\n0.1305 s: Generated initial conditions\n0.0590 s: Created CDKLM simulator\n0.0161 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [16 x 8] ===\n100 %\n `-> 8.2539 s: Step, 2540.7887 mcells/sec\n `-> 0.9474 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2540.78867898 ===\n'
+=========================================
+
+CDKLM [16 x 08] completed in 11.01 s
+=========================================
+CDKLM [16 x 12]
+-----------------------------------------
+b'0.7069 s: Imported packages\n0.7502 s: Created context on Tesla V100-SXM2-16GB\n0.1322 s: Generated initial conditions\n0.0564 s: Created CDKLM simulator\n0.0152 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [16 x 12] ===\n100 %\n `-> 7.8593 s: Step, 2668.3616 mcells/sec\n `-> 0.9044 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2668.36157270 ===\n'
+=========================================
+
+CDKLM [16 x 12] completed in 10.59 s
+=========================================
+CDKLM [16 x 16]
+-----------------------------------------
+b'0.6498 s: Imported packages\n0.7537 s: Created context on Tesla V100-SXM2-16GB\n0.1256 s: Generated initial conditions\n0.0536 s: Created CDKLM simulator\n0.0157 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [16 x 16] ===\n100 %\n `-> 8.2996 s: Step, 2526.8029 mcells/sec\n `-> 0.9543 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2526.80290830 ===\n'
+=========================================
+
+CDKLM [16 x 16] completed in 11.02 s
+=========================================
+CDKLM [16 x 24]
+-----------------------------------------
+b'0.6942 s: Imported packages\n0.7482 s: Created context on Tesla V100-SXM2-16GB\n0.1330 s: Generated initial conditions\n0.0551 s: Created CDKLM simulator\n0.0155 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [16 x 24] ===\n100 %\n `-> 8.0911 s: Step, 2591.9163 mcells/sec\n `-> 0.9309 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2591.91629525 ===\n'
+=========================================
+
+CDKLM [16 x 24] completed in 10.84 s
+=========================================
+CDKLM [16 x 32]
+-----------------------------------------
+b'0.7025 s: Imported packages\n0.7570 s: Created context on Tesla V100-SXM2-16GB\n0.1341 s: Generated initial conditions\n0.0550 s: Created CDKLM simulator\n0.0165 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [16 x 32] ===\n100 %\n `-> 8.8631 s: Step, 2366.1539 mcells/sec\n `-> 1.0185 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2366.15387241 ===\n'
+=========================================
+
+CDKLM [16 x 32] completed in 11.71 s
+=========================================
+CDKLM [24 x 04]
+-----------------------------------------
+b'0.7046 s: Imported packages\n0.7538 s: Created context on Tesla V100-SXM2-16GB\n0.1298 s: Generated initial conditions\n0.0584 s: Created CDKLM simulator\n0.0169 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [24 x 4] ===\n100 %\n `-> 8.9823 s: Step, 2334.7543 mcells/sec\n `-> 1.0298 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2334.75431435 ===\n'
+=========================================
+
+CDKLM [24 x 04] completed in 11.85 s
+=========================================
+CDKLM [24 x 08]
+-----------------------------------------
+b'0.6596 s: Imported packages\n0.7516 s: Created context on Tesla V100-SXM2-16GB\n0.1286 s: Generated initial conditions\n0.0566 s: Created CDKLM simulator\n0.0155 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [24 x 8] ===\n100 %\n `-> 7.9503 s: Step, 2637.8396 mcells/sec\n `-> 0.9145 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2637.83961367 ===\n'
+=========================================
+
+CDKLM [24 x 08] completed in 10.66 s
+=========================================
+CDKLM [24 x 12]
+-----------------------------------------
+b'0.6611 s: Imported packages\n0.7519 s: Created context on Tesla V100-SXM2-16GB\n0.1345 s: Generated initial conditions\n0.0594 s: Created CDKLM simulator\n0.0155 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [24 x 12] ===\n100 %\n `-> 8.1039 s: Step, 2587.8188 mcells/sec\n `-> 0.9324 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2587.81876405 ===\n'
+=========================================
+
+CDKLM [24 x 12] completed in 10.84 s
+=========================================
+CDKLM [24 x 16]
+-----------------------------------------
+b'0.6688 s: Imported packages\n0.7557 s: Created context on Tesla V100-SXM2-16GB\n0.1320 s: Generated initial conditions\n0.0558 s: Created CDKLM simulator\n0.0156 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [24 x 16] ===\n100 %\n `-> 8.0842 s: Step, 2594.1207 mcells/sec\n `-> 0.9307 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2594.12067530 ===\n'
+=========================================
+
+CDKLM [24 x 16] completed in 10.82 s
+=========================================
+CDKLM [24 x 24]
+-----------------------------------------
+b'0.6759 s: Imported packages\n0.7488 s: Created context on Tesla V100-SXM2-16GB\n0.1300 s: Generated initial conditions\n0.0587 s: Created CDKLM simulator\n0.0161 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [24 x 24] ===\n100 %\n `-> 8.6286 s: Step, 2430.4582 mcells/sec\n `-> 0.9919 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2430.45823302 ===\n'
+=========================================
+
+CDKLM [24 x 24] completed in 11.42 s
+=========================================
+CDKLM [24 x 32]
+-----------------------------------------
+b'0.6682 s: Imported packages\n0.7537 s: Created context on Tesla V100-SXM2-16GB\n0.1328 s: Generated initial conditions\n0.0556 s: Created CDKLM simulator\n0.0201 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [24 x 32] ===\n100 %\n `-> 11.5328 s: Step, 1818.4280 mcells/sec\n `-> 1.3183 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 1818.42800220 ===\n'
+=========================================
+
+CDKLM [24 x 32] completed in 14.65 s
+=========================================
+CDKLM [32 x 04]
+-----------------------------------------
+b'0.6657 s: Imported packages\n0.7505 s: Created context on Tesla V100-SXM2-16GB\n0.1321 s: Generated initial conditions\n0.0559 s: Created CDKLM simulator\n0.0166 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [32 x 4] ===\n100 %\n `-> 8.5577 s: Step, 2450.6012 mcells/sec\n `-> 0.9821 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2450.60117582 ===\n'
+=========================================
+
+CDKLM [32 x 04] completed in 11.35 s
+=========================================
+CDKLM [32 x 08]
+-----------------------------------------
+b'0.6708 s: Imported packages\n0.7525 s: Created context on Tesla V100-SXM2-16GB\n0.1303 s: Generated initial conditions\n0.0572 s: Created CDKLM simulator\n0.0156 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [32 x 8] ===\n100 %\n `-> 8.1562 s: Step, 2571.2484 mcells/sec\n `-> 0.9386 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2571.24835190 ===\n'
+=========================================
+
+CDKLM [32 x 08] completed in 10.90 s
+=========================================
+CDKLM [32 x 12]
+-----------------------------------------
+b'0.6669 s: Imported packages\n0.7548 s: Created context on Tesla V100-SXM2-16GB\n0.1301 s: Generated initial conditions\n0.0593 s: Created CDKLM simulator\n0.0154 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [32 x 12] ===\n100 %\n `-> 7.9061 s: Step, 2652.5794 mcells/sec\n `-> 0.9100 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2652.57938217 ===\n'
+=========================================
+
+CDKLM [32 x 12] completed in 10.61 s
+=========================================
+CDKLM [32 x 16]
+-----------------------------------------
+b'0.7038 s: Imported packages\n0.7545 s: Created context on Tesla V100-SXM2-16GB\n0.1346 s: Generated initial conditions\n0.0552 s: Created CDKLM simulator\n0.0162 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [32 x 16] ===\n100 %\n `-> 8.6178 s: Step, 2433.5028 mcells/sec\n `-> 0.9904 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2433.50281048 ===\n'
+=========================================
+
+CDKLM [32 x 16] completed in 11.45 s
+=========================================
+CDKLM [32 x 24]
+-----------------------------------------
+b'0.6732 s: Imported packages\n0.7560 s: Created context on Tesla V100-SXM2-16GB\n0.1355 s: Generated initial conditions\n0.0556 s: Created CDKLM simulator\n0.0194 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [32 x 24] ===\n100 %\n `-> 11.0654 s: Step, 1895.2310 mcells/sec\n `-> 1.2685 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 1895.23095302 ===\n'
+=========================================
+
+CDKLM [32 x 24] completed in 14.15 s
+=========================================
+CDKLM [32 x 32]
+-----------------------------------------
+b'0.6919 s: Imported packages\n0.7568 s: Created context on Tesla V100-SXM2-16GB\n0.1305 s: Generated initial conditions\n0.0542 s: Created CDKLM simulator\n0.0175 s: Spinup of simulator\n=== Running with domain size [2048 x 2048], block size [32 x 32] ===\n100 %\n `-> 9.6351 s: Step, 2176.5763 mcells/sec\n `-> 1.1063 s: Download\n `-> t_sim=47.5475, h_max=0.9990\n === Maximum megacells: 2176.57627880 ===\n'
+=========================================
+
+CDKLM [32 x 32] completed in 12.59 s
+
+
+

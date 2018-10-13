@@ -1,0 +1,5 @@
+git_commit,label,block_width,block_height
+"9507b86aa57bdcedccdf3840435b31b20005dc11", "Original FBL CUDA",        32, 4
+"22d25b210baddd14f1ffb0bdba358995eb746b43", "fast math flag",           32, 4
+"fa2dc111750a08760a27d2d47c2aaebc3aded911", "one kernel only",          32, 4
+"38ff9b268a84e3f4a0805c67041b336f396e9a31", "Optimized FBL CUDA",       32, 8

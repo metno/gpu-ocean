@@ -56,16 +56,19 @@ __global__ void computeUKernel(
         float* V_ptr_, int V_pitch_,
         float* eta_ptr_, int eta_pitch_,
     
+        // Wall boundary conditions packed as bit-wise boolean
+        int wall_bc_,
+        
         // Wind stress parameters
         float wind_stress_t_) {
     
-    __shared__ float H_shared[block_height][block_width+1];
-    __shared__ float V_shared[block_height+1][block_width+1];
-    __shared__ float eta_shared[block_height][block_width+1];
+    __shared__ float H_shared[block_height+2][block_width+2];
+    __shared__ float V_shared[block_height+3][block_width+2];
+    __shared__ float eta_shared[block_height+2][block_width+2];
 
     //Index of thread within block
     const int tx = threadIdx.x;
-    const int ty = threadIdx.y;
+    const int ty = threadIdx.y + 1; // ghost cell
 
     //Index of block within domain
     const int bx = blockDim.x * blockIdx.x;
@@ -80,22 +83,21 @@ __global__ void computeUKernel(
 
     //Read current U
     float U_current = 0.0f;
-    if (ti < nx_ + 1 && tj < ny_) {
+    if (ti < nx_ && tj > 0 && tj < ny_+1) {
         U_current = U_row[ti];
     }
 
-    //Read H and eta into local memory
-    for (int j=ty; j<block_height; j+=blockDim.y) {
+    //Read H and eta into local memory [block_height+2][block_width+2]
+    for (int j=threadIdx.y; j<block_height+2; j+=blockDim.y) {
         const int l = by + j;
         
         //Compute the pointer to row "l" in the H and eta arrays
         float* const H_row = (float*) ((char*) H_ptr_ + H_pitch_*l);
         float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*l);
         
-        for (int i=tx; i<block_width+1; i+=blockDim.x) {
-            const int k = bx + i - 1;
-            
-            if (k >= 0 && k < nx_ && l < ny_) {
+        for (int i=threadIdx.x; i<block_width+2; i+=blockDim.x) {
+            const int k = bx + i;
+            if (k < nx_+2 && l < ny_+2) {
                 H_shared[j][i] = H_row[k];
                 eta_shared[j][i] = eta_row[k];
             }
@@ -106,17 +108,17 @@ __global__ void computeUKernel(
         }
     }
 
-    //Read V into shared memory
-    for (int j=ty; j<block_height+1; j+=blockDim.y) {
+    //Read V into shared memory [block_height+3][block_width+2]
+    for (int j=threadIdx.y; j<block_height+3; j+=blockDim.y) {
         const int l = by + j;
         
         //Compute the pointer to current row in the V array
         float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*l);
         
-        for (int i=tx; i<block_width+1; i+=blockDim.x) {
-            const int k = bx + i - 1;
+        for (int i=threadIdx.x; i<block_width+2; i+=blockDim.x) {
+            const int k = bx + i;
             
-            if (k >= 0 && k < nx_ && l < ny_+1) {
+            if (k < nx_+2 && l < ny_+3) {
                 V_shared[j][i] = V_row[k];
             }
             else {
@@ -137,19 +139,8 @@ __global__ void computeUKernel(
     float f_v_m = linear_coriolis_term(f_, beta_, tj-0.5f, dy_, y_zero_reference_cell_);
     
     //Reconstruct f*V at the U position
-    float fV_m = 0.0f;
-    if (tj==0) {
-	// Using Coriolis at U position
-        fV_m = 0.5f*f_u*(V_shared[ty+1][tx] + V_shared[ty+1][tx+1]);
-    }
-    else if (tj==ny_-1) {
-	// Using Coriolis at U position
-        fV_m = 0.5f*f_u*(V_shared[ty][tx] + V_shared[ty][tx+1]);
-    }
-    else {
-        fV_m = 0.25f*( f_v_m*(V_shared[ty  ][tx] + V_shared[ty  ][tx+1])
-		     + f_v_p*(V_shared[ty+1][tx] + V_shared[ty+1][tx+1]) );
-    }
+    float fV_m = 0.25f*( f_v_m*(V_shared[ty  ][tx] + V_shared[ty  ][tx+1])
+                       + f_v_p*(V_shared[ty+1][tx] + V_shared[ty+1][tx+1]) );
 
     //Calculate the friction coefficient
     float B = H_m/(H_m + r_*dt_);
@@ -164,9 +155,14 @@ __global__ void computeUKernel(
 
     //Compute the U at the next timestep
     float U_next = B*(U_current + dt_*(fV_m + P + X) );
+    
+    // Checking wall boundary conditions west
+    if ((ti == 0) && (wall_bc_ & 0x08)) {
+        U_next = 0.0f;
+    }
 
     //Write to main memory for internal cells
-    if (ti > 0 && ti < nx_ && tj < ny_) {
+    if (ti < nx_ && tj > 0 && tj < ny_+1) {
         U_row[ti] = U_next;
     }
 
