@@ -1,3 +1,0 @@
-git_commit,label,block_width,block_height
-"4113be8accf34aa57ce186f3e236d1c0c14ffd5b", "Original FBL OpenCL",        4, 16
-"964e98a5831950724002674b216dfe28f2d7ffd2", "Optimized FBL OpenCL",       32, 16
