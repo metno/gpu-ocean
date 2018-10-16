@@ -107,14 +107,6 @@ df = pd.read_csv(args.csv_file, comment='#')
 logger.info(df)
 
 
-# Commits where we need the new_fbl flag
-commits_requireing_new_fbl = [
-    "fa2dc111750a08760a27d2d47c2aaebc3aded911", 
-    "38ff9b268a84e3f4a0805c67041b336f396e9a31",
-    "964e98a5831950724002674b216dfe28f2d7ffd2",
-    "92353c0254c69ab9025cb594e9e7165b9535d2ed"
-]
-
 
 #Set git options
 if (os.name == 'nt'):
@@ -178,10 +170,6 @@ for index, row in df.iterrows():
     options = args.run_benchmark_opts.split(' ')
     options += ["--output", "../../benchmark_" + row['git_commit'] + ".npz"] 
     options += ["--block_width", str(row['block_width']), "--block_height", str(row['block_height'])]
-
-    # Check if we need the new fbl flag
-    if row['git_commit'] in commits_requireing_new_fbl:
-        options += ["--new_fbl", "1"]
 
     cmd = [args.python, benchmark_script_abspath] + options
     stdout = safe_call(cmd, cwd=benchmark_working_dir, env=my_env)

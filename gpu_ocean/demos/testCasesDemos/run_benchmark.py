@@ -43,7 +43,6 @@ parser.add_argument('--steps_per_download', type=int, default=2000)
 parser.add_argument('--iterations', type=int, default=1)
 parser.add_argument('--simulator', type=str)
 parser.add_argument('--output', type=str, default=None)
-parser.add_argument("--new_fbl", type=int, default=0)
 
 args = parser.parse_args()
 
@@ -58,39 +57,13 @@ import json
 from SWESimulators import FBL, CTCS, KP07, CDKLM16, PlotHelper, Common
 
 
-
-def openCLContext():
-        print("Creating openCL context within run_benchmark.py")
-        #Make sure we get compiler output from OpenCL
-        os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
-        
-        #Set which CL device to use, and disable kernel caching
-        if (str.lower(sys.platform).startswith("linux")):
-                os.environ["PYOPENCL_CTX"] = "0"
-        else:
-                os.environ["PYOPENCL_CTX"] = "1"
-                os.environ["CUDA_CACHE_DISABLE"] = "1"
-                os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
-                os.environ["PYOPENCL_NO_CACHE"] = "1"
-    
-        #Create OpenCL context
-        cl_ctx = pyopencl.create_some_context()
-        device_name = cl_ctx.devices[0].name
-        return cl_ctx, device_name
-
-
-
 toc = time.time()
 print("{:02.4f} s: ".format(toc-tic) + "Imported packages")
 
 # Create CUDA context
 tic = time.time()
-try:
-        gpu_ctx = Common.CUDAContext()
-        device_name = gpu_ctx.cuda_device.name()
-except AttributeError:
-        import pyopencl
-        gpu_ctx, device_name = openCLContext()
+gpu_ctx = Common.CUDAContext()
+device_name = gpu_ctx.cuda_device.name()
 toc = time.time()
 print("{:02.4f} s: ".format(toc-tic) + "Created context on " + device_name)
 
@@ -200,18 +173,12 @@ Initializes the FBL simulator
 """
 def initFBL():
         tic = time.time()
-        dataShape = (args.ny, args.nx)
         
+        dataShape = (args.ny+2, args.nx+2)
         eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
-        u0 = np.zeros((dataShape[0]+0, dataShape[1]+1), dtype=np.float32);
+        u0 = np.zeros((dataShape[0]+0, dataShape[1]-1), dtype=np.float32);
         v0 = np.zeros((dataShape[0]+1, dataShape[1]+0), dtype=np.float32);
         h0 = np.ones(dataShape, dtype=np.float32) * waterHeight;
-        if args.new_fbl:
-                dataShape = (args.ny+2, args.nx+2)
-                eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
-                u0 = np.zeros((dataShape[0]+0, dataShape[1]-1), dtype=np.float32);
-                v0 = np.zeros((dataShape[0]+1, dataShape[1]+0), dtype=np.float32);
-                h0 = np.ones(dataShape, dtype=np.float32) * waterHeight;
         toc = time.time()
         print("{:02.4f} s: ".format(toc-tic) + "Generated initial conditions")
                         
@@ -309,24 +276,14 @@ max_mcells = 0;
 for i in range(args.iterations):
         print("{:03.0f} %".format(100*(i+1) / args.iterations))
 
-        # SYNC
-        try:
-                gpu_ctx.synchronize()
-        except AttributeError:
-                # This means that we run an openCL simualtion
-                sim.cl_queue.finish()
-
+        gpu_ctx.synchronize()
         tic = time.time()
+
         t = sim.step(args.steps_per_download*dt)
 
-        # SYNC
-        try:
-                gpu_ctx.synchronize()
-        except AttributeError:
-                # This means that we run an openCL simualtion
-                sim.cl_queue.finish()
-                
+        gpu_ctx.synchronize()
         toc = time.time()
+        
         mcells = args.nx*args.ny*args.steps_per_download/(1e6*(toc-tic))
         max_mcells = max(mcells, max_mcells);
         print(" `-> {:02.4f} s: ".format(toc-tic) + "Step, " + "{:02.4f} mcells/sec".format(mcells))
