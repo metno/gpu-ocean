@@ -370,3 +370,115 @@ __global__ void geostrophicBalance(
     }
 }
 } // extern "C"
+
+
+
+
+/**
+  * Kernel that adds a perturbation to the input fields eta, hu and hv.
+  * The kernel use a bicubic interpolation to transfer values from the coarse grid to the
+  * computational grid. Since the derivatives of the eta field are known during the interpolation,
+  * hu and hv are assigned their appropriate geostrophically balanced values directly.
+  */
+extern "C" {
+__global__ void bicubicInterpolation(
+        // Size of computational data
+        const int nx_, const int ny_,
+        const int ghost_cells_x_, const int ghost_cells_y_,
+        const float dx_, const float dy_,
+    
+        // Size of coarse data
+        const int coarse_nx_, const int coarse_ny_,
+        const int coarse_ghost_cells_x_, const int coarse_ghost_cells_y_,
+        const float coarse_dx_, const float coarse_dy_,
+    
+        // physical parameters
+        const float g_, const float f_, const float beta_, const float y0_reference_cell_,
+        
+        // d_eta values (coarse grid) - size [nx + 4, ny + 4]
+        float* coarse_ptr_, const int coarse_pitch_,
+    
+        // Ocean data variables - size [nx + 4, ny + 4]
+        // Write to interior cells only,  [2:nx+2, 2:ny+2]
+        float* eta_ptr_, const int eta_pitch_,
+        float* hu_ptr_, const int hu_pitch_,
+        float* hv_ptr_, const int hv_pitch_,
+
+        // Ocean data parameter - size [nx + 5, ny + 5]
+        float* Hi_ptr_, const int Hi_pitch_
+    ) {
+    
+    // Each thread is responsible for one grid point in the computational grid.
+    
+    //Index of cell within block
+    const int tx = threadIdx.x; 
+    const int ty = threadIdx.y;
+
+    //Index of start of block within domain
+    const int bx = blockDim.x * blockIdx.x + ghost_cells_x_; // Compansating for ghost cells
+    const int by = blockDim.y * blockIdx.y + ghost_cells_y_; // Compensating for ghost cells
+
+    //Index of cell within domain
+    const int ti = bx + tx;
+    const int tj = by + ty;
+
+    // Shared memory for H and the coarse values
+    __shared__ float shmem[block_height+2][block_width+2];
+
+
+    // Use shared memory compute H_mid for given thread id
+    for (int j = ty; j < block_height+1; j += blockDim.y) {
+        const int global_j = clamp(by+j, 0, ny_+4);
+        float* const Hi_row = (float*) ((char*) Hi_ptr_ + Hi_pitch_*(global_j));
+        for (int i = tx; i < block_width+1; i += blockDim.x) {
+            const int global_i = clamp(bx+i, 0, nx_+4);
+            shmem[j][i] = Hi_row[global_i];
+        }
+    }
+    
+    __syncthreads();
+    
+    const float H_mid = 0.25f*(shmem[ty  ][tx] + shmem[ty  ][tx+1] +
+                               shmem[ty+1][tx] + shmem[ty+1][tx+1]   );
+    
+    __syncthreads();
+    
+    
+    // Find coarse index for thread (0,0). All threads need to know this in order to read
+    // coarse data correctly into shmem.
+    {
+        const int bx_x = (bx - ghost_cells_x_ + 0.5)*dx_;
+        const int by_y = (by - ghost_cells_y_ + 0.5)*dy_;
+
+        const int coarse_bx = (int)(floorf((bx_x/coarse_dx_) + coarse_ghost_cells_x_ - 2.5f));
+        const int coarse_by = (int)(floorf((by_y/coarse_dy_) + coarse_ghost_cells_y_ - 2.5f));
+
+
+        // Read d_eta from coarse_buffer into shared memory
+        for (int j = ty; j < block_height+4; j += blockDim.y) {
+            const int global_j = clamp(coarse_by+j, 0, coarse_ny_+3);
+            float* const coarse_row = (float*) ((char*) coarse_ptr_ + coarse_pitch_*(global_j));
+            for (int i = tx; i < block_width+4; i += blockDim.x) {
+                const int global_i = clamp(coarse_bx+i, 0, coarse_nx_+3);
+                shmem[j][i] = coarse_row[global_i];
+            }
+        }
+    }
+    __syncthreads();
+    
+    // Find coarse index for this thread
+        
+    // Evaluate geostrophic balance and write eta, hu and hv to global memory
+    if ( (ti > 1) && (tj > 1) && (ti < nx_+2) && (tj < ny_+2)) {
+
+        //Compute pointer to current row in the U array
+        float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*(tj));
+        float* const hu_row  = (float*) ((char*) hu_ptr_  + hu_pitch_*(tj));
+        float* const hv_row = (float*) ((char*)  hv_ptr_ + hv_pitch_*(tj));
+
+        eta_row[ti] += coarse_bx_x + coarse_by_y;
+         //hu_row[ti] += d_hu;
+         //hv_row[ti] += d_hv;
+    }
+}
+} // extern "C"

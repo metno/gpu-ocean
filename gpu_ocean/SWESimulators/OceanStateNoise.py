@@ -139,6 +139,9 @@ class OceanStateNoise(object):
         self.geostrophicBalanceKernel = self.kernels.get_function("geostrophicBalance")
         self.geostrophicBalanceKernel.prepare("iiffiiffffPiPiPiPiPi")
         
+        self.bicubicInterpolationKernel = self.kernels.get_function("bicubicInterpolation")
+        self.bicubicInterpolationKernel.prepare("iiiiffiiiiffffffPiPiPiPiPi")
+        
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height, 1) 
         self.global_size_random_numbers = ( \
@@ -261,21 +264,37 @@ class OceanStateNoise(object):
 
                                             self.random_numbers.data.gpudata, self.random_numbers.pitch,
                                             self.coarse_buffer.data.gpudata, self.coarse_buffer.pitch)
-    
         
-        self.geostrophicBalanceKernel.prepared_async_call(self.global_size_geo_balance, self.local_size, self.gpu_stream,
-                                                          self.nx, self.ny,
-                                                          self.dx, self.dy,
-                                                          np.int32(ghost_cells_x), np.int32(ghost_cells_y),
+        if self.interpolation_factor > 1:
+            self.bicubicInterpolationKernel.prepared_async_call(self.global_size_geo_balance, self.local_size, self.gpu_stream,
+                                                                self.nx, self.ny, 
+                                                                np.int32(ghost_cells_x), np.int32(ghost_cells_y),
+                                                                self.dx, self.dy,
+                                                                self.coarse_nx, self.coarse_ny,
+                                                                np.int32(ghost_cells_x), np.int32(ghost_cells_y),
+                                                                self.coarse_dx, self.coarse_dy,
+                                                                np.float32(g), np.float32(f),
+                                                                np.float32(beta), np.float32(y0_reference_cell),
+                                                                self.coarse_buffer.data.gpudata, self.coarse_buffer.pitch,
+                                                                eta.data.gpudata, eta.pitch,
+                                                                hu.data.gpudata, hu.pitch,
+                                                                hv.data.gpudata, hv.pitch,
+                                                                H.data.gpudata, H.pitch)
 
-                                                          np.float32(g), np.float32(f),
-                                                          np.float32(beta), np.float32(y0_reference_cell),
+        else:
+            self.geostrophicBalanceKernel.prepared_async_call(self.global_size_geo_balance, self.local_size, self.gpu_stream,
+                                                              self.nx, self.ny,
+                                                              self.dx, self.dy,
+                                                              np.int32(ghost_cells_x), np.int32(ghost_cells_y),
 
-                                                          self.coarse_buffer.data.gpudata, self.coarse_buffer.pitch,
-                                                          eta.data.gpudata, eta.pitch,
-                                                          hu.data.gpudata, hu.pitch,
-                                                          hv.data.gpudata, hv.pitch,
-                                                          H.data.gpudata, H.pitch)
+                                                              np.float32(g), np.float32(f),
+                                                              np.float32(beta), np.float32(y0_reference_cell),
+
+                                                              self.coarse_buffer.data.gpudata, self.coarse_buffer.pitch,
+                                                              eta.data.gpudata, eta.pitch,
+                                                              hu.data.gpudata, hu.pitch,
+                                                              hv.data.gpudata, hv.pitch,
+                                                              H.data.gpudata, H.pitch)
     
     
     
