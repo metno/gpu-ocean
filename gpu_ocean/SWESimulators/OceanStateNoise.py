@@ -41,7 +41,10 @@ class OceanStateNoise(object):
                  nx, ny, dx, dy,
                  boundaryConditions, staggered,
                  soar_q0=None, soar_L=None,
+                 interpolation_factor = 1,
                  block_width=16, block_height=16):
+        
+        self.random_state = np.random.RandomState()
         
         self.random_numbers = None
         self.seed = None
@@ -63,18 +66,32 @@ class OceanStateNoise(object):
         # kernels has to be hard-coded.
         self.cutoff = np.int32(config.soar_cutoff) 
         
+        
+        # Check that the interpolation factor plays well with the grid size:
+        assert ( interpolation_factor > 0 and interpolation_factor % 2 == 1), 'interpolation_factor must be a positive odd integer'
+        
+        assert (nx % interpolation_factor == 0), 'nx must be divisible by the interpolation factor'
+        assert (ny % interpolation_factor == 0), 'ny must be divisible by the interpolation factor'
+        self.interpolation_factor = np.int32(interpolation_factor)
+        
+        self.coarse_nx = np.int32(nx/self.interpolation_factor)
+        self.coarse_ny = np.int32(ny/self.interpolation_factor)
+        self.coarse_dx = np.float32(dx*self.interpolation_factor)
+        self.coarse_dy = np.float32(dy*self.interpolation_factor)
+        
         self.periodicNorthSouth = np.int32(boundaryConditions.isPeriodicNorthSouth())
         self.periodicEastWest = np.int32(boundaryConditions.isPeriodicEastWest())
         
         # Size of random field and seed
-        self.rand_nx = np.int32(nx + 2*(1+self.cutoff))
-        self.rand_ny = np.int32(ny + 2*(1+self.cutoff))
+        self.rand_nx = np.int32(self.coarse_nx + 2*(2+self.cutoff))
+        self.rand_ny = np.int32(self.coarse_ny + 2*(2+self.cutoff))
         if self.periodicEastWest:
-            self.rand_nx = np.int32(nx)
+            self.rand_nx = np.int32(self.coarse_nx)
         if self.periodicNorthSouth:
-            self.rand_ny = np.int32(ny)
+            self.rand_ny = np.int32(self.coarse_ny)
+            
         self.seed_ny = np.int32(self.rand_ny)
-        self.seed_nx = np.int32(self.rand_nx/2) 
+        self.seed_nx = np.int32(np.ceil(self.rand_nx/2)) 
         ### WHAT IF rand_nx IS ODD??
         # For now, we check this by assert
         assert(self.rand_nx % 2 == 0), "The OceanStateNoise module might not work with odd Nx, so just to be sure you are not allowed to use odd Nx for now :)"
@@ -90,7 +107,7 @@ class OceanStateNoise(object):
         
         # Generate seed:
         self.floatMax = 2147483648.0
-        self.host_seed = np.random.rand(self.seed_ny, self.seed_nx)*self.floatMax
+        self.host_seed = self.random_state.rand(self.seed_ny, self.seed_nx)*self.floatMax
         self.host_seed = self.host_seed.astype(np.uint64, order='C')
 
         self.seed = Common.CUDAArray2D(gpu_stream, self.seed_nx, self.seed_ny, 0, 0, self.host_seed, double_precision=True, integers=True)
@@ -99,10 +116,16 @@ class OceanStateNoise(object):
         self.random_numbers_host = np.zeros((self.rand_ny, self.rand_nx), dtype=np.float32, order='C')
         self.random_numbers = Common.CUDAArray2D(self.gpu_stream, self.rand_nx, self.rand_ny, 0, 0, self.random_numbers_host)
         
+        # Allocate memory for coarse buffer if needed
+        self.coarse_buffer_host = np.zeros((self.coarse_ny+4, self.coarse_nx+4), dtype=np.float32, order='C')
+        self.coarse_buffer = Common.CUDAArray2D(self.gpu_stream, self.coarse_nx, self.coarse_ny, 2, 2, self.coarse_buffer_host)
+
+        
         # Generate kernels
         self.kernels = gpu_ctx.get_kernel("ocean_noise.cu", \
                                           defines={'block_width': block_width, 'block_height': block_height})
- 
+        
+        
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.uniformDistributionKernel = self.kernels.get_function("uniformDistribution")
         self.uniformDistributionKernel.prepare("iiiPiPi")
@@ -110,8 +133,11 @@ class OceanStateNoise(object):
         self.normalDistributionKernel = self.kernels.get_function("normalDistribution")
         self.normalDistributionKernel.prepare("iiiPiPi")
         
-        self.perturbOceanKernel = self.kernels.get_function("perturbOcean")
-        self.perturbOceanKernel.prepare("iiffiiffffffiiPiPiPiPiPi")
+        self.soarKernel = self.kernels.get_function("SOAR")
+        self.soarKernel.prepare("iiffffiiPiPi")
+        
+        self.geostrophicBalanceKernel = self.kernels.get_function("geostrophicBalance")
+        self.geostrophicBalanceKernel.prepare("iiffiiffffPiPiPiPiPi")
         
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height, 1) 
@@ -119,6 +145,18 @@ class OceanStateNoise(object):
                        int(np.ceil(self.seed_nx / float(self.local_size[0]))), \
                        int(np.ceil(self.seed_ny / float(self.local_size[1]))) \
                                   ) 
+        
+        self.global_size_SOAR = ( \
+                                 int(np.ceil( (self.coarse_nx+4)/float(self.local_size[0]))), \
+                                 int(np.ceil( (self.coarse_ny+4)/float(self.local_size[1]))) \
+                                )
+        
+        self.global_size_geo_balance = ( \
+                                        int(np.ceil( (self.nx)/float(self.local_size[0]))), \
+                                        int(np.ceil( (self.ny)/float(self.local_size[1]))) \
+                                       )
+        
+        
         self.global_size_noise = ( \
                        int(np.ceil(self.rand_nx / float(self.local_size[0]))), \
                        int(np.ceil(self.rand_ny / float(self.local_size[1]))) \
@@ -157,13 +195,16 @@ class OceanStateNoise(object):
     def resetSeed(self):
         # Generate seed:
         self.floatMax = 2147483648.0
-        self.host_seed = np.random.rand(self.seed_ny, self.seed_nx)*self.floatMax
+        self.host_seed = self.random_state.rand(self.seed_ny, self.seed_nx)*self.floatMax
         self.host_seed = self.host_seed.astype(np.uint64, order='C')
         self.seed.upload(self.gpu_stream, self.host_seed)
         
     
     def getRandomNumbers(self):
         return self.random_numbers.download(self.gpu_stream)
+    
+    def getCoarseBuffer(self):
+        return self.coarse_buffer.download(self.gpu_stream)
     
     def generateNormalDistribution(self):
         self.normalDistributionKernel.prepared_async_call(self.global_size_random_numbers, self.local_size, self.gpu_stream, 
@@ -206,23 +247,35 @@ class OceanStateNoise(object):
         
         soar_q0 = np.float32(self.soar_q0 * q0_scale)
         
-        # Call applySOARQ_kernel and add to eta
-        self.perturbOceanKernel.prepared_async_call(self.global_size_noise, self.local_size, self.gpu_stream,
-                                                    self.nx, self.ny,
-                                                    self.dx, self.dy,
-                                                    np.int32(ghost_cells_x), np.int32(ghost_cells_y),
+        
+        # Generate the SOAR field on the coarse grid
+        
+        
+        self.soarKernel.prepared_async_call(self.global_size_SOAR, self.local_size, self.gpu_stream,
+                                            self.coarse_nx, self.coarse_ny,
+                                            self.coarse_dx, self.coarse_dy,
 
-                                                    np.float32(g), np.float32(f),
-                                                    np.float32(beta), np.float32(y0_reference_cell),
+                                            soar_q0, self.soar_L,
+                                            
+                                            self.periodicNorthSouth, self.periodicEastWest,
 
-                                                    soar_q0, self.soar_L,
-                                                    self.periodicNorthSouth, self.periodicEastWest,
+                                            self.random_numbers.data.gpudata, self.random_numbers.pitch,
+                                            self.coarse_buffer.data.gpudata, self.coarse_buffer.pitch)
+    
+        
+        self.geostrophicBalanceKernel.prepared_async_call(self.global_size_geo_balance, self.local_size, self.gpu_stream,
+                                                          self.nx, self.ny,
+                                                          self.dx, self.dy,
+                                                          np.int32(ghost_cells_x), np.int32(ghost_cells_y),
 
-                                                    self.random_numbers.data.gpudata, self.random_numbers.pitch,
-                                                    eta.data.gpudata, eta.pitch,
-                                                    hu.data.gpudata, hu.pitch,
-                                                    hv.data.gpudata, hv.pitch,
-                                                    H.data.gpudata, H.pitch)
+                                                          np.float32(g), np.float32(f),
+                                                          np.float32(beta), np.float32(y0_reference_cell),
+
+                                                          self.coarse_buffer.data.gpudata, self.coarse_buffer.pitch,
+                                                          eta.data.gpudata, eta.pitch,
+                                                          hu.data.gpudata, hu.pitch,
+                                                          hv.data.gpudata, hv.pitch,
+                                                          H.data.gpudata, H.pitch)
     
     
     
@@ -259,7 +312,7 @@ class OceanStateNoise(object):
             if interior[i] == 0:
                 interior[i] = None
         
-        eta[interior[2]:interior[0], interior[3]:interior[1]] = d_eta[1:-1, 1:-1]
+        eta[interior[2]:interior[0], interior[3]:interior[1]] = d_eta[2:-2, 2:-2]
     
     def perturbOceanStateCPU(self, eta, hu, hv, H, f,  beta=0.0, g=9.81,
                              ghost_cells_x=0, ghost_cells_y=0,
@@ -276,7 +329,7 @@ class OceanStateNoise(object):
             if interior[i] == 0:
                 interior[i] = None
         
-        eta[interior[2]:interior[0], interior[3]:interior[1]] += d_eta[1:-1, 1:-1]
+        eta[interior[2]:interior[0], interior[3]:interior[1]] += d_eta[2:-2, 2:-2]
         hu[interior[2]:interior[0], interior[3]:interior[1]] += d_hu
         hv[interior[2]:interior[0], interior[3]:interior[1]] += d_hv
     
@@ -351,24 +404,24 @@ class OceanStateNoise(object):
         """
                         
         # Assume in a GPU setting - we read xi into shared memory with ghostcells
-        ny_halo = int(self.ny + (1 + self.cutoff)*2)
-        nx_halo = int(self.nx + (1 + self.cutoff)*2)
+        ny_halo = int(self.ny + (2 + self.cutoff)*2)
+        nx_halo = int(self.nx + (2 + self.cutoff)*2)
         local_xi = np.zeros((ny_halo, nx_halo))
         for j in range(ny_halo):
             global_j = j
             if self.periodicNorthSouth:
-                global_j = (j - self.cutoff - 1) % self.rand_ny
+                global_j = (j - self.cutoff - 2) % self.rand_ny
             for i in range(nx_halo):
                 global_i = i
                 if self.periodicEastWest:
-                    global_i = (i - self.cutoff - 1) % self.rand_nx
+                    global_i = (i - self.cutoff - 2) % self.rand_nx
                 local_xi[j,i] = self.random_numbers_host[global_j, global_i]
                 
         # Sync threads
         
-        Qxi = np.zeros((self.ny+2, self.nx+2))
-        for a_y in range(self.ny+2):
-            for a_x in range(self.nx+2):
+        Qxi = np.zeros((self.ny+4, self.nx+4))
+        for a_y in range(self.ny+4):
+            for a_x in range(self.nx+4):
                 # This is a OpenCL thread (a_x, a_y)
                 local_a_x = a_x + self.cutoff
                 local_a_y = a_y + self.cutoff
@@ -422,10 +475,10 @@ class OceanStateNoise(object):
 
         
         for j in range(0, self.ny):
-            local_j = j + 1
+            local_j = j + 2
             coriolis = f + beta*local_j*self.dy
             for i in range(0, self.nx):
-                local_i = i + 1
+                local_i = i + 2
                 h_mid = d_eta[local_j,local_i] + H_mid[j, i]
                 
                 ##############

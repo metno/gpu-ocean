@@ -28,10 +28,14 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.beta = 0.0
         
         self.noise = None
-
+        
+        self.ghost_cells_x = 2
+        self.ghost_cells_y = 2
+        self.datashape = (self.ny+2*self.ghost_cells_y, self.nx+2*self.ghost_cells_x)
+        
         self.cutoff = 2
-        self.nx_nonPeriodic = self.nx + 2*(1+self.cutoff)
-        self.ny_nonPeriodic = self.ny + 2*(1+self.cutoff)
+        self.nx_nonPeriodic = self.nx + 2*(2+self.cutoff)
+        self.ny_nonPeriodic = self.ny + 2*(2+self.cutoff)
         
         # Standard setup is non-staggered, periodic
         self.staggered = False
@@ -104,11 +108,11 @@ class OceanStateNoiseTest(unittest.TestCase):
                                            staggered = self.staggered)
 
     def allocateBuffers(self, HCPU):
-        host_buffer = np.zeros((self.ny, self.nx))
-        self.eta = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, 0, 0, host_buffer)
-        self.hu = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, 0, 0, host_buffer)
-        self.hv = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, 0, 0, host_buffer)
-        self.H = Common.CUDAArray2D(self.gpu_stream, self.nx+1, self.ny+1, 0, 0, HCPU)
+        host_buffer = np.zeros((self.ny+2*self.ghost_cells_y, self.nx+2*self.ghost_cells_x))
+        self.eta = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, self.ghost_cells_x, self.ghost_cells_y, host_buffer)
+        self.hu = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, self.ghost_cells_x, self.ghost_cells_y, host_buffer)
+        self.hv = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, self.ghost_cells_x, self.ghost_cells_y, host_buffer)
+        self.H = Common.CUDAArray2D(self.gpu_stream, self.nx+1, self.ny+1, self.ghost_cells_x, self.ghost_cells_y, HCPU)
         del host_buffer
         
     def compare_random(self, tol, msg):
@@ -173,7 +177,7 @@ class OceanStateNoiseTest(unittest.TestCase):
 
         self.compare_random(6, "test_init_non_periodi_nonstaggered")
         
-    def test_init_perioidNS_nonstaggered(self):
+    def test_init_periodicNS_nonstaggered(self):
         self.periodicEW = False
         self.create_noise()
 
@@ -187,7 +191,7 @@ class OceanStateNoiseTest(unittest.TestCase):
 
         self.compare_random(6, "test_init_periodiNS_nonstaggered")
         
-    def test_init_perioidEW_nonstaggered(self):
+    def test_init_periodicEW_nonstaggered(self):
         self.periodicNS = False
         self.create_noise()
 
@@ -281,18 +285,24 @@ class OceanStateNoiseTest(unittest.TestCase):
 
 
     def perturb_eta(self, msg):
-        etaCPU = np.zeros((self.ny, self.nx))
-        HCPU = np.zeros((self.ny+1, self.nx+1))
+        etaCPU = np.zeros(self.datashape)
+        HCPU = np.zeros((self.datashape[0]+1, self.datashape[1]+1))
         self.create_noise()
         self.allocateBuffers(HCPU)
         
         self.noise.perturbOceanState(self.eta, self.hu, self.hv, self.H,
-                                     self.f, self.beta, self.g)
-        self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True)
+                                     self.f, self.beta, self.g,
+                                     ghost_cells_x=self.ghost_cells_x,
+                                     ghost_cells_y=self.ghost_cells_y)
+        self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True,
+                                 ghost_cells_x=self.ghost_cells_x,
+                                 ghost_cells_y=self.ghost_cells_y)
+        
         etaFromGPU = self.eta.download(self.gpu_stream)
 
         # Scale so that largest value becomes ~ 1
         maxVal = np.max(etaCPU)
+        #print("maxVal: ", maxVal)
         etaFromGPU = etaFromGPU / maxVal
         etaCPU = etaCPU / maxVal
         
@@ -318,10 +328,10 @@ class OceanStateNoiseTest(unittest.TestCase):
 
 
     def perturb_ocean(self, msg):
-        etaCPU = np.zeros((self.ny, self.nx))
-        huCPU = np.zeros((self.ny, self.nx))
-        hvCPU = np.zeros((self.ny, self.nx))
-        HCPU = np.zeros((self.ny+1, self.nx+1))
+        etaCPU = np.zeros(self.datashape)
+        huCPU = np.zeros(self.datashape)
+        hvCPU = np.zeros(self.datashape)
+        HCPU = np.zeros((self.datashape[0]+1, self.datashape[1]+1))
 
         self.create_noise()
         self.allocateBuffers(HCPU)
@@ -330,7 +340,9 @@ class OceanStateNoiseTest(unittest.TestCase):
                                      self.f, self.beta, self.g)
         self.noise.perturbOceanStateCPU(etaCPU, huCPU, hvCPU, HCPU,
                                         self.f, self.beta, self.g,
-                                        use_existing_GPU_random_numbers=True)
+                                        use_existing_GPU_random_numbers=True,
+                                        ghost_cells_x=self.ghost_cells_x,
+                                        ghost_cells_y=self.ghost_cells_y)
         huFromGPU = self.hu.download(self.gpu_stream)
         hvFromGPU = self.hv.download(self.gpu_stream)
 
