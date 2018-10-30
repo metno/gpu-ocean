@@ -101,7 +101,7 @@ class OceanStateNoise(object):
         if soar_q0 is not None:
             self.soar_q0 = np.float32(soar_q0)
             
-        self.soar_L = np.float32(0.75*self.dx)
+        self.soar_L = np.float32(0.75*self.coarse_dx)
         if soar_L is not None:
             self.soar_L = np.float32(soar_L)
         
@@ -307,6 +307,9 @@ class OceanStateNoise(object):
             self.generateNormalDistributionCPU()
         d_eta = self._applyQ_CPU()
         
+        if self.interpolation_factor > 1:
+            d_eta = self._interpolate_CPU(d_eta, geostrophic_balance=False)
+        
         interior = [-ghost_cells_y, -ghost_cells_x, ghost_cells_y, ghost_cells_x]
         for i in range(4):
             if interior[i] == 0:
@@ -392,8 +395,8 @@ class OceanStateNoise(object):
         CPU implementation of a SOAR covariance function between grid points
         (a_x, a_y) and (b_x, b_y)
         """
-        dist = np.sqrt(  self.dx*self.dx*(a_x - b_x)**2  
-                       + self.dy*self.dy*(a_y - b_y)**2 )
+        dist = np.sqrt(  self.coarse_dx*self.coarse_dx*(a_x - b_x)**2  
+                       + self.coarse_dy*self.coarse_dy*(a_y - b_y)**2 )
         return self.soar_q0*(1.0 + dist/self.soar_L)*np.exp(-dist/self.soar_L)
     
     def _applyQ_CPU(self):
@@ -404,8 +407,8 @@ class OceanStateNoise(object):
         """
                         
         # Assume in a GPU setting - we read xi into shared memory with ghostcells
-        ny_halo = int(self.ny + (2 + self.cutoff)*2)
-        nx_halo = int(self.nx + (2 + self.cutoff)*2)
+        ny_halo = int(self.coarse_ny + (2 + self.cutoff)*2)
+        nx_halo = int(self.coarse_nx + (2 + self.cutoff)*2)
         local_xi = np.zeros((ny_halo, nx_halo))
         for j in range(ny_halo):
             global_j = j
@@ -419,9 +422,9 @@ class OceanStateNoise(object):
                 
         # Sync threads
         
-        Qxi = np.zeros((self.ny+4, self.nx+4))
-        for a_y in range(self.ny+4):
-            for a_x in range(self.nx+4):
+        Qxi = np.zeros((self.coarse_ny+4, self.coarse_nx+4))
+        for a_y in range(self.coarse_ny+4):
+            for a_x in range(self.coarse_nx+4):
                 # This is a OpenCL thread (a_x, a_y)
                 local_a_x = a_x + self.cutoff
                 local_a_y = a_y + self.cutoff
@@ -443,12 +446,16 @@ class OceanStateNoise(object):
                         Q = self._SOAR_Q_CPU(local_a_x, local_a_y, b_x, b_y)
                         Qx += Q*local_xi[b_y, b_x]
                 Qxi[a_y, a_x] = Qx
+        
         return Qxi
     
     
     def _obtainOceanPerturbations_CPU(self, H, f, beta, g):
         d_eta = self._applyQ_CPU()
         # d_eta.shape = (self.ny + 2, self.nx + 2)
+        
+        if self.interpolation_factor > 1:
+            return self._interpolate_CPU(d_eta)
         
         ####
         # Global sync (currently)
@@ -493,4 +500,158 @@ class OceanStateNoise(object):
                 d_hv[j,i] = (g/coriolis)*h_mid*eta_diff_x   
 
         return d_eta, d_hu, d_hv
+    
+    
+    
+    def _interpolate_CPU(self, coarse_eta, geostrophic_balance=True, interpolation_order=3):
+        """
+        Interpolates values coarse_eta defined on the coarse grid onto the computational grid.
+        Input coarse_eta is of size [coarse_ny+4, coarse_nx+4], and output will be given as
+        eta [ny+4, nx+4].
+        If geostrophic_balance is sat to True, the derivatives given by the interpolation will 
+        be used to assign geostrophic balanced hu and hv as well, which will be output variables
+        with sizes [ny, nx].
+        """
+        
+        # Create buffers for eta, hu and hv:
+        d_eta = np.zeros((self.ny+4, self.nx+4))
+        d_hu  = np.zeros((self.ny, self.nx))
+        d_hv  = np.zeros((self.ny, self.nx))
+        
+        
+        print("(coarse_nx, coarse_ny) : ", (self.coarse_nx, self.coarse_ny))
+        print("coarse_eta.shape: ", coarse_eta.shape)
+        print("(coarse_dx, coarse_dy): ", (self.coarse_dx, self.coarse_dy))
+        
+        print("(nx, ny): ", (self.nx, self.ny))
+        print("d_eta.shape: ", d_eta.shape)
+        print("(dx, dy): ", (self.dx, self.dy))
+        
+        # Matrix needed to find the interpolation coefficients
+        bicubic_matrix = np.matrix([[ 1,  0,  0,  0], 
+                                    [ 0,  0,  1,  0], 
+                                    [-3,  3, -2, -1],
+                                    [ 2, -2,  1,  1]])
+        
+        
+        min_rel_x = 10
+        max_rel_x = -10
+        min_rel_y = 10
+        max_rel_y = -10
+        
+        for loc_j in range(self.ny+2):
+            for loc_i in range(self.nx+2):
+                
+                i = loc_i + 1
+                j = loc_j + 1
+
+                # Position of cell center in fine grid:
+                x = (i - 2 + 0.5)*self.dx
+                y = (j - 2 + 0.5)*self.dy
+
+                # Location in coarse grid (defined in course grid's cell centers)
+                coarse_i = int(np.floor(x/self.coarse_dx + 2 - 0.5))
+                coarse_j = int(np.floor(y/self.coarse_dy + 2 - 0.5))
+                coarse_x = (coarse_i - 2 + 0.5)*self.coarse_dx
+                coarse_y = (coarse_j - 2 + 0.5)*self.coarse_dy
+
+                # Defining the coarse grid points on coarse intersections rather than in grid centers.
+                #coarse_i = int(np.floor(x/coarse_dx + 1))
+                #coarse_j = int(np.floor(y/coarse_dy + 1))
+                #coarse_x = (coarse_i - 1)*coarse_dx 
+                #coarse_y = (coarse_j - 1)*coarse_dy 
+
+                #print ("(i, x, coarse_i, coarse_x)", (i, x, coarse_i, coarse_x))
+                #if loc_j == 0:
+                #    print ("--> (i, x, coarse_i, coarse_x)", (i, x, coarse_i, coarse_x))
+                #if loc_i == 0:
+                #    print ("--> (j, y, coarse_j, coarse_y)", (j, y, coarse_j, coarse_y))
+                    
+
+                f00   =  coarse_eta[coarse_j  , coarse_i  ]
+                f01   =  coarse_eta[coarse_j+1, coarse_i  ]
+                f10   =  coarse_eta[coarse_j  , coarse_i+1]
+                f11   =  coarse_eta[coarse_j+1, coarse_i+1]
+
+                fx00  = (coarse_eta[coarse_j  , coarse_i+1] - coarse_eta[coarse_j  , coarse_i-1])/2
+                fx01  = (coarse_eta[coarse_j+1, coarse_i+1] - coarse_eta[coarse_j+1, coarse_i-1])/2       
+                fx10  = (coarse_eta[coarse_j  , coarse_i+2] - coarse_eta[coarse_j  , coarse_i  ])/2    
+                fx11  = (coarse_eta[coarse_j+1, coarse_i+2] - coarse_eta[coarse_j+1, coarse_i  ])/2      
+
+                fy00  = (coarse_eta[coarse_j+1, coarse_i  ] - coarse_eta[coarse_j-1, coarse_i  ])/2
+                fy01  = (coarse_eta[coarse_j+2, coarse_i  ] - coarse_eta[coarse_j  , coarse_i  ])/2       
+                fy10  = (coarse_eta[coarse_j+1, coarse_i+1] - coarse_eta[coarse_j-1, coarse_i+1])/2       
+                fy11  = (coarse_eta[coarse_j+2, coarse_i+1] - coarse_eta[coarse_j  , coarse_i+1])/2       
+
+                fy_10 = (coarse_eta[coarse_j+1, coarse_i-1] - coarse_eta[coarse_j-1, coarse_i-1])/2
+                fy_11 = (coarse_eta[coarse_j+2, coarse_i-1] - coarse_eta[coarse_j  , coarse_i-1])/2
+                fy20  = (coarse_eta[coarse_j+1, coarse_i+2] - coarse_eta[coarse_j-1, coarse_i+2])/2
+                fy21  = (coarse_eta[coarse_j+2, coarse_i+2] - coarse_eta[coarse_j  , coarse_i+2])/2
+
+                fxy00 = (fy10 - fy_10)/2
+                fxy01 = (fy11 - fy_11)/2
+                fxy10 = (fy20 -  fy00)/2
+                fxy11 = (fy21 -  fy01)/2
+
+
+                f_matrix = np.matrix([[ f00,  f01,  fy00,  fy01],
+                                      [ f10,  f11,  fy10,  fy11],
+                                      [fx00, fx01, fxy00, fxy01],
+                                      [fx10, fx11, fxy10, fxy11] ])
+
+                a_matrix = np.dot(bicubic_matrix, np.dot(f_matrix, bicubic_matrix.transpose()))
+
+
+                assert coarse_x <= x
+                assert coarse_x + self.coarse_dx >= x
+
+                rel_x = (x - coarse_x)/self.coarse_dx
+                rel_y = (y - coarse_y)/self.coarse_dy
+                
+                if rel_x < min_rel_x:
+                    min_rel_x = rel_x
+                if rel_x > max_rel_x:
+                    max_rel_x = rel_x
+                if rel_y < min_rel_y:
+                    min_rel_y = rel_y
+                if rel_y > max_rel_y:
+                    max_rel_y = rel_y
+
+                assert rel_x >= 0 and rel_x < 1
+                assert rel_y >= 0 and rel_y < 1
+
+                x_vec = np.matrix([1.0, rel_x, rel_x*rel_x, rel_x*rel_x*rel_x])
+                y_vec = np.matrix([1.0, rel_y, rel_y*rel_y, rel_y*rel_y*rel_y]).transpose()
+
+                d_eta[j,i] = np.dot(x_vec, np.dot(a_matrix, y_vec))
+                
+                #if interpolation_order == 0:
+                #    # Flat average:
+                #    d_eta[j,i] = 0.25*(f00 + f01 + f10 + f11)
+                #
+                #elif interpolation_order == 1:
+                #    # Linear interpolation:
+                #    #d_eta[j,i] = f00 + rel_x*(f10 - f00) + rel_y*(f01 - f00)
+                #    d_eta[j,i] = f00*(1-rel_x)*(1-rel_y) + f10*rel_x*(1-rel_y) + f01*(1-rel_x)*rel_y + f11*rel_x*rel_y
+                #
+                #elif interpolation_order == 3:
+                #    d_eta[j,i] = np.dot(x_vec, np.dot(a_matrix, y_vec))
+
+                
+        print("(min_rel_x, max_rel_x)", (min_rel_x, max_rel_x))
+        print("(min_rel_y, max_rel_y)", (min_rel_y, max_rel_y))
+        
+        #inner_fine = d_eta[2:-2, 2:-2]
+        #inner_coarse = coarse_eta[2:-2, 2:-2]
+        #L_inf = np.max(np.abs(inner_fine[1::3, 1::3] - inner_coarse))
+        #print("L_inf: ", L_inf)
+        
+        
+        print("interpolation_order: ", interpolation_order)
+        if geostrophic_balance:
+            return d_eta.copy(), d_eta[2:-2, 2:-2].copy(), d_eta[2:-2, 2:-2].copy()
+        else:
+            return d_eta.copy()
+        
+    
     
