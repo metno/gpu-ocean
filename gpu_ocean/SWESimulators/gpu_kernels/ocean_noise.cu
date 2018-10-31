@@ -405,7 +405,7 @@ __global__ void bicubicInterpolation(
         float* hv_ptr_, const int hv_pitch_,
 
         // Ocean data parameter - size [nx + 5, ny + 5]
-        float* Hi_ptr_, const int Hi_pitch_
+        float* Hi_ptr_, const int Hi_pitch_,
     ) {
     
     // Each thread is responsible for one grid point in the computational grid.
@@ -446,39 +446,89 @@ __global__ void bicubicInterpolation(
     
     // Find coarse index for thread (0,0). All threads need to know this in order to read
     // coarse data correctly into shmem.
-    {
-        const int bx_x = (bx - ghost_cells_x_ + 0.5)*dx_;
-        const int by_y = (by - ghost_cells_y_ + 0.5)*dy_;
+    const int bx_x = (bx - ghost_cells_x_ + 0.5)*dx_;
+    const int by_y = (by - ghost_cells_y_ + 0.5)*dy_;
 
-        const int coarse_bx = (int)(floorf((bx_x/coarse_dx_) + coarse_ghost_cells_x_ - 2.5f));
-        const int coarse_by = (int)(floorf((by_y/coarse_dy_) + coarse_ghost_cells_y_ - 2.5f));
+    
+    const int coarse_bx = (int)(floorf((bx_x/coarse_dx_) + coarse_ghost_cells_x_ - 1.5f));
+    const int coarse_by = (int)(floorf((by_y/coarse_dy_) + coarse_ghost_cells_y_ - 1.5f));
+    // We subtracted the one to account for the stencil size
 
-
-        // Read d_eta from coarse_buffer into shared memory
-        for (int j = ty; j < block_height+4; j += blockDim.y) {
-            const int global_j = clamp(coarse_by+j, 0, coarse_ny_+3);
-            float* const coarse_row = (float*) ((char*) coarse_ptr_ + coarse_pitch_*(global_j));
-            for (int i = tx; i < block_width+4; i += blockDim.x) {
-                const int global_i = clamp(coarse_bx+i, 0, coarse_nx_+3);
-                shmem[j][i] = coarse_row[global_i];
-            }
+    // Read d_eta from coarse_buffer into shared memory
+    for (int j = ty; j < block_height+4; j += blockDim.y) {
+        
+        const int global_j = clamp(coarse_by+j, 0, coarse_ny_+3);
+        float* const coarse_row = (float*) ((char*) coarse_ptr_ + coarse_pitch_*(global_j));
+        
+        for (int i = tx; i < block_width+4; i += blockDim.x) {
+            
+            const int global_i = clamp(coarse_bx+i, 0, coarse_nx_+3);
+            shmem[j][i] = coarse_row[global_i];
         }
     }
-    __syncthreads();
-    
-    // Find coarse index for this thread
+    __syncthreads();    
         
-    // Evaluate geostrophic balance and write eta, hu and hv to global memory
+    // Carry out bicubic interpolation and obtain eta, hu and hv 
     if ( (ti > 1) && (tj > 1) && (ti < nx_+2) && (tj < ny_+2)) {
 
+        // Find coarse index for this thread
+        const float x = (ti - ghost_cells_x_ + 0.5)*dx_;
+        const float y = (tj - ghost_cells_y_ + 0.5)*dy_;
+        
+        // Location in the coarse grid:
+        const int coarse_i = (int)(floorf((x/coarse_dx_) + coarse_ghost_cells_x_ - 0.5f));
+        const int coarse_j = (int)(floorf((y/coarse_dy_) + coarse_ghost_cells_y_ - 0.5f));
+        const float coarse_x = (coarse_i - coarse_ghost_cells_x_ + 0.5f)*coarse_dx_;
+        const float coarse_y = (coarse_j - coarse_ghost_cells_y_ + 0.5f)*coarse_dy_;
+        
+        // Location in shmem:
+        const int loc_i = coarse_i - coarse_bx + 1; // shmem ghost cell
+        const int loc_j = coarse_j - coarse_by + 1; 
+        
+    
+        // Read values for interpolation
+        const float f00 = shmem[loc_j  ][loc_i  ];
+        const float f01 = shmem[loc_j+1][loc_i  ];
+        const float f10 = shmem[loc_j  ][loc_i+1];
+        const float f11 = shmem[loc_j+1][loc_i+1];
+        
+        const float fx00 = (shmem[loc_j  ][loc_i+1] - shmem[loc_j  ][loc_i-1])/2.0f;
+        const float fx01 = (shmem[loc_j+1][loc_i+1] - shmem[loc_j+1][loc_i-1])/2.0f;
+        const float fx10 = (shmem[loc_j  ][loc_i+2] - shmem[loc_j  ][loc_i  ])/2.0f;
+        const float fx11 = (shmem[loc_j+1][loc_i+2] - shmem[loc_j+1][loc_i  ])/2.0f;
+
+        const float fy00 = (shmem[loc_j+1][loc_i  ] - shmem[loc_j-1][loc_i  ])/2.0f;
+        const float fy01 = (shmem[loc_j+2][loc_i  ] - shmem[loc_j  ][loc_i  ])/2.0f;
+        const float fy10 = (shmem[loc_j+1][loc_i+1] - shmem[loc_j-1][loc_i+1])/2.0f;
+        const float fy11 = (shmem[loc_j+2][loc_i+1] - shmem[loc_j  ][loc_i+1])/2.0f;
+        
+        const float fy_10 = (shmem[loc_j+1][loc_i-1] - shmem[loc_j-1][loc_i-1])/2.0f;
+        const float fy_11 = (shmem[loc_j+2][loc_i-1] - shmem[loc_j  ][loc_i-1])/2.0f;
+        const float fy20  = (shmem[loc_j+1][loc_i+2] - shmem[loc_j-1][loc_i+2])/2.0f;
+        const float fy21  = (shmem[loc_j+2][loc_i+2] - shmem[loc_j  ][loc_i+2])/2.0f;
+    
+        const float fxy00 = (fy10 - fy_10)/2.0f;
+        const float fxy01 = (fy11 - fy_11)/2.0f;
+        const float fxy10 = (fy20 -  fy00)/2.0f;
+        const float fxy11 = (fy21 -  fy01)/2.0f;
+    
+        
+        // Map (x,y) onto the unit square
+        const float rel_x = (x - coarse_x)/coarse_dx_;
+        const float rel_y = (y - coarse_y)/coarse_dy_;
+        
+        const float bi_linear_eta = f00*(1.0f-rel_x)*(1.0f-rel_y) + f10*rel_x*(1.0f-rel_y) + f01*(1.0f-rel_x)*rel_y + f11*rel_x*rel_y;
+        
+        
+        
         //Compute pointer to current row in the U array
         float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*(tj));
         float* const hu_row  = (float*) ((char*) hu_ptr_  + hu_pitch_*(tj));
         float* const hv_row = (float*) ((char*)  hv_ptr_ + hv_pitch_*(tj));
 
-        eta_row[ti] += coarse_bx_x + coarse_by_y;
-         //hu_row[ti] += d_hu;
-         //hv_row[ti] += d_hv;
+        eta_row[ti] += bi_linear_eta;
+         hu_row[ti] += coarse_bx;
+         hv_row[ti] += shmem[loc_j][loc_i];
     }
 }
 } // extern "C"
