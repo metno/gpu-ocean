@@ -405,7 +405,7 @@ __global__ void bicubicInterpolation(
         float* hv_ptr_, const int hv_pitch_,
 
         // Ocean data parameter - size [nx + 5, ny + 5]
-        float* Hi_ptr_, const int Hi_pitch_,
+        float* Hi_ptr_, const int Hi_pitch_
     ) {
     
     // Each thread is responsible for one grid point in the computational grid.
@@ -423,7 +423,7 @@ __global__ void bicubicInterpolation(
     const int tj = by + ty;
 
     // Shared memory for H and the coarse values
-    __shared__ float shmem[block_height+2][block_width+2];
+    __shared__ float shmem[block_height+4][block_width+4];
 
 
     // Use shared memory compute H_mid for given thread id
@@ -482,8 +482,8 @@ __global__ void bicubicInterpolation(
         const float coarse_y = (coarse_j - coarse_ghost_cells_y_ + 0.5f)*coarse_dy_;
         
         // Location in shmem:
-        const int loc_i = coarse_i - coarse_bx + 1; // shmem ghost cell
-        const int loc_j = coarse_j - coarse_by + 1; 
+        const int loc_i = coarse_i - coarse_bx; // coarse_bx accounts for ghost cell already.
+        const int loc_j = coarse_j - coarse_by; 
         
     
         // Read values for interpolation
@@ -517,18 +517,34 @@ __global__ void bicubicInterpolation(
         const float rel_x = (x - coarse_x)/coarse_dx_;
         const float rel_y = (y - coarse_y)/coarse_dy_;
         
-        const float bi_linear_eta = f00*(1.0f-rel_x)*(1.0f-rel_y) + f10*rel_x*(1.0f-rel_y) + f01*(1.0f-rel_x)*rel_y + f11*rel_x*rel_y;
+        //const float bi_linear_eta = f00*(1.0f-rel_x)*(1.0f-rel_y) + f10*rel_x*(1.0f-rel_y) + f01*(1.0f-rel_x)*rel_y + f11*rel_x*rel_y;
         
+        Matrix4x4_d f_matrix;
+        f_matrix.m_row[0] = make_float4( f00,  f01,  fy00,  fy01);
+        f_matrix.m_row[1] = make_float4( f10,  f11,  fy10,  fy11);
+        f_matrix.m_row[2] = make_float4(fx00, fx01, fxy00, fxy01);
+        f_matrix.m_row[3] = make_float4(fx10, fx11, fxy10, fxy11);
         
+        Matrix4x4_d a_matrix = bicubic_interpolation_coefficients(f_matrix);
+        
+        const float4 x_vec = make_float4(1.0f, rel_x, rel_x*rel_x, rel_x*rel_x*rel_x);
+        const float4 y_vec = make_float4(1.0f, rel_y, rel_y*rel_y, rel_y*rel_y*rel_y);
+        const float4 x_vec_hv = make_float4(0.0f, 1.0f, 2.0f*rel_x, 3.0f*rel_x*rel_x);
+        const float4 y_vec_hu = make_float4(0.0f, 1.0f, 2.0f*rel_y, 3.0f*rel_y*rel_y);
+        
+        const float coriolis = f_ + beta_*(tj - y0_reference_cell_)*dy_;
+        const float geo_balance_const = H_mid*(g_/coriolis);
+    
         
         //Compute pointer to current row in the U array
         float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*(tj));
         float* const hu_row  = (float*) ((char*) hu_ptr_  + hu_pitch_*(tj));
         float* const hv_row = (float*) ((char*)  hv_ptr_ + hv_pitch_*(tj));
+        
+        eta_row[ti] +=  bicubic_evaluation(x_vec   , y_vec   , a_matrix);
+         hu_row[ti] += -bicubic_evaluation(x_vec   , y_vec_hu, a_matrix)*geo_balance_const;
+         hv_row[ti] +=  bicubic_evaluation(x_vec_hv, y_vec   , a_matrix)*geo_balance_const;
 
-        eta_row[ti] += bi_linear_eta;
-         hu_row[ti] += coarse_bx;
-         hv_row[ti] += shmem[loc_j][loc_i];
     }
 }
 } // extern "C"

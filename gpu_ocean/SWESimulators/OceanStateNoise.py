@@ -474,7 +474,7 @@ class OceanStateNoise(object):
         # d_eta.shape = (self.ny + 2, self.nx + 2)
         
         if self.interpolation_factor > 1:
-            return self._interpolate_CPU(d_eta)
+            return self._interpolate_CPU(d_eta, H=H, f=f, g=g, beta=beta)
         
         ####
         # Global sync (currently)
@@ -522,7 +522,8 @@ class OceanStateNoise(object):
     
     
     
-    def _interpolate_CPU(self, coarse_eta, geostrophic_balance=True, interpolation_order=3):
+    def _interpolate_CPU(self, coarse_eta, H=None, f=None, g=None, beta=None, \
+                         geostrophic_balance=True, interpolation_order=3):
         """
         Interpolates values coarse_eta defined on the coarse grid onto the computational grid.
         Input coarse_eta is of size [coarse_ny+4, coarse_nx+4], and output will be given as
@@ -531,6 +532,12 @@ class OceanStateNoise(object):
         be used to assign geostrophic balanced hu and hv as well, which will be output variables
         with sizes [ny, nx].
         """
+        
+        if geostrophic_balance:
+            assert (H is not None), 'H must be provided'
+            assert(f is not None), 'f must be provided'
+            assert(g is not None), 'g must be provided'
+            assert(beta is not None), 'beta must be provided'
         
         # Create buffers for eta, hu and hv:
         d_eta = np.zeros((self.ny+4, self.nx+4))
@@ -558,11 +565,11 @@ class OceanStateNoise(object):
         min_rel_y = 10
         max_rel_y = -10
         
-        for loc_j in range(self.ny+2):
-            for loc_i in range(self.nx+2):
+        for loc_j in range(self.ny):
+            for loc_i in range(self.nx):
                 
-                i = loc_i + 1
-                j = loc_j + 1
+                i = loc_i + 2
+                j = loc_j + 2
 
                 # Position of cell center in fine grid:
                 x = (i - 2 + 0.5)*self.dx
@@ -573,6 +580,8 @@ class OceanStateNoise(object):
                 coarse_j = int(np.floor(y/self.coarse_dy + 2 - 0.5))
                 coarse_x = (coarse_i - 2 + 0.5)*self.coarse_dx
                 coarse_y = (coarse_j - 2 + 0.5)*self.coarse_dy
+                
+                h_mid = 0.25*(H[j,i] + H[j,i+1] + H[j+1,i] + H[j+1,i+1])
 
                 # Defining the coarse grid points on coarse intersections rather than in grid centers.
                 #coarse_i = int(np.floor(x/coarse_dx + 1))
@@ -643,6 +652,16 @@ class OceanStateNoise(object):
                 y_vec = np.matrix([1.0, rel_y, rel_y*rel_y, rel_y*rel_y*rel_y]).transpose()
 
                 d_eta[j,i] = np.dot(x_vec, np.dot(a_matrix, y_vec))
+
+                x_vec_hv = np.matrix([0.0, 1.0, 2*rel_x, 3*rel_x*rel_x])
+                y_vec_hu = np.matrix([0.0, 1.0, 2*rel_y, 3*rel_y*rel_y]).transpose()
+                coriolis = f + beta*y
+                geo_balance_const = (g/coriolis)*h_mid
+                
+                d_hu[loc_j,loc_i] = -geo_balance_const*np.dot(x_vec, np.dot(a_matrix, y_vec_hu))
+                d_hv[loc_j,loc_i] =  geo_balance_const*np.dot(x_vec_hv, np.dot(a_matrix, y_vec))
+                
+
                 
                 #if interpolation_order == 0:
                 #    # Flat average:
@@ -668,7 +687,7 @@ class OceanStateNoise(object):
         
         print("interpolation_order: ", interpolation_order)
         if geostrophic_balance:
-            return d_eta.copy(), d_eta[2:-2, 2:-2].copy(), d_eta[2:-2, 2:-2].copy()
+            return d_eta, d_hu, d_hv
         else:
             return d_eta.copy()
         

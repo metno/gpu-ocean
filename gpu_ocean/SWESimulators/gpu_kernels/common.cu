@@ -712,6 +712,76 @@ __device__ float bottomSourceTerm3(float Q[3][block_height+4][block_width+4],
 }
 
 
+/**
+  *  Struct and functions for doing bicubic interpolation
+  */
+
+typedef struct
+{
+    float4 m_row[4];
+}Matrix4x4_d;
+
+__device__ inline float dotProduct(const float4 v1, const float4 v2) {
+    return v1.x*v2.x + v1.y*v2.y + v1.z*v2.z + v1.w*v2.w;
+}
+
+/**
+  *  Calculating the coefficient matrix for bicubic interpolation.
+  *  Input matrix is evaluation of function values and derivatives in the corners
+  *  of a unit square:
+  *  f = [[ f00,  f01,  fy00,  fy01],
+  *       [ f10,  f11,  fy10,  fy11],
+  *       [fx00, fx01, fxy00, fxy01],
+  *       [fx10, fx11, fxy10, fxy11] ]
+  */
+__device__ Matrix4x4_d bicubic_interpolation_coefficients(const Matrix4x4_d f) {
+    Matrix4x4_d b;
+    b.m_row[0] = make_float4( 1.0f,  0.0f,  0.0f,  0.0f);
+    b.m_row[1] = make_float4( 0.0f,  0.0f,  1.0f,  0.0f);
+    b.m_row[2] = make_float4(-3.0f,  3.0f, -2.0f, -1.0f);
+    b.m_row[3] = make_float4( 2.0f, -2.0f,  1.0f,  1.0f);
+    
+    // Obtain fb = f * b^T, but store the result as its transpose:
+    // fb[row i, col j]   = f[row i] dot b^T[col j] 
+    //                    = f[row i] dot b[row j]
+    // fb^T[row i, col j] = f[row j] dot b[row i]
+    Matrix4x4_d fb_transpose;
+    for (int i = 0; i < 4; i++) {
+        fb_transpose.m_row[i] = make_float4(dotProduct(f.m_row[0], b.m_row[i]),
+                                            dotProduct(f.m_row[1], b.m_row[i]),
+                                            dotProduct(f.m_row[2], b.m_row[i]),
+                                            dotProduct(f.m_row[3], b.m_row[i]));
+    }
+    
+    // Obtain out = b * f * b^T = b * fb
+    // out[row i, col j] = b[row i] dot fb[col j]
+    //                   = b[row i] dot fb^T[row j]
+    Matrix4x4_d out;
+    for (int i = 0; i < 4; i++) {
+        out.m_row[i] = make_float4(dotProduct(b.m_row[i], fb_transpose.m_row[0]),
+                                   dotProduct(b.m_row[i], fb_transpose.m_row[1]),
+                                   dotProduct(b.m_row[i], fb_transpose.m_row[2]),
+                                   dotProduct(b.m_row[i], fb_transpose.m_row[3]));
+    }
+    
+    return out;
+}
+
+__device__ float bicubic_evaluation(const float4 x, 
+                                    const float4 y, 
+                                    const Matrix4x4_d coeff) 
+{
+    // out = x^T * coeff * y
+    // out = x^T * temp
+    
+    // tmp[i] = coeff[row i] * y
+    const float4 tmp = make_float4(dotProduct(coeff.m_row[0], y),
+                                   dotProduct(coeff.m_row[1], y),
+                                   dotProduct(coeff.m_row[2], y),
+                                   dotProduct(coeff.m_row[3], y) );
+                                   
+    return dotProduct(x, tmp);
+}
 
 
 #endif // COMMON_CU
