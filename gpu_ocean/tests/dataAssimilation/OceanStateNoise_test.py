@@ -287,7 +287,7 @@ class OceanStateNoiseTest(unittest.TestCase):
 
     def perturb_eta(self, msg):
         etaCPU = np.zeros(self.datashape)
-        HCPU = np.zeros((self.datashape[0]+1, self.datashape[1]+1))
+        HCPU = np.ones((self.datashape[0]+1, self.datashape[1]+1))*5
         self.create_noise()
         self.allocateBuffers(HCPU)
         
@@ -332,7 +332,7 @@ class OceanStateNoiseTest(unittest.TestCase):
         etaCPU = np.zeros(self.datashape)
         huCPU = np.zeros(self.datashape)
         hvCPU = np.zeros(self.datashape)
-        HCPU = np.zeros((self.datashape[0]+1, self.datashape[1]+1))
+        HCPU = np.ones((self.datashape[0]+1, self.datashape[1]+1))*5
 
         self.create_noise()
         self.allocateBuffers(HCPU)
@@ -379,12 +379,14 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.perturb_ocean("test_perturb_ocean_NS_periodic")
 
         
-    def interpolate_perturbation_eta(self, msg, factor):
+    def interpolate_perturbation_ocean(self, msg, factor):
         self.nx = factor*self.nx
         self.ny = factor*self.ny
         self.datashape = (self.ny+4, self.nx+4)
         etaCPU = np.zeros(self.datashape)
-        HCPU = np.zeros((self.datashape[0]+1, self.datashape[1]+1))
+        huCPU =  np.zeros(self.datashape)
+        hvCPU =  np.zeros(self.datashape)
+        HCPU = np.ones((self.datashape[0]+1, self.datashape[1]+1))*5
         self.create_noise(factor=factor)
         self.allocateBuffers(HCPU)
         
@@ -392,17 +394,29 @@ class OceanStateNoiseTest(unittest.TestCase):
                                      self.f, self.beta, self.g,
                                      ghost_cells_x=self.ghost_cells_x,
                                      ghost_cells_y=self.ghost_cells_y)
-        self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True,
-                                 ghost_cells_x=self.ghost_cells_x,
-                                 ghost_cells_y=self.ghost_cells_y)
+
+        self.noise.perturbOceanStateCPU(etaCPU, huCPU, hvCPU, HCPU,
+                                        self.f, self.beta, self.g,
+                                        use_existing_GPU_random_numbers=True,
+                                        ghost_cells_x=self.ghost_cells_x,
+                                        ghost_cells_y=self.ghost_cells_y)
         
         etaFromGPU = self.eta.download(self.gpu_stream)
+        huFromGPU = self.hu.download(self.gpu_stream)
+        hvFromGPU = self.hv.download(self.gpu_stream)
 
+        
         # Scale so that largest value becomes ~ 1
         maxVal = np.max(etaCPU)
         #print("maxVal: ", maxVal)
         etaFromGPU = etaFromGPU / maxVal
         etaCPU = etaCPU / maxVal
+        
+        maxValhuv = np.max(huCPU)
+        huFromGPU = huFromGPU / maxValhuv
+        hvFromGPU = hvFromGPU / maxValhuv
+        huCPU = huCPU / maxValhuv
+        hvCPU = hvCPU / maxValhuv
         
         assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, msg)
         
@@ -413,14 +427,17 @@ class OceanStateNoiseTest(unittest.TestCase):
         coarse_vals_eta = inner_eta[first_center::factor, first_center::factor]
         
         assert2DListAlmostEqual(self, inner_coarse.tolist(), coarse_vals_eta.tolist(), 6, msg + " - coarse vs fine")
-
+        
+        assert2DListAlmostEqual(self, huCPU.tolist(), huFromGPU.tolist(), 5, msg+", hu")
+        assert2DListAlmostEqual(self, hvCPU.tolist(), hvFromGPU.tolist(), 5, msg+", hv")
         
         
-    def test_interpolation_3_periodic(self):
-        self.interpolate_perturbation_eta("test_interpolation_3_periodic", 3)
+        
+    def test_interpolation_3_ocean(self):
+        self.interpolate_perturbation_ocean("test_interpolation_3_ocean", 3)
     
-    def test_interpolation_5_periodic(self):
-        self.interpolate_perturbation_eta("test_interpolation_5_periodic", 5)
+    def test_interpolation_5_ocean(self):
+        self.interpolate_perturbation_ocean("test_interpolation_5_ocean", 5)
     
-    def test_interpolation_7_periodic(self):
-        self.interpolate_perturbation_eta("test_interpolation_7_periodic", 7)
+    def test_interpolation_7_ocean(self):
+        self.interpolate_perturbation_ocean("test_interpolation_7_ocean", 7)

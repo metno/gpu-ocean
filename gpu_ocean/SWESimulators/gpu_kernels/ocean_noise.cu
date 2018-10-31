@@ -324,8 +324,10 @@ __global__ void geostrophicBalance(
     
     // Read d_eta from coarse_buffer into shared memory
     for (int j = ty; j < block_height+2; j += blockDim.y) {
+        
         const int global_j = clamp(by+j-1, 0, ny_+3);
         float* const coarse_row = (float*) ((char*) coarse_ptr_ + coarse_pitch_*(global_j));
+        
         for (int i = tx; i < block_width+2; i += blockDim.x) {
             const int global_i = clamp(bx+i-1, 0, nx_+3);
             d_eta[j][i] = coarse_row[global_i];
