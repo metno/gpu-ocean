@@ -20,8 +20,8 @@ class OceanStateNoiseTest(unittest.TestCase):
         
         self.nx = 30
         self.ny = 40
-        self.dx = 1.0
-        self.dy = 1.0
+        self.dx = 7.0
+        self.dy = 7.0
 
         self.f = 0.02
         self.g = 9.81
@@ -84,7 +84,7 @@ class OceanStateNoiseTest(unittest.TestCase):
    
         gc.collect()
             
-    def create_noise(self):
+    def create_noise(self, factor=1):
         n,e,s,w = 1,1,1,1
         if self.periodicNS:
             n,s = 2,2
@@ -94,7 +94,8 @@ class OceanStateNoiseTest(unittest.TestCase):
                                      self.nx, self.ny,
                                      self.dx, self.dy,
                                      Common.BoundaryConditions(n,e,s,w),
-                                     staggered=self.staggered)
+                                     staggered=self.staggered,
+                                     interpolation_factor=factor)
     def create_large_noise(self):
         n,e,s,w = 1,1,1,1
         if self.periodicNS:
@@ -376,3 +377,50 @@ class OceanStateNoiseTest(unittest.TestCase):
     def test_perturb_ocean_NS_periodic(self):
         self.periodicEW = False
         self.perturb_ocean("test_perturb_ocean_NS_periodic")
+
+        
+    def interpolate_perturbation_eta(self, msg, factor):
+        self.nx = factor*self.nx
+        self.ny = factor*self.ny
+        self.datashape = (self.ny+4, self.nx+4)
+        etaCPU = np.zeros(self.datashape)
+        HCPU = np.zeros((self.datashape[0]+1, self.datashape[1]+1))
+        self.create_noise(factor=factor)
+        self.allocateBuffers(HCPU)
+        
+        self.noise.perturbOceanState(self.eta, self.hu, self.hv, self.H,
+                                     self.f, self.beta, self.g,
+                                     ghost_cells_x=self.ghost_cells_x,
+                                     ghost_cells_y=self.ghost_cells_y)
+        self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True,
+                                 ghost_cells_x=self.ghost_cells_x,
+                                 ghost_cells_y=self.ghost_cells_y)
+        
+        etaFromGPU = self.eta.download(self.gpu_stream)
+
+        # Scale so that largest value becomes ~ 1
+        maxVal = np.max(etaCPU)
+        #print("maxVal: ", maxVal)
+        etaFromGPU = etaFromGPU / maxVal
+        etaCPU = etaCPU / maxVal
+        
+        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, msg)
+        
+        coarse = self.noise.getCoarseBuffer()
+        inner_coarse = coarse[2:-2, 2:-2] / maxVal
+        inner_eta = etaFromGPU[2:-2, 2:-2]
+        first_center = int((factor-1)/2)
+        coarse_vals_eta = inner_eta[first_center::factor, first_center::factor]
+        
+        assert2DListAlmostEqual(self, inner_coarse.tolist(), coarse_vals_eta.tolist(), 6, msg + " - coarse vs fine")
+
+        
+        
+    def test_interpolation_3_periodic(self):
+        self.interpolate_perturbation_eta("test_interpolation_3_periodic", 3)
+    
+    def test_interpolation_5_periodic(self):
+        self.interpolate_perturbation_eta("test_interpolation_5_periodic", 5)
+    
+    def test_interpolation_7_periodic(self):
+        self.interpolate_perturbation_eta("test_interpolation_7_periodic", 7)

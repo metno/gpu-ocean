@@ -581,8 +581,7 @@ class OceanStateNoise(object):
                 coarse_x = (coarse_i - 2 + 0.5)*self.coarse_dx
                 coarse_y = (coarse_j - 2 + 0.5)*self.coarse_dy
                 
-                h_mid = 0.25*(H[j,i] + H[j,i+1] + H[j+1,i] + H[j+1,i+1])
-
+                
                 # Defining the coarse grid points on coarse intersections rather than in grid centers.
                 #coarse_i = int(np.floor(x/coarse_dx + 1))
                 #coarse_j = int(np.floor(y/coarse_dy + 1))
@@ -653,13 +652,17 @@ class OceanStateNoise(object):
 
                 d_eta[j,i] = np.dot(x_vec, np.dot(a_matrix, y_vec))
 
-                x_vec_hv = np.matrix([0.0, 1.0, 2*rel_x, 3*rel_x*rel_x])
-                y_vec_hu = np.matrix([0.0, 1.0, 2*rel_y, 3*rel_y*rel_y]).transpose()
-                coriolis = f + beta*y
-                geo_balance_const = (g/coriolis)*h_mid
                 
-                d_hu[loc_j,loc_i] = -geo_balance_const*np.dot(x_vec, np.dot(a_matrix, y_vec_hu))
-                d_hv[loc_j,loc_i] =  geo_balance_const*np.dot(x_vec_hv, np.dot(a_matrix, y_vec))
+                if geostrophic_balance:
+                    x_vec_hv = np.matrix([0.0, 1.0, 2*rel_x, 3*rel_x*rel_x])
+                    y_vec_hu = np.matrix([0.0, 1.0, 2*rel_y, 3*rel_y*rel_y]).transpose()
+                    
+                    coriolis = f + beta*y
+                    h_mid = 0.25*(H[j,i] + H[j,i+1] + H[j+1,i] + H[j+1,i+1])
+                    geo_balance_const = (g/coriolis)*h_mid
+                    
+                    d_hu[loc_j,loc_i] = -geo_balance_const*np.dot(x_vec, np.dot(a_matrix, y_vec_hu))
+                    d_hv[loc_j,loc_i] =  geo_balance_const*np.dot(x_vec_hv, np.dot(a_matrix, y_vec))
                 
 
                 
