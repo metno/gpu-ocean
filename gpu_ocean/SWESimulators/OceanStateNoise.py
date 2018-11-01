@@ -661,8 +661,8 @@ class OceanStateNoise(object):
                     h_mid = 0.25*(H[j,i] + H[j,i+1] + H[j+1,i] + H[j+1,i+1])
                     geo_balance_const = (g/coriolis)*h_mid
                     
-                    d_hu[loc_j,loc_i] = -geo_balance_const*np.dot(x_vec, np.dot(a_matrix, y_vec_hu))
-                    d_hv[loc_j,loc_i] =  geo_balance_const*np.dot(x_vec_hv, np.dot(a_matrix, y_vec))
+                    d_hu[loc_j,loc_i] = -geo_balance_const*np.dot(x_vec, np.dot(a_matrix, y_vec_hu))/100
+                    d_hv[loc_j,loc_i] =  geo_balance_const*np.dot(x_vec_hv, np.dot(a_matrix, y_vec))/100
                 
 
                 

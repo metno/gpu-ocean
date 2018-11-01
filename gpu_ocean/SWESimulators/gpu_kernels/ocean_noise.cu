@@ -411,6 +411,8 @@ __global__ void bicubicInterpolation(
     ) {
     
     // Each thread is responsible for one grid point in the computational grid.
+    // Due to central differences of d_eta needed for geostrophic balance, we 
+    // interpolate with a halo of 1 cell in all directions for eta.
     
     //Index of cell within block
     const int tx = threadIdx.x; 
@@ -425,128 +427,170 @@ __global__ void bicubicInterpolation(
     const int tj = by + ty;
 
     // Shared memory for H and the coarse values
-    __shared__ float shmem[block_height+4][block_width+4];
+    __shared__ float coarse[block_height+6][block_width+6];
+    __shared__ float d_eta[block_height+2][block_width+2];
+    
 
-
-    // Use shared memory compute H_mid for given thread id
+    // Use shared memory for coarse to read H_i for given thread id
     for (int j = ty; j < block_height+1; j += blockDim.y) {
         const int global_j = clamp(by+j, 0, ny_+4);
         float* const Hi_row = (float*) ((char*) Hi_ptr_ + Hi_pitch_*(global_j));
         for (int i = tx; i < block_width+1; i += blockDim.x) {
             const int global_i = clamp(bx+i, 0, nx_+4);
-            shmem[j][i] = Hi_row[global_i];
+            coarse[j][i] = Hi_row[global_i];
         }
     }
     
     __syncthreads();
     
-    const float H_mid = 0.25f*(shmem[ty  ][tx] + shmem[ty  ][tx+1] +
-                               shmem[ty+1][tx] + shmem[ty+1][tx+1]   );
+    const float H_mid = 0.25f*(coarse[ty  ][tx] + coarse[ty  ][tx+1] +
+                               coarse[ty+1][tx] + coarse[ty+1][tx+1]   );
     
     __syncthreads();
     
     
     // Find coarse index for thread (0,0). All threads need to know this in order to read
-    // coarse data correctly into shmem.
+    // coarse data correctly into coarse shmem.
     const int bx_x = (bx - ghost_cells_x_ + 0.5)*dx_;
     const int by_y = (by - ghost_cells_y_ + 0.5)*dy_;
 
     
-    const int coarse_bx = (int)(floorf((bx_x/coarse_dx_) + coarse_ghost_cells_x_ - 1.5f));
-    const int coarse_by = (int)(floorf((by_y/coarse_dy_) + coarse_ghost_cells_y_ - 1.5f));
+    const int coarse_bx = (int)(floorf((bx_x/coarse_dx_) + coarse_ghost_cells_x_ - 2.5f));
+    const int coarse_by = (int)(floorf((by_y/coarse_dy_) + coarse_ghost_cells_y_ - 2.5f));
     // We subtracted the one to account for the stencil size
 
     // Read d_eta from coarse_buffer into shared memory
-    for (int j = ty; j < block_height+4; j += blockDim.y) {
+    for (int j = ty; j < block_height+6; j += blockDim.y) {
         
         const int global_j = clamp(coarse_by+j, 0, coarse_ny_+3);
         float* const coarse_row = (float*) ((char*) coarse_ptr_ + coarse_pitch_*(global_j));
         
-        for (int i = tx; i < block_width+4; i += blockDim.x) {
+        for (int i = tx; i < block_width+6; i += blockDim.x) {
             
             const int global_i = clamp(coarse_bx+i, 0, coarse_nx_+3);
-            shmem[j][i] = coarse_row[global_i];
+            coarse[j][i] = coarse_row[global_i];
         }
     }
     __syncthreads();    
         
-    // Carry out bicubic interpolation and obtain eta, hu and hv 
+    
+    int min_val = 10000;
+    int max_val = -10000;
+    
+    // Carry out bicubic interpolation and write d_eta to shmem
+    for (int j = ty; j < block_height+2; j += blockDim.y) {
+        for (int i = tx; i < block_width+2; i += blockDim.x) {
+            
+            const int loop_ti = bx + i - 1;
+            const int loop_tj = by + j - 1;
+
+            // Find coarse index for this thread
+            const float x = (loop_ti - ghost_cells_x_ + 0.5)*dx_;
+            const float y = (loop_tj - ghost_cells_y_ + 0.5)*dy_;
+            
+            // Location in the coarse grid:
+            int coarse_i = (int)(floorf((x/coarse_dx_) + coarse_ghost_cells_x_ - 0.5f));
+            int coarse_j = (int)(floorf((y/coarse_dy_) + coarse_ghost_cells_y_ - 0.5f));
+
+            // When interpolating onto the first ghostcell to the right and top of the domain,
+            // there exist a special case that results in reading outside of the coarse buffer.
+            // These if-statements fix that issue, while still resulting in valid code.
+            // This should give rel_x and/or rel_y equal to 1.0.
+            if (coarse_i > coarse_nx_ + 1 ) {
+                coarse_i -= 1;
+            }
+            if (coarse_j > coarse_ny_ + 1 ) {
+                coarse_j -= 1;
+            }
+
+            
+            const float coarse_x = (coarse_i - coarse_ghost_cells_x_ + 0.5f)*coarse_dx_;
+            const float coarse_y = (coarse_j - coarse_ghost_cells_y_ + 0.5f)*coarse_dy_;
+
+            // Location in coarse shmem:
+            const int loc_i = coarse_i - coarse_bx; // coarse_bx accounts for ghost cell already.
+            const int loc_j = coarse_j - coarse_by; 
+            
+            min_val = min(min_val, min(loc_i-1, loc_j-1));
+            max_val = max(max_val, max(loc_i-1, loc_j-1));
+           
+            // Read values for interpolation
+            const float f00 = coarse[loc_j  ][loc_i  ];
+            const float f01 = coarse[loc_j+1][loc_i  ];
+            const float f10 = coarse[loc_j  ][loc_i+1];
+            const float f11 = coarse[loc_j+1][loc_i+1];
+
+            const float fx00 = (coarse[loc_j  ][loc_i+1] - coarse[loc_j  ][loc_i-1])/2.0f;
+            const float fx01 = (coarse[loc_j+1][loc_i+1] - coarse[loc_j+1][loc_i-1])/2.0f;
+            const float fx10 = (coarse[loc_j  ][loc_i+2] - coarse[loc_j  ][loc_i  ])/2.0f;
+            const float fx11 = (coarse[loc_j+1][loc_i+2] - coarse[loc_j+1][loc_i  ])/2.0f;
+
+            const float fy00 = (coarse[loc_j+1][loc_i  ] - coarse[loc_j-1][loc_i  ])/2.0f;
+            const float fy01 = (coarse[loc_j+2][loc_i  ] - coarse[loc_j  ][loc_i  ])/2.0f;
+            const float fy10 = (coarse[loc_j+1][loc_i+1] - coarse[loc_j-1][loc_i+1])/2.0f;
+            const float fy11 = (coarse[loc_j+2][loc_i+1] - coarse[loc_j  ][loc_i+1])/2.0f;
+
+            const float fy_10 = (coarse[loc_j+1][loc_i-1] - coarse[loc_j-1][loc_i-1])/2.0f;
+            const float fy_11 = (coarse[loc_j+2][loc_i-1] - coarse[loc_j  ][loc_i-1])/2.0f;
+            const float fy20  = (coarse[loc_j+1][loc_i+2] - coarse[loc_j-1][loc_i+2])/2.0f;
+            const float fy21  = (coarse[loc_j+2][loc_i+2] - coarse[loc_j  ][loc_i+2])/2.0f;
+
+            const float fxy00 = (fy10 - fy_10)/2.0f;
+            const float fxy01 = (fy11 - fy_11)/2.0f;
+            const float fxy10 = (fy20 -  fy00)/2.0f;
+            const float fxy11 = (fy21 -  fy01)/2.0f;
+
+
+            // Map (x,y) onto the unit square
+            const float rel_x = (x - coarse_x)/coarse_dx_;
+            const float rel_y = (y - coarse_y)/coarse_dy_;
+
+            //const float bi_linear_eta = f00*(1.0f-rel_x)*(1.0f-rel_y) + f10*rel_x*(1.0f-rel_y) + f01*(1.0f-rel_x)*rel_y + f11*rel_x*rel_y;
+
+            Matrix4x4_d f_matrix;
+            f_matrix.m_row[0] = make_float4( f00,  f01,  fy00,  fy01);
+            f_matrix.m_row[1] = make_float4( f10,  f11,  fy10,  fy11);
+            f_matrix.m_row[2] = make_float4(fx00, fx01, fxy00, fxy01);
+            f_matrix.m_row[3] = make_float4(fx10, fx11, fxy10, fxy11);
+
+            Matrix4x4_d a_matrix = bicubic_interpolation_coefficients(f_matrix);
+
+            const float4 x_vec = make_float4(1.0f, rel_x, rel_x*rel_x, rel_x*rel_x*rel_x);
+            const float4 y_vec = make_float4(1.0f, rel_y, rel_y*rel_y, rel_y*rel_y*rel_y);
+            
+            d_eta[j][i] = bicubic_evaluation(x_vec, y_vec, a_matrix);
+        }
+        
+    }
+    
+    __syncthreads();
+    
+    // Obtain geostrophic balance and add results to global memory
     if ( (ti > 1) && (tj > 1) && (ti < nx_+2) && (tj < ny_+2)) {
 
-        // Find coarse index for this thread
-        const float x = (ti - ghost_cells_x_ + 0.5)*dx_;
-        const float y = (tj - ghost_cells_y_ + 0.5)*dy_;
-        
-        // Location in the coarse grid:
-        const int coarse_i = (int)(floorf((x/coarse_dx_) + coarse_ghost_cells_x_ - 0.5f));
-        const int coarse_j = (int)(floorf((y/coarse_dy_) + coarse_ghost_cells_y_ - 0.5f));
-        const float coarse_x = (coarse_i - coarse_ghost_cells_x_ + 0.5f)*coarse_dx_;
-        const float coarse_y = (coarse_j - coarse_ghost_cells_y_ + 0.5f)*coarse_dy_;
-        
-        // Location in shmem:
-        const int loc_i = coarse_i - coarse_bx; // coarse_bx accounts for ghost cell already.
-        const int loc_j = coarse_j - coarse_by; 
-        
-    
-        // Read values for interpolation
-        const float f00 = shmem[loc_j  ][loc_i  ];
-        const float f01 = shmem[loc_j+1][loc_i  ];
-        const float f10 = shmem[loc_j  ][loc_i+1];
-        const float f11 = shmem[loc_j+1][loc_i+1];
-        
-        const float fx00 = (shmem[loc_j  ][loc_i+1] - shmem[loc_j  ][loc_i-1])/2.0f;
-        const float fx01 = (shmem[loc_j+1][loc_i+1] - shmem[loc_j+1][loc_i-1])/2.0f;
-        const float fx10 = (shmem[loc_j  ][loc_i+2] - shmem[loc_j  ][loc_i  ])/2.0f;
-        const float fx11 = (shmem[loc_j+1][loc_i+2] - shmem[loc_j+1][loc_i  ])/2.0f;
-
-        const float fy00 = (shmem[loc_j+1][loc_i  ] - shmem[loc_j-1][loc_i  ])/2.0f;
-        const float fy01 = (shmem[loc_j+2][loc_i  ] - shmem[loc_j  ][loc_i  ])/2.0f;
-        const float fy10 = (shmem[loc_j+1][loc_i+1] - shmem[loc_j-1][loc_i+1])/2.0f;
-        const float fy11 = (shmem[loc_j+2][loc_i+1] - shmem[loc_j  ][loc_i+1])/2.0f;
-        
-        const float fy_10 = (shmem[loc_j+1][loc_i-1] - shmem[loc_j-1][loc_i-1])/2.0f;
-        const float fy_11 = (shmem[loc_j+2][loc_i-1] - shmem[loc_j  ][loc_i-1])/2.0f;
-        const float fy20  = (shmem[loc_j+1][loc_i+2] - shmem[loc_j-1][loc_i+2])/2.0f;
-        const float fy21  = (shmem[loc_j+2][loc_i+2] - shmem[loc_j  ][loc_i+2])/2.0f;
-    
-        const float fxy00 = (fy10 - fy_10)/2.0f;
-        const float fxy01 = (fy11 - fy_11)/2.0f;
-        const float fxy10 = (fy20 -  fy00)/2.0f;
-        const float fxy11 = (fy21 -  fy01)/2.0f;
-    
-        
-        // Map (x,y) onto the unit square
-        const float rel_x = (x - coarse_x)/coarse_dx_;
-        const float rel_y = (y - coarse_y)/coarse_dy_;
-        
-        //const float bi_linear_eta = f00*(1.0f-rel_x)*(1.0f-rel_y) + f10*rel_x*(1.0f-rel_y) + f01*(1.0f-rel_x)*rel_y + f11*rel_x*rel_y;
-        
-        Matrix4x4_d f_matrix;
-        f_matrix.m_row[0] = make_float4( f00,  f01,  fy00,  fy01);
-        f_matrix.m_row[1] = make_float4( f10,  f11,  fy10,  fy11);
-        f_matrix.m_row[2] = make_float4(fx00, fx01, fxy00, fxy01);
-        f_matrix.m_row[3] = make_float4(fx10, fx11, fxy10, fxy11);
-        
-        Matrix4x4_d a_matrix = bicubic_interpolation_coefficients(f_matrix);
-        
-        const float4 x_vec = make_float4(1.0f, rel_x, rel_x*rel_x, rel_x*rel_x*rel_x);
-        const float4 y_vec = make_float4(1.0f, rel_y, rel_y*rel_y, rel_y*rel_y*rel_y);
-        const float4 x_vec_hv = make_float4(0.0f, 1.0f, 2.0f*rel_x, 3.0f*rel_x*rel_x);
-        const float4 y_vec_hu = make_float4(0.0f, 1.0f, 2.0f*rel_y, 3.0f*rel_y*rel_y);
+        const int eta_tx = tx + 1;
+        const int eta_ty = ty + 1;
         
         const float coriolis = f_ + beta_*(tj - y0_reference_cell_)*dy_;
-        const float geo_balance_const = H_mid*(g_/coriolis);
-    
+        
+         // Slope of perturbation of eta
+        const float eta_diff_x = (d_eta[eta_ty  ][eta_tx+1] - d_eta[eta_ty  ][eta_tx-1]) / (2.0f*dx_);
+        const float eta_diff_y = (d_eta[eta_ty+1][eta_tx  ] - d_eta[eta_ty-1][eta_tx  ]) / (2.0f*dy_);
+
+        // perturbation of hu and hv
+        const float d_hu = -(g_/coriolis)*H_mid*eta_diff_y;
+        const float d_hv =  (g_/coriolis)*H_mid*eta_diff_x;        
+
+        
         
         //Compute pointer to current row in the U array
         float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*(tj));
         float* const hu_row  = (float*) ((char*) hu_ptr_  + hu_pitch_*(tj));
         float* const hv_row = (float*) ((char*)  hv_ptr_ + hv_pitch_*(tj));
         
-        eta_row[ti] +=  bicubic_evaluation(x_vec   , y_vec   , a_matrix);
-         hu_row[ti] += -bicubic_evaluation(x_vec   , y_vec_hu, a_matrix)*geo_balance_const;
-         hv_row[ti] +=  bicubic_evaluation(x_vec_hv, y_vec   , a_matrix)*geo_balance_const;
-
+        eta_row[ti] += d_eta[eta_ty][eta_tx];
+         hu_row[ti] += d_hu; 
+         hv_row[ti] += d_hv;
     }
 }
 } // extern "C"
