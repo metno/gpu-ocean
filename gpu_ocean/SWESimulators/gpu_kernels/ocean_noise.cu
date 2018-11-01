@@ -560,7 +560,6 @@ __global__ void bicubicInterpolation(
             
             d_eta[j][i] = bicubic_evaluation(x_vec, y_vec, a_matrix);
         }
-        
     }
     
     __syncthreads();
@@ -578,8 +577,8 @@ __global__ void bicubicInterpolation(
         const float eta_diff_y = (d_eta[eta_ty+1][eta_tx  ] - d_eta[eta_ty-1][eta_tx  ]) / (2.0f*dy_);
 
         // perturbation of hu and hv
-        const float d_hu = -(g_/coriolis)*H_mid*eta_diff_y;
-        const float d_hv =  (g_/coriolis)*H_mid*eta_diff_x;        
+        const float d_hu = -(g_/coriolis)*(H_mid + d_eta[eta_ty][eta_tx])*eta_diff_y;
+        const float d_hv =  (g_/coriolis)*(H_mid + d_eta[eta_ty][eta_tx])*eta_diff_x;        
 
         
         

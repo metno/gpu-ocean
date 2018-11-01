@@ -474,7 +474,7 @@ class OceanStateNoise(object):
         # d_eta.shape = (self.ny + 2, self.nx + 2)
         
         if self.interpolation_factor > 1:
-            return self._interpolate_CPU(d_eta, H=H, f=f, g=g, beta=beta)
+            d_eta = self._interpolate_CPU(d_eta)
         
         ####
         # Global sync (currently)
@@ -522,37 +522,17 @@ class OceanStateNoise(object):
     
     
     
-    def _interpolate_CPU(self, coarse_eta, H=None, f=None, g=None, beta=None, \
-                         geostrophic_balance=True, interpolation_order=3):
+    def _interpolate_CPU(self, coarse_eta, interpolation_order=3):
         """
         Interpolates values coarse_eta defined on the coarse grid onto the computational grid.
         Input coarse_eta is of size [coarse_ny+4, coarse_nx+4], and output will be given as
         eta [ny+4, nx+4].
-        If geostrophic_balance is sat to True, the derivatives given by the interpolation will 
-        be used to assign geostrophic balanced hu and hv as well, which will be output variables
-        with sizes [ny, nx].
         """
-        
-        if geostrophic_balance:
-            assert (H is not None), 'H must be provided'
-            assert(f is not None), 'f must be provided'
-            assert(g is not None), 'g must be provided'
-            assert(beta is not None), 'beta must be provided'
+
         
         # Create buffers for eta, hu and hv:
         d_eta = np.zeros((self.ny+4, self.nx+4))
-        d_hu  = np.zeros((self.ny, self.nx))
-        d_hv  = np.zeros((self.ny, self.nx))
-        
-        
-        print("(coarse_nx, coarse_ny) : ", (self.coarse_nx, self.coarse_ny))
-        print("coarse_eta.shape: ", coarse_eta.shape)
-        print("(coarse_dx, coarse_dy): ", (self.coarse_dx, self.coarse_dy))
-        
-        print("(nx, ny): ", (self.nx, self.ny))
-        print("d_eta.shape: ", d_eta.shape)
-        print("(dx, dy): ", (self.dx, self.dy))
-        
+      
         # Matrix needed to find the interpolation coefficients
         bicubic_matrix = np.matrix([[ 1,  0,  0,  0], 
                                     [ 0,  0,  1,  0], 
@@ -565,11 +545,11 @@ class OceanStateNoise(object):
         min_rel_y = 10
         max_rel_y = -10
         
-        for loc_j in range(self.ny):
-            for loc_i in range(self.nx):
+        for loc_j in range(self.ny+2):
+            for loc_i in range(self.nx+2):
                 
-                i = loc_i + 2
-                j = loc_j + 2
+                i = loc_i + 1
+                j = loc_j + 1
 
                 # Position of cell center in fine grid:
                 x = (i - 2 + 0.5)*self.dx
@@ -653,46 +633,23 @@ class OceanStateNoise(object):
                 d_eta[j,i] = np.dot(x_vec, np.dot(a_matrix, y_vec))
 
                 
-                if geostrophic_balance:
-                    x_vec_hv = np.matrix([0.0, 1.0, 2*rel_x, 3*rel_x*rel_x])
-                    y_vec_hu = np.matrix([0.0, 1.0, 2*rel_y, 3*rel_y*rel_y]).transpose()
-                    
-                    coriolis = f + beta*y
-                    h_mid = 0.25*(H[j,i] + H[j,i+1] + H[j+1,i] + H[j+1,i+1])
-                    geo_balance_const = (g/coriolis)*h_mid
-                    
-                    d_hu[loc_j,loc_i] = -geo_balance_const*np.dot(x_vec, np.dot(a_matrix, y_vec_hu))/100
-                    d_hv[loc_j,loc_i] =  geo_balance_const*np.dot(x_vec_hv, np.dot(a_matrix, y_vec))/100
                 
+                if interpolation_order == 0:
+                    # Flat average:
+                    d_eta[j,i] = 0.25*(f00 + f01 + f10 + f11)
+                
+                elif interpolation_order == 1:
+                    # Linear interpolation:
+                    d_eta[j,i] = f00*(1-rel_x)*(1-rel_y) + f10*rel_x*(1-rel_y) + f01*(1-rel_x)*rel_y + f11*rel_x*rel_y
+                
+                elif interpolation_order == 3:
+                    # Bicubic interpolation
+                    d_eta[j,i] = np.dot(x_vec, np.dot(a_matrix, y_vec))
 
                 
-                #if interpolation_order == 0:
-                #    # Flat average:
-                #    d_eta[j,i] = 0.25*(f00 + f01 + f10 + f11)
-                #
-                #elif interpolation_order == 1:
-                #    # Linear interpolation:
-                #    #d_eta[j,i] = f00 + rel_x*(f10 - f00) + rel_y*(f01 - f00)
-                #    d_eta[j,i] = f00*(1-rel_x)*(1-rel_y) + f10*rel_x*(1-rel_y) + f01*(1-rel_x)*rel_y + f11*rel_x*rel_y
-                #
-                #elif interpolation_order == 3:
-                #    d_eta[j,i] = np.dot(x_vec, np.dot(a_matrix, y_vec))
-
-                
-        print("(min_rel_x, max_rel_x)", (min_rel_x, max_rel_x))
-        print("(min_rel_y, max_rel_y)", (min_rel_y, max_rel_y))
-        
-        #inner_fine = d_eta[2:-2, 2:-2]
-        #inner_coarse = coarse_eta[2:-2, 2:-2]
-        #L_inf = np.max(np.abs(inner_fine[1::3, 1::3] - inner_coarse))
-        #print("L_inf: ", L_inf)
-        
-        
-        print("interpolation_order: ", interpolation_order)
-        if geostrophic_balance:
-            return d_eta, d_hu, d_hv
-        else:
-            return d_eta.copy()
+        #print("(min_rel_x, max_rel_x)", (min_rel_x, max_rel_x))
+        #print("(min_rel_y, max_rel_y)", (min_rel_y, max_rel_y))
+        return d_eta
         
     
     
