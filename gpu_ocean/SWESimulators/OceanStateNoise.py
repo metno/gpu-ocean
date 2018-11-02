@@ -179,7 +179,7 @@ class OceanStateNoise(object):
         gc.collect()
         
     @classmethod
-    def fromsim(cls, sim, soar_q0=None, soar_L=None, 
+    def fromsim(cls, sim, soar_q0=None, soar_L=None, interpolation_factor=1,  
                 block_width=16, block_height=16):
         staggered = False
         if isinstance(sim, FBL.FBL) or isinstance(sim, CTCS.CTCS):
@@ -188,6 +188,7 @@ class OceanStateNoise(object):
                    sim.nx, sim.ny, sim.dx, sim.dy,
                    sim.boundary_conditions, staggered,
                    soar_q0=soar_q0, soar_L=soar_L,
+                   interpolation_factor=interpolation_factor,
                    block_width=block_width, block_height=block_height)
         
         
