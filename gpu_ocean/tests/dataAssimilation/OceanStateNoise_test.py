@@ -20,18 +20,22 @@ class OceanStateNoiseTest(unittest.TestCase):
         
         self.nx = 30
         self.ny = 40
-        self.dx = 1.0
-        self.dy = 1.0
+        self.dx = 7.0
+        self.dy = 7.0
 
         self.f = 0.02
         self.g = 9.81
         self.beta = 0.0
         
         self.noise = None
-
+        
+        self.ghost_cells_x = 2
+        self.ghost_cells_y = 2
+        self.datashape = (self.ny+2*self.ghost_cells_y, self.nx+2*self.ghost_cells_x)
+        
         self.cutoff = 2
-        self.nx_nonPeriodic = self.nx + 2*(1+self.cutoff)
-        self.ny_nonPeriodic = self.ny + 2*(1+self.cutoff)
+        self.nx_nonPeriodic = self.nx + 2*(2+self.cutoff)
+        self.ny_nonPeriodic = self.ny + 2*(2+self.cutoff)
         
         # Standard setup is non-staggered, periodic
         self.staggered = False
@@ -40,7 +44,7 @@ class OceanStateNoiseTest(unittest.TestCase):
 
         # Total number of threads should be: 16, 32, 48, 64
         # Corresponding to the number of blocks: 1, 2, 3, 4
-        self.glob_size_x = 2
+        self.glob_size_x = 3
         self.glob_size_y = 3
         self.glob_size_x_nonperiodic = 3
         self.glob_size_y_nonperiodic = 3
@@ -80,7 +84,7 @@ class OceanStateNoiseTest(unittest.TestCase):
    
         gc.collect()
             
-    def create_noise(self):
+    def create_noise(self, factor=1):
         n,e,s,w = 1,1,1,1
         if self.periodicNS:
             n,s = 2,2
@@ -90,7 +94,8 @@ class OceanStateNoiseTest(unittest.TestCase):
                                      self.nx, self.ny,
                                      self.dx, self.dy,
                                      Common.BoundaryConditions(n,e,s,w),
-                                     staggered=self.staggered)
+                                     staggered=self.staggered,
+                                     interpolation_factor=factor)
     def create_large_noise(self):
         n,e,s,w = 1,1,1,1
         if self.periodicNS:
@@ -104,11 +109,11 @@ class OceanStateNoiseTest(unittest.TestCase):
                                            staggered = self.staggered)
 
     def allocateBuffers(self, HCPU):
-        host_buffer = np.zeros((self.ny, self.nx))
-        self.eta = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, 0, 0, host_buffer)
-        self.hu = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, 0, 0, host_buffer)
-        self.hv = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, 0, 0, host_buffer)
-        self.H = Common.CUDAArray2D(self.gpu_stream, self.nx+1, self.ny+1, 0, 0, HCPU)
+        host_buffer = np.zeros((self.ny+2*self.ghost_cells_y, self.nx+2*self.ghost_cells_x))
+        self.eta = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, self.ghost_cells_x, self.ghost_cells_y, host_buffer)
+        self.hu = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, self.ghost_cells_x, self.ghost_cells_y, host_buffer)
+        self.hv = Common.CUDAArray2D(self.gpu_stream, self.nx, self.ny, self.ghost_cells_x, self.ghost_cells_y, host_buffer)
+        self.H = Common.CUDAArray2D(self.gpu_stream, self.nx+1, self.ny+1, self.ghost_cells_x, self.ghost_cells_y, HCPU)
         del host_buffer
         
     def compare_random(self, tol, msg):
@@ -138,7 +143,7 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.assertEqual(self.noise.seed_nx, self.nx/2)
         self.assertEqual(self.noise.seed_ny, self.ny)
 
-        self.assertEqual(self.noise.global_size_noise, (self.glob_size_x, self.glob_size_y))
+        self.assertEqual(self.noise.global_size_SOAR, (self.glob_size_x, self.glob_size_y))
         self.assertEqual(self.noise.global_size_random_numbers, (self.glob_size_random_x, self.glob_size_y))
 
         self.compare_random(6, "test_init_periodic_nonstaggered")
@@ -153,7 +158,7 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.assertEqual(self.noise.seed_nx, self.nx/2)
         self.assertEqual(self.noise.seed_ny, self.ny)
 
-        self.assertEqual(self.noise.global_size_noise, (self.glob_size_x, self.glob_size_y))
+        self.assertEqual(self.noise.global_size_SOAR, (self.glob_size_x, self.glob_size_y))
         self.assertEqual(self.noise.global_size_random_numbers, (self.glob_size_random_x, self.glob_size_y))
 
         self.compare_random(6, "test_init_periodic_staggered")
@@ -168,12 +173,12 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.assertEqual(self.noise.seed_nx, self.nx_nonPeriodic/2)
         self.assertEqual(self.noise.seed_ny, self.ny_nonPeriodic)        
 
-        self.assertEqual(self.noise.global_size_noise, (self.glob_size_x_nonperiodic, self.glob_size_y_nonperiodic))
+        self.assertEqual(self.noise.global_size_SOAR, (self.glob_size_x_nonperiodic, self.glob_size_y_nonperiodic))
         self.assertEqual(self.noise.global_size_random_numbers, (self.glob_size_random_x_nonperiodic, self.glob_size_y_nonperiodic))
 
         self.compare_random(6, "test_init_non_periodi_nonstaggered")
         
-    def test_init_perioidNS_nonstaggered(self):
+    def test_init_periodicNS_nonstaggered(self):
         self.periodicEW = False
         self.create_noise()
 
@@ -182,12 +187,12 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.assertEqual(self.noise.seed_nx, self.nx_nonPeriodic/2)
         self.assertEqual(self.noise.seed_ny, self.ny)        
 
-        self.assertEqual(self.noise.global_size_noise, (self.glob_size_x_nonperiodic, self.glob_size_y))
+        self.assertEqual(self.noise.global_size_SOAR, (self.glob_size_x_nonperiodic, self.glob_size_y))
         self.assertEqual(self.noise.global_size_random_numbers, (self.glob_size_random_x_nonperiodic, self.glob_size_y))
 
         self.compare_random(6, "test_init_periodiNS_nonstaggered")
         
-    def test_init_perioidEW_nonstaggered(self):
+    def test_init_periodicEW_nonstaggered(self):
         self.periodicNS = False
         self.create_noise()
 
@@ -196,7 +201,7 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.assertEqual(self.noise.seed_nx, self.nx/2)
         self.assertEqual(self.noise.seed_ny, self.ny_nonPeriodic)        
 
-        self.assertEqual(self.noise.global_size_noise, (self.glob_size_x, self.glob_size_y_nonperiodic))
+        self.assertEqual(self.noise.global_size_SOAR, (self.glob_size_x, self.glob_size_y_nonperiodic))
         self.assertEqual(self.noise.global_size_random_numbers, (self.glob_size_random_x, self.glob_size_y_nonperiodic))
 
         self.compare_random(6, "test_init_periodiEW_nonstaggered")
@@ -281,18 +286,24 @@ class OceanStateNoiseTest(unittest.TestCase):
 
 
     def perturb_eta(self, msg):
-        etaCPU = np.zeros((self.ny, self.nx))
-        HCPU = np.zeros((self.ny+1, self.nx+1))
+        etaCPU = np.zeros(self.datashape)
+        HCPU = np.ones((self.datashape[0]+1, self.datashape[1]+1))*5
         self.create_noise()
         self.allocateBuffers(HCPU)
         
         self.noise.perturbOceanState(self.eta, self.hu, self.hv, self.H,
-                                     self.f, self.beta, self.g)
-        self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True)
+                                     self.f, self.beta, self.g,
+                                     ghost_cells_x=self.ghost_cells_x,
+                                     ghost_cells_y=self.ghost_cells_y)
+        self.noise.perturbEtaCPU(etaCPU, use_existing_GPU_random_numbers=True,
+                                 ghost_cells_x=self.ghost_cells_x,
+                                 ghost_cells_y=self.ghost_cells_y)
+        
         etaFromGPU = self.eta.download(self.gpu_stream)
 
         # Scale so that largest value becomes ~ 1
         maxVal = np.max(etaCPU)
+        #print("maxVal: ", maxVal)
         etaFromGPU = etaFromGPU / maxVal
         etaCPU = etaCPU / maxVal
         
@@ -318,10 +329,10 @@ class OceanStateNoiseTest(unittest.TestCase):
 
 
     def perturb_ocean(self, msg):
-        etaCPU = np.zeros((self.ny, self.nx))
-        huCPU = np.zeros((self.ny, self.nx))
-        hvCPU = np.zeros((self.ny, self.nx))
-        HCPU = np.zeros((self.ny+1, self.nx+1))
+        etaCPU = np.zeros(self.datashape)
+        huCPU = np.zeros(self.datashape)
+        hvCPU = np.zeros(self.datashape)
+        HCPU = np.ones((self.datashape[0]+1, self.datashape[1]+1))*5
 
         self.create_noise()
         self.allocateBuffers(HCPU)
@@ -330,7 +341,9 @@ class OceanStateNoiseTest(unittest.TestCase):
                                      self.f, self.beta, self.g)
         self.noise.perturbOceanStateCPU(etaCPU, huCPU, hvCPU, HCPU,
                                         self.f, self.beta, self.g,
-                                        use_existing_GPU_random_numbers=True)
+                                        use_existing_GPU_random_numbers=True,
+                                        ghost_cells_x=self.ghost_cells_x,
+                                        ghost_cells_y=self.ghost_cells_y)
         huFromGPU = self.hu.download(self.gpu_stream)
         hvFromGPU = self.hv.download(self.gpu_stream)
 
@@ -364,3 +377,67 @@ class OceanStateNoiseTest(unittest.TestCase):
     def test_perturb_ocean_NS_periodic(self):
         self.periodicEW = False
         self.perturb_ocean("test_perturb_ocean_NS_periodic")
+
+        
+    def interpolate_perturbation_ocean(self, msg, factor):
+        self.nx = factor*self.nx
+        self.ny = factor*self.ny
+        self.datashape = (self.ny+4, self.nx+4)
+        etaCPU = np.zeros(self.datashape)
+        huCPU =  np.zeros(self.datashape)
+        hvCPU =  np.zeros(self.datashape)
+        HCPU = np.ones((self.datashape[0]+1, self.datashape[1]+1))*5
+        self.create_noise(factor=factor)
+        self.allocateBuffers(HCPU)
+        
+        self.noise.perturbOceanState(self.eta, self.hu, self.hv, self.H,
+                                     self.f, self.beta, self.g,
+                                     ghost_cells_x=self.ghost_cells_x,
+                                     ghost_cells_y=self.ghost_cells_y)
+
+        self.noise.perturbOceanStateCPU(etaCPU, huCPU, hvCPU, HCPU,
+                                        self.f, self.beta, self.g,
+                                        use_existing_GPU_random_numbers=True,
+                                        ghost_cells_x=self.ghost_cells_x,
+                                        ghost_cells_y=self.ghost_cells_y)
+        
+        etaFromGPU = self.eta.download(self.gpu_stream)
+        huFromGPU = self.hu.download(self.gpu_stream)
+        hvFromGPU = self.hv.download(self.gpu_stream)
+
+        
+        # Scale so that largest value becomes ~ 1
+        maxVal = np.max(etaCPU)
+        #print("maxVal: ", maxVal)
+        etaFromGPU = etaFromGPU / maxVal
+        etaCPU = etaCPU / maxVal
+        
+        maxValhuv = np.max(huCPU)
+        huFromGPU = huFromGPU / maxValhuv
+        hvFromGPU = hvFromGPU / maxValhuv
+        huCPU = huCPU / maxValhuv
+        hvCPU = hvCPU / maxValhuv
+        
+        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, msg)
+        
+        coarse = self.noise.getCoarseBuffer()
+        inner_coarse = coarse[2:-2, 2:-2] / maxVal
+        inner_eta = etaFromGPU[2:-2, 2:-2]
+        first_center = int((factor-1)/2)
+        coarse_vals_eta = inner_eta[first_center::factor, first_center::factor]
+        
+        assert2DListAlmostEqual(self, inner_coarse.tolist(), coarse_vals_eta.tolist(), 6, msg + " - coarse vs fine")
+        
+        assert2DListAlmostEqual(self, huCPU.tolist(), huFromGPU.tolist(), 5, msg+", hu")
+        assert2DListAlmostEqual(self, hvCPU.tolist(), hvFromGPU.tolist(), 5, msg+", hv")
+        
+        
+        
+    def test_interpolation_3_ocean(self):
+        self.interpolate_perturbation_ocean("test_interpolation_3_ocean", 3)
+    
+    def test_interpolation_5_ocean(self):
+        self.interpolate_perturbation_ocean("test_interpolation_5_ocean", 5)
+    
+    def test_interpolation_7_ocean(self):
+        self.interpolate_perturbation_ocean("test_interpolation_7_ocean", 7)

@@ -55,6 +55,7 @@ class CDKLM16(Simulator.Simulator):
                  boundary_conditions=Common.BoundaryConditions(), \
                  small_scale_perturbation=False, \
                  small_scale_perturbation_amplitude=None, \
+                 small_scale_perturbation_interpolation_factor = 1, \
                  h0AsWaterElevation=False, \
                  reportGeostrophicEquilibrium=False, \
                  write_netcdf=False, \
@@ -186,11 +187,15 @@ class CDKLM16(Simulator.Simulator):
         # Small scale perturbation:
         self.small_scale_perturbation = small_scale_perturbation
         self.small_scale_model_error = None
+        self.small_scale_perturbation_interpolation_factor = small_scale_perturbation_interpolation_factor
         if small_scale_perturbation:
             if small_scale_perturbation_amplitude is None:
-                self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self)
+                self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self,
+                                                                                       interpolation_factor=small_scale_perturbation_interpolation_factor)
             else:
-                self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, soar_q0=small_scale_perturbation_amplitude)
+                self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, 
+                                                                                       soar_q0=small_scale_perturbation_amplitude,
+                                                                                       interpolation_factor=small_scale_perturbation_interpolation_factor)
         
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
