@@ -43,7 +43,19 @@ class OceanStateNoise(object):
                  soar_q0=None, soar_L=None,
                  interpolation_factor = 1,
                  block_width=16, block_height=16):
-        
+        """
+        Initiates a class that generates small scale geostrophically balanced perturbations of
+        the ocean state.
+        (nx, ny): number of internal grid cells in the domain
+        (dx, dy): size of each grid cell
+        soar_q0: amplitude parameter for the perturbation, default: dx*1e-5
+        soar_L: length scale of the perturbation covariance, default: 0.74*dx*interpolation_factor
+        interpolation_factor: indicates that the perturbation of eta should be generated on a coarse mesh, 
+            and then interpolated down to the computational mesh. The coarse mesh will then have
+            (nx/interpolation_factor, ny/interpolation_factor) grid cells.
+        (block_width, block_height): The size of each GPU block
+        """
+
         self.random_state = np.random.RandomState()
         
         self.random_numbers = None
@@ -74,6 +86,7 @@ class OceanStateNoise(object):
         assert (ny % interpolation_factor == 0), 'ny must be divisible by the interpolation factor'
         self.interpolation_factor = np.int32(interpolation_factor)
         
+        # The size of the coarse grid 
         self.coarse_nx = np.int32(nx/self.interpolation_factor)
         self.coarse_ny = np.int32(ny/self.interpolation_factor)
         self.coarse_dx = np.float32(dx*self.interpolation_factor)
@@ -83,6 +96,9 @@ class OceanStateNoise(object):
         self.periodicEastWest = np.int32(boundaryConditions.isPeriodicEastWest())
         
         # Size of random field and seed
+        # The SOAR function is a stencil which requires cutoff number of grid cells,
+        # and the interpolation operator requires further 2 ghost cell values in each direction.
+        # The random field must therefore be created with 2 + cutoff number of ghost cells.
         self.rand_nx = np.int32(self.coarse_nx + 2*(2+self.cutoff))
         self.rand_ny = np.int32(self.coarse_ny + 2*(2+self.cutoff))
         if self.periodicEastWest:
@@ -90,11 +106,11 @@ class OceanStateNoise(object):
         if self.periodicNorthSouth:
             self.rand_ny = np.int32(self.coarse_ny)
             
+        # Since normal distributed numbers are generated in pairs, we need to store half the number of
+        # of seed values compared to the number of random numbers.
         self.seed_ny = np.int32(self.rand_ny)
         self.seed_nx = np.int32(np.ceil(self.rand_nx/2)) 
-        ### WHAT IF rand_nx IS ODD??
-        # For now, we check this by assert
-        assert(self.rand_nx % 2 == 0), "The OceanStateNoise module might not work with odd Nx, so just to be sure you are not allowed to use odd Nx for now :)"
+        
         
         # Constants for the SOAR function:
         self.soar_q0 = np.float32(self.dx/100000)
@@ -117,6 +133,7 @@ class OceanStateNoise(object):
         self.random_numbers = Common.CUDAArray2D(self.gpu_stream, self.rand_nx, self.rand_ny, 0, 0, self.random_numbers_host)
         
         # Allocate memory for coarse buffer if needed
+        # Two ghost cells in each direction needed for bicubic interpolation 
         self.coarse_buffer_host = np.zeros((self.coarse_ny+4, self.coarse_nx+4), dtype=np.float32, order='C')
         self.coarse_buffer = Common.CUDAArray2D(self.gpu_stream, self.coarse_nx, self.coarse_ny, 2, 2, self.coarse_buffer_host)
 
@@ -143,28 +160,27 @@ class OceanStateNoise(object):
         self.bicubicInterpolationKernel.prepare("iiiiffiiiiffffffPiPiPiPiPi")
         
         #Compute kernel launch parameters
-        self.local_size = (block_width, block_height, 1) 
+        self.local_size = (block_width, block_height, 1)
+        
+        # Launch one thread for each seed, which in turns generates two iid N(0,1)
         self.global_size_random_numbers = ( \
                        int(np.ceil(self.seed_nx / float(self.local_size[0]))), \
                        int(np.ceil(self.seed_ny / float(self.local_size[1]))) \
                                   ) 
         
+        # Launch one thread per SOAR-correlated result - need to write to two ghost 
+        # cells in order to do bicubic interpolation based on the result
         self.global_size_SOAR = ( \
                                  int(np.ceil( (self.coarse_nx+4)/float(self.local_size[0]))), \
                                  int(np.ceil( (self.coarse_ny+4)/float(self.local_size[1]))) \
                                 )
         
+        # One thread per resulting perturbed grid cell
         self.global_size_geo_balance = ( \
                                         int(np.ceil( (self.nx)/float(self.local_size[0]))), \
                                         int(np.ceil( (self.ny)/float(self.local_size[1]))) \
                                        )
         
-        
-        self.global_size_noise = ( \
-                       int(np.ceil(self.rand_nx / float(self.local_size[0]))), \
-                       int(np.ceil(self.rand_ny / float(self.local_size[1]))) \
-                                  ) 
-
         
         
     def __del__(self):
@@ -226,6 +242,9 @@ class OceanStateNoise(object):
                                                            self.random_numbers.data.gpudata, self.random_numbers.pitch)
     
     def perturbSim(self, sim, q0_scale=1.0):
+        """
+        Generating a perturbed ocean state and adding it to sim's ocean state 
+        """
         
         self.perturbOceanState(sim.gpu_data.h0, sim.gpu_data.hu0, sim.gpu_data.hv0,
                                sim.bathymetry.Bi,
@@ -340,11 +359,19 @@ class OceanStateNoise(object):
     def perturbOceanStateCPU(self, eta, hu, hv, H, f,  beta=0.0, g=9.81,
                              ghost_cells_x=0, ghost_cells_y=0,
                              use_existing_GPU_random_numbers=False):
+        """
+        Apply the SOAR Q covariance matrix on the random field to add
+        a perturbation to the incomming eta buffer.
+        Generate geostrophically balanced hu and hv which is added to the incomming hu and hv buffers.
+        eta: numpy array
+        """
         # Call CPU utility function
         if use_existing_GPU_random_numbers:
             self.random_numbers_host = self.getRandomNumbers()
         else:
             self.generateNormalDistributionCPU()
+        
+        # generates perturbation (d_eta[ny+4, nx+4], d_hu[ny, nx] and d_hv[ny, nx])
         d_eta, d_hu, d_hv = self._obtainOceanPerturbations_CPU(H, f, beta, g)
         
         interior = [-ghost_cells_y, -ghost_cells_x, ghost_cells_y, ghost_cells_x]
@@ -423,10 +450,14 @@ class OceanStateNoise(object):
         #xi, dx=1, dy=1, q0=0.1, L=1, cutoff=5):
         """
         Create the perturbation field for eta based on the SOAR covariance 
-        structure
+        structure.
+        
+        The resulting size is (coarse_nx+4, coarse_ny+4), as two ghost cells are required to 
+        do bicubic interpolation of the result.
         """
                         
         # Assume in a GPU setting - we read xi into shared memory with ghostcells
+        # Additional cutoff number of ghost cells required to calculate SOAR contribution
         ny_halo = int(self.coarse_ny + (2 + self.cutoff)*2)
         nx_halo = int(self.coarse_nx + (2 + self.cutoff)*2)
         local_xi = np.zeros((ny_halo, nx_halo))
@@ -442,6 +473,7 @@ class OceanStateNoise(object):
                 
         # Sync threads
         
+        # Allocate output buffer
         Qxi = np.zeros((self.coarse_ny+4, self.coarse_nx+4))
         for a_y in range(self.coarse_ny+4):
             for a_x in range(self.coarse_nx+4):
@@ -471,9 +503,12 @@ class OceanStateNoise(object):
     
     
     def _obtainOceanPerturbations_CPU(self, H, f, beta, g):
-        d_eta = self._applyQ_CPU()
-        # d_eta.shape = (self.ny + 2, self.nx + 2)
         
+        # Obtain perturbed eta - size (coarse_ny+4, coarse_nx+4)
+        d_eta = self._applyQ_CPU()
+
+        # Interpolate if the coarse grid is not the same as the computational grid
+        # d_eta then becomes (ny+4, nx+4)
         if self.interpolation_factor > 1:
             d_eta = self._interpolate_CPU(d_eta)
         
@@ -489,8 +524,6 @@ class OceanStateNoise(object):
         ### Find H_mid:
         # Read global H (def on intersections) to local, find H_mid
         # The local memory can then be reused to something else (perhaps use local_d_eta before computing local_d_eta?)
-        #
-        # Here, we just set it to 10
         H_mid = np.zeros((self.ny, self.nx))
         for j in range(self.ny):
             for i in range(self.nx):
@@ -500,12 +533,12 @@ class OceanStateNoise(object):
         # Local sync
         ####
 
-        
+        # Compute geostrophically balanced (hu, hv) for each cell within the domain
         for j in range(0, self.ny):
-            local_j = j + 2
+            local_j = j + 2     # index in d_eta buffer
             coriolis = f + beta*local_j*self.dy
             for i in range(0, self.nx):
-                local_i = i + 2
+                local_i = i + 2    # index in d_eta buffer
                 h_mid = d_eta[local_j,local_i] + H_mid[j, i]
                 
                 ##############
@@ -546,9 +579,11 @@ class OceanStateNoise(object):
         min_rel_y = 10
         max_rel_y = -10
         
+        # Loop over internal cells and first ghost cell layer.
         for loc_j in range(self.ny+2):
             for loc_i in range(self.nx+2):
                 
+                # index in resulting d_eta buffer
                 i = loc_i + 1
                 j = loc_j + 1
 
@@ -557,8 +592,11 @@ class OceanStateNoise(object):
                 y = (j - 2 + 0.5)*self.dy
 
                 # Location in coarse grid (defined in course grid's cell centers)
+                # (coarse_i, coarse_j) is the first coarse grid point towards lower left.
                 coarse_i = int(np.floor(x/self.coarse_dx + 2 - 0.5))
                 coarse_j = int(np.floor(y/self.coarse_dy + 2 - 0.5))
+                
+                # Position of the coarse grid point
                 coarse_x = (coarse_i - 2 + 0.5)*self.coarse_dx
                 coarse_y = (coarse_j - 2 + 0.5)*self.coarse_dy
                 

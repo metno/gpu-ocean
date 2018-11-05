@@ -44,7 +44,7 @@ class OceanStateNoiseTest(unittest.TestCase):
 
         # Total number of threads should be: 16, 32, 48, 64
         # Corresponding to the number of blocks: 1, 2, 3, 4
-        self.glob_size_x = 2
+        self.glob_size_x = 3
         self.glob_size_y = 3
         self.glob_size_x_nonperiodic = 3
         self.glob_size_y_nonperiodic = 3
@@ -143,7 +143,7 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.assertEqual(self.noise.seed_nx, self.nx/2)
         self.assertEqual(self.noise.seed_ny, self.ny)
 
-        self.assertEqual(self.noise.global_size_noise, (self.glob_size_x, self.glob_size_y))
+        self.assertEqual(self.noise.global_size_SOAR, (self.glob_size_x, self.glob_size_y))
         self.assertEqual(self.noise.global_size_random_numbers, (self.glob_size_random_x, self.glob_size_y))
 
         self.compare_random(6, "test_init_periodic_nonstaggered")
@@ -158,7 +158,7 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.assertEqual(self.noise.seed_nx, self.nx/2)
         self.assertEqual(self.noise.seed_ny, self.ny)
 
-        self.assertEqual(self.noise.global_size_noise, (self.glob_size_x, self.glob_size_y))
+        self.assertEqual(self.noise.global_size_SOAR, (self.glob_size_x, self.glob_size_y))
         self.assertEqual(self.noise.global_size_random_numbers, (self.glob_size_random_x, self.glob_size_y))
 
         self.compare_random(6, "test_init_periodic_staggered")
@@ -173,7 +173,7 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.assertEqual(self.noise.seed_nx, self.nx_nonPeriodic/2)
         self.assertEqual(self.noise.seed_ny, self.ny_nonPeriodic)        
 
-        self.assertEqual(self.noise.global_size_noise, (self.glob_size_x_nonperiodic, self.glob_size_y_nonperiodic))
+        self.assertEqual(self.noise.global_size_SOAR, (self.glob_size_x_nonperiodic, self.glob_size_y_nonperiodic))
         self.assertEqual(self.noise.global_size_random_numbers, (self.glob_size_random_x_nonperiodic, self.glob_size_y_nonperiodic))
 
         self.compare_random(6, "test_init_non_periodi_nonstaggered")
@@ -187,7 +187,7 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.assertEqual(self.noise.seed_nx, self.nx_nonPeriodic/2)
         self.assertEqual(self.noise.seed_ny, self.ny)        
 
-        self.assertEqual(self.noise.global_size_noise, (self.glob_size_x_nonperiodic, self.glob_size_y))
+        self.assertEqual(self.noise.global_size_SOAR, (self.glob_size_x_nonperiodic, self.glob_size_y))
         self.assertEqual(self.noise.global_size_random_numbers, (self.glob_size_random_x_nonperiodic, self.glob_size_y))
 
         self.compare_random(6, "test_init_periodiNS_nonstaggered")
@@ -201,7 +201,7 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.assertEqual(self.noise.seed_nx, self.nx/2)
         self.assertEqual(self.noise.seed_ny, self.ny_nonPeriodic)        
 
-        self.assertEqual(self.noise.global_size_noise, (self.glob_size_x, self.glob_size_y_nonperiodic))
+        self.assertEqual(self.noise.global_size_SOAR, (self.glob_size_x, self.glob_size_y_nonperiodic))
         self.assertEqual(self.noise.global_size_random_numbers, (self.glob_size_random_x, self.glob_size_y_nonperiodic))
 
         self.compare_random(6, "test_init_periodiEW_nonstaggered")

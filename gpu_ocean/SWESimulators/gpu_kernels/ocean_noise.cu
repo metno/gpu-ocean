@@ -187,24 +187,30 @@ __global__ void SOAR(
         float* coarse_ptr_, const int coarse_pitch_
     ) {
 
+    // Find this thread's indices
+    // Note that we write to the both internal cells and ghost cells
+    // Total number of threads for this kernel is (nx+4, ny+4).
+    
     //Index of cell within block
     const int tx = threadIdx.x; 
     const int ty = threadIdx.y;
 
-    //Index of start of block within domain
+    //Index of start of block in the coarse buffer
     const int bx = blockDim.x * blockIdx.x;
     const int by = blockDim.y * blockIdx.y;
 
-    //Index of cell within domain
+    //Index of cell in the coarse buffer
     const int ti = bx + tx;
     const int tj = by + ty;
 
     const int cutoff = 2;
 
     // Local storage for xi (the random numbers)
+    // Two ghost cells required for the SOAR stencil
     __shared__ float xi[block_height+4][block_width+4];
 
     // Read random numbers into local memory, using periodic BCs if needed:
+    // In order to globally write (nx+4, ny+4) values, we need to read (nx+8, ny+8) values.
     for (int j = ty; j < block_height+4; j += blockDim.y) {
         int global_j = 0;
         if (periodic_north_south_) {
@@ -232,8 +238,8 @@ __global__ void SOAR(
     __syncthreads();
     
     
-    // Compute d_eta using the SOAR covariance function, and store in global memory
-    // All reads are from local memory
+    // Compute d_eta using the SOAR covariance function, and store in global memory.
+    // All reads are from local memory, and each thread loops over all cells within the cutoff area.
     const int a_x = tx + cutoff;
     const int a_y = ty + cutoff;
     float Qxi = 0.0f;
@@ -245,7 +251,7 @@ __global__ void SOAR(
         }
     }
 
-    // Evaluate geostrophic balance and write eta, hu and hv to global memory
+    // Write eta to global memory
     if ((ti < nx_+4) && (tj < ny_+4)) {
 
         //Compute pointer to current row in the coarse array
@@ -306,6 +312,7 @@ __global__ void geostrophicBalance(
 
 
     // Use shared memory for d_eta to compute H_mid for given thread id
+    // Read H on cell intersections 
     for (int j = ty; j < block_height+1; j += blockDim.y) {
         const int global_j = clamp(by+j, 0, ny_+4);
         float* const Hi_row = (float*) ((char*) Hi_ptr_ + Hi_pitch_*(global_j));
@@ -317,12 +324,14 @@ __global__ void geostrophicBalance(
     
     __syncthreads();
     
+    // Reconstruct H in cell center
     const float H_mid = 0.25f*(d_eta[ty  ][tx] + d_eta[ty  ][tx+1] +
                                d_eta[ty+1][tx] + d_eta[ty+1][tx+1]   );
     
     __syncthreads();
     
     // Read d_eta from coarse_buffer into shared memory
+    // One layer of ghost cells are required for central differences leading to hu and hv 
     for (int j = ty; j < block_height+2; j += blockDim.y) {
         
         const int global_j = clamp(by+j-1, 0, ny_+3);
@@ -344,6 +353,7 @@ __global__ void geostrophicBalance(
         float* const hu_row  = (float*) ((char*) hu_ptr_  + hu_pitch_*(tj));
         float* const hv_row = (float*) ((char*)  hv_ptr_ + hv_pitch_*(tj));
         
+        // Indices within the eta shared memory
         const int eta_tx = tx+1;
         const int eta_ty = ty+1;
 
@@ -443,6 +453,7 @@ __global__ void bicubicInterpolation(
     
     __syncthreads();
     
+    // reconstruct H at cell center
     const float H_mid = 0.25f*(coarse[ty  ][tx] + coarse[ty  ][tx+1] +
                                coarse[ty+1][tx] + coarse[ty+1][tx+1]   );
     
@@ -454,12 +465,14 @@ __global__ void bicubicInterpolation(
     const int bx_x = (bx - ghost_cells_x_ + 0.5)*dx_;
     const int by_y = (by - ghost_cells_y_ + 0.5)*dy_;
 
-    
+    // The start of the coarse buffer which needs to be read into shared memory.
+    // The coarse buffer has two layers of ghost cells.
     const int coarse_bx = (int)(floorf((bx_x/coarse_dx_) + coarse_ghost_cells_x_ - 2.5f));
     const int coarse_by = (int)(floorf((by_y/coarse_dy_) + coarse_ghost_cells_y_ - 2.5f));
-    // We subtracted the one to account for the stencil size
 
-    // Read d_eta from coarse_buffer into shared memory
+    // Read d_eta from coarse_buffer into shared memory.
+    // For very small blocks which is particularly bad alligned with the coarse grid,
+    // we need the following amount of data from the coarse grid:
     for (int j = ty; j < block_height+6; j += blockDim.y) {
         
         const int global_j = clamp(coarse_by+j, 0, coarse_ny_+3);
@@ -477,10 +490,13 @@ __global__ void bicubicInterpolation(
     int min_val = 10000;
     int max_val = -10000;
     
-    // Carry out bicubic interpolation and write d_eta to shmem
+    // Carry out bicubic interpolation and write d_eta to shmem.
+    // We calulate d_eta for all threads within the block plus one layer of ghost cells, so that
+    // geostrophic balance can be found for the cell in the block.
     for (int j = ty; j < block_height+2; j += blockDim.y) {
         for (int i = tx; i < block_width+2; i += blockDim.x) {
             
+            // Thread index in the global fine domain
             const int loop_ti = bx + i - 1;
             const int loop_tj = by + j - 1;
 
@@ -503,7 +519,7 @@ __global__ void bicubicInterpolation(
                 coarse_j -= 1;
             }
 
-            
+            // Location of the grid point on the coarse grid.
             const float coarse_x = (coarse_i - coarse_ghost_cells_x_ + 0.5f)*coarse_dx_;
             const float coarse_y = (coarse_j - coarse_ghost_cells_y_ + 0.5f)*coarse_dy_;
 
@@ -514,45 +530,56 @@ __global__ void bicubicInterpolation(
             min_val = min(min_val, min(loc_i-1, loc_j-1));
             max_val = max(max_val, max(loc_i-1, loc_j-1));
            
+            //---------------------------------
             // Read values for interpolation
+            //---------------------------------
+            
+            // Corner point values
             const float f00 = coarse[loc_j  ][loc_i  ];
             const float f01 = coarse[loc_j+1][loc_i  ];
             const float f10 = coarse[loc_j  ][loc_i+1];
             const float f11 = coarse[loc_j+1][loc_i+1];
 
+            // Derivatives in x-direction in the corner points
             const float fx00 = (coarse[loc_j  ][loc_i+1] - coarse[loc_j  ][loc_i-1])/2.0f;
             const float fx01 = (coarse[loc_j+1][loc_i+1] - coarse[loc_j+1][loc_i-1])/2.0f;
             const float fx10 = (coarse[loc_j  ][loc_i+2] - coarse[loc_j  ][loc_i  ])/2.0f;
             const float fx11 = (coarse[loc_j+1][loc_i+2] - coarse[loc_j+1][loc_i  ])/2.0f;
 
+            // Derivatives in y-direction in the corner points
             const float fy00 = (coarse[loc_j+1][loc_i  ] - coarse[loc_j-1][loc_i  ])/2.0f;
             const float fy01 = (coarse[loc_j+2][loc_i  ] - coarse[loc_j  ][loc_i  ])/2.0f;
             const float fy10 = (coarse[loc_j+1][loc_i+1] - coarse[loc_j-1][loc_i+1])/2.0f;
             const float fy11 = (coarse[loc_j+2][loc_i+1] - coarse[loc_j  ][loc_i+1])/2.0f;
 
+            // Derivatives in y-direction required for obtaining the cross derivatives
             const float fy_10 = (coarse[loc_j+1][loc_i-1] - coarse[loc_j-1][loc_i-1])/2.0f;
             const float fy_11 = (coarse[loc_j+2][loc_i-1] - coarse[loc_j  ][loc_i-1])/2.0f;
             const float fy20  = (coarse[loc_j+1][loc_i+2] - coarse[loc_j-1][loc_i+2])/2.0f;
             const float fy21  = (coarse[loc_j+2][loc_i+2] - coarse[loc_j  ][loc_i+2])/2.0f;
 
+            // Cross-derivatives in the corner points = x-derivatives of wide y-derivatives
             const float fxy00 = (fy10 - fy_10)/2.0f;
             const float fxy01 = (fy11 - fy_11)/2.0f;
             const float fxy10 = (fy20 -  fy00)/2.0f;
             const float fxy11 = (fy21 -  fy01)/2.0f;
 
 
-            // Map (x,y) onto the unit square
+            // Map cell center position (x,y) onto the unit square
             const float rel_x = (x - coarse_x)/coarse_dx_;
             const float rel_y = (y - coarse_y)/coarse_dy_;
 
+            //Bilinear interpolation (kept for future reference)
             //const float bi_linear_eta = f00*(1.0f-rel_x)*(1.0f-rel_y) + f10*rel_x*(1.0f-rel_y) + f01*(1.0f-rel_x)*rel_y + f11*rel_x*rel_y;
 
+            // Structure the values and derivatives in a matrix
             Matrix4x4_d f_matrix;
             f_matrix.m_row[0] = make_float4( f00,  f01,  fy00,  fy01);
             f_matrix.m_row[1] = make_float4( f10,  f11,  fy10,  fy11);
             f_matrix.m_row[2] = make_float4(fx00, fx01, fxy00, fxy01);
             f_matrix.m_row[3] = make_float4(fx10, fx11, fxy10, fxy11);
 
+            // Obtain the coefficients for the bicubic surface
             Matrix4x4_d a_matrix = bicubic_interpolation_coefficients(f_matrix);
 
             const float4 x_vec = make_float4(1.0f, rel_x, rel_x*rel_x, rel_x*rel_x*rel_x);
@@ -567,6 +594,7 @@ __global__ void bicubicInterpolation(
     // Obtain geostrophic balance and add results to global memory
     if ( (ti > 1) && (tj > 1) && (ti < nx_+2) && (tj < ny_+2)) {
 
+        // Indices within the d_eta shared memory
         const int eta_tx = tx + 1;
         const int eta_ty = ty + 1;
         
