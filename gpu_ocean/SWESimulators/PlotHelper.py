@@ -134,7 +134,18 @@ class PlotHelper:
                 plt.legend()
         
         
-        
+   
+
+    @classmethod
+    def fromsim(cls, sim, fig):
+        x_center = sim.dx*(sim.nx)/2.0
+        y_center = sim.dy*(sim.ny)/2.0
+        y_coords, x_coords = np.mgrid[0:(sim.ny+20)*sim.dy:sim.dy, 0:(sim.nx+20)*sim.dx:sim.dx]
+        x_coords = np.subtract(x_coords, x_center)
+        y_coords = np.subtract(y_coords, y_center)
+        radius = np.sqrt(np.multiply(x_coords, x_coords) + np.multiply(y_coords, y_coords))
+        eta, hu, hv = sim.download(interior_domain_only=True)
+        return cls( fig, x_coords, y_coords, radius, eta, hu, hv)
         
         
     def plot(self, eta1, u1, v1, eta2=None, u2=None, v2=None):

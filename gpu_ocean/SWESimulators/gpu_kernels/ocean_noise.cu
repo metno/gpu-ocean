@@ -114,11 +114,11 @@ extern "C" {
 __global__ void normalDistribution(
         // Size of data
         int seed_nx_, int seed_ny_,
-        int random_nx_, 
+        int random_nx_,               // random_ny_ is equal to seed_ny_
         
         //Data
-        unsigned long long* seed_ptr_, int seed_pitch_,
-        float* random_ptr_, int random_pitch_
+        unsigned long long* seed_ptr_, int seed_pitch_, // size [seed_nx, seed_ny]
+        float* random_ptr_, int random_pitch_           // size [random_nx, seed_ny]
     ) {
     
     //Index of cell within domain
@@ -162,19 +162,16 @@ __device__ float soar_covariance(int a_x, int a_y, int b_x, int b_y,
 
 
 /**
-  * Kernel that adds a perturbation to the input field eta.
+  * Kernel that generates a perturbation of the eta field on the coarse grid.
   * The perturbation is based on a SOAR covariance function using a cut-off value of 2.
+  * The result is according to the use of periodic boundary conditions
   */
 extern "C" {
-__global__ void perturbOcean(
+__global__ void SOAR(
         // Size of data
-        int nx_, int ny_,
-        float dx_, float dy_,
-        int ghost_cells_x_, int ghost_cells_y_,
-        
-        // physical parameters
-        float g_, float f_, float beta_, float y0_reference_cell_,
-        
+        const int nx_, const int ny_,
+        const float dx_, const float dy_,
+                
         // Parameter for the SOAR function
         float soar_q0_, float soar_L_, 
 
@@ -182,16 +179,123 @@ __global__ void perturbOcean(
         float perturbation_scale_,
         
         // Periodic domain
-        int periodic_north_south_, int periodic_east_west_,
+        const int periodic_north_south_, const int periodic_east_west_,
         
-        // random data
-        float* random_ptr_, int random_pitch_,
+        // random data (input) - if periodic BC: size [nx, ny]
+        //                       else:           size [nx + 8, ny + 8]
+        float* random_ptr_, const int random_pitch_,
 
-        // Ocean data
-        float* eta_ptr_, int eta_pitch_,
-        float* hu_ptr_, int hu_pitch_,
-        float* hv_ptr_, int hv_pitch_,
-        float* Hi_ptr_, int Hi_pitch_
+        // Coarse grid data variable (output) - size [nx+4, ny+4]
+        // Write to all cells
+        float* coarse_ptr_, const int coarse_pitch_
+    ) {
+
+    // Find this thread's indices
+    // Note that we write to the both internal cells and ghost cells
+    // Total number of threads for this kernel is (nx+4, ny+4).
+    
+    //Index of cell within block
+    const int tx = threadIdx.x; 
+    const int ty = threadIdx.y;
+
+    //Index of start of block in the coarse buffer
+    const int bx = blockDim.x * blockIdx.x;
+    const int by = blockDim.y * blockIdx.y;
+
+    //Index of cell in the coarse buffer
+    const int ti = bx + tx;
+    const int tj = by + ty;
+
+    const int cutoff = 2;
+
+    // Local storage for xi (the random numbers)
+    // Two ghost cells required for the SOAR stencil
+    __shared__ float xi[block_height+4][block_width+4];
+
+    // Read random numbers into local memory, using periodic BCs if needed:
+    // In order to globally write (nx+4, ny+4) values, we need to read (nx+8, ny+8) values.
+    for (int j = ty; j < block_height+4; j += blockDim.y) {
+        int global_j = 0;
+        if (periodic_north_south_) {
+            global_j = (by + j - cutoff - 2 + ny_) % ny_;
+        } else {
+            global_j = clamp(by + j, 0, ny_+8);
+        }
+        
+        float* const random_row = (float*) ((char*) random_ptr_ + random_pitch_*global_j);
+        
+        for (int i = tx; i < block_width+4; i += blockDim.x) {
+        
+            int global_i = 0;
+            
+            if (periodic_east_west_) {
+                global_i = (bx + i - cutoff - 2 + nx_) % nx_;
+            } else {
+                global_i = clamp(bx + i, 0, nx_+8);
+            }
+            
+            xi[j][i] = random_row[global_i];
+        }
+    }
+
+    __syncthreads();
+    
+    
+    // Compute d_eta using the SOAR covariance function, and store in global memory.
+    // All reads are from local memory, and each thread loops over all cells within the cutoff area.
+    const int a_x = tx + cutoff;
+    const int a_y = ty + cutoff;
+    float Qxi = 0.0f;
+    for (int b_y = ty; b_y < a_y + cutoff + 1; b_y++) {
+        for (int b_x = tx; b_x < a_x + cutoff + 1; b_x++) {
+            const float Q = soar_covariance(a_x, a_y, b_x, b_y,
+                                            dx_, dy_, soar_q0_, soar_L_);
+            Qxi += Q*xi[b_y][b_x];
+        }
+    }
+
+    // Write eta to global memory
+    if ((ti < nx_+4) && (tj < ny_+4)) {
+
+        //Compute pointer to current row in the coarse array
+        float* coarse_row = (float*) ((char*) coarse_ptr_ + coarse_pitch_*(tj));
+        coarse_row[ti] = perturbation_scale_ * Qxi;
+    }
+}
+} // extern "C"
+
+
+
+
+
+/**
+  * Kernel that adds a perturbation to the input fields eta, hu and hv.
+  * The kernel assumes that the coarse grid is equal to the computational grid, and the 
+  * values from the coarse grid can therefore be added to eta directly.
+  * In order to avoid non-physical states and shock solutions, perturbations for hu and hv
+  * are generated according to the geostrophic balance.
+  */
+extern "C" {
+__global__ void geostrophicBalance(
+        // Size of data
+        const int nx_, const int ny_,
+        const float dx_, const float dy_,
+        const int ghost_cells_x_, const int ghost_cells_y_,
+
+        // physical parameters
+        const float g_, const float f_, const float beta_, const float y0_reference_cell_,
+        
+        // d_eta values (coarse grid) - size [nx + 4, ny + 4]
+        float* coarse_ptr_, const int coarse_pitch_,
+    
+        // Ocean data variables - size [nx + 4, ny + 4]
+        // Write to interior cells only,  [2:nx+2, 2:ny+2]
+        float* eta_ptr_, const int eta_pitch_,
+        float* hu_ptr_, const int hu_pitch_,
+        float* hv_ptr_, const int hv_pitch_,
+
+        // Ocean data parameter - size [nx + 5, ny + 5]
+        float* Hi_ptr_, const int Hi_pitch_
     ) {
 
     //Index of cell within block
@@ -199,114 +303,324 @@ __global__ void perturbOcean(
     const int ty = threadIdx.y;
 
     //Index of start of block within domain
-    const int bx = blockDim.x * blockIdx.x;
-    const int by = blockDim.y * blockIdx.y;
+    const int bx = blockDim.x * blockIdx.x + ghost_cells_x_; // Compansating for ghost cells
+    const int by = blockDim.y * blockIdx.y + ghost_cells_y_; // Compensating for ghost cells
 
     //Index of cell within domain
     const int ti = bx + tx;
     const int tj = by + ty;
 
-    const int cutoff = 2;
-
-    // Local storage for xi (the random numbers)
-    __shared__ float xi[block_height+6][block_width+6];
-
-    // Local storage for d_eta (also used for H)
+    // Shared memory for d_eta (also used for H)
     __shared__ float d_eta[block_height+2][block_width+2];
 
 
-    // Use local memory for d_eta to compute H_mid for given thread id
+    // Use shared memory for d_eta to compute H_mid for given thread id
+    // Read H on cell intersections 
     for (int j = ty; j < block_height+1; j += blockDim.y) {
-        const int global_j = clamp(by+j, 0, ny_+1);
-        float* const Hi_row = (float*) ((char*) Hi_ptr_ + Hi_pitch_*(global_j+ghost_cells_y_));
+        const int global_j = clamp(by+j, 0, ny_+4);
+        float* const Hi_row = (float*) ((char*) Hi_ptr_ + Hi_pitch_*(global_j));
         for (int i = tx; i < block_width+1; i += blockDim.x) {
-            const int global_i = clamp(bx+i, 0, nx_+1);
-            d_eta[j][i] = Hi_row[global_i+ghost_cells_x_];
+            const int global_i = clamp(bx+i, 0, nx_+4);
+            d_eta[j][i] = Hi_row[global_i];
         }
     }
     
     __syncthreads();
     
+    // Reconstruct H in cell center
     const float H_mid = 0.25f*(d_eta[ty  ][tx] + d_eta[ty  ][tx+1] +
-                              d_eta[ty+1][tx] + d_eta[ty+1][tx+1]   );
+                               d_eta[ty+1][tx] + d_eta[ty+1][tx+1]   );
     
-    // Read random numbers into local memory:
-    for (int j = ty; j < block_height+6; j += blockDim.y) {
-        int global_j = 0;
-        if (periodic_north_south_) {
-            global_j = (by + j - cutoff - 1 + ny_) % ny_;
-        } else {
-            global_j = clamp(by + j, 0, ny_+6);
-        }
-        float* const random_row = (float*) ((char*) random_ptr_ + random_pitch_*global_j);
-        for (int i = tx; i < block_width+6; i += blockDim.x) {
-            int global_i = 0;
-            if (periodic_east_west_) {
-                global_i = (bx + i - cutoff - 1 + nx_) % nx_;
-            } else {
-                global_i = clamp(bx + i, 0, nx_+6);
-            }
-            xi[j][i] = random_row[global_i];
-        }
-    }
-
     __syncthreads();
-
-    // Compute d_eta using the SOAR covariance function, and store in local memory
-    // All reads are from local memory
+    
+    // Read d_eta from coarse_buffer into shared memory
+    // One layer of ghost cells are required for central differences leading to hu and hv 
     for (int j = ty; j < block_height+2; j += blockDim.y) {
-        for(int i = tx; i < block_width+2; i += blockDim.x) {
-            const int a_x = i + cutoff;
-            const int a_y = j + cutoff;
-            int b_x = i;
-            int b_y = j;
-            float Qxi = 0.0f;
-            for (int b_y = j; b_y < a_y + cutoff + 1; b_y++) {
-                for (int b_x = i; b_x < a_x + cutoff + 1; b_x++) {
-                    const float Q = soar_covariance(a_x, a_y, b_x, b_y,
-                                                    dx_, dy_, soar_q0_, soar_L_);
-                    Qxi += Q*xi[b_y][b_x];
-                }
-            }
-            d_eta[j][i] = Qxi;
+        
+        const int global_j = clamp(by+j-1, 0, ny_+3);
+        float* const coarse_row = (float*) ((char*) coarse_ptr_ + coarse_pitch_*(global_j));
+        
+        for (int i = tx; i < block_width+2; i += blockDim.x) {
+            const int global_i = clamp(bx+i-1, 0, nx_+3);
+            d_eta[j][i] = coarse_row[global_i];
         }
     }
-
+    
     __syncthreads();
 
     // Evaluate geostrophic balance and write eta, hu and hv to global memory
-    if ((ti < nx_) && (tj < ny_)) {
+    if ( (ti > 1) && (tj > 1) && (ti < nx_+2) && (tj < ny_+2)) {
 
         //Compute pointer to current row in the U array
-        float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*(tj+ghost_cells_y_));
-        float* const hu_row  = (float*) ((char*) hu_ptr_  + hu_pitch_*(tj+ghost_cells_y_));
-        float* const hv_row = (float*) ((char*)  hv_ptr_ + hv_pitch_*(tj+ghost_cells_y_));
+        float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*(tj));
+        float* const hu_row  = (float*) ((char*) hu_ptr_  + hu_pitch_*(tj));
+        float* const hv_row = (float*) ((char*)  hv_ptr_ + hv_pitch_*(tj));
         
+        // Indices within the eta shared memory
         const int eta_tx = tx+1;
         const int eta_ty = ty+1;
 
-        const float coriolis = f_ + beta_*(tj - y0_reference_cell_ + ghost_cells_y_)*dy_;
+        const float coriolis = f_ + beta_*(tj - y0_reference_cell_)*dy_;
 
         // Total water depth in the given cell (H + eta + d_eta)
-        const float h_mid = d_eta[eta_ty][eta_tx] + H_mid + eta_row[ti+ghost_cells_x_];
+        const float h_mid = d_eta[eta_ty][eta_tx] + H_mid + eta_row[ti];
 
         // Slope of perturbation of eta
-        const float eta_diff_x = (d_eta[eta_ty][eta_tx+1] - d_eta[eta_ty][eta_tx-1]) / (2.0f*dx_);
-        const float eta_diff_y = (d_eta[eta_ty+1][eta_tx] - d_eta[eta_ty-1][eta_tx]) / (2.0f*dy_);
+        const float eta_diff_x = (d_eta[eta_ty  ][eta_tx+1] - d_eta[eta_ty  ][eta_tx-1]) / (2.0f*dx_);
+        const float eta_diff_y = (d_eta[eta_ty+1][eta_tx  ] - d_eta[eta_ty-1][eta_tx  ]) / (2.0f*dy_);
 
         // perturbation of hu and hv
         const float d_hu = -(g_/coriolis)*h_mid*eta_diff_y;
         const float d_hv =  (g_/coriolis)*h_mid*eta_diff_x;        
 
         if (true) {
-            eta_row[ti+ghost_cells_x_] += perturbation_scale_ * d_eta[ty+1][tx+1];
-             hu_row[ti+ghost_cells_x_] += perturbation_scale_ * d_hu;
-             hv_row[ti+ghost_cells_x_] += perturbation_scale_ * d_hv;
+            eta_row[ti+ghost_cells_x_] += d_eta[ty+1][tx+1];
+             hu_row[ti+ghost_cells_x_] += d_hu;
+             hv_row[ti+ghost_cells_x_] += d_hv;
         } else {
-            eta_row[ti+ghost_cells_x_] = d_eta[ty+1][tx+1];
-            hu_row[ti+ghost_cells_x_] = d_hu;
-            hv_row[ti+ghost_cells_x_] = d_hv;
+            eta_row[ti] = d_eta[eta_ty][eta_tx];
+            hu_row[ti] = d_hu;
+            hv_row[ti] = d_hv;
         }
+    }
+}
+} // extern "C"
+
+
+
+
+/**
+  * Kernel that adds a perturbation to the input fields eta, hu and hv.
+  * The kernel use a bicubic interpolation to transfer values from the coarse grid to the
+  * computational grid. Since the derivatives of the eta field are known during the interpolation,
+  * hu and hv are assigned their appropriate geostrophically balanced values directly.
+  */
+extern "C" {
+__global__ void bicubicInterpolation(
+        // Size of computational data
+        const int nx_, const int ny_,
+        const int ghost_cells_x_, const int ghost_cells_y_,
+        const float dx_, const float dy_,
+    
+        // Size of coarse data
+        const int coarse_nx_, const int coarse_ny_,
+        const int coarse_ghost_cells_x_, const int coarse_ghost_cells_y_,
+        const float coarse_dx_, const float coarse_dy_,
+    
+        // physical parameters
+        const float g_, const float f_, const float beta_, const float y0_reference_cell_,
+        
+        // d_eta values (coarse grid) - size [nx + 4, ny + 4]
+        float* coarse_ptr_, const int coarse_pitch_,
+    
+        // Ocean data variables - size [nx + 4, ny + 4]
+        // Write to interior cells only,  [2:nx+2, 2:ny+2]
+        float* eta_ptr_, const int eta_pitch_,
+        float* hu_ptr_, const int hu_pitch_,
+        float* hv_ptr_, const int hv_pitch_,
+
+        // Ocean data parameter - size [nx + 5, ny + 5]
+        float* Hi_ptr_, const int Hi_pitch_
+    ) {
+    
+    // Each thread is responsible for one grid point in the computational grid.
+    // Due to central differences of d_eta needed for geostrophic balance, we 
+    // interpolate with a halo of 1 cell in all directions for eta.
+    
+    //Index of cell within block
+    const int tx = threadIdx.x; 
+    const int ty = threadIdx.y;
+
+    //Index of start of block within domain
+    const int bx = blockDim.x * blockIdx.x + ghost_cells_x_; // Compansating for ghost cells
+    const int by = blockDim.y * blockIdx.y + ghost_cells_y_; // Compensating for ghost cells
+
+    //Index of cell within domain
+    const int ti = bx + tx;
+    const int tj = by + ty;
+
+    // Shared memory for H and the coarse values
+    __shared__ float coarse[block_height+6][block_width+6];
+    __shared__ float d_eta[block_height+2][block_width+2];
+    
+
+    // Use shared memory for coarse to read H_i for given thread id
+    for (int j = ty; j < block_height+1; j += blockDim.y) {
+        const int global_j = clamp(by+j, 0, ny_+4);
+        float* const Hi_row = (float*) ((char*) Hi_ptr_ + Hi_pitch_*(global_j));
+        for (int i = tx; i < block_width+1; i += blockDim.x) {
+            const int global_i = clamp(bx+i, 0, nx_+4);
+            coarse[j][i] = Hi_row[global_i];
+        }
+    }
+    
+    __syncthreads();
+    
+    // reconstruct H at cell center
+    const float H_mid = 0.25f*(coarse[ty  ][tx] + coarse[ty  ][tx+1] +
+                               coarse[ty+1][tx] + coarse[ty+1][tx+1]   );
+    
+    __syncthreads();
+    
+    
+    // Find coarse index for thread (0,0). All threads need to know this in order to read
+    // coarse data correctly into coarse shmem.
+    const int bx_x = (bx - ghost_cells_x_ + 0.5)*dx_;
+    const int by_y = (by - ghost_cells_y_ + 0.5)*dy_;
+
+    // The start of the coarse buffer which needs to be read into shared memory.
+    // The coarse buffer has two layers of ghost cells.
+    const int coarse_bx = (int)(floorf((bx_x/coarse_dx_) + coarse_ghost_cells_x_ - 2.5f));
+    const int coarse_by = (int)(floorf((by_y/coarse_dy_) + coarse_ghost_cells_y_ - 2.5f));
+
+    // Read d_eta from coarse_buffer into shared memory.
+    // For very small blocks which is particularly bad alligned with the coarse grid,
+    // we need the following amount of data from the coarse grid:
+    for (int j = ty; j < block_height+6; j += blockDim.y) {
+        
+        const int global_j = clamp(coarse_by+j, 0, coarse_ny_+3);
+        float* const coarse_row = (float*) ((char*) coarse_ptr_ + coarse_pitch_*(global_j));
+        
+        for (int i = tx; i < block_width+6; i += blockDim.x) {
+            
+            const int global_i = clamp(coarse_bx+i, 0, coarse_nx_+3);
+            coarse[j][i] = coarse_row[global_i];
+        }
+    }
+    __syncthreads();    
+        
+    
+    int min_val = 10000;
+    int max_val = -10000;
+    
+    // Carry out bicubic interpolation and write d_eta to shmem.
+    // We calulate d_eta for all threads within the block plus one layer of ghost cells, so that
+    // geostrophic balance can be found for the cell in the block.
+    for (int j = ty; j < block_height+2; j += blockDim.y) {
+        for (int i = tx; i < block_width+2; i += blockDim.x) {
+            
+            // Thread index in the global fine domain
+            const int loop_ti = bx + i - 1;
+            const int loop_tj = by + j - 1;
+
+            // Find coarse index for this thread
+            const float x = (loop_ti - ghost_cells_x_ + 0.5)*dx_;
+            const float y = (loop_tj - ghost_cells_y_ + 0.5)*dy_;
+            
+            // Location in the coarse grid:
+            int coarse_i = (int)(floorf((x/coarse_dx_) + coarse_ghost_cells_x_ - 0.5f));
+            int coarse_j = (int)(floorf((y/coarse_dy_) + coarse_ghost_cells_y_ - 0.5f));
+
+            // When interpolating onto the first ghostcell to the right and top of the domain,
+            // there exist a special case that results in reading outside of the coarse buffer.
+            // These if-statements fix that issue, while still resulting in valid code.
+            // This should give rel_x and/or rel_y equal to 1.0.
+            if (coarse_i > coarse_nx_ + 1 ) {
+                coarse_i -= 1;
+            }
+            if (coarse_j > coarse_ny_ + 1 ) {
+                coarse_j -= 1;
+            }
+
+            // Location of the grid point on the coarse grid.
+            const float coarse_x = (coarse_i - coarse_ghost_cells_x_ + 0.5f)*coarse_dx_;
+            const float coarse_y = (coarse_j - coarse_ghost_cells_y_ + 0.5f)*coarse_dy_;
+
+            // Location in coarse shmem:
+            const int loc_i = coarse_i - coarse_bx; // coarse_bx accounts for ghost cell already.
+            const int loc_j = coarse_j - coarse_by; 
+            
+            min_val = min(min_val, min(loc_i-1, loc_j-1));
+            max_val = max(max_val, max(loc_i-1, loc_j-1));
+           
+            //---------------------------------
+            // Read values for interpolation
+            //---------------------------------
+            
+            // Corner point values
+            const float f00 = coarse[loc_j  ][loc_i  ];
+            const float f01 = coarse[loc_j+1][loc_i  ];
+            const float f10 = coarse[loc_j  ][loc_i+1];
+            const float f11 = coarse[loc_j+1][loc_i+1];
+
+            // Derivatives in x-direction in the corner points
+            const float fx00 = (coarse[loc_j  ][loc_i+1] - coarse[loc_j  ][loc_i-1])/2.0f;
+            const float fx01 = (coarse[loc_j+1][loc_i+1] - coarse[loc_j+1][loc_i-1])/2.0f;
+            const float fx10 = (coarse[loc_j  ][loc_i+2] - coarse[loc_j  ][loc_i  ])/2.0f;
+            const float fx11 = (coarse[loc_j+1][loc_i+2] - coarse[loc_j+1][loc_i  ])/2.0f;
+
+            // Derivatives in y-direction in the corner points
+            const float fy00 = (coarse[loc_j+1][loc_i  ] - coarse[loc_j-1][loc_i  ])/2.0f;
+            const float fy01 = (coarse[loc_j+2][loc_i  ] - coarse[loc_j  ][loc_i  ])/2.0f;
+            const float fy10 = (coarse[loc_j+1][loc_i+1] - coarse[loc_j-1][loc_i+1])/2.0f;
+            const float fy11 = (coarse[loc_j+2][loc_i+1] - coarse[loc_j  ][loc_i+1])/2.0f;
+
+            // Derivatives in y-direction required for obtaining the cross derivatives
+            const float fy_10 = (coarse[loc_j+1][loc_i-1] - coarse[loc_j-1][loc_i-1])/2.0f;
+            const float fy_11 = (coarse[loc_j+2][loc_i-1] - coarse[loc_j  ][loc_i-1])/2.0f;
+            const float fy20  = (coarse[loc_j+1][loc_i+2] - coarse[loc_j-1][loc_i+2])/2.0f;
+            const float fy21  = (coarse[loc_j+2][loc_i+2] - coarse[loc_j  ][loc_i+2])/2.0f;
+
+            // Cross-derivatives in the corner points = x-derivatives of wide y-derivatives
+            const float fxy00 = (fy10 - fy_10)/2.0f;
+            const float fxy01 = (fy11 - fy_11)/2.0f;
+            const float fxy10 = (fy20 -  fy00)/2.0f;
+            const float fxy11 = (fy21 -  fy01)/2.0f;
+
+
+            // Map cell center position (x,y) onto the unit square
+            const float rel_x = (x - coarse_x)/coarse_dx_;
+            const float rel_y = (y - coarse_y)/coarse_dy_;
+
+            //Bilinear interpolation (kept for future reference)
+            //const float bi_linear_eta = f00*(1.0f-rel_x)*(1.0f-rel_y) + f10*rel_x*(1.0f-rel_y) + f01*(1.0f-rel_x)*rel_y + f11*rel_x*rel_y;
+
+            // Structure the values and derivatives in a matrix
+            Matrix4x4_d f_matrix;
+            f_matrix.m_row[0] = make_float4( f00,  f01,  fy00,  fy01);
+            f_matrix.m_row[1] = make_float4( f10,  f11,  fy10,  fy11);
+            f_matrix.m_row[2] = make_float4(fx00, fx01, fxy00, fxy01);
+            f_matrix.m_row[3] = make_float4(fx10, fx11, fxy10, fxy11);
+
+            // Obtain the coefficients for the bicubic surface
+            Matrix4x4_d a_matrix = bicubic_interpolation_coefficients(f_matrix);
+
+            const float4 x_vec = make_float4(1.0f, rel_x, rel_x*rel_x, rel_x*rel_x*rel_x);
+            const float4 y_vec = make_float4(1.0f, rel_y, rel_y*rel_y, rel_y*rel_y*rel_y);
+            
+            d_eta[j][i] = bicubic_evaluation(x_vec, y_vec, a_matrix);
+        }
+    }
+    
+    __syncthreads();
+    
+    // Obtain geostrophic balance and add results to global memory
+    if ( (ti > 1) && (tj > 1) && (ti < nx_+2) && (tj < ny_+2)) {
+
+        // Indices within the d_eta shared memory
+        const int eta_tx = tx + 1;
+        const int eta_ty = ty + 1;
+        
+        const float coriolis = f_ + beta_*(tj - y0_reference_cell_)*dy_;
+        
+         // Slope of perturbation of eta
+        const float eta_diff_x = (d_eta[eta_ty  ][eta_tx+1] - d_eta[eta_ty  ][eta_tx-1]) / (2.0f*dx_);
+        const float eta_diff_y = (d_eta[eta_ty+1][eta_tx  ] - d_eta[eta_ty-1][eta_tx  ]) / (2.0f*dy_);
+
+        // perturbation of hu and hv
+        const float d_hu = -(g_/coriolis)*(H_mid + d_eta[eta_ty][eta_tx])*eta_diff_y;
+        const float d_hv =  (g_/coriolis)*(H_mid + d_eta[eta_ty][eta_tx])*eta_diff_x;        
+
+        
+        
+        //Compute pointer to current row in the U array
+        float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*(tj));
+        float* const hu_row  = (float*) ((char*) hu_ptr_  + hu_pitch_*(tj));
+        float* const hv_row = (float*) ((char*)  hv_ptr_ + hv_pitch_*(tj));
+        
+        eta_row[ti] += d_eta[eta_ty][eta_tx];
+         hu_row[ti] += d_hu; 
+         hv_row[ti] += d_hv;
     }
 }
 } // extern "C"
