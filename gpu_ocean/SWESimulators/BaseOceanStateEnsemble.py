@@ -955,7 +955,7 @@ class BaseOceanStateEnsemble(object):
 
 
         # PLOT POSITIONS OF PARTICLES AND OBSERVATIONS
-        ax = plt.subplot2grid((plotRows,3), (0,0), polar=True, axisbg='#ffffff')
+        ax = plt.subplot2grid((plotRows,3), (0,0), polar=True)
         self._fillPolarPlot(ax, drifter_id=0, printInfo=printInfo)
 
         # PLOT DISCTRIBUTION OF PARTICLE DISTANCES AND THEORETIC OBSERVATION PDF
@@ -975,7 +975,7 @@ class BaseOceanStateEnsemble(object):
         ax1 = ax0.twinx()
         ax1.hist(innovations, bins=30, \
                  range=(0, range_x),\
-                 normed=True, label="particle innovations (norm)")
+                 density=True, label="particle innovations (norm)")
 
         # PLOT SORTED DISTANCES FROM OBSERVATION
         ax0 = plt.subplot2grid((plotRows,3), (1,0), colspan=3)
@@ -996,8 +996,8 @@ class BaseOceanStateEnsemble(object):
         plt.title("Sorted distances from observation")
 
         if self.driftersPerOceanModel > 1:
-            for drifter_id in range(1,min(4, self.driftersPerOceanModel)):
-                ax = plt.subplot2grid((plotRows,3), (2,drifter_id-1), polar=True, axisbg='#ffffff')
+            for drifter_id in range(0,min(3, self.driftersPerOceanModel)):
+                ax = plt.subplot2grid((plotRows,3), (2,drifter_id), polar=True)
                 self._fillPolarPlot(ax, drifter_id=drifter_id, printInfo=printInfo)
 
         if title is not None:

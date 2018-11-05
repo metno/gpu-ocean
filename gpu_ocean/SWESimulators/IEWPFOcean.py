@@ -211,7 +211,7 @@ class IEWPFOcean:
         each particle according to the IEWPF method.
         """
         # Step -1: Deterministic step
-        print "----------"
+        print ("----------")
         start_pre_loop = cuda.Event()
         start_pre_loop.record(self.master_stream)
                 
@@ -222,7 +222,7 @@ class IEWPFOcean:
         deterministic_step_event.record(self.master_stream)
         deterministic_step_event.synchronize()
         gpu_elapsed = deterministic_step_event.time_since(start_pre_loop)*1.0e-3
-        print "Deterministic timestep took: " + str(gpu_elapsed) 
+        print ("Deterministic timestep took: " + str(gpu_elapsed))
         
         # Step 0: Obtain innovations
         observed_drifter_positions = ensemble.observeTrueDrifters()
@@ -231,7 +231,7 @@ class IEWPFOcean:
         observe_drifters_event.record(self.master_stream)
         observe_drifters_event.synchronize()
         gpu_elapsed = observe_drifters_event.time_since(deterministic_step_event)*1.0e-3
-        print "Observing drifters took:     " + str(gpu_elapsed) 
+        print("Observing drifters took:     " + str(gpu_elapsed))
         
         
         innovations = ensemble.getInnovations()
@@ -239,7 +239,7 @@ class IEWPFOcean:
         innovations_event.record(self.master_stream)
         innovations_event.synchronize()
         gpu_elapsed = innovations_event.time_since(observe_drifters_event)*1.0e-3
-        print "innovations_event took:      " + str(gpu_elapsed) 
+        print("innovations_event took:      " + str(gpu_elapsed))
         
         w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
 
@@ -251,11 +251,11 @@ class IEWPFOcean:
         target_weight_event.record(self.master_stream)
         target_weight_event.synchronize()
         gpu_elapsed = target_weight_event.time_since(innovations_event)*1.0e-3
-        print "Finding target weight took:  " + str(gpu_elapsed) 
+        print("Finding target weight took:  " + str(gpu_elapsed))
         
         for p in range(ensemble.getNumParticles()):
-            print "----------"
-            print "Starting particle " + str(p)
+            print ("----------")
+            print ("Starting particle " + str(p))
             start_loop = cuda.Event()
             kalman_event = cuda.Event()
             p_event = cuda.Event()
@@ -270,7 +270,7 @@ class IEWPFOcean:
             kalman_event.record(self.master_stream)
             kalman_event.synchronize()
             gpu_elapsed = kalman_event.time_since(start_loop)*1.0e-3
-            print "Kalman gain took:   " + str(gpu_elapsed) 
+            print ("Kalman gain took:   " + str(gpu_elapsed))
             
             
             # Loop step 2: Sample xi \sim N(0, P), and get gamma in the process
@@ -279,7 +279,7 @@ class IEWPFOcean:
             p_event.record(self.master_stream)
             p_event.synchronize()
             gpu_elapsed = p_event.time_since(kalman_event)*1.0e-3
-            print "Sample from P took: " + str(gpu_elapsed) 
+            print ("Sample from P took: " + str(gpu_elapsed) )
             
             # Loop step 3: Solve implicit equation
             alpha = self.solveImplicitEquation(phi, gamma, target_weight, w_rest[p], particle_id=p)
@@ -294,10 +294,10 @@ class IEWPFOcean:
             add_scaled_event.record(self.master_stream)
             add_scaled_event.synchronize()
             gpu_elapsed = add_scaled_event.time_since(p_event)*1.0e-3
-            print "Add scaled xi took: " + str(gpu_elapsed) 
+            print ("Add scaled xi took: " + str(gpu_elapsed) )
             
-            print "Done particle " + str(p)
-            print "----------"
+            print ("Done particle " + str(p))
+            print ("----------")
             # TODO
             #ensemble.particles[p].drifters.setDrifterPositions(newPos)
             #print "IEWPF done for particle: ", p
@@ -425,16 +425,16 @@ class IEWPFOcean:
         x_a = x_a + alpha*xi
         """
         if self.debug:
-            print "gamma: ", gamma
-            print "Nx: ", self.Nx
-            print "w_rest: ", w_rest
-            print "target_weight: ", target_weight
-            print "phi: ", phi
+            print ("gamma: ", gamma)
+            print ("Nx: ", self.Nx)
+            print ("w_rest: ", w_rest)
+            print ("target_weight: ", target_weight)
+            print ("phi: ", phi)
 
         # 6) Find c
         c = phi - w_rest
         if self.debug: 
-            print "c = phi - w_rest: ", c
+            print ("c = phi - w_rest: ", c)
 
         # 7) Solving the Lambert W function
         lambert_W_arg = -np.exp((target_weight - c)/self.Nx  - 1)
@@ -443,46 +443,46 @@ class IEWPFOcean:
         alpha_zero = np.sqrt(-(gamma/self.Nx)*np.real(lambertw(lambert_W_arg)))
         
         if self.debug: 
-            print "Check a against the Lambert W requirement: "
-            print "-e^-1 < z < 0 : ", -1.0/np.exp(1), " < ", lambert_W_arg, " < ", 0, " = ", \
-                    (-1.0/np.exp(1) < lambert_W_arg, lambert_W_arg < 0)
-            print "Obtained (alpha k=-1, alpha k=0): ", (alpha_min1, alpha_zero)
-            print "The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1))
-            print "The two reals from Lambert W: ", (np.real(lambertw(lambert_W_arg)), np.real(lambertw(lambert_W_arg, k=-1)))
+            print ("Check a against the Lambert W requirement: ")
+            print ("-e^-1 < z < 0 : ", -1.0/np.exp(1), " < ", lambert_W_arg, " < ", 0, " = ", \
+                    (-1.0/np.exp(1) < lambert_W_arg, lambert_W_arg < 0))
+            print ("Obtained (alpha k=-1, alpha k=0): ", (alpha_min1, alpha_zero))
+            print ("The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
+            print ("The two reals from Lambert W: ", (np.real(lambertw(lambert_W_arg)), np.real(lambertw(lambert_W_arg, k=-1))))
 
         alpha = alpha_zero
         if lambert_W_arg > (-1.0/np.exp(1)) :
             alpha_u = np.random.rand()
             if alpha_u < 0.5:
                 alpha = alpha_min1
-                if self.debug: print "Drew alpha from -1-branch"
+                if self.debug: print ("Drew alpha from -1-branch")
         elif self.show_errors:
-            print "!!!!!!!!!!!!"
-            print "BAD BAD ARGUMENT TO LAMBERT W"
-            print "Particle ID: ", particle_id
-            print "Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1)
-            print "The requirement is lamber_W_arg > (-1.0/exp(1)): " + str(lambert_W_arg) + " > " + str(-1.0/np.exp(1.0))
-            print "gamma: ", gamma
-            print "Nx: ", self.Nx
-            print "w_rest: ", w_rest
-            print "target_weight: ", target_weight
-            print "phi: ", phi
-            print "The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1))
-            print "Checking implicit equation with alpha (k=0, k=-1): ", \
+            print ("!!!!!!!!!!!!")
+            print ("BAD BAD ARGUMENT TO LAMBERT W")
+            print ("Particle ID: ", particle_id)
+            print( "Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1))
+            print ("The requirement is lamber_W_arg > (-1.0/exp(1)): " + str(lambert_W_arg) + " > " + str(-1.0/np.exp(1.0)))
+            print ("gamma: ", gamma)
+            print ("Nx: ", self.Nx)
+            print ("w_rest: ", w_rest)
+            print ("target_weight: ", target_weight)
+            print ("phi: ", phi)
+            print ("The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
+            print ("Checking implicit equation with alpha (k=0, k=-1): ", \
             (self._implicitEquation(alpha_zero, gamma, self.Nx, target_weight, c), \
-             self._implicitEquation(alpha_min1, gamma, self.Nx, target_weight, c))
-            print "!!!!!!!!!!!!"
+             self._implicitEquation(alpha_min1, gamma, self.Nx, target_weight, c)))
+            print( "!!!!!!!!!!!!")
         
         
         if self.debug: 
-            print "--------------------------------------"
-            print "Obtained (lambert_ans k=0, lambert_ans k=-1): ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1))
-            print "Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1)
-            print "Checking implicit equation with alpha (k=0, k=-1): ", \
+            print ("--------------------------------------")
+            print ("Obtained (lambert_ans k=0, lambert_ans k=-1): ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
+            print ("Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1))
+            print ("Checking implicit equation with alpha (k=0, k=-1): ", \
             (self._implicitEquation(alpha_zero, gamma, self.Nx, target_weight, c), \
-             self._implicitEquation(alpha_min1, gamma, self.Nx, target_weight, c))
-            print "Selected alpha: ", alpha
-            print "\n"
+             self._implicitEquation(alpha_min1, gamma, self.Nx, target_weight, c)))
+            print ("Selected alpha: ", alpha)
+            print ("\n")
 
         return alpha
         
@@ -579,7 +579,7 @@ class IEWPFOcean:
                     SOAR_Q_res = self._SOAR_Q_CPU(a, b, i, j)
                     x_corr[j,i] += tmp_x[b, a]*SOAR_Q_res
                     y_corr[j,i] += tmp_y[b, a]*SOAR_Q_res
-            if self.debug: print "(j, i ,x_corr[j,i], y_corr[j,i]): ", (j, i ,x_corr[j,i], y_corr[j,i])
+            if self.debug: print ("(j, i ,x_corr[j,i], y_corr[j,i]): ", (j, i ,x_corr[j,i], y_corr[j,i]))
         if self.debug: self.showMatrices(x_corr, y_corr, "$Q_{SOAR} Q_{SOAR} U_{GB}^T H^T$")
 
         # geostrophic balance:
@@ -590,12 +590,12 @@ class IEWPFOcean:
 
         # Structure the information as a  
         HQHT = np.matrix([[x_hu, y_hu],[x_hv, y_hv]])    
-        if self.debug: print "HQHT\n", HQHT
-        if self.debug: print "ensemble.observation_cov\n", ensemble.observation_cov
+        if self.debug: print ("HQHT\n", HQHT)
+        if self.debug: print ("ensemble.observation_cov\n", ensemble.observation_cov)
         S_inv = HQHT + ensemble.observation_cov
-        if self.debug: print "S_inv\n", S_inv
+        if self.debug: print ("S_inv\n", S_inv)
         S = np.linalg.inv(S_inv)
-        if self.debug: print "S\n", S
+        if self.debug: print( "S\n", S)
         return S.astype(np.float32, order='C')
 
     def _createCutoffSOARMatrixQ(self, ensemble, nx=None, ny=None, cutoff=2):
@@ -902,8 +902,8 @@ class IEWPFOcean:
                 e = np.dot(self.S_host, d[particle,drifter,:])
                 db += np.dot(e, d[particle, drifter, :])
             c[particle] = w_rest[particle] + 0.5*db
-            if self.debug: print "c[" + str(particle) + "]: ", c[particle]
-            if self.debug: print "exp(-c[" + str(particle) + "]: ", np.exp(-c[particle])
+            if self.debug: print( "c[" + str(particle) + "]: ", c[particle])
+            if self.debug: print ("exp(-c[" + str(particle) + "]: ", np.exp(-c[particle]))
         return np.min(c)
 
     
@@ -968,7 +968,7 @@ class IEWPFOcean:
 
         # 1) Draw \tilde{\xi} \sim N(0, I)
         sim.small_scale_model_error.generateNormalDistributionCPU()
-        if self.debug: print "noise shape: ", sim.small_scale_model_error.random_numbers_host.shape    
+        if self.debug: print ("noise shape: ", sim.small_scale_model_error.random_numbers_host.shape)
 
         # Comment in these lines to see how the SVD structure affect the random numbers
         #sim.small_scale_model_error.random_numbers_host *= 0
@@ -978,7 +978,7 @@ class IEWPFOcean:
 
         # 1.5) Find gamma, which is needed by step 3
         gamma = np.sum(sim.small_scale_model_error.random_numbers_host **2)
-        if self.debug: print "Gamma obtained from standard gaussian: ", gamma
+        if self.debug: print ("Gamma obtained from standard gaussian: ", gamma)
         if self.debug: self.showMatrices(sim.small_scale_model_error.random_numbers_host, original,\
                                          "Std normal dist numbers")
 
@@ -1031,10 +1031,10 @@ class IEWPFOcean:
         Return eta_a, hu_a, hv_a, phi
         """
         # Following the 3rd step of the IEWPF algorithm
-        if self.debug: print "(nx, ny, dx, dy): ", (sim.nx, sim.ny, sim.dx, sim.dy)
-        if self.debug: print "all_observed_drifter_positions: ", all_observed_drifter_positions
-        if self.debug: print "innovation:  ", innovation
-        if self.debug: print "target_weight: ", target_weight
+        if self.debug: print ("(nx, ny, dx, dy): ", (sim.nx, sim.ny, sim.dx, sim.dy))
+        if self.debug: print ("all_observed_drifter_positions: ", all_observed_drifter_positions)
+        if self.debug: print ("innovation:  ", innovation)
+        if self.debug: print ("target_weight: ", target_weight)
 
         # 0.1) Allocate buffers
         total_K_eta = np.zeros((sim.ny, sim.nx))
@@ -1052,11 +1052,11 @@ class IEWPFOcean:
             # 0.1) Find the cell index assuming no ghost cells
             cell_id_x = int(np.floor(observed_drifter_position[0]/sim.dx))
             cell_id_y = int(np.floor(observed_drifter_position[1]/sim.dy))
-            if self.debug: print "(cell_id_x, cell_id_y): ", (cell_id_x, cell_id_y)
+            if self.debug: print ("(cell_id_x, cell_id_y): ", (cell_id_x, cell_id_y))
 
             # 1) Solve linear problem
             e = np.dot(self.S_host, local_innovation)
-            if self.debug: print "e: ", e
+            if self.debug: print("e: ", e)
 
             # 2) K = QH^T e = U_GB Q^{1/2} Q^{1/2} U_GB^T  H^T e
             #    Obtain the Kalman gain
@@ -1087,7 +1087,7 @@ class IEWPFOcean:
             # 2.2) Apply U_GB Q^{1/2} to the result
             # 2.2.1)  Easiest way: map local_eta to a global K_eta_tmp buffer
             K_eta_tmp = np.zeros((sim.ny, sim.nx))
-            if self.debug: print "K_eta_tmp.shape",  K_eta_tmp.shape
+            if self.debug: print( "K_eta_tmp.shape",  K_eta_tmp.shape)
             for j in range(7):
                 j_global = (cell_id_y-3+j+sim.ny)%sim.ny 
                 for i in range(7):
@@ -1113,8 +1113,8 @@ class IEWPFOcean:
 
             # 3) Obtain phi = d^T * e
             phi += local_innovation[0]*e[0,0] + local_innovation[1]*e[0,1]
-            if self.debug: print "phi after drifter " + str(drifter) + ": ", phi
-        if self.debug: print "phi: ", phi
+            if self.debug: print( "phi after drifter " + str(drifter) + ": ", phi)
+        if self.debug: print( "phi: ", phi)
 
         if returnKalmanGainTerm:
             return total_K_eta, total_K_hu, total_K_hv, phi
@@ -1125,7 +1125,7 @@ class IEWPFOcean:
         eta_a += total_K_eta
         hu_a += total_K_hu
         hv_a += total_K_hv
-        if self.debug: print "Shapes of x_a: ", eta_a.shape, hu_a.shape, hv_a.shape
+        if self.debug: print( "Shapes of x_a: ", eta_a.shape, hu_a.shape, hv_a.shape)
         if self.debug: self.showMatrices(eta_a, hu_a, "$x_a = M(x) + K$", hv_a)
         
         return eta_a, hu_a, hv_a, phi
@@ -1142,68 +1142,72 @@ class IEWPFOcean:
 
 
         # 5) obtain gamma
-        if self.debug: print "Shapes of xi: ", xi[0].shape, xi[1].shape, xi[2].shape
+        if self.debug: print ("Shapes of xi: ", xi[0].shape, xi[1].shape, xi[2].shape)
         #gamma = 0.0
         #for field in range(3):
         #    for j in range(ny):
         #        for i in range(nx):
         #            gamma += xi[field][j,i]*xi[field][j,i]
-        if self.debug: print "gamma: ", gamma
-        if self.debug: print "Nx: ", self.Nx
-        if self.debug: print "w_rest: ", w_rest
-        if self.debug: print "target_weight: ", target_weight
-        if self.debug: print "phi: ", phi
+        if self.debug: print ("gamma: ", gamma)
+        if self.debug: print ("Nx: ", self.Nx)
+        if self.debug: print ("w_rest: ", w_rest)
+        if self.debug: print ("target_weight: ", target_weight)
+        if self.debug: print ("phi: ", phi)
 
         # 6) Find a
         a = phi - w_rest + target_weight
-        if self.debug: print "a = phi - w_rest + target_weight: ", a
+        if self.debug: print( "a = phi - w_rest + target_weight: ", a)
+            
+        c = phi - w_rest
+        if self.debug: 
+            print ("c = phi - w_rest: ", c)
 
         # 7) Solving the Lambert W function
         #alpha = 10000
         lambert_W_arg = -(gamma/self.Nx)*np.exp(a/self.Nx)*np.exp(-gamma/self.Nx)
         alpha_min1 = -(self.Nx/gamma)*np.real(lambertw(lambert_W_arg, k=-1))
         alpha_zero = -(self.Nx/gamma)*np.real(lambertw(lambert_W_arg))
-        if self.debug: print "Check a against the Lambert W requirement: ", a, " < ", - self.Nx + gamma - self.Nx*np.log(gamma/self.Nx), " = ", a <  - self.Nx + gamma - self.Nx*np.log(gamma/self.Nx)
-        if self.debug: print "-e^-1 < z < 0 : ", -1.0/np.exp(1), " < ", lambert_W_arg, " < ", 0, " = ", \
-            (-1.0/np.exp(1) < lambert_W_arg, lambert_W_arg < 0)
-        if self.debug: print "Obtained (alpha k=-1, alpha k=0): ", (alpha_min1, alpha_zero)
-        if self.debug: print "The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1))
-        if self.debug: print "The two branches from Lambert W: ", (np.real(lambertw(lambert_W_arg)), np.real(lambertw(lambert_W_arg, k=-1)))
+        if self.debug: print ("Check a against the Lambert W requirement: ", a, " < ", - self.Nx + gamma - self.Nx*np.log(gamma/self.Nx), " = ", a <  - self.Nx + gamma - self.Nx*np.log(gamma/self.Nx))
+        if self.debug: print ("-e^-1 < z < 0 : ", -1.0/np.exp(1), " < ", lambert_W_arg, " < ", 0, " = ", \
+            (-1.0/np.exp(1) < lambert_W_arg, lambert_W_arg < 0))
+        if self.debug: print ("Obtained (alpha k=-1, alpha k=0): ", (alpha_min1, alpha_zero))
+        if self.debug: print ("The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
+        if self.debug: print ("The two branches from Lambert W: ", (np.real(lambertw(lambert_W_arg)), np.real(lambertw(lambert_W_arg, k=-1))))
 
         alpha = alpha_zero
         if lambert_W_arg > (-1.0/np.exp(1)) :
             alpha_u = np.random.rand()
             if alpha_u < 0.5:
                 alpha = alpha_min1
-                if self.debug: print "Drew alpha from -1-branch"
+                if self.debug: print( "Drew alpha from -1-branch")
         elif self.show_errors:
-            print "!!!!!!!!!!!!"
-            print "BAD BAD ARGUMENT TO LAMBERT W"
-            print "Particle ID: ", particle_id
-            print "Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1)
-            print "The requirement is lamber_W_arg > (-1.0/exp(1)): " + str(lambert_W_arg) + " > " + str(-1.0/np.exp(1.0))
-            print "gamma: ", gamma
-            print "Nx: ", self.Nx
-            print "w_rest: ", w_rest
-            print "target_weight: ", target_weight
-            print "phi: ", phi
-            print "!!!!!!!!!!!!"
+            print ("!!!!!!!!!!!!")
+            print ("BAD BAD ARGUMENT TO LAMBERT W")
+            print ("Particle ID: ", particle_id)
+            print ("Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1))
+            print ("The requirement is lamber_W_arg > (-1.0/exp(1)): " + str(lambert_W_arg) + " > " + str(-1.0/np.exp(1.0)))
+            print ("gamma: ", gamma)
+            print ("Nx: ", self.Nx)
+            print ("w_rest: ", w_rest)
+            print ("target_weight: ", target_weight)
+            print ("phi: ", phi)
+            print ("!!!!!!!!!!!!")
         #if self.debug: print "Drawing random number alpha_u: ", alpha_u
         #oldDebug = self.debug
         #self.debug = True
-        if self.debug: print "--------------------------------------"
-        if self.debug: print "Obtained (lambert_ans k=0, lambert_ans k=-1): ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1))
-        if self.debug: print "Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1)
-        if self.debug: print "Checking implicit equation with alpha (k=0, k=-1): ", \
-            (self._implicitEquation(alpha_zero, gamma, self.Nx, a), self._implicitEquation(alpha_min1, gamma, self.Nx, a))
+        if self.debug: print ("--------------------------------------")
+        if self.debug: print ("Obtained (lambert_ans k=0, lambert_ans k=-1): ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
+        if self.debug: print ("Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1))
+        if self.debug: print ("Checking implicit equation with alpha (k=0, k=-1): ", \
+            (self._implicitEquation(alpha_zero, gamma, self.Nx, a, c), self._implicitEquation(alpha_min1, gamma, self.Nx, a, c)))
         #if self.debug: print "Chose alpha = ", alpha
         #if self.debug: print "The implicit equation looked like: \n\t" + \
         #    "(alpha - 1)"+str(gamma)+" - " + str(self.Nx) + "log(alpha) + " + str(a) + " = 0"
         #if self.debug: print "Parameters: (gamma, Nx, aj)", (gamma, self.Nx, a)
 
         alpha = np.sqrt(alpha)
-        if self.debug: print "alpha = np.sqrt(alpha) ->  ", alpha
-        if self.debug: print "--------------------------------------"
+        if self.debug: print ("alpha = np.sqrt(alpha) ->  ", alpha)
+        if self.debug: print( "--------------------------------------")
         #debug = oldDebug
 
         # 7.2) alpha*xi

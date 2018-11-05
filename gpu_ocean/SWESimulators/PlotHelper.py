@@ -414,19 +414,20 @@ class EnsembleAnimator:
         drifterPositions = ensemble.observeDrifters()
         trueDrifterPosition = ensemble.observeTrueDrifters()
         
-        self.true_drifters.set_offsets(drifterPositions)
-        self.true_observations.set_offsets(trueDrifterPosition)
+        #self.true_drifters.set_offsets(drifterPositions)
+        #self.true_observations.set_offsets(trueDrifterPosition)
         
         if not self.trueStateOnly:
                        
-            self.mean_drifters.set_offsets(drifterPositions)
-            self.mean_observations.set_offsets(trueDrifterPosition)
+            #self.mean_drifters.set_offsets(drifterPositions)
+            #self.mean_observations.set_offsets(trueDrifterPosition)
             
-            self.rmse_drifters.set_offsets(drifterPositions)
-            self.rmse_observations.set_offsets(trueDrifterPosition)
+            #self.rmse_drifters.set_offsets(drifterPositions)
+            #self.rmse_observations.set_offsets(trueDrifterPosition)
             
-            self.r_drifters.set_offsets(drifterPositions)
-            self.r_observations.set_offsets(trueDrifterPosition)
+            #self.r_drifters.set_offsets(drifterPositions)
+            #self.r_observations.set_offsets(trueDrifterPosition)
+            pass
         
         
         plt.draw()
