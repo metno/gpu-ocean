@@ -27,6 +27,8 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import time
 import abc
+import warnings
+
 
 from SWESimulators import CDKLM16
 from SWESimulators import GPUDrifterCollection
@@ -38,7 +40,13 @@ class BaseOceanStateEnsemble(object):
 
     __metaclass__ = abc.ABCMeta
         
-    def __init__(self, numParticles, gpu_ctx, observation_type=dautils.ObservationType.DrifterPosition):
+    def __init__(self, gpu_ctx, numParticles, sim, 
+                 num_drifters = 1,
+                 observation_type=dautils.ObservationType.DrifterPosition,
+                 observation_variance = None, 
+                 observation_variance_factor = 5.0,
+                 initialization_variance_factor_drifter_position = 0.0,
+                 initialization_variance_factor_ocean_field = 0.0):
         
         self.gpu_ctx = gpu_ctx
         
@@ -71,15 +79,29 @@ class BaseOceanStateEnsemble(object):
         self.rUnderDrifter_hu = []
         self.rUnderDrifter_hv = []
         self.tArray = []
-
+        
+        self._setGridInfoFromSim(sim)
+        self._setStochasticVariables(observation_variance = observation_variance, 
+                                     observation_variance_factor = observation_variance_factor,
+                                     initialization_variance_factor_drifter_position = initialization_variance_factor_drifter_position,
+                                     initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field)        
+        self._init(driftersPerOceanModel=3)
         
     def cleanUp(self):
         for oceanState in self.particles:
             if oceanState is not None:
                 oceanState.cleanUp()
         
-    # IMPROVED
     def setGridInfo(self, nx, ny, dx, dy, dt, 
+                    boundaryConditions=Common.BoundaryConditions(), 
+                    eta=None, hu=None, hv=None, H=None):
+        warnings.warn('The function setGridInfo will be deprecated. Please use the improved constructor instead',
+                      DeprecationWarning)
+        self._setGridInfo(nx, ny, dx, dy, dt, boundaryCondtions=boundaryCondtions, 
+                          eta=eta, hu=hu, hv=hv, H=H)
+        
+        
+    def _setGridInfo(self, nx, ny, dx, dy, dt, 
                     boundaryConditions=Common.BoundaryConditions(), 
                     eta=None, hu=None, hv=None, H=None):
         self.nx = nx
@@ -118,32 +140,64 @@ class BaseOceanStateEnsemble(object):
         if self.base_H is None:
             waterDepth = 10
             self.base_H = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C')*waterDepth
-        
-        # Ensure that parameters are initialized:
-        self.setParameters()
+
 
     def setGridInfoFromSim(self, sim):
+        warnings.warn('The function setGridInfoFromSim will be deprecated. Please use the improved constructor instead',
+                      DeprecationWarning)
+        self._setGridInfoFromSim(sim)
+        
+    def _setGridInfoFromSim(self, sim):
+        
         eta, hu, hv = sim.download()
         Hi = sim.downloadBathymetry()[0]
-        self.setGridInfo(sim.nx, sim.ny, sim.dx, sim.dy, sim.dt,
+        self._setGridInfo(sim.nx, sim.ny, sim.dx, sim.dy, sim.dt,
                          sim.boundary_conditions,
                          eta=eta, hu=hu, hv=hv, H=Hi)
-        self.setParameters(f=sim.f, g=sim.g, beta=sim.coriolis_beta, r=sim.r, wind=sim.wind_stress)
+        self.g = sim.g
+        self.f = sim.f
+        self.beta = sim.coriolis_beta
+        self.r = sim.r
+        self.wind = sim.wind_stress
+        
+        self.small_scale_perturbation = sim.small_scale_perturbation
+        self.small_scale_perturbation_amplitude = None
+        self.small_scale_perturbation_interpolation_factor = None
+        
+        if self.small_scale_perturbation:
+            self.small_scale_perturbation_amplitude = sim.small_scale_model_error.soar_q0
+            self.small_scale_perturbation_interpolation_factor = sim.small_scale_perturbation_interpolation_factor
+            
+        
+        
     
     def setParameters(self, f=0, g=9.81, beta=0, r=0, wind=WindStress.WindStress()):
-        self.g = g
-        self.f = f
-        self.beta = beta
-        self.r = r
-        self.wind = wind
+        warnings.warn('The function setParameters will be deprecated. Please use the improved constructor instead',
+                      DeprecationWarning)
+        
     
     def setStochasticVariables(self, 
                                observation_variance = None, 
                                observation_variance_factor = 5.0,
                                small_scale_perturbation_amplitude = 0.0,
+                               small_scale_perturbation_interpolation_factor = 1,
                                initialization_variance_factor_drifter_position = 0.0,
-                               initialization_variance_factor_ocean_field = 0.0 
-                              ):
+                               initialization_variance_factor_ocean_field = 0.0):
+        warnings.warn('The function setStochasticVariables will be deprecated. Please use the improved constructor instead',
+                      DeprecationWarning)
+        self._setStochasticVariables(observation_variance = observation_variance, 
+                                     observation_variance_factor = observation_variance_factor,
+                                     small_scale_perturbation_amplitude = small_scale_perturbation_amplitude,
+                                     small_scale_perturbation_interpolation_factor = small_scale_perturbation_interpolation_factor,
+                                     initialization_variance_factor_drifter_position = initialization_variance_factor_drifter_position,
+                                     initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field)
+        
+    def _setStochasticVariables(self, 
+                               observation_variance = None, 
+                               observation_variance_factor = 5.0,
+                               initialization_variance_factor_drifter_position = 0.0,
+                               initialization_variance_factor_ocean_field = 0.0):
+              
 
         # Setting observation variance:
         self.observation_variance = observation_variance
@@ -169,8 +223,6 @@ class BaseOceanStateEnsemble(object):
         self.initialization_cov_drifters = np.eye(2)*self.initialization_variance_drifters
         self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
         
-        self.small_scale_perturbation_amplitude = small_scale_perturbation_amplitude
-    
         # When initializing an ensemble, each member should be perturbed so that they 
         # have slightly different starting point.
         # This factor should be multiplied to the small_scale_perturbation_amplitude for that 
@@ -868,7 +920,8 @@ class BaseOceanStateEnsemble(object):
 
 
         # PLOT POSITIONS OF PARTICLES AND OBSERVATIONS
-        ax = plt.subplot2grid((plotRows,3), (0,0), polar=True, axisbg='#ffffff')
+        #ax = plt.subplot2grid((plotRows,3), (0,0), polar=True, axisbg='#ffffff')
+        ax = plt.subplot2grid((plotRows,3), (0,0), polar=True)
         self._fillPolarPlot(ax, drifter_id=0, printInfo=printInfo)
 
         # PLOT DISCTRIBUTION OF PARTICLE DISTANCES AND THEORETIC OBSERVATION PDF
@@ -888,7 +941,7 @@ class BaseOceanStateEnsemble(object):
         ax1 = ax0.twinx()
         ax1.hist(innovations, bins=30, \
                  range=(0, range_x),\
-                 normed=True, label="particle innovations (norm)")
+                 density=True, label="particle innovations (norm)")
 
         # PLOT SORTED DISTANCES FROM OBSERVATION
         ax0 = plt.subplot2grid((plotRows,3), (1,0), colspan=3)
@@ -909,8 +962,9 @@ class BaseOceanStateEnsemble(object):
         plt.title("Sorted distances from observation")
 
         if self.driftersPerOceanModel > 1:
-            for drifter_id in range(1,min(4, self.driftersPerOceanModel)):
-                ax = plt.subplot2grid((plotRows,3), (2,drifter_id-1), polar=True, axisbg='#ffffff')
+            for drifter_id in range(0,min(3, self.driftersPerOceanModel)):
+                #ax = plt.subplot2grid((plotRows,3), (2,drifter_id-1), polar=True, axisbg='#ffffff')
+                ax = plt.subplot2grid((plotRows,3), (2,drifter_id), polar=True)
                 self._fillPolarPlot(ax, drifter_id=drifter_id, printInfo=printInfo)
 
         if title is not None:

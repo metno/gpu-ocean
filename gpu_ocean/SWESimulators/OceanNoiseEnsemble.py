@@ -28,12 +28,16 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import time
 import abc
+import warnings 
+
 
 from SWESimulators import CDKLM16
 from SWESimulators import GPUDrifterCollection
 from SWESimulators import BaseOceanStateEnsemble
 from SWESimulators import Common
 from SWESimulators import DataAssimilationUtils as dautils
+
+
 
 try:
     from importlib import reload
@@ -44,6 +48,11 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
     
     def init(self, driftersPerOceanModel=1):
+        warnings.warn('The function init will be deprecated. Please use the improved constructor instead',
+                      DeprecationWarning)
+        self._init(driftersPerOceanModel=driftersPerOceanModel)
+    
+    def _init(self, driftersPerOceanModel=1):
         self.driftersPerOceanModel = driftersPerOceanModel
         
         # Define mid-points for the different drifters 
