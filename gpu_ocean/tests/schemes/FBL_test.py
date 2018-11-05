@@ -35,7 +35,7 @@ class FBLtest(unittest.TestCase):
         self.T = 50.0
 
         self.boundaryConditions = None #Common.BoundaryConditions()
-        self.ghosts = None #[0, 0, 0, 0]
+        self.ghosts = [1, 1, 1, 1]
         self.arrayRange = None
 
         self.sim = None
@@ -56,57 +56,49 @@ class FBLtest(unittest.TestCase):
     def setBoundaryConditions(self, bcSettings=1):
         if (bcSettings == 1):
             self.boundaryConditions = Common.BoundaryConditions()
-            self.ghosts = [0,0,0,0] # north, east, south, west
+            #self.ghosts = [0,0,0,0] # north, east, south, west
             self.arrayRange = [None, None, 0, 0]
         elif (bcSettings == 2):
             self.boundaryConditions = Common.BoundaryConditions(2,2,2,2)
-            self.ghosts = [1,1,0,0] # Both periodic
+            #self.ghosts = [1,1,0,0] # Both periodic
             self.arrayRange = [-1, -1, 0, 0]
         elif bcSettings == 3:
             self.boundaryConditions = Common.BoundaryConditions(2,1,2,1)
-            self.ghosts = [1,0,0,0] # periodic north-south
+            #self.ghosts = [1,0,0,0] # periodic north-south
             self.arrayRange = [-1, None, 0, 0]
         else:
             self.boundaryConditions = Common.BoundaryConditions(1,2,1,2)
-            self.ghosts = [0,1,0,0] # periodic east-west
+            #self.ghosts = [0,1,0,0] # periodic east-west
             self.arrayRange = [None, -1, 0, 0]
 
     def createHostData(self):
-        self.h0 = np.ones((self.ny + self.ghosts[0],
-                           self.nx + self.ghosts[1]), dtype=np.float32) * 60;
-        self.eta0 = np.zeros((self.ny + self.ghosts[0],
-                              self.nx + self.ghosts[1]), dtype=np.float32);
-        self.u0 = np.zeros((self.ny + self.ghosts[0],
-                            self.nx+1), dtype=np.float32);
-        self.v0 = np.zeros((self.ny+1,
-                            self.nx + self.ghosts[1]), dtype=np.float32);
+        dataShape = (self.ny + self.ghosts[0] + self.ghosts[2], 
+                     self.nx + self.ghosts[1] + self.ghosts[2])
+    
+
+        self.h0 = np.ones(dataShape, dtype=np.float32) * 60;
+        self.eta0 = np.zeros(dataShape, dtype=np.float32);
+        self.u0 = np.zeros((dataShape[0]  , dataShape[1]-1), dtype=np.float32, order='C');
+        self.v0 = np.zeros((dataShape[0]+1, dataShape[1]  ), dtype=np.float32, order='C');
         
     def checkResults(self, eta1, u1, v1, etaRef, uRef, vRef, refRange=None):
         if refRange is None:
-            diffEta = np.linalg.norm(eta1[self.arrayRange[2]:self.arrayRange[0], self.arrayRange[3]:self.arrayRange[1]] - etaRef)
-            diffU = np.linalg.norm(u1[self.arrayRange[2]:self.arrayRange[0], :]-uRef)
-            diffV = np.linalg.norm(v1[:, self.arrayRange[3]:self.arrayRange[1]]-vRef)
-            maxDiffEta = np.max(eta1[self.arrayRange[2]:self.arrayRange[0], self.arrayRange[3]:self.arrayRange[1]] - etaRef)
-            maxDiffU = np.max(u1[self.arrayRange[2]:self.arrayRange[0], :]-uRef)
-            maxDiffV = np.max(v1[:, self.arrayRange[3]:self.arrayRange[1]]-vRef)
+            diffEta = np.linalg.norm(eta1 - etaRef)
+            diffU = np.linalg.norm(u1-uRef)
+            diffV = np.linalg.norm(v1-vRef)
+            maxDiffEta = np.max(eta1 - etaRef)
+            maxDiffU = np.max(u1-uRef)
+            maxDiffV = np.max(v1-vRef)
             
         else:
-            diffEta = np.linalg.norm(eta1[self.arrayRange[2]:self.arrayRange[0], 
-                                          self.arrayRange[3]:self.arrayRange[1]] - 
-                                     etaRef[refRange[2]:refRange[0],
-                                            refRange[3]:refRange[1]])
-            diffU = np.linalg.norm(u1[self.arrayRange[2]:self.arrayRange[0], :] -
-                                   uRef[refRange[2]:refRange[0], :])
-            diffV = np.linalg.norm(v1[:, self.arrayRange[3]:self.arrayRange[1]] - 
-                                   vRef[:, refRange[3]:refRange[1]])
-            maxDiffEta = np.max(eta1[self.arrayRange[2]:self.arrayRange[0], 
-                                     self.arrayRange[3]:self.arrayRange[1]] - 
-                                etaRef[refRange[2]:refRange[0],
-                                       refRange[3]:refRange[1]])
-            maxDiffU = np.max(u1[self.arrayRange[2]:self.arrayRange[0], :] -
-                              uRef[refRange[2]:refRange[0], :])
-            maxDiffV = np.max(v1[:, self.arrayRange[3]:self.arrayRange[1]] - 
-                              vRef[:, refRange[3]:refRange[1]])
+            diffEta = np.linalg.norm(eta1 -etaRef[refRange[2]:refRange[0],
+                                                  refRange[3]:refRange[1]])
+            diffU = np.linalg.norm(u1 - uRef[refRange[2]:refRange[0], :])
+            diffV = np.linalg.norm(v1 - vRef[:, refRange[3]:refRange[1]])
+            maxDiffEta = np.max(eta1 - etaRef[refRange[2]:refRange[0],
+                                              refRange[3]:refRange[1]])
+            maxDiffU = np.max(u1 - uRef[refRange[2]:refRange[0], :])
+            maxDiffV = np.max(v1 - vRef[:, refRange[3]:refRange[1]])
             
         
         self.assertAlmostEqual(maxDiffEta, 0.0, places=5,
@@ -130,7 +122,7 @@ class FBLtest(unittest.TestCase):
                            self.g, self.f, self.r)
         
         t = self.sim.step(self.T)
-        eta1, u1, v1 = self.sim.download()
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
         eta2, u2, v2 = loadResults("FBL", "wallBC", "central")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -146,7 +138,7 @@ class FBLtest(unittest.TestCase):
                            self.g, self.f, self.r)
         
         t = self.sim.step(self.T)
-        eta1, u1, v1 = self.sim.download()
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
         eta2, u2, v2 = loadResults("FBL", "wallBC", "corner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -164,7 +156,7 @@ class FBLtest(unittest.TestCase):
                            boundary_conditions=self.boundaryConditions)
         
         t = self.sim.step(self.T)
-        eta1, u1, v1 = self.sim.download()
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
         eta2, u2, v2 = loadResults("FBL", "wallBC", "central")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -182,7 +174,7 @@ class FBLtest(unittest.TestCase):
                            boundary_conditions=self.boundaryConditions)
         
         t = self.sim.step(self.T)
-        eta1, u1, v1 = self.sim.download()
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
         eta2, u2, v2 = loadResults("FBL", "periodicAll", "corner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
@@ -201,7 +193,7 @@ class FBLtest(unittest.TestCase):
                            boundary_conditions=self.boundaryConditions)
         
         t = self.sim.step(self.T)
-        eta1, u1, v1 = self.sim.download()
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
         eta2, u2, v2 = loadResults("FBL", "wallBC", "central")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -219,7 +211,7 @@ class FBLtest(unittest.TestCase):
                            boundary_conditions=self.boundaryConditions)
         
         t = self.sim.step(self.T)
-        eta1, u1, v1 = self.sim.download()
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
         eta2, u2, v2 = loadResults("FBL", "periodicNS", "corner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
@@ -237,7 +229,7 @@ class FBLtest(unittest.TestCase):
                            boundary_conditions=self.boundaryConditions)
         
         t = self.sim.step(self.T)
-        eta1, u1, v1 = self.sim.download()
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
         eta2, u2, v2 = loadResults("FBL", "wallBC", "central")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
@@ -255,7 +247,7 @@ class FBLtest(unittest.TestCase):
                            boundary_conditions=self.boundaryConditions)
         
         t = self.sim.step(self.T)
-        eta1, u1, v1 = self.sim.download()
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
         eta2, u2, v2 = loadResults("FBL", "periodicEW", "corner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
@@ -273,7 +265,45 @@ class FBLtest(unittest.TestCase):
                            self.g, self.f, self.r)
         
         t = self.sim.step(self.T)
-        eta1, u1, v1 = self.sim.download()
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
         eta2, u2, v2 = loadResults("FBL", "coriolis", "central")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+    def test_betamodel_central(self):
+        self.setBoundaryConditions(1)
+        self.createHostData()
+        self.f = 0.01
+        beta = 1e-6
+        makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy,
+                        self.ghosts)
+        self.sim = FBL.FBL(self.gpu_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r, coriolis_beta=beta)
+        
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
+        eta2, u2, v2 = loadResults("FBL", "betamodel", "central")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+
+    def test_bathymetry_central(self):
+        self.setBoundaryConditions(1)
+        self.createHostData()
+        makeBottomTopography(self.h0, self.nx, self.ny, self.dx, self.dy, self.ghosts, intersections=False)
+        makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy,
+                        self.ghosts)
+        self.sim = FBL.FBL(self.gpu_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r)
+        
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
+        eta2, u2, v2 = loadResults("FBL", "wallBC", "central", "bathymetry_")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)

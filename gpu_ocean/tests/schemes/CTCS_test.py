@@ -337,3 +337,168 @@ class CTCStest(unittest.TestCase):
         self.refVRange = self.vRange
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+    def test_betamodel_central(self):
+        self.setBoundaryConditions()
+        makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
+        self.f = 0.01
+        beta = 1e-6
+        self.sim = CTCS.CTCS(self.gpu_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, coriolis_beta=beta, \
+                             boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("CTCS", "betamodel", "central")
+        self.refEtaRange = self.etaRange
+        self.refURange = self.uRange
+        self.refVRange = self.vRange
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+
+        
+    def test_bathymetry_coriolis_central(self):
+        self.setBoundaryConditions()
+        makeBottomTopography(self.h0, self.nx, self.ny, self.dx, self.dy, self.ghosts, intersections=False)
+        makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
+        self.f = 0.01
+        self.sim = CTCS.CTCS(self.gpu_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("CTCS", "coriolis", "central", "bathymetry_")
+        self.refEtaRange = self.etaRange
+        self.refURange = self.uRange
+        self.refVRange = self.vRange
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+
+        
+    def test_bathymetry_central(self):
+        self.setBoundaryConditions()
+        makeBottomTopography(self.h0, self.nx, self.ny, self.dx, self.dy, self.ghosts, intersections=False)
+        makeCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
+        self.sim = CTCS.CTCS(self.gpu_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("CTCS", "wallBC", "central", "bathymetry_")
+        self.refEtaRange = self.etaRange
+        self.refURange = self.uRange
+        self.refVRange = self.vRange
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+        
+    def test_periodic_boundary_conditions(self):
+        self.setBoundaryConditions(2)
+        self.eta0 = np.array(range(self.eta0.size)).reshape(self.eta0.shape)
+        self.u0   = np.array(range(  self.u0.size)).reshape(  self.u0.shape)
+        self.v0   = np.array(range(  self.v0.size)).reshape(  self.v0.shape)
+        self.sim = CTCS.CTCS(self.gpu_ctx, \
+                             self.h0, self.eta0, self.u0, self.v0, \
+                             self.nx, self.ny, \
+                             self.dx, self.dy, self.dt, \
+                             self.g, self.f, self.r, self.A, boundary_conditions=self.boundaryConditions)
+        self.sim._call_all_boundary_conditions()
+        
+        eta, u, v = self.sim.download(interior_domain_only=False)
+        
+        # Check periodic bc east-west
+        self.assertListEqual(eta[:,0].tolist(), eta[:,self.nx  ].tolist())
+        self.assertListEqual(eta[:,1].tolist(), eta[:,self.nx+1].tolist())
+
+        self.assertListEqual(  u[:,0].tolist(),   u[:,self.nx  ].tolist())
+        self.assertListEqual(  u[:,1].tolist(),   u[:,self.nx+1].tolist())
+        self.assertListEqual(  u[:,2].tolist(),   u[:,self.nx+2].tolist())
+
+        self.assertListEqual(  v[:,0].tolist(),   v[:,self.nx  ].tolist())
+        self.assertListEqual(  v[:,1].tolist(),   v[:,self.nx+1].tolist())
+        
+        
+        # Check periodic bc north-south
+        self.assertListEqual(eta[0,:].tolist(), eta[self.ny  ,:].tolist())
+        self.assertListEqual(eta[1,:].tolist(), eta[self.ny+1,:].tolist())
+        
+        self.assertListEqual(  u[0,:].tolist(),   u[self.ny  ,:].tolist())
+        self.assertListEqual(  u[1,:].tolist(),   u[self.ny+1,:].tolist())
+        
+        self.assertListEqual(  v[0,:].tolist(),   v[self.ny  ,:].tolist())
+        self.assertListEqual(  v[1,:].tolist(),   v[self.ny+1,:].tolist())
+        self.assertListEqual(  v[2,:].tolist(),   v[self.ny+2,:].tolist())
+        
+        # Check that we don't take it too far:
+        for j in range(self.ny+2):
+            self.assertNotEqual(eta[j,2].tolist(), eta[j,self.nx  ].tolist())
+            self.assertNotEqual(eta[j,2].tolist(), eta[j,self.nx+1].tolist())
+            
+            self.assertNotEqual(eta[j,1].tolist(), eta[j,self.nx-1].tolist())
+            self.assertNotEqual(eta[j,0].tolist(), eta[j,self.nx-1].tolist())
+            
+            self.assertNotEqual(  u[j,3].tolist(),   u[j,self.nx  ].tolist())
+            self.assertNotEqual(  u[j,3].tolist(),   u[j,self.nx+1].tolist())
+            self.assertNotEqual(  u[:,3].tolist(),   u[:,self.nx+2].tolist())
+
+            self.assertNotEqual(  u[j,2].tolist(),   u[j,self.nx-1].tolist())
+            self.assertNotEqual(  u[j,1].tolist(),   u[j,self.nx-1].tolist())
+            self.assertNotEqual(  u[j,0].tolist(),   u[j,self.nx-1].tolist())
+            
+        for j in range(self.ny+3):
+            self.assertNotEqual(  v[j,2].tolist(),   v[j,self.nx  ].tolist())
+            self.assertNotEqual(  v[j,2].tolist(),   v[j,self.nx+1].tolist())
+
+            self.assertNotEqual(  v[j,1].tolist(),   v[j,self.nx-1].tolist())
+            self.assertNotEqual(  v[j,0].tolist(),   v[j,self.nx-1].tolist())
+            
+        
+
+        for i in range(self.nx+2):
+            self.assertNotEqual(eta[2,i].tolist(), eta[self.ny  ,i].tolist())
+            self.assertNotEqual(eta[2,i].tolist(), eta[self.ny+1,i].tolist())
+            
+            self.assertNotEqual(eta[1,i].tolist(), eta[self.ny-1,i].tolist())
+            self.assertNotEqual(eta[0,i].tolist(), eta[self.ny-1,i].tolist())
+            
+            self.assertNotEqual(  v[3,i].tolist(),   v[self.ny  ,i].tolist())
+            self.assertNotEqual(  v[3,i].tolist(),   v[self.ny+1,i].tolist())
+            self.assertNotEqual(  v[3,i].tolist(),   v[self.ny+2,i].tolist())
+
+            self.assertNotEqual(  v[2,i].tolist(),   v[self.ny-1,i].tolist())
+            self.assertNotEqual(  v[1,i].tolist(),   v[self.ny-1,i].tolist())
+            self.assertNotEqual(  v[0,i].tolist(),   v[self.ny-1,i].tolist())
+            
+        for i in range(self.nx+3):
+            self.assertNotEqual(  u[2,i].tolist(),   u[self.ny  ,i].tolist())
+            self.assertNotEqual(  u[2,i].tolist(),   u[self.ny+1,i].tolist())
+                                  
+            self.assertNotEqual(  u[1,i].tolist(),   u[self.ny-1,i].tolist())
+            self.assertNotEqual(  u[0,i].tolist(),   u[self.ny-1,i].tolist())
+            
+        
+        #self.assertListEqual(  u[0,:].tolist(),   u[self.ny  ,:].tolist())
+        #self.assertListEqual(  u[1,:].tolist(),   u[self.ny+1,:].tolist())
+        
+        #self.assertListEqual(  v[0,:].tolist(),   v[self.ny  ,:].tolist())
+        #self.assertListEqual(  v[1,:].tolist(),   v[self.ny+1,:].tolist())
+        #self.assertListEqual(  v[2,:].tolist(),   v[self.ny+2,:].tolist())
+        
+        
+        #maxDiffEta, 0.0, places=5,
+        #                       msg='Unexpected eta difference! Max diff: ' + str(maxDiffEta) + ', L2 diff: ' + str(diffEta))
+       
+        
+    
+    
+    

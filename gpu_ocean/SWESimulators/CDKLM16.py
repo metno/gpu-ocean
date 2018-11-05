@@ -24,6 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #Import packages we need
 import numpy as np
 import gc
+import logging
 
 from SWESimulators import Common, SimWriter, SimReader
 from SWESimulators import Simulator
@@ -41,7 +42,7 @@ class CDKLM16(Simulator.Simulator):
 
     def __init__(self, \
                  gpu_ctx, \
-                 eta0, hu0, hv0, Hi, \
+                 eta0, hu0, hv0, H, \
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
@@ -59,13 +60,13 @@ class CDKLM16(Simulator.Simulator):
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0, \
-                 block_width=32, block_height=4):
+                 block_width=32, block_height=8):
         """
         Initialization routine
         eta0: Initial deviation from mean sea level incl ghost cells, (nx+2)*(ny+2) cells
         hu0: Initial momentum along x-axis incl ghost cells, (nx+1)*(ny+2) cells
         hv0: Initial momentum along y-axis incl ghost cells, (nx+2)*(ny+1) cells
-        Hi: Depth from equilibrium defined on cell corners, (nx+5)*(ny+5) corners
+        H: Depth from equilibrium defined on cell corners, (nx+5)*(ny+5) corners
         nx: Number of cells along x-axis
         ny: Number of cells along y-axis
         dx: Grid cell spacing along x-axis (20 000 m)
@@ -87,10 +88,10 @@ class CDKLM16(Simulator.Simulator):
         write_netcdf: Write the results after each superstep to a netCDF file
         """
                
-        
+        self.logger = logging.getLogger(__name__)
 
         ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
-        if ( np.sum(eta0 - Hi[:-1, :-1] > 0) > nx):
+        if ( np.sum(eta0 - H[:-1, :-1] > 0) > nx):
             assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
         
         assert( rk_order < 4 or rk_order > 0 ), "Only 1st, 2nd and 3rd order Runge Kutta supported"
@@ -137,11 +138,23 @@ class CDKLM16(Simulator.Simulator):
         self._set_interior_domain_from_sponge_cells()
         
         #Get kernels
-        self.kernel = gpu_ctx.get_kernel("CDKLM16_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
+        self.kernel = gpu_ctx.get_kernel("CDKLM16_kernel.cu", 
+                defines={'block_width': block_width, 'block_height': block_height}, 
+                compile_args={
+                    'options': ["--use_fast_math"]
+                    #'options': ["--generate-line-info"], 
+                    #nvcc_options=["--maxrregcount=39"],
+                    #'arch': "compute_50", 
+                    #'code': "sm_50"
+                },
+                jit_compile_args={
+                #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
+                }
+                )
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.swe_2D = self.kernel.get_function("swe_2D")
-        self.swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPifiiiiiPiPiPi")
+        self.swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPifi")
         self.update_wind_stress(self.kernel, self.swe_2D)
         
         #Create data by uploading to device
@@ -155,12 +168,12 @@ class CDKLM16(Simulator.Simulator):
         self.geoEq_Ly = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
 
         #Bathymetry
-        self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, Hi, boundary_conditions)
+        self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
         self.h0AsWaterElevation = h0AsWaterElevation
         if self.h0AsWaterElevation:
             self.bathymetry.waterElevationToDepth(self.gpu_data.h0)
         
-        self.constant_equilibrium_depth = np.max(Hi)
+        self.constant_equilibrium_depth = np.max(H)
         
         self.bc_kernel = Common.BoundaryConditionsArakawaA(gpu_ctx, \
                                                            self.nx, \
@@ -250,14 +263,14 @@ class CDKLM16(Simulator.Simulator):
             sim_reader.getBC()[2], sim_reader.getBC()[3], \
             sim_reader.getBCSpongeCells())
 
-        Hi = sim_reader.getH();
+        H = sim_reader.getH();
         
         # get last timestep (including simulation time of last timestep)
         eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
         
         return cls(gpu_ctx, \
                  eta0, hu0, hv0, \
-                 Hi, \
+                 H, \
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
@@ -368,7 +381,8 @@ class CDKLM16(Simulator.Simulator):
                                     self.nx, self.ny, self.dx, self.dy, \
                                     local_dt, \
                                     np.int32(2), np.int32(2))
-            self.t += local_dt
+            self.t += np.float64(local_dt)
+            self.num_iterations += 1
             
         if self.write_netcdf:
             self.sim_writer.writeTimestep(self)
@@ -380,6 +394,19 @@ class CDKLM16(Simulator.Simulator):
                    h_in, hu_in, hv_in, \
                    h_out, hu_out, hv_out, \
                    local_dt, wind_stress_t, rk_step):
+            
+        #"Beautify" code a bit by packing four bools into a single int
+        #Note: Must match code in kernel!
+        boundary_conditions = np.int32(0)
+        if (self.boundary_conditions.north == 1):
+            boundary_conditions = boundary_conditions | 0x01
+        if (self.boundary_conditions.east == 1):
+            boundary_conditions = boundary_conditions | 0x02
+        if (self.boundary_conditions.south == 1):
+            boundary_conditions = boundary_conditions | 0x04
+        if (self.boundary_conditions.west == 1):
+            boundary_conditions = boundary_conditions | 0x08
+            
         self.swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                            self.nx, self.ny, \
                            self.dx, self.dy, local_dt, \
@@ -400,11 +427,7 @@ class CDKLM16(Simulator.Simulator):
                            self.bathymetry.Bi.data.gpudata, self.bathymetry.Bi.pitch, \
                            self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
                            wind_stress_t, \
-                           self.boundary_conditions.north, self.boundary_conditions.east, self.boundary_conditions.south, self.boundary_conditions.west, \
-                           self.reportGeostrophicEquilibrium, \
-                           self.geoEq_uxpvy.data.gpudata, self.geoEq_uxpvy.pitch, \
-                           self.geoEq_Kx.data.gpudata, self.geoEq_Kx.pitch, \
-                           self.geoEq_Ly.data.gpudata, self.geoEq_Ly.pitch )
+                           boundary_conditions)
             
     
     def perturbState(self, q0_scale=None):

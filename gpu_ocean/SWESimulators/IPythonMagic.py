@@ -21,39 +21,51 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
 
+import argparse
+from IPython.core import magic_arguments
 from IPython.core.magic import line_magic, Magics, magics_class
 import pycuda.driver as cuda
 
+from SWESimulators import Common
 
 
 @magics_class
 class MyIPythonMagic(Magics): 
     @line_magic
-    def cuda_context_handler(self, context_name):
+    @magic_arguments.magic_arguments()
+    @magic_arguments.argument(
+        'name', type=str, help='Name of context to create')
+    @magic_arguments.argument(
+        '--blocking', '-b', action="store_true", help='Enable blocking context')
+    @magic_arguments.argument(
+        '--no_cache', '-nc', action="store_true", help='Disable caching of kernels')
+    def cuda_context_handler(self, line):
+        args = magic_arguments.parse_argstring(self.cuda_context_handler, line)
         self.logger =  logging.getLogger(__name__)
         
-        self.logger.debug("Registering %s as a global context", context_name)
+        self.logger.info("Registering %s in user workspace", args.name)
         
-        if context_name in self.shell.user_ns.keys():
+        if args.name in self.shell.user_ns.keys():
             self.logger.debug("Context already registered! Ignoring")
             return
         else:
             self.logger.debug("Creating context")
-            self.shell.ex(context_name + " = Common.CUDAContext(blocking=False)")
+            use_cache = False if args.no_cache else True
+            self.shell.user_ns[args.name] = Common.CUDAContext(blocking=args.blocking, use_cache=use_cache)
         
         # this function will be called on exceptions in any cell
         def custom_exc(shell, etype, evalue, tb, tb_offset=None):
-            self.logger.exception("Exception caught: Resetting to CUDA context %s", context_name)
+            self.logger.exception("Exception caught: Resetting to CUDA context %s", args.name)
             while (cuda.Context.get_current() != None):
                 context = cuda.Context.get_current()
                 self.logger.info("Popping <%s>", str(context.handle))
                 cuda.Context.pop()
 
-            if context_name in self.shell.user_ns.keys():
-                self.logger.info("Pushing <%s>", str(self.shell.user_ns[context_name].cuda_context.handle))
-                self.shell.ex(context_name + ".cuda_context.push()")
+            if args.name in self.shell.user_ns.keys():
+                self.logger.info("Pushing <%s>", str(self.shell.user_ns[args.name].cuda_context.handle))
+                self.shell.user_ns[args.name].cuda_context.push()
             else:
-                self.logger.error("No CUDA context called %s found (something is wrong)", context_name)
+                self.logger.error("No CUDA context called %s found (something is wrong)", args.name)
                 self.logger.error("CUDA will not work now")
 
             self.logger.debug("==================================================================")
@@ -76,30 +88,69 @@ class MyIPythonMagic(Magics):
             self.logger.debug("==================================================================")
         atexit.register(exitfunc)
         
+        
+        
+        
+        
+        
+    logger_initialized = False
+        
+        
+        
+        
     @line_magic
-    def setup_logging(self, log_filename):
-        import sys
-        
-        #Get root logger
-        logger = logging.getLogger('')
-        logger.setLevel(logging.DEBUG)
+    @magic_arguments.magic_arguments()
+    @magic_arguments.argument(
+        '--out', '-o', type=str, default='output.log', help='The filename to store the log to')
+    @magic_arguments.argument(
+        '--level', '-l', type=int, default=20, help='The level of logging to screen [0, 50]')
+    @magic_arguments.argument(
+        '--file_level', '-f', type=int, default=10, help='The level of logging to file [0, 50]')
+    def setup_logging(self, line):
+        if (self.logger_initialized):
+            logging.getLogger('').info("Global logger already initialized!")
+            return;
+        else:
+            self.logger_initialized = True
+            
+            args = magic_arguments.parse_argstring(self.setup_logging, line)
+            import sys
+            
+            #Get root logger
+            logger = logging.getLogger('')
+            logger.setLevel(min(args.level, args.file_level))
 
-        #Add log to file
-        fh = logging.FileHandler(log_filename)
-        formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s: %(message)s')
-        fh.setFormatter(formatter)
-        fh.setLevel(logging.DEBUG)
-        logger.addHandler(fh)
-
-        #Add log to screen
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
-        logger.addHandler(ch)
+            #Add log to screen
+            ch = logging.StreamHandler()
+            ch.setLevel(args.level)
+            logger.addHandler(ch)
+            logger.log(args.level, "Console logger using level %s", logging.getLevelName(args.level))
+            
+            #Get the outfilename (try to evaluate if Python expression...)
+            try:
+                outfile = eval(args.out, self.shell.user_global_ns, self.shell.user_ns)
+            except:
+                outfile = args.out
+            
+            #Add log to file
+            logger.log(args.level, "File logger using level %s to %s", logging.getLevelName(args.file_level), outfile)
+            fh = logging.FileHandler(outfile)
+            formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s: %(message)s')
+            fh.setFormatter(formatter)
+            fh.setLevel(args.file_level)
+            logger.addHandler(fh)
         
-        logger.info('Registering logging to %s', log_filename)
         logger.info("Python version %s", sys.version)
 
-
+        
+        
+        
+        
+        
+        
+        
+        
 # Register 
 ip = get_ipython()
 ip.register_magics(MyIPythonMagic)
+

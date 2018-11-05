@@ -73,7 +73,7 @@ class Simulator(object):
         self.ghost_cells_y = np.int32(ghost_cells_y)
         self.dx = np.float32(dx)
         self.dy = np.float32(dy)
-        self.dt = np.float32(dt)
+        self.dt = dt
         self.g = np.float32(g)
         self.f = np.float32(f)
         self.r = np.float32(r)
@@ -85,7 +85,8 @@ class Simulator(object):
         self.offset_y = offset_y
         
         #Initialize time
-        self.t = np.float32(t)
+        self.t = t
+        self.num_iterations = 0
         
         #Initialize wind stress parameters
         self.wind_stress_textures = {}

@@ -570,6 +570,7 @@ texture<float, cudaTextureType2D> windstress_Y_next;
   * @param ny_ Number of cells along y axis
   */
 __device__ float windStressX(float wind_stress_t_, float ti_, float tj_, int nx_, int ny_) {
+    
     //Normalize coordinates (to [0, 1])
     const int s = ti_ / float(nx_);
     const int t = tj_ / float(ny_);
@@ -591,6 +592,7 @@ __device__ float windStressX(float wind_stress_t_, float ti_, float tj_, int nx_
   * @param ny_ Number of cells along y axis
   */
 __device__ float windStressY(float wind_stress_t_, float ti_, float tj_, int nx_, int ny_) {
+    
     //Normalize coordinates (to [0, 1])
     const int s = ti_ / float(nx_);
     const int t = tj_ / float(ny_);
