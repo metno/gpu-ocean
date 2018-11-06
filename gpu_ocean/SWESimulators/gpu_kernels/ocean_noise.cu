@@ -374,9 +374,9 @@ __global__ void geostrophicBalance(
         const float d_hv =  (g_/coriolis)*h_mid*eta_diff_x;        
 
         if (true) {
-            eta_row[ti+ghost_cells_x_] += d_eta[ty+1][tx+1];
-             hu_row[ti+ghost_cells_x_] += d_hu;
-             hv_row[ti+ghost_cells_x_] += d_hv;
+            eta_row[ti] += d_eta[eta_ty][eta_tx];
+             hu_row[ti] += d_hu;
+             hv_row[ti] += d_hv;
         } else {
             eta_row[ti] = d_eta[eta_ty][eta_tx];
             hu_row[ti] = d_hu;
