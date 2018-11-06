@@ -571,11 +571,7 @@ class OceanStateNoise(object):
         # Create buffers for eta, hu and hv:
         d_eta = np.zeros((self.ny+4, self.nx+4))
       
-        # Matrix needed to find the interpolation coefficients
-        bicubic_matrix = np.matrix([[ 1,  0,  0,  0], 
-                                    [ 0,  0,  1,  0], 
-                                    [-3,  3, -2, -1],
-                                    [ 2, -2,  1,  1]])
+        
         
         
         min_rel_x = 10
@@ -604,54 +600,6 @@ class OceanStateNoise(object):
                 coarse_x = (coarse_i - 2 + 0.5)*self.coarse_dx
                 coarse_y = (coarse_j - 2 + 0.5)*self.coarse_dy
                 
-                
-                # Defining the coarse grid points on coarse intersections rather than in grid centers.
-                #coarse_i = int(np.floor(x/coarse_dx + 1))
-                #coarse_j = int(np.floor(y/coarse_dy + 1))
-                #coarse_x = (coarse_i - 1)*coarse_dx 
-                #coarse_y = (coarse_j - 1)*coarse_dy 
-
-                #print ("(i, x, coarse_i, coarse_x)", (i, x, coarse_i, coarse_x))
-                #if loc_j == 0:
-                #    print ("--> (i, x, coarse_i, coarse_x)", (i, x, coarse_i, coarse_x))
-                #if loc_i == 0:
-                #    print ("--> (j, y, coarse_j, coarse_y)", (j, y, coarse_j, coarse_y))
-                    
-
-                f00   =  coarse_eta[coarse_j  , coarse_i  ]
-                f01   =  coarse_eta[coarse_j+1, coarse_i  ]
-                f10   =  coarse_eta[coarse_j  , coarse_i+1]
-                f11   =  coarse_eta[coarse_j+1, coarse_i+1]
-
-                fx00  = (coarse_eta[coarse_j  , coarse_i+1] - coarse_eta[coarse_j  , coarse_i-1])/2
-                fx01  = (coarse_eta[coarse_j+1, coarse_i+1] - coarse_eta[coarse_j+1, coarse_i-1])/2       
-                fx10  = (coarse_eta[coarse_j  , coarse_i+2] - coarse_eta[coarse_j  , coarse_i  ])/2    
-                fx11  = (coarse_eta[coarse_j+1, coarse_i+2] - coarse_eta[coarse_j+1, coarse_i  ])/2      
-
-                fy00  = (coarse_eta[coarse_j+1, coarse_i  ] - coarse_eta[coarse_j-1, coarse_i  ])/2
-                fy01  = (coarse_eta[coarse_j+2, coarse_i  ] - coarse_eta[coarse_j  , coarse_i  ])/2       
-                fy10  = (coarse_eta[coarse_j+1, coarse_i+1] - coarse_eta[coarse_j-1, coarse_i+1])/2       
-                fy11  = (coarse_eta[coarse_j+2, coarse_i+1] - coarse_eta[coarse_j  , coarse_i+1])/2       
-
-                fy_10 = (coarse_eta[coarse_j+1, coarse_i-1] - coarse_eta[coarse_j-1, coarse_i-1])/2
-                fy_11 = (coarse_eta[coarse_j+2, coarse_i-1] - coarse_eta[coarse_j  , coarse_i-1])/2
-                fy20  = (coarse_eta[coarse_j+1, coarse_i+2] - coarse_eta[coarse_j-1, coarse_i+2])/2
-                fy21  = (coarse_eta[coarse_j+2, coarse_i+2] - coarse_eta[coarse_j  , coarse_i+2])/2
-
-                fxy00 = (fy10 - fy_10)/2
-                fxy01 = (fy11 - fy_11)/2
-                fxy10 = (fy20 -  fy00)/2
-                fxy11 = (fy21 -  fy01)/2
-
-
-                f_matrix = np.matrix([[ f00,  f01,  fy00,  fy01],
-                                      [ f10,  f11,  fy10,  fy11],
-                                      [fx00, fx01, fxy00, fxy01],
-                                      [fx10, fx11, fxy10, fxy11] ])
-
-                a_matrix = np.dot(bicubic_matrix, np.dot(f_matrix, bicubic_matrix.transpose()))
-
-
                 assert coarse_x <= x
                 assert coarse_x + self.coarse_dx >= x
 
@@ -669,30 +617,78 @@ class OceanStateNoise(object):
 
                 assert rel_x >= 0 and rel_x < 1
                 assert rel_y >= 0 and rel_y < 1
+                
+                # Defining the coarse grid points on coarse intersections rather than in grid centers.
+                #coarse_i = int(np.floor(x/coarse_dx + 1))
+                #coarse_j = int(np.floor(y/coarse_dy + 1))
+                #coarse_x = (coarse_i - 1)*coarse_dx 
+                #coarse_y = (coarse_j - 1)*coarse_dy 
 
-                x_vec = np.matrix([1.0, rel_x, rel_x*rel_x, rel_x*rel_x*rel_x])
-                y_vec = np.matrix([1.0, rel_y, rel_y*rel_y, rel_y*rel_y*rel_y]).transpose()
+                #print ("(i, x, coarse_i, coarse_x)", (i, x, coarse_i, coarse_x))
+                #if loc_j == 0:
+                #    print ("--> (i, x, coarse_i, coarse_x)", (i, x, coarse_i, coarse_x))
+                #if loc_i == 0:
+                #    print ("--> (j, y, coarse_j, coarse_y)", (j, y, coarse_j, coarse_y))
+                    
+                d_eta[j,i] = self._bicubic_interpolation_inner(coarse_eta, coarse_i, coarse_j, rel_x, rel_y, interpolation_order)
 
-                d_eta[j,i] = np.dot(x_vec, np.dot(a_matrix, y_vec))
-
-                
-                
-                if interpolation_order == 0:
-                    # Flat average:
-                    d_eta[j,i] = 0.25*(f00 + f01 + f10 + f11)
-                
-                elif interpolation_order == 1:
-                    # Linear interpolation:
-                    d_eta[j,i] = f00*(1-rel_x)*(1-rel_y) + f10*rel_x*(1-rel_y) + f01*(1-rel_x)*rel_y + f11*rel_x*rel_y
-                
-                elif interpolation_order == 3:
-                    # Bicubic interpolation
-                    d_eta[j,i] = np.dot(x_vec, np.dot(a_matrix, y_vec))
-
-                
         #print("(min_rel_x, max_rel_x)", (min_rel_x, max_rel_x))
         #print("(min_rel_y, max_rel_y)", (min_rel_y, max_rel_y))
         return d_eta
         
-    
-    
+        
+    def _bicubic_interpolation_inner(self, coarse_eta, coarse_i, coarse_j, rel_x, rel_y, interpolation_order=3):
+         # Matrix needed to find the interpolation coefficients
+        bicubic_matrix = np.matrix([[ 1,  0,  0,  0], 
+                                    [ 0,  0,  1,  0], 
+                                    [-3,  3, -2, -1],
+                                    [ 2, -2,  1,  1]])
+        
+        f00   =  coarse_eta[coarse_j  , coarse_i  ]
+        f01   =  coarse_eta[coarse_j+1, coarse_i  ]
+        f10   =  coarse_eta[coarse_j  , coarse_i+1]
+        f11   =  coarse_eta[coarse_j+1, coarse_i+1]
+
+        fx00  = (coarse_eta[coarse_j  , coarse_i+1] - coarse_eta[coarse_j  , coarse_i-1])/2
+        fx01  = (coarse_eta[coarse_j+1, coarse_i+1] - coarse_eta[coarse_j+1, coarse_i-1])/2       
+        fx10  = (coarse_eta[coarse_j  , coarse_i+2] - coarse_eta[coarse_j  , coarse_i  ])/2    
+        fx11  = (coarse_eta[coarse_j+1, coarse_i+2] - coarse_eta[coarse_j+1, coarse_i  ])/2      
+
+        fy00  = (coarse_eta[coarse_j+1, coarse_i  ] - coarse_eta[coarse_j-1, coarse_i  ])/2
+        fy01  = (coarse_eta[coarse_j+2, coarse_i  ] - coarse_eta[coarse_j  , coarse_i  ])/2       
+        fy10  = (coarse_eta[coarse_j+1, coarse_i+1] - coarse_eta[coarse_j-1, coarse_i+1])/2       
+        fy11  = (coarse_eta[coarse_j+2, coarse_i+1] - coarse_eta[coarse_j  , coarse_i+1])/2       
+
+        fy_10 = (coarse_eta[coarse_j+1, coarse_i-1] - coarse_eta[coarse_j-1, coarse_i-1])/2
+        fy_11 = (coarse_eta[coarse_j+2, coarse_i-1] - coarse_eta[coarse_j  , coarse_i-1])/2
+        fy20  = (coarse_eta[coarse_j+1, coarse_i+2] - coarse_eta[coarse_j-1, coarse_i+2])/2
+        fy21  = (coarse_eta[coarse_j+2, coarse_i+2] - coarse_eta[coarse_j  , coarse_i+2])/2
+
+        fxy00 = (fy10 - fy_10)/2
+        fxy01 = (fy11 - fy_11)/2
+        fxy10 = (fy20 -  fy00)/2
+        fxy11 = (fy21 -  fy01)/2
+
+
+        f_matrix = np.matrix([[ f00,  f01,  fy00,  fy01],
+                              [ f10,  f11,  fy10,  fy11],
+                              [fx00, fx01, fxy00, fxy01],
+                              [fx10, fx11, fxy10, fxy11] ])
+
+        a_matrix = np.dot(bicubic_matrix, np.dot(f_matrix, bicubic_matrix.transpose()))
+        
+        x_vec = np.matrix([1.0, rel_x, rel_x*rel_x, rel_x*rel_x*rel_x])
+        y_vec = np.matrix([1.0, rel_y, rel_y*rel_y, rel_y*rel_y*rel_y]).transpose()
+
+        if interpolation_order == 0:
+            # Flat average:
+            return 0.25*(f00 + f01 + f10 + f11)
+
+        elif interpolation_order == 1:
+            # Linear interpolation:
+            return f00*(1-rel_x)*(1-rel_y) + f10*rel_x*(1-rel_y) + f01*(1-rel_x)*rel_y + f11*rel_x*rel_y
+
+        elif interpolation_order == 3:
+            # Bicubic interpolation
+            return np.dot(x_vec, np.dot(a_matrix, y_vec))
+
