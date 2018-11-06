@@ -305,8 +305,9 @@ class IEWPFOcean:
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 3)
     
-    
+    ###------------------------    
     ### GPU Methods
+    ###------------------------
     # Functions needed for the GPU implementation of IEWPF
     
     def obtainGamma(self, sim):
@@ -407,7 +408,34 @@ class IEWPFOcean:
                                                               sim.small_scale_model_error.random_numbers.data.gpudata,
                                                              sim.small_scale_model_error.random_numbers.pitch)
     
+    
+    
+    ###------------------------    
+    ### CPU Methods
+    ###------------------------
+    # Parts of the efficient IEWPF method that is solved on the CPU
+    
+    # As we have S = (HQH^T + R)^-1, we can do step 1 of the IEWPF algorithm
+    def obtainTargetWeight(self, ensemble, d, w_rest=None):
+        if w_rest is None:
+            w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
+            
+        Ne = ensemble.getNumParticles()
+        c = np.zeros(Ne)
+        for particle in range(Ne):
+            # Obtain db = d^T S d
+            db = 0.0
+            for drifter in range(ensemble.driftersPerOceanModel):
+                e = np.dot(self.S_host, d[particle,drifter,:])
+                db += np.dot(e, d[particle, drifter, :])
+            c[particle] = w_rest[particle] + 0.5*db
+            if self.debug: print( "c[" + str(particle) + "]: ", c[particle])
+            if self.debug: print ("exp(-c[" + str(particle) + "]: ", np.exp(-c[particle]))
+        return np.min(c)
+
+    
     ### Solving the implicit equation on the CPU:
+    
     def _old_implicitEquation(self, alpha, gamma, Nx, a):
         return (alpha-1.0)*gamma - Nx*np.log(alpha) + a
     
@@ -486,49 +514,7 @@ class IEWPFOcean:
 
         return alpha
         
-    ## Download GPU buffers
-    
-    def download_S(self):
-        return self.S_device.download(self.master_stream)
-    
-    def download_localSVD(self):
-        return self.localSVD_device.download(self.master_stream)
-    
-    def download_reduction_buffer(self):
-        return self.reduction_buffer.download(self.master_stream)
-    
         
-    def showMatrices(self, x, y, title, z = None):
-        num_cols = 2
-        if z is not None:
-            num_cols = 3
-        fig = plt.figure(figsize=(num_cols*2,2))
-        plt.subplot(1,num_cols,1)
-        plt.imshow(x.copy(), origin="lower", interpolation="None")
-        plt.xlabel('(%.2E, %.2E)' % (np.min(x), np.max(x)))
-        plt.subplot(1,num_cols,2)
-        plt.imshow(y.copy(), origin="lower", interpolation="None")
-        plt.xlabel('(%.2E, %.2E)' % (np.min(y), np.max(y)))
-        if z is not None:
-            plt.subplot(1, num_cols, 3)
-            plt.imshow(z.copy(), origin="lower", interpolation="None")
-            plt.xlabel('(%.2E, %.2E)' % (np.min(z), np.max(z)))
-        plt.suptitle(title)
-
-    
-        
-    def _SOAR_Q_CPU(self, a_x, a_y, b_x, b_y):
-        """
-        CPU implementation of a SOAR covariance function between grid points
-        (a_x, a_y) and (b_x, b_y) with periodic boundaries
-        """
-        dist_x = min((a_x - b_x)**2, (a_x - (b_x + self.nx))**2, (a_x - (b_x - self.nx))**2)
-        dist_y = min((a_y - b_y)**2, (a_y - (b_y + self.ny))**2, (a_y - (b_y - self.ny))**2)
-        
-        dist = np.sqrt( self.dx*self.dx*dist_x  +  self.dy*self.dy*dist_y)
-        
-        return self.soar_q0*(1.0 + dist/self.soar_L)*np.exp(-dist/self.soar_L)
-
     def _createS(self, ensemble):
         """
         Create the 2x2 matrix S = (HQH^T + R)^-1
@@ -597,6 +583,56 @@ class IEWPFOcean:
         S = np.linalg.inv(S_inv)
         if self.debug: print( "S\n", S)
         return S.astype(np.float32, order='C')
+        
+    
+    ###---------------------------
+    ### Download GPU buffers
+    ###---------------------------
+    
+    def download_S(self):
+        return self.S_device.download(self.master_stream)
+    
+    def download_localSVD(self):
+        return self.localSVD_device.download(self.master_stream)
+    
+    def download_reduction_buffer(self):
+        return self.reduction_buffer.download(self.master_stream)
+    
+        
+    def showMatrices(self, x, y, title, z = None):
+        num_cols = 2
+        if z is not None:
+            num_cols = 3
+        fig = plt.figure(figsize=(num_cols*2,2))
+        plt.subplot(1,num_cols,1)
+        plt.imshow(x.copy(), origin="lower", interpolation="None")
+        plt.xlabel('(%.2E, %.2E)' % (np.min(x), np.max(x)))
+        plt.subplot(1,num_cols,2)
+        plt.imshow(y.copy(), origin="lower", interpolation="None")
+        plt.xlabel('(%.2E, %.2E)' % (np.min(y), np.max(y)))
+        if z is not None:
+            plt.subplot(1, num_cols, 3)
+            plt.imshow(z.copy(), origin="lower", interpolation="None")
+            plt.xlabel('(%.2E, %.2E)' % (np.min(z), np.max(z)))
+        plt.suptitle(title)
+
+    ###-----------------------
+    ### IEWPF CPU functions
+    ###-----------------------
+        
+    def _SOAR_Q_CPU(self, a_x, a_y, b_x, b_y):
+        """
+        CPU implementation of a SOAR covariance function between grid points
+        (a_x, a_y) and (b_x, b_y) with periodic boundaries
+        """
+        dist_x = min((a_x - b_x)**2, (a_x - (b_x + self.nx))**2, (a_x - (b_x - self.nx))**2)
+        dist_y = min((a_y - b_y)**2, (a_y - (b_y + self.ny))**2, (a_y - (b_y - self.ny))**2)
+        
+        dist = np.sqrt( self.dx*self.dx*dist_x  +  self.dy*self.dy*dist_y)
+        
+        return self.soar_q0*(1.0 + dist/self.soar_L)*np.exp(-dist/self.soar_L)
+
+
 
     def _createCutoffSOARMatrixQ(self, ensemble, nx=None, ny=None, cutoff=2):
         
@@ -886,27 +922,8 @@ class IEWPFOcean:
         infoFig = ensemble.plotDistanceInfo(title=title, printInfo=False)
         plt.close(infoFig)
         infoPlots.append(infoFig)
-    
-    
-    # As we have S = (HQH^T + R)^-1, we can do step 1 of the IEWPF algorithm
-    def obtainTargetWeight(self, ensemble, d, w_rest=None):
-        if w_rest is None:
-            w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
-            
-        Ne = ensemble.getNumParticles()
-        c = np.zeros(Ne)
-        for particle in range(Ne):
-            # Obtain db = d^T S d
-            db = 0.0
-            for drifter in range(ensemble.driftersPerOceanModel):
-                e = np.dot(self.S_host, d[particle,drifter,:])
-                db += np.dot(e, d[particle, drifter, :])
-            c[particle] = w_rest[particle] + 0.5*db
-            if self.debug: print( "c[" + str(particle) + "]: ", c[particle])
-            if self.debug: print ("exp(-c[" + str(particle) + "]: ", np.exp(-c[particle]))
-        return np.min(c)
 
-    
+        
     def _apply_periodic_boundary(self, index, dim_size):
         if index < 0:
             return index + dim_size

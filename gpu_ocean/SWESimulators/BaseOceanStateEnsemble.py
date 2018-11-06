@@ -328,7 +328,6 @@ class BaseOceanStateEnsemble(object):
         [[x_1, y_1, u_1, v_1], ... , [x_D, y_D, u_D, v_D]]
         If the observation operator is drifter positions, u and v are not included.
         """
-        #print "(Remember to comment in this one again) CHECKIFALREADYOBSERVED"
         if self.observedDrifterPositions[-1][0] != self.t:
             self._addObservation(self.observeTrueDrifters())
 
