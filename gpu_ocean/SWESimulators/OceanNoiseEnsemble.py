@@ -80,7 +80,8 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                                 boundary_conditions=self.boundaryConditions, \
                                                 write_netcdf=False, \
                                                 small_scale_perturbation=True, \
-                                                small_scale_perturbation_amplitude=self.small_scale_perturbation_amplitude)
+                                                small_scale_perturbation_amplitude=self.small_scale_perturbation_amplitude,
+                                                small_scale_perturbation_interpolation_factor=self.small_scale_perturbation_interpolation_factor)
             
             if self.initialization_variance_factor_ocean_field != 0.0:
                 self.particles[i].perturbState(q0_scale=self.initialization_variance_factor_ocean_field)

@@ -99,6 +99,7 @@ class IEWPFOcean:
         self.S_device = Common.CUDAArray2D(self.master_stream, 2, 2, 0, 0, self.S_host)
         
         # Create constant localized SVD matrix and copy to the GPU
+        # This matrix is defined for the coarse grid, and ignores all use of the interpolation operator.
         self.localSVD_host, self.localSVD_device = None, None
         self.localSVD_host = self._generateLocaleSVDforP(ensemble)
         self.localSVD_device = Common.CUDAArray2D(self.master_stream, 49, 49, 0, 0, self.localSVD_host)
@@ -341,11 +342,11 @@ class IEWPFOcean:
             
     def setNoiseBufferToZero(self, sim):
         self.setBufferToZeroKernel.prepared_async_call(self.global_size_domain,
-                                                      self.local_size_domain, 
-                                                      self.master_stream,
-                                                      sim.nx, sim.ny,
-                                                      sim.small_scale_model_error.random_numbers.data.gpudata,
-                                                      sim.small_scale_model_error.random_numbers.pitch)
+                                                       self.local_size_domain, 
+                                                       self.master_stream,
+                                                       sim.nx, sim.ny,
+                                                       sim.small_scale_model_error.random_numbers.data.gpudata,
+                                                       sim.small_scale_model_error.random_numbers.pitch)
         
     def addKalmanGain(self, sim, all_observed_drifter_positions, innovation):
         
@@ -419,8 +420,8 @@ class IEWPFOcean:
                                                           np.int32(drifter_cell_id_y),
                                                           self.localSVD_device.data.gpudata,
                                                           self.localSVD_device.pitch, 
-                                                              sim.small_scale_model_error.random_numbers.data.gpudata,
-                                                             sim.small_scale_model_error.random_numbers.pitch)
+                                                          sim.small_scale_model_error.random_numbers.data.gpudata,
+                                                          sim.small_scale_model_error.random_numbers.pitch)
     
     
     
@@ -428,6 +429,7 @@ class IEWPFOcean:
     ### CPU Methods
     ###------------------------
     # Parts of the efficient IEWPF method that is solved on the CPU
+    
     
     # As we have S = (HQH^T + R)^-1, we can do step 1 of the IEWPF algorithm
     def obtainTargetWeight(self, ensemble, d, w_rest=None):
@@ -622,8 +624,8 @@ class IEWPFOcean:
             y_west  = y_corr[mid_j  , mid_i-1]
             y_east  = y_corr[mid_j  , mid_i+1]
         
-        if debug: print("[x_north, x_east, x_south, x_west]: ", [x_north, x_east, x_south, x_west])
-        if debug: print("[y_north, y_east, y_south, y_west]: ", [y_north, y_east, y_south, y_west])
+        if self.debug: print("[x_north, x_east, x_south, x_west]: ", [x_north, x_east, x_south, x_west])
+        if self.debug: print("[y_north, y_east, y_south, y_west]: ", [y_north, y_east, y_south, y_west])
             
         
         # geostrophic balance:
@@ -641,6 +643,9 @@ class IEWPFOcean:
         S = np.linalg.inv(S_inv)
         if self.debug: print( "S\n", S)
         return S.astype(np.float32, order='C')
+    
+    
+    
         
     
     ###---------------------------
@@ -695,9 +700,9 @@ class IEWPFOcean:
     def _createCutoffSOARMatrixQ(self, ensemble, nx=None, ny=None, cutoff=2):
         
         if nx is None:
-            nx = ensemble.nx
+            nx = self.coarse_nx
         if ny is None:
-            ny = ensemble.ny
+            ny = self.coarse_ny
         
         Q = np.zeros((ny*nx, ny*nx))
         for a_y in range(ny):
@@ -724,9 +729,9 @@ class IEWPFOcean:
     def _createUGBmatrix(self, ensemble, nx=None, ny=None):
     
         if nx is None:
-            nx = ensemble.nx
+            nx = self.coarse_nx
         if ny is None:
-            ny = ensemble.ny
+            ny = self.coarse_ny
         
         I = np.eye(nx*ny)
         A_hu = np.zeros((ny*nx, ny*nx))
@@ -756,8 +761,8 @@ class IEWPFOcean:
                     i = a_y*nx + nx - 1
                 A_hv[j,i] = -1.0
 
-        A_hu *= -self.geoBalanceConst/self.dy
-        A_hv *=  self.geoBalanceConst/self.dx
+        A_hu *= -self.geoBalanceConst/self.coarse_dy
+        A_hv *=  self.geoBalanceConst/self.coarse_dx
             
         return np.bmat([[I], [A_hu], [A_hv]])
 
@@ -768,9 +773,10 @@ class IEWPFOcean:
         H[1, 2*nx*ny + index] = 1
         return H
 
-    def _generateLocaleSVDforP(self, ensemble):
+    def _generateLocaleSVDforP(self, ensemble, returnUSigV=False):
         """
         Generates the local square root of the SVD-block needed for P^1/2.
+        This matrix is defined for the coarse grid, and ignores all use of the interpolation operator.
 
         Finding:   U*Sigma*V^H = I - Q*U_GB^T*H^T*S*H*U_GB*Q
         Returning: U*sqrt(Sigma)
@@ -796,7 +802,7 @@ class IEWPFOcean:
         QUTHTSHUQ = np.dot(Q_soar, UTHTSHUQ)
 
         svd_input = np.eye(local_nx*local_nx) - QUTHTSHUQ
-
+        
         u, s, vh = np.linalg.svd(svd_input, full_matrices=True)
 
         if self.debug:
@@ -816,7 +822,9 @@ class IEWPFOcean:
             plt.title("u")
             plt.colorbar()
 
-
+        if returnUSigV:
+            return u, s, vh
+        
         return np.dot(u, np.diag(np.sqrt(s))).astype(np.float32, order='C')
     
     

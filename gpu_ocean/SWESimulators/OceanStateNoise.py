@@ -157,7 +157,7 @@ class OceanStateNoise(object):
         self.geostrophicBalanceKernel.prepare("iiffiiffffPiPiPiPiPi")
         
         self.bicubicInterpolationKernel = self.kernels.get_function("bicubicInterpolation")
-        self.bicubicInterpolationKernel.prepare("iiiiffiiiiffffffPiPiPiPiPi")
+        self.bicubicInterpolationKernel.prepare("iiiiffiiiiffiiffffPiPiPiPiPi")
         
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height, 1)
@@ -241,7 +241,8 @@ class OceanStateNoise(object):
                                                            self.seed.data.gpudata, self.seed.pitch,
                                                            self.random_numbers.data.gpudata, self.random_numbers.pitch)
     
-    def perturbSim(self, sim, q0_scale=1.0, update_random_field=True, perturbation_scale=1.0):
+    def perturbSim(self, sim, q0_scale=1.0, update_random_field=True, perturbation_scale=1.0,
+                   align_with_cell_i=None, align_with_cell_j=None):
         """
         Generating a perturbed ocean state and adding it to sim's ocean state 
         """
@@ -253,18 +254,28 @@ class OceanStateNoise(object):
                                ghost_cells_x=sim.ghost_cells_x,
                                ghost_cells_y=sim.ghost_cells_y,
                                q0_scale=q0_scale,
-                               update_random_field=update_random_field)
+                               update_random_field=update_random_field,
+                               align_with_cell_i=align_with_cell_i,
+                               align_with_cell_j=align_with_cell_j)
                                
     
     def perturbOceanState(self, eta, hu, hv, H, f, beta=0.0, g=9.81, 
                           y0_reference_cell=0, ghost_cells_x=0, ghost_cells_y=0,
-                          q0_scale=1.0, update_random_field=True, perturbation_scale=1.0):
+                          q0_scale=1.0, update_random_field=True, perturbation_scale=1.0,
+                          align_with_cell_i=None, align_with_cell_j=None):
         """
         Apply the SOAR Q covariance matrix on the random ocean field which is
         added to the provided buffers eta, hu and hv.
         eta: surface deviation - CUDAArray2D object.
         hu: volume transport in x-direction - CUDAArray2D object.
         hv: volume transport in y-dirextion - CUDAArray2D object.
+        
+        Optional parameters not used else_where:
+        q0_scale=1: scale factor to the SOAR amplitude parameter q0
+        update_random_field=True: whether to generate new random numbers or use those already 
+            present in the random numbers buffer
+        perturbation_scale=1: scale factor to the perturbation of the eta field
+        align_with_cell_i=None, align_with_cell_j=None: Index to a cell for which to align the coarse grid
         """
         if update_random_field:
             # Need to update the random field, requiering a global sync
@@ -272,6 +283,8 @@ class OceanStateNoise(object):
         
         soar_q0 = np.float32(self.soar_q0 * q0_scale)
         
+        offset_i, offset_j = self._obtain_coarse_grid_offset(align_with_cell_i, align_with_cell_j)
+        print("offset_i, offset_j: ", (offset_i, offset_j))
         
         # Generate the SOAR field on the coarse grid
         
@@ -296,6 +309,7 @@ class OceanStateNoise(object):
                                                                 self.coarse_nx, self.coarse_ny,
                                                                 np.int32(ghost_cells_x), np.int32(ghost_cells_y),
                                                                 self.coarse_dx, self.coarse_dy,
+                                                                np.int32(offset_i), np.int32(offset_j),
                                                                 
                                                                 np.float32(g), np.float32(f),
                                                                 np.float32(beta), np.float32(y0_reference_cell),
@@ -321,7 +335,22 @@ class OceanStateNoise(object):
                                                               hv.data.gpudata, hv.pitch,
                                                               H.data.gpudata, H.pitch)
     
-    
+    def _obtain_coarse_grid_offset(self, fine_index_i, fine_index_j):
+        
+        default_offset = self.interpolation_factor//2
+
+        offset_i, offset_j = 0, 0
+        
+        if fine_index_i is not None:
+            coarse_i = fine_index_i//self.interpolation_factor
+            raw_offset_i = fine_index_i % self.interpolation_factor
+            offset_i = int(raw_offset_i - default_offset)
+        if fine_index_j is not None:        
+            coarse_j = fine_index_j//self.interpolation_factor
+            raw_offset_j = fine_index_j % self.interpolation_factor
+            offset_j = int(raw_offset_j - default_offset)
+        return offset_i, offset_j
+
     
     ##### CPU versions of the above functions ####
     
@@ -387,6 +416,9 @@ class OceanStateNoise(object):
         eta[interior[2]:interior[0], interior[3]:interior[1]] += d_eta[2:-2, 2:-2]
         hu[interior[2]:interior[0], interior[3]:interior[1]] += d_hu
         hv[interior[2]:interior[0], interior[3]:interior[1]] += d_hv
+    
+    
+     
     
     # ------------------------------
     # CPU utility functions:
