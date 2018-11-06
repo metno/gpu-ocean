@@ -108,12 +108,12 @@ class IEWPFOceanTest(unittest.TestCase):
                                    small_scale_perturbation=True, \
                                    small_scale_perturbation_amplitude=self.q0)
         
-        self.ensemble = OceanNoiseEnsemble.OceanNoiseEnsemble(self.ensembleSize, self.gpu_ctx,  
-                                                              observation_type=dautils.ObservationType.DirectUnderlyingFlow)
-        self.ensemble.setGridInfoFromSim(self.sim)
-        self.ensemble.setStochasticVariables(observation_variance = 0.01**2,
-                                             small_scale_perturbation_amplitude=self.q0)
-        self.ensemble.init(driftersPerOceanModel=self.driftersPerOceanModel)
+
+        self.ensemble = OceanNoiseEnsemble.OceanNoiseEnsemble(self.gpu_ctx, self.ensembleSize, self.sim,
+                                                              num_drifters =self.driftersPerOceanModel,
+                                                              observation_type=dautils.ObservationType.DirectUnderlyingFlow,
+                                                              observation_variance = 0.01**2)
+
 
         self.iewpf = IEWPFOcean.IEWPFOcean(self.ensemble)
 
