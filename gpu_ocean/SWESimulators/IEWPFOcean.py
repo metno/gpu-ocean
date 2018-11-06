@@ -50,6 +50,20 @@ class IEWPFOcean:
         self.dt = np.float32(ensemble.dt)
         self.nx = np.int32(ensemble.nx)
         self.ny = np.int32(ensemble.ny)
+        
+        self.interpolation_factor = np.int32(ensemble.small_scale_perturbation_interpolation_factor)
+        
+        # Check that the interpolation factor plays well with the grid size:
+        assert ( self.interpolation_factor > 0 and self.interpolation_factor % 2 == 1), 'interpolation_factor must be a positive odd integer'
+        assert (self.nx % self.interpolation_factor == 0), 'nx must be divisible by the interpolation factor'
+        assert (self.ny % self.interpolation_factor == 0), 'ny must be divisible by the interpolation factor'
+        
+        # The size of the coarse grid 
+        self.coarse_nx = np.int32(self.nx/self.interpolation_factor)
+        self.coarse_ny = np.int32(self.ny/self.interpolation_factor)
+        self.coarse_dx = np.float32(self.dx*self.interpolation_factor)
+        self.coarse_dy = np.float32(self.dy*self.interpolation_factor)
+        
         self.soar_q0 = np.float32(ensemble.small_scale_perturbation_amplitude)
         self.soar_L  = np.float32(ensemble.particles[0].small_scale_model_error.soar_L)
         self.f = np.float32(ensemble.f)
@@ -520,7 +534,7 @@ class IEWPFOcean:
         Create the 2x2 matrix S = (HQH^T + R)^-1
 
         Constant as long as
-         - one drifter only,
+         - the forcing on the drifters, and the drifters themselves, are independent,
          - H(x,y) = const, and
          - double periodic boundary conditions
         """
@@ -535,10 +549,10 @@ class IEWPFOcean:
         mid_i, mid_j = 3, 3
 
         # Fill the buffers with U_{GB}^T H^T
-        x_corr[mid_j+1, mid_i] = -self.geoBalanceConst/self.dy
-        x_corr[mid_j-1, mid_i] =  self.geoBalanceConst/self.dy
-        y_corr[mid_j, mid_i+1] =  self.geoBalanceConst/self.dx
-        y_corr[mid_j, mid_i-1] = -self.geoBalanceConst/self.dx
+        x_corr[mid_j+1, mid_i] = -self.geoBalanceConst/self.coarse_dy
+        x_corr[mid_j-1, mid_i] =  self.geoBalanceConst/self.coarse_dy
+        y_corr[mid_j, mid_i+1] =  self.geoBalanceConst/self.coarse_dx
+        y_corr[mid_j, mid_i-1] = -self.geoBalanceConst/self.coarse_dx
         if self.debug: self.showMatrices(x_corr, y_corr, "$U_{GB}^T  H^T$")
     
         # Apply the SOAR function to fill x and y with 7x5 and 5x7 respectively
@@ -554,25 +568,69 @@ class IEWPFOcean:
                     tmp_y[b, a] += y_corr[j,i]*self._SOAR_Q_CPU(a, b, i, j)
         if self.debug: self.showMatrices(tmp_x, tmp_y, "$Q_{SOAR} U_{GB}^T H^T$")   
         
+        
         # Apply the SOARfunction again to fill the points needed to find drift in (mid_i, mid_j)
-        # For both x and y:
-        # This means that we only need to evaluate Q_{SOAR} Q_{SOAR} U_{GB}^T H^T at four points
-        for j,i in [mid_j+1, mid_i], [mid_j-1, mid_i], [mid_j, mid_i-1], [mid_j, mid_i+1]:
-            x_corr[j,i] = 0
-            y_corr[j,i] = 0
-            for b in range(j-2, j+3):
-                for a in range(i-2, i+3):
-                    SOAR_Q_res = self._SOAR_Q_CPU(a, b, i, j)
-                    x_corr[j,i] += tmp_x[b, a]*SOAR_Q_res
-                    y_corr[j,i] += tmp_y[b, a]*SOAR_Q_res
-            if self.debug: print ("(j, i ,x_corr[j,i], y_corr[j,i]): ", (j, i ,x_corr[j,i], y_corr[j,i]))
+        # In order to reuse the bicubic interpolation routine, we need to calculate the SOAR values
+        # in the 5x5 area centered in the mid-cell.
+        # The values outside of the 7x7 buffers are all zero, so we don't have to loop over them.
+        for j in range(mid_j-2, mid_j+3):
+            for i in range(mid_i-2, mid_i+3):
+                x_corr[j,i] = 0
+                y_corr[j,i] = 0
+                for b in range(max(j-2,0), min(j+3,7)):
+                    for a in range(max(i-2,0), min(i+3,7)):
+                        SOAR_Q_res = self._SOAR_Q_CPU(a, b, i, j)
+                        x_corr[j,i] += tmp_x[b, a]*SOAR_Q_res
+                        y_corr[j,i] += tmp_y[b, a]*SOAR_Q_res
+                if self.debug: print ("(j, i ,x_corr[j,i], y_corr[j,i]): ", (j, i ,x_corr[j,i], y_corr[j,i]))
         if self.debug: self.showMatrices(x_corr, y_corr, "$Q_{SOAR} Q_{SOAR} U_{GB}^T H^T$")
+        
+        
+        # Obtaining the values required for finding geostrophic balanced values in the center cell.
+        # Need only consider one cell in each direction.
+        # We find these values by interpolation or direct reading of x_corr and y_corr values
+        if self.interpolation_factor > 1:
+            
+            # Use a function alias to get more readable code
+            # This function has input values: coarse_eta, coarse_i, coarse_j, rel_x, rel_y
+            interpolation_alias = ensemble.particles[0].small_scale_model_error._bicubic_interpolation_inner
+            
+            # Relative offset of neighbouring fine grid point
+            rel_offset = 1.0/self.interpolation_factor
+            
+            # north and east values are calculated from the surface in the north-east direction
+            # south and west values are calculated from the surface in the south-west direction 
+            
+            x_north = interpolation_alias(x_corr, mid_i  , mid_j  ,          0.0,      rel_offset)
+            x_east  = interpolation_alias(x_corr, mid_i  , mid_j  ,   rel_offset,             0.0)
+            x_south = interpolation_alias(x_corr, mid_i-1, mid_j-1,            1.0, 1.0-rel_offset)
+            x_west  = interpolation_alias(x_corr, mid_i-1, mid_j-1, 1.0-rel_offset,            1.0)
 
+            y_north = interpolation_alias(y_corr, mid_i  , mid_j  ,          0.0,      rel_offset)
+            y_east  = interpolation_alias(y_corr, mid_i  , mid_j  ,   rel_offset,             0.0)
+            y_south = interpolation_alias(y_corr, mid_i-1, mid_j-1,            1.0, 1.0-rel_offset)
+            y_west  = interpolation_alias(y_corr, mid_i-1, mid_j-1, 1.0-rel_offset,            1.0)        
+        
+        else:
+            x_north = x_corr[mid_j+1, mid_i  ]
+            x_south = x_corr[mid_j-1, mid_i  ]
+            x_west  = x_corr[mid_j  , mid_i-1]
+            x_east  = x_corr[mid_j  , mid_i+1]
+
+            y_north = y_corr[mid_j+1, mid_i  ]
+            y_south = y_corr[mid_j-1, mid_i  ]
+            y_west  = y_corr[mid_j  , mid_i-1]
+            y_east  = y_corr[mid_j  , mid_i+1]
+        
+        if debug: print("[x_north, x_east, x_south, x_west]: ", [x_north, x_east, x_south, x_west])
+        if debug: print("[y_north, y_east, y_south, y_west]: ", [y_north, y_east, y_south, y_west])
+            
+        
         # geostrophic balance:
-        x_hu = -self.geoBalanceConst*(x_corr[mid_j+1, mid_i  ] - x_corr[mid_j-1, mid_i  ])/self.dy
-        x_hv =  self.geoBalanceConst*(x_corr[mid_j  , mid_i+1] - x_corr[mid_j  , mid_i-1])/self.dx
-        y_hu = -self.geoBalanceConst*(y_corr[mid_j+1, mid_i  ] - y_corr[mid_j-1, mid_i  ])/self.dy
-        y_hv =  self.geoBalanceConst*(y_corr[mid_j  , mid_i+1] - y_corr[mid_j  , mid_i-1])/self.dx 
+        x_hu = -self.geoBalanceConst*(x_north - x_south)/self.dy
+        x_hv =  self.geoBalanceConst*(x_east  - x_west )/self.dx
+        y_hu = -self.geoBalanceConst*(y_north - y_south)/self.dy
+        y_hv =  self.geoBalanceConst*(y_east  - y_west )/self.dx 
 
         # Structure the information as a  
         HQHT = np.matrix([[x_hu, y_hu],[x_hv, y_hv]])    
@@ -625,10 +683,10 @@ class IEWPFOcean:
         CPU implementation of a SOAR covariance function between grid points
         (a_x, a_y) and (b_x, b_y) with periodic boundaries
         """
-        dist_x = min((a_x - b_x)**2, (a_x - (b_x + self.nx))**2, (a_x - (b_x - self.nx))**2)
-        dist_y = min((a_y - b_y)**2, (a_y - (b_y + self.ny))**2, (a_y - (b_y - self.ny))**2)
+        dist_x = min((a_x - b_x)**2, (a_x - (b_x + self.coarse_nx))**2, (a_x - (b_x - self.coarse_nx))**2)
+        dist_y = min((a_y - b_y)**2, (a_y - (b_y + self.coarse_ny))**2, (a_y - (b_y - self.coarse_ny))**2)
         
-        dist = np.sqrt( self.dx*self.dx*dist_x  +  self.dy*self.dy*dist_y)
+        dist = np.sqrt( self.coarse_dx*self.coarse_dx*dist_x  +  self.coarse_dy*self.coarse_dy*dist_y)
         
         return self.soar_q0*(1.0 + dist/self.soar_L)*np.exp(-dist/self.soar_L)
 

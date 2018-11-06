@@ -689,6 +689,6 @@ class OceanStateNoise(object):
             return f00*(1-rel_x)*(1-rel_y) + f10*rel_x*(1-rel_y) + f01*(1-rel_x)*rel_y + f11*rel_x*rel_y
 
         elif interpolation_order == 3:
-            # Bicubic interpolation
-            return np.dot(x_vec, np.dot(a_matrix, y_vec))
+            # Bicubic interpolation (make sure that we return a float)
+            return np.dot(x_vec, np.dot(a_matrix, y_vec))[0, 0]
 
