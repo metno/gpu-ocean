@@ -377,6 +377,7 @@ class EnsembleAnimator:
         # Obtain the following fields:
             
         eta_true, hu_true, hv_true = ensemble.downloadTrueOceanState()
+        
         if not self.trueStateOnly:
             eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse, eta_r, hu_r, hv_r = ensemble.downloadEnsembleStatisticalFields()
         
