@@ -184,7 +184,7 @@ class FBL(Simulator.Simulator):
 
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
-                                    staggered_grid=True, fbl=True, \
+                                    staggered_grid=True, \
                                     offset_x=self.offset_x, offset_y=self.offset_y)
             
     @classmethod

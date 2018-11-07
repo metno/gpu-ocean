@@ -40,7 +40,7 @@ class SimNetCDFWriter:
 
     """
     def __init__(self, sim, num_layers=1, staggered_grid=False, \
-                 ignore_ghostcells=False, fbl=False, \
+                 ignore_ghostcells=False, \
                  offset_x=0, offset_y=0):
 
         # OpenCL queue:
@@ -166,9 +166,8 @@ class SimNetCDFWriter:
             self.ncfile.createDimension('x', nx)
             self.ncfile.createDimension('y', ny)
         if (not self.ignore_ghostcells) and (self.staggered_grid):
-            if (fbl):
-                # FIXME: Should comment this! Also in SWEDataArakawaC constructor!
-                # Haavard: Any suggestions for informative comments?
+            if (self.simulator_short == 'FBL'):
+                # Adjusting global domain size according to FBL scheme stencil requirements
                 self.ncfile.createDimension('x_hu',   nx + self.ghost_cells_tot_x - 1)
                 self.ncfile.createDimension('y_hu',   ny + self.ghost_cells_tot_y)
                 self.ncfile.createDimension('x_hv',   nx + self.ghost_cells_tot_x)
@@ -235,9 +234,8 @@ class SimNetCDFWriter:
             y[:] = np.linspace(offset_y, ny*dy, ny)
             
         if not self.ignore_ghostcells and self.staggered_grid:
-            if (fbl):
-                # FIXME: Should comment this! Also in SWEDataArakawaC constructor!
-                # Haavard: Any suggestions for informative comments?
+            if (self.simulator_short == 'FBL'):
+                # Adjusting global domain size according to FBL scheme stencil requirements
                 x_hu[:] = np.linspace(-self.ghost_cells_west*dx, \
                                       (nx + self.ghost_cells_east)*dx, \
                                        nx + self.ghost_cells_tot_x - 1)
