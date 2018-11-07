@@ -869,7 +869,7 @@ class IEWPFOcean:
             # Loop step 1: Pull particles towards observation by adding a Kalman gain term
             eta_a, hu_a, hv_a, phi = self.applyKalmanGain_CPU(ensemble.particles[p], \
                                                               observed_drifter_position,
-                                                              innovations[p], target_weight)
+                                                              innovations[p])
             
             
 
@@ -941,7 +941,7 @@ class IEWPFOcean:
             # Step 3: Pull particles towards observation by adding a Kalman gain term
             eta_a, hu_a, hv_a, phi = self.applyKalmanGain_CPU(ensemble.particles[p], \
                                                               observed_drifter_position,
-                                                              innovations[p], target_weight)
+                                                              innovations[p])
 
             # Step 4: Solve implicit equation and add scaled sample from P
             self.applyScaledPSample_CPU(ensemble.particles[p], eta_a, hu_a, hv_a, \
@@ -1107,7 +1107,7 @@ class IEWPFOcean:
     
     
     def applyKalmanGain_CPU(self, sim, \
-                        all_observed_drifter_positions, innovation, target_weight, \
+                        all_observed_drifter_positions, innovation, \
                         returnKalmanGainTerm=False):
         """
         Creating a Kalman gain type field, K = QH^T S d
@@ -1118,7 +1118,6 @@ class IEWPFOcean:
         if self.debug: print ("(nx, ny, dx, dy): ", (sim.nx, sim.ny, sim.dx, sim.dy))
         if self.debug: print ("all_observed_drifter_positions: ", all_observed_drifter_positions)
         if self.debug: print ("innovation:  ", innovation)
-        if self.debug: print ("target_weight: ", target_weight)
 
         # 0.1) Allocate buffers
         total_K_eta = np.zeros((sim.ny, sim.nx))

@@ -56,6 +56,7 @@ class OceanStateNoise(object):
         (block_width, block_height): The size of each GPU block
         """
 
+        # Set numpy random state
         self.random_state = np.random.RandomState()
         
         self.random_numbers = None
@@ -277,7 +278,8 @@ class OceanStateNoise(object):
         update_random_field=True: whether to generate new random numbers or use those already 
             present in the random numbers buffer
         perturbation_scale=1: scale factor to the perturbation of the eta field
-        align_with_cell_i=None, align_with_cell_j=None: Index to a cell for which to align the coarse grid
+        align_with_cell_i=None, align_with_cell_j=None: Index to a cell for which to align the coarse grid.
+            The default value align_with_cell=None corresponds to zero offset between the coarse and fine grid.
         """
         if update_random_field:
             # Need to update the random field, requiering a global sync

@@ -89,7 +89,7 @@ class BaseOceanStateEnsemble(object):
                                      observation_variance_factor = observation_variance_factor,
                                      initialization_variance_factor_drifter_position = initialization_variance_factor_drifter_position,
                                      initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field)        
-        self._init(driftersPerOceanModel=3)
+        self._init(driftersPerOceanModel=num_drifters)
         
     def cleanUp(self):
         for oceanState in self.particles:
