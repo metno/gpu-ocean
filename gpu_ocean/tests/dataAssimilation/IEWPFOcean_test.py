@@ -237,11 +237,9 @@ class IEWPFOceanTest(unittest.TestCase):
 
         eta, hu, hv = self.ensemble.particles[0].download(interior_domain_only=True)
 
-        dummy_target_weight = 2.0
         etaCPU, huCPU, hvCPU, gamma = self.iewpf.applyKalmanGain_CPU(self.ensemble.particles[0],
                                                                      observed_drifter_positions,
-                                                                     innovation, dummy_target_weight,
-                                                                     returnKalmanGainTerm=True)
+                                                                     innovation, returnKalmanGainTerm=True)
         rel_norm_eta = np.linalg.norm(eta - etaCPU)/np.max(eta)
         rel_norm_hu  = np.linalg.norm(hu - huCPU)/np.max(hu)
         rel_norm_hv  = np.linalg.norm(hv - hvCPU)/np.max(hv)

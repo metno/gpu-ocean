@@ -350,19 +350,24 @@ class IEWPFOcean:
         
     def addKalmanGain(self, sim, all_observed_drifter_positions, innovation):
         
-        # Reset the random numbers buffer for the given sim to zero:
-        self.setNoiseBufferToZero(sim)
         
         # Find phi as we go: phi = d^T S d
         phi = 0.0
         
         # Loop over drifters to get half the Kalman gain for each innovation
         for drifter in range(self.numDrifters):
+            
+            # Reset the random numbers buffer for the given sim to zero:
+            self.setNoiseBufferToZero(sim)
+        
             local_innovation = innovation[drifter,:]
             observed_drifter_position = all_observed_drifter_positions[drifter,:]
             
+            cell_id_x = np.int32(int(np.floor(observed_drifter_position[0]/self.dx)))
+            cell_id_y = np.int32(int(np.floor(observed_drifter_position[1]/self.dy)))
             coarse_cell_id_x = np.int32(int(np.floor(observed_drifter_position[0]/self.coarse_dx)))
             coarse_cell_id_y = np.int32(int(np.floor(observed_drifter_position[1]/self.coarse_dy)))
+            
 
             # 1) Solve linear problem
             e = np.dot(self.S_host, local_innovation)
@@ -370,8 +375,8 @@ class IEWPFOcean:
             self.halfTheKalmanGainKernel.prepared_async_call(self.global_size_Kalman,
                                                              self.local_size_Kalman,
                                                              self.master_stream,
-                                                             self.nx, self.ny, 
-                                                             self.dx, self.dy,
+                                                             self.coarse_nx, self.coarse_ny, 
+                                                             self.coarse_dx, self.coarse_dy,
                                                              self.soar_q0, self.soar_L,
                                                              coarse_cell_id_x, coarse_cell_id_y,
                                                              self.geoBalanceConst,
@@ -381,8 +386,9 @@ class IEWPFOcean:
             
             phi += local_innovation[0]*e[0,0] + local_innovation[1]*e[0,1]
             
-        # The final step of the Kalman gain is to obtain geostrophic balance on the obtained field.
-        sim.small_scale_model_error.perturbSim(sim, update_random_field=False)
+            # The final step of the Kalman gain is to obtain geostrophic balance on the obtained field.
+            sim.small_scale_model_error.perturbSim(sim, update_random_field=False,
+                                                  align_with_cell_i=cell_id_x, align_with_cell_j=cell_id_y)
     
         return phi
         # end of addKalmanGain
