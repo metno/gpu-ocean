@@ -91,7 +91,7 @@ class SimNetCDFWriter:
         self.coriolis_force = sim.f
         self.coriolis_beta = sim.coriolis_beta
         self.y_zero_reference_cell = sim.y_zero_reference_cell
-        self.wind_stress = sim.wind_stress.type()
+        self.wind_stress = sim.wind_stress.source_filename
         self.eddy_viscosity_coefficient = sim.A
         g = sim.g
         nx = sim.nx
@@ -141,7 +141,8 @@ class SimNetCDFWriter:
         self.ncfile.coriolis_force = self.coriolis_force
         self.ncfile.coriolis_beta = self.coriolis_beta
         self.ncfile.y_zero_reference_cell = self.y_zero_reference_cell
-        self.ncfile.wind_stress_type = self.wind_stress
+        if self.wind_stress is not None:
+            self.ncfile.wind_stress_source = self.wind_stress
         self.ncfile.eddy_viscosity_coefficient = self.eddy_viscosity_coefficient
         self.ncfile.g = g  
         self.ncfile.nx = nx
@@ -155,7 +156,6 @@ class SimNetCDFWriter:
         self.ncfile.ghost_cells_east  = self.ghost_cells_east
         self.ncfile.ghost_cells_south = self.ghost_cells_south
         self.ncfile.ghost_cells_west  = self.ghost_cells_west
-
         
         #Create dimensions 
         self.ncfile.createDimension('time', None) #Unlimited time dimension
@@ -166,10 +166,17 @@ class SimNetCDFWriter:
             self.ncfile.createDimension('x', nx)
             self.ncfile.createDimension('y', ny)
         if (not self.ignore_ghostcells) and (self.staggered_grid):
-            self.ncfile.createDimension('x_hu',   nx + self.ghost_cells_tot_x + 1)
-            self.ncfile.createDimension('y_hu',   ny + self.ghost_cells_tot_y)
-            self.ncfile.createDimension('x_hv',   nx + self.ghost_cells_tot_x)
-            self.ncfile.createDimension('y_hv',   ny + self.ghost_cells_tot_y + 1)
+            if (self.simulator_short == 'FBL'):
+                # Adjusting global domain size according to FBL scheme stencil requirements
+                self.ncfile.createDimension('x_hu',   nx + self.ghost_cells_tot_x - 1)
+                self.ncfile.createDimension('y_hu',   ny + self.ghost_cells_tot_y)
+                self.ncfile.createDimension('x_hv',   nx + self.ghost_cells_tot_x)
+                self.ncfile.createDimension('y_hv',   ny + self.ghost_cells_tot_y + 1)
+            else:
+                self.ncfile.createDimension('x_hu',   nx + self.ghost_cells_tot_x + 1)
+                self.ncfile.createDimension('y_hu',   ny + self.ghost_cells_tot_y)
+                self.ncfile.createDimension('x_hv',   nx + self.ghost_cells_tot_x)
+                self.ncfile.createDimension('y_hv',   ny + self.ghost_cells_tot_y + 1)
         if not self.staggered_grid: 
             self.ncfile.createDimension('x_Hi', nx + self.ghost_cells_tot_x + 1)
             self.ncfile.createDimension('y_Hi', ny + self.ghost_cells_tot_y + 1)
@@ -227,18 +234,33 @@ class SimNetCDFWriter:
             y[:] = np.linspace(offset_y, ny*dy, ny)
             
         if not self.ignore_ghostcells and self.staggered_grid:
-            x_hu[:] = np.linspace(-self.ghost_cells_west*dx, \
-                                  (nx + self.ghost_cells_east)*dx, \
-                                   nx + self.ghost_cells_tot_x + 1)
-            y_hu[:] = np.linspace(-self.ghost_cells_south*dy + dy/2.0, \
-                                  (ny + self.ghost_cells_north)*dy + dy/2.0, \
-                                   ny + self.ghost_cells_tot_y)
-            x_hv[:] = np.linspace(-self.ghost_cells_west*dx + dx/2.0, \
-                                  (nx + self.ghost_cells_east)*dx + dx/2.0, \
-                                   nx + self.ghost_cells_tot_x)
-            y_hv[:] = np.linspace(-self.ghost_cells_south*dy, \
-                                  (ny + self.ghost_cells_north)*dy, \
-                                   ny + self.ghost_cells_tot_y + 1)
+            if (self.simulator_short == 'FBL'):
+                # Adjusting global domain size according to FBL scheme stencil requirements
+                x_hu[:] = np.linspace(-self.ghost_cells_west*dx, \
+                                      (nx + self.ghost_cells_east)*dx, \
+                                       nx + self.ghost_cells_tot_x - 1)
+                y_hu[:] = np.linspace(-self.ghost_cells_south*dy + dy/2.0, \
+                                      (ny + self.ghost_cells_north)*dy + dy/2.0, \
+                                       ny + self.ghost_cells_tot_y)
+                x_hv[:] = np.linspace(-self.ghost_cells_west*dx + dx/2.0, \
+                                      (nx + self.ghost_cells_east)*dx + dx/2.0, \
+                                       nx + self.ghost_cells_tot_x)
+                y_hv[:] = np.linspace(-self.ghost_cells_south*dy, \
+                                      (ny + self.ghost_cells_north)*dy, \
+                                       ny + self.ghost_cells_tot_y + 1)
+            else:
+                x_hu[:] = np.linspace(-self.ghost_cells_west*dx, \
+                                      (nx + self.ghost_cells_east)*dx, \
+                                       nx + self.ghost_cells_tot_x + 1)
+                y_hu[:] = np.linspace(-self.ghost_cells_south*dy + dy/2.0, \
+                                      (ny + self.ghost_cells_north)*dy + dy/2.0, \
+                                       ny + self.ghost_cells_tot_y)
+                x_hv[:] = np.linspace(-self.ghost_cells_west*dx + dx/2.0, \
+                                      (nx + self.ghost_cells_east)*dx + dx/2.0, \
+                                       nx + self.ghost_cells_tot_x)
+                y_hv[:] = np.linspace(-self.ghost_cells_south*dy, \
+                                      (ny + self.ghost_cells_north)*dy, \
+                                       ny + self.ghost_cells_tot_y + 1)
         
         if not self.staggered_grid:
             x_Hi[:] = np.linspace(-self.ghost_cells_west*dx, \
@@ -270,17 +292,17 @@ class SimNetCDFWriter:
 
         # Create info about bathymetry / equilibrium depth
         if self.staggered_grid:
-            self.nc_H = self.ncfile.createVariable('H', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
+            self.nc_H = self.ncfile.createVariable('H', np.dtype('float32').char, ('y', 'x'), zlib=True)
         else:
-            self.nc_H = self.ncfile.createVariable('H', np.dtype('float32').char, ('time', 'y_Hi', 'x_Hi'), zlib=True)
+            self.nc_H = self.ncfile.createVariable('H', np.dtype('float32').char, ('y_Hi', 'x_Hi'), zlib=True)
         self.nc_H.standard_name = 'water_surface_reference_datum_altitude'
         self.nc_H.grid_mapping = 'projection_stere'
         self.nc_H.coordinates = 'y x'
         self.nc_H.units = 'meter'
         if not self.ignore_ghostcells:
-            self.nc_H[0, :] = self.H
+            self.nc_H[:] = self.H
         else:
-            self.nc_H[0, :] = self.H[1:-1, 1:-1]
+            self.nc_H[:] = self.H[1:-1, 1:-1]
         
         self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
         if not self.ignore_ghostcells and self.staggered_grid:
@@ -297,8 +319,8 @@ class SimNetCDFWriter:
         self.nc_hu.grid_mapping = 'projection_stere'
         self.nc_hv.grid_mapping = 'projection_stere'
         self.nc_eta.coordinates = 'y x'
-        self.nc_hu.coordinates = 'y x'
-        self.nc_hv.coordinates = 'y x'
+        self.nc_hu.coordinates = 'y_hu x_hu'
+        self.nc_hv.coordinates = 'y_hv x_hv'
 
         #Set units
         self.nc_eta.units = 'meter'
