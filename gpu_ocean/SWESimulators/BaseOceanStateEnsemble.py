@@ -300,13 +300,13 @@ class BaseOceanStateEnsemble(object):
 
         Structure on the output:
         [
-        particle 1:  [u_1, v_1], ... , [u_D, v_D],
-        particle 2:  [u_1, v_1], ... , [u_D, v_D],
-        particle Ne: [u_1, v_1], ... , [u_D, v_D]
+        particle 1:  [hu_1, hv_1], ... , [hu_D, hv_D],
+        particle 2:  [hu_1, hv_1], ... , [hu_D, hv_D],
+        particle Ne: [hu_1, hv_1], ... , [hu_D, hv_D]
         ]
         numpy array with dimensions (particles, drifters, 2)
 
-        The two values per particle drifter is either velocity or position, depending on 
+        The two values per particle drifter is either volume transport or position, depending on 
         the observation type.
         """
         if self.observation_type == dautils.ObservationType.DrifterPosition:
@@ -319,7 +319,7 @@ class BaseOceanStateEnsemble(object):
                                       self.driftersPerOceanModel, 2))
 
             trueState = self.observeTrueState()
-            # trueState = [[x1, y1, u1, v1], ..., [xD, yD, uD, vD]]
+            # trueState = [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
 
             for p in range(self.numParticles):
                 if gpu:
@@ -347,16 +347,14 @@ class BaseOceanStateEnsemble(object):
                 
                 else:
                     # Downloading ocean state without ghost cells
-                    Hi = self.particles[0].downloadBathymetry()[1]
                     eta, hu, hv = self.downloadParticleOceanState(p)
 
                     for d in range(self.driftersPerOceanModel):
                         id_x = np.int(np.floor(trueState[d,0]/self.dx))
                         id_y = np.int(np.floor(trueState[d,1]/self.dy))
 
-                        depth = Hi[id_y, id_x]
-                        observedState[p,d,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
-                        observedState[p,d,1] = hv[id_y, id_x]/(depth + eta[id_y, id_x])
+                        observedState[p,d,0] = hu[id_y, id_x]
+                        observedState[p,d,1] = hv[id_y, id_x]
                         
                         
             #print "Particle positions obs index:"
@@ -375,10 +373,12 @@ class BaseOceanStateEnsemble(object):
     def observeTrueState(self):
         """
         Applying the observation operator on the syntetic true state.
+        The observation should be in state space, and therefore consists of 
+        hu and hv, and not u and v.
 
         Returns a numpy array with D drifter positions and drifter velocities
-        [[x_1, y_1, u_1, v_1], ... , [x_D, y_D, u_D, v_D]]
-        If the observation operator is drifter positions, u and v are not included.
+        [[x_1, y_1, hu_1, hv_1], ... , [x_D, y_D, hu_D, hv_D]]
+        If the observation operator is drifter positions, hu and hv are not included.
         """
         if self.observedDrifterPositions[-1][0] != self.t:
             self._addObservation(self.observeTrueDrifters())
@@ -394,9 +394,15 @@ class BaseOceanStateEnsemble(object):
                 y = self.observedDrifterPositions[-1][1][d,1]
                 dx = x - self.observedDrifterPositions[-2][1][d, 0]
                 dy = y - self.observedDrifterPositions[-2][1][d, 1]
+                 
                 u = dx/dt
                 v = dy/dt
-                trueState[d,:] = np.array([x, y , u, v])
+                
+                depth = self.particles[self.obs_index].downloadBathymetry()[1][id_y, id_x]
+                hu = u*depth
+                hv = v*depth
+                
+                trueState[d,:] = np.array([x, y , hu, hv])
             return trueState
 
         elif self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
@@ -411,10 +417,10 @@ class BaseOceanStateEnsemble(object):
 
                 # Downloading ocean state without ghost cells
                 eta, hu, hv = self.downloadParticleOceanState(self.obs_index)
-                u = hu[id_y, id_x]/(depth + eta[id_y, id_x])
-                v = hv[id_y, id_x]/(depth + eta[id_y, id_x])
-
-                trueState[d,:] = np.array([x, y, u, v])
+                true_hu = hu[id_y, id_x]
+                true_hv = hv[id_y, id_x]
+                
+                trueState[d,:] = np.array([x, y, true_hu, true_hv])
             return trueState
 
     def step(self, t, stochastic_particles=True, stochastic_truth=True):
@@ -465,8 +471,8 @@ class BaseOceanStateEnsemble(object):
         if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
            self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
             # Change structure of trueState
-            # from: [[x1, y1, u1, v1], ..., [xD, yD, uD, vD]]
-            # to:   [[u1, v1], ..., [uD, vD]]
+            # from: [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
+            # to:   [[hu1, hv1], ..., [huD, hvD]]
             trueState = trueState[:, 2:]
 
         #else, structure of trueState is already fine: [[x1, y1], ..., [xD, yD]]
