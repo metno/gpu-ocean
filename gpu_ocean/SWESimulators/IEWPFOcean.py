@@ -361,8 +361,8 @@ class IEWPFOcean:
             local_innovation = innovation[drifter,:]
             observed_drifter_position = all_observed_drifter_positions[drifter,:]
             
-            cell_id_x = np.int32(int(np.floor(observed_drifter_position[0]/sim.dx)))
-            cell_id_y = np.int32(int(np.floor(observed_drifter_position[1]/sim.dy)))
+            coarse_cell_id_x = np.int32(int(np.floor(observed_drifter_position[0]/self.coarse_dx)))
+            coarse_cell_id_y = np.int32(int(np.floor(observed_drifter_position[1]/self.coarse_dy)))
 
             # 1) Solve linear problem
             e = np.dot(self.S_host, local_innovation)
@@ -370,9 +370,10 @@ class IEWPFOcean:
             self.halfTheKalmanGainKernel.prepared_async_call(self.global_size_Kalman,
                                                              self.local_size_Kalman,
                                                              self.master_stream,
-                                                             self.nx, self.ny, self.dx, self.dy,
+                                                             self.nx, self.ny, 
+                                                             self.dx, self.dy,
                                                              self.soar_q0, self.soar_L,
-                                                             cell_id_x, cell_id_y,
+                                                             coarse_cell_id_x, coarse_cell_id_y,
                                                              self.geoBalanceConst,
                                                              np.float32(e[0,0]), np.float32(e[0,1]),
                                                              sim.small_scale_model_error.random_numbers.data.gpudata,
@@ -1187,7 +1188,7 @@ class IEWPFOcean:
             K_eta , K_hu, K_hv = sim.small_scale_model_error._obtainOceanPerturbations_CPU(H_mid, sim.f, sim.coriolis_beta, sim.g)
             if self.debug: self.showMatrices(K_eta[1:-1, 1:-1], K_hu, "Kalman gain from drifter " + str(drifter), K_hv)
 
-            total_K_eta += K_eta[1:-1, 1:-1]
+            total_K_eta += K_eta[2:-2, 2:-2]
             total_K_hu  += K_hu
             total_K_hv  += K_hv
             if self.debug: self.showMatrices(total_K_eta, total_K_hu, "Total Kalman gain after drifter " + str(drifter), total_K_hv)

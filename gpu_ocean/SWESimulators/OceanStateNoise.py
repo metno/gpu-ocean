@@ -99,12 +99,14 @@ class OceanStateNoise(object):
         # The SOAR function is a stencil which requires cutoff number of grid cells,
         # and the interpolation operator requires further 2 ghost cell values in each direction.
         # The random field must therefore be created with 2 + cutoff number of ghost cells.
-        self.rand_nx = np.int32(self.coarse_nx + 2*(2+self.cutoff))
-        self.rand_ny = np.int32(self.coarse_ny + 2*(2+self.cutoff))
+        self.rand_ghost_cells_x = np.int32(2+self.cutoff)
+        self.rand_ghost_cells_y = np.int32(2+self.cutoff)
         if self.periodicEastWest:
-            self.rand_nx = np.int32(self.coarse_nx)
+            self.rand_ghost_cells_x = np.int32(0)
         if self.periodicNorthSouth:
-            self.rand_ny = np.int32(self.coarse_ny)
+            self.rand_ghost_cells_y = np.int32(0)
+        self.rand_nx = np.int32(self.coarse_nx + 2*self.rand_ghost_cells_x)
+        self.rand_ny = np.int32(self.coarse_ny + 2*self.rand_ghost_cells_y)
             
         # Since normal distributed numbers are generated in pairs, we need to store half the number of
         # of seed values compared to the number of random numbers.
@@ -284,7 +286,6 @@ class OceanStateNoise(object):
         soar_q0 = np.float32(self.soar_q0 * q0_scale)
         
         offset_i, offset_j = self._obtain_coarse_grid_offset(align_with_cell_i, align_with_cell_j)
-        print("offset_i, offset_j: ", (offset_i, offset_j))
         
         # Generate the SOAR field on the coarse grid
         

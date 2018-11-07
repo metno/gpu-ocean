@@ -65,6 +65,14 @@ __device__ float soar_covariance(const int a_x, const int a_y,
 /**
   * Kernel that obtains the first half of the Kalman gain based on the
   * innovation from a single drifter.
+  *
+  * nx, ny: domain size
+  * dx, dx: cell size
+  * soar_q0, soar_L: amplitude and correlation radius, respectively, of the model error covariance
+  * drifter_cell_x, drifter_cell_y: Cell in which the drifter is observed
+  * geo_balance_const: constant appearing in the geostrophic balance, = g*H/(2*f)
+  * e_x, e_y: Scaled innovation for given drifter, = S*d
+  * K_ptr, K_pitch: Output buffer to write the Kalman gain contribution, size [ny, nx].
   */
 extern "C" {
     __global__ void halfTheKalmanGain(const int nx_, const int ny_,
@@ -123,6 +131,7 @@ extern "C" {
                                                         dx_, dy_, nx_, ny_, soar_q0_, soar_L_);
             }
             
+            // Index in the K buffer (7x7 area centered  in drifter_cell_x and y)
             const int global_id_x = (drifter_cell_x_ - 3 + tx + nx_) % nx_;
             const int global_id_y = (drifter_cell_y_ - 3 + ty + ny_) % ny_;
 
