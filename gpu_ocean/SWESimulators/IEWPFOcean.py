@@ -4,6 +4,13 @@
 This python class implements an the
 Implicit Equal-Weight Particle Filter, for use on
 simplified ocean models.
+The following papers describe the method, though with mistakes and variations.
+     - 'Implicit equal-weights particle filter' by Zhu, van Leeuwen and Amezcua, Quarterly
+            Journal of the Royal Meteorological Society, 2016
+     - 'State-of-the-art stochastic data assimilation methods for high-dimensional
+            non-Gaussian problems' by Vetra-Carvalho et al, Tellus, 2018
+     - 'A revied Implicit Equal-Weights Particle Filter' by Skauvold et al, ???, 2018
+     
 
 Copyright (C) 2018  SINTEF ICT
 
@@ -34,7 +41,14 @@ from scipy.special import lambertw
 from SWESimulators import Common, OceanStateNoise
 
 class IEWPFOcean:
+    """
+    This class implements the Implicit Equal-Weight Particle Filter for an ocean
+    model with small scale ocean state perturbations as model errors.
     
+    Input to constructor:
+    ensemble: An object of super-type BaseOceanStateEnsemble.
+            
+    """
     def __init__(self, ensemble, debug=False, show_errors=False,
                  block_width=16, block_height=16):
         
@@ -91,14 +105,15 @@ class IEWPFOcean:
         assert (self.dx == self.dy)
         
         
-        # Do not store the ensemble!!!
+        # Note the we intentionally do not add the ensemble as a member variable.
         
-        # Create constant matrix S and copy to the GPU
+        # Create constant matrix S = (HQH^T + R)^-1 and copy to the GPU
+        # The matrix represents the combined "observed model error" and observation error.
         self.S_host, self.S_device = None, None
         self.S_host = self._createS(ensemble)
         self.S_device = Common.CUDAArray2D(self.master_stream, 2, 2, 0, 0, self.S_host)
         
-        # Create constant localized SVD matrix and copy to the GPU
+        # Create constant localized SVD matrix and copy to the GPU.
         # This matrix is defined for the coarse grid, and ignores all use of the interpolation operator.
         self.localSVD_host, self.localSVD_device = None, None
         self.localSVD_host = self._generateLocaleSVDforP(ensemble)
@@ -176,6 +191,14 @@ class IEWPFOcean:
         Retrieves innovations and target weights from the ensemble, and updates 
         each particle according to the IEWPF method.
         """
+        
+        #
+        # For definitions of phi, gamma, alpha, and description of the steps in this
+        # algorithm, please take a look at the pseudocode in the paper
+        # 'State-of-the-art stochastic data assimilation methods for high-dimensional
+        # non-Gaussian problems' by Vetra-Carvalho et al, Tellus, 2018
+        #
+        
         # Step -1: Deterministic step
         t = ensemble.step_truth(self.dt, stochastic=True)
         t = ensemble.step_particles(self.dt, stochastic=False)
@@ -210,7 +233,9 @@ class IEWPFOcean:
                                                                      perturbation_scale=alpha)   
             
             # TODO
-            #ensemble.particles[p].drifters.setDrifterPositions(newPos)
+            # Reset the drifter positions in each particle.
+            # One key line woould be:
+            # ensemble.particles[p].drifters.setDrifterPositions(newPos)
         
         # save plot after
         if infoPlots is not None:
@@ -220,6 +245,9 @@ class IEWPFOcean:
     
     def iewpf_timer(self, ensemble, infoPlots=None, it=None):
         """
+        Same as the function iewpf(self, ...) but with lots of events so that
+        various parts of the IEWPF algorithm can be timed.
+        
         The complete IEWPF algorithm implemented on the GPU.
         
         Retrieves innovations and target weights from the ensemble, and updates 
@@ -313,9 +341,7 @@ class IEWPFOcean:
             
             print ("Done particle " + str(p))
             print ("----------")
-            # TODO
-            #ensemble.particles[p].drifters.setDrifterPositions(newPos)
-            #print "IEWPF done for particle: ", p
+            
         # save plot after
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 3)
@@ -565,13 +591,16 @@ class IEWPFOcean:
         mid_i, mid_j = 3, 3
 
         # Fill the buffers with U_{GB}^T H^T
+        # Spread information from central point to the neighbours according to 
+        # geostrophic balance.
         x_corr[mid_j+1, mid_i] = -self.geoBalanceConst/self.coarse_dy
         x_corr[mid_j-1, mid_i] =  self.geoBalanceConst/self.coarse_dy
         y_corr[mid_j, mid_i+1] =  self.geoBalanceConst/self.coarse_dx
         y_corr[mid_j, mid_i-1] = -self.geoBalanceConst/self.coarse_dx
         if self.debug: self.showMatrices(x_corr, y_corr, "$U_{GB}^T  H^T$")
     
-        # Apply the SOAR function to fill x and y with 7x5 and 5x7 respectively
+        # Apply the SOAR function to fill x and y with 7x5 and 5x7 respectively.
+        # Each of the values above is spread according to the SOAR function
         # First for x:
         for j,i in [mid_j+1, mid_i], [mid_j-1, mid_i]:
             for b in range(j-2, j+3):
@@ -667,12 +696,23 @@ class IEWPFOcean:
     ###---------------------------
     
     def download_S(self):
+        """
+        2x2 matrix: S = (H Q H^T + R)^-1
+        """
         return self.S_device.download(self.master_stream)
     
     def download_localSVD(self):
+        """
+        The 49 x 49 matrix that holds the matrix square root of term that turns up in
+        the middle of the P covariance matrix.
+        """
         return self.localSVD_device.download(self.master_stream)
     
     def download_reduction_buffer(self):
+        """
+        This buffer holds only a single float, and is used to store the result
+        from reduction operations.
+        """
         return self.reduction_buffer.download(self.master_stream)
     
         
@@ -712,7 +752,13 @@ class IEWPFOcean:
 
 
     def _createCutoffSOARMatrixQ(self, ensemble, nx=None, ny=None, cutoff=2):
+        """
+        Creates a full matrix representing Q_{SOAR}^{1/2}.
+        Should never be called with large (nx, ny), and should only be used when the
+        grid size is really really small, and/or for debuging purposes
         
+        Resulting matrix is (nx*ny \times nx*ny)
+        """
         if nx is None:
             nx = self.coarse_nx
         if ny is None:
@@ -721,7 +767,11 @@ class IEWPFOcean:
         Q = np.zeros((ny*nx, ny*nx))
         for a_y in range(ny):
             for a_x in range(nx):
+            
+                # index on the "flattened" grid, and col index in the resulting matrix
                 j = a_y*nx + a_x
+                
+                # Loop over SOAR correlation area
                 for b_y in range(a_y-cutoff, a_y+cutoff+1):
                     if b_y < 0:    
                          b_y = b_y + ny
@@ -741,7 +791,13 @@ class IEWPFOcean:
 
 
     def _createUGBmatrix(self, ensemble, nx=None, ny=None):
-    
+        """
+        Creates a full matrix representing Q_{GB}^{1/2}.
+        Should never be called with large (nx, ny), and should only be used when the
+        grid size is really really small, and/or for debuging purposes.
+        
+        Resulting matrix is (3*nx*ny \times nx*ny)
+        """
         if nx is None:
             nx = self.coarse_nx
         if ny is None:
@@ -752,7 +808,9 @@ class IEWPFOcean:
         A_hv = np.zeros((ny*nx, ny*nx))
         for a_y in range(ny):
             for a_x in range(nx):
-                j = a_y*nx + a_x
+                
+                # index on the "flattened" grid, and col index in the resulting block matrix
+                j = a_y*nx + a_x 
                 
                 # geo balance for hu:
                 i = (a_y+1)*nx + a_x
@@ -781,6 +839,13 @@ class IEWPFOcean:
         return np.bmat([[I], [A_hu], [A_hv]])
 
     def _createMatrixH(self, nx, ny, pos_x, pos_y):
+        """
+        Creates a full observation matrix H.
+        Should never be called with large (nx, ny), and should only be used when the
+        grid size is really really small, and/or for debuging purposes
+        
+        Resulting matrix size: [2, 3*nx*ny]
+        """
         H = np.zeros((2, 3*nx*ny))
         index = pos_y*nx + pos_x
         H[0, 1*nx*ny + index] = 1
@@ -868,16 +933,9 @@ class IEWPFOcean:
 
         # Step 1: Find maximum weight
         target_weight = self.obtainTargetWeight(ensemble, innovations)
-        #print "WWWWWWWWWWWWWWW"
-        #print "Target weight: ", target_weight
-        #print "-log(target_weight): ", -np.log(target_weight)
-        #print "exp(-target_weight): ", np.exp(-target_weight)
-        #print "1/Ne: ", 1.0/ensemble.getNumParticles()
-        #print "WWWWWWWWWWWWWWW"
-
+        
 
         for p in range(ensemble.getNumParticles()):
-            #iewpfOcean.debug = p==0
             
             # Loop step 1: Pull particles towards observation by adding a Kalman gain term
             eta_a, hu_a, hv_a, phi = self.applyKalmanGain_CPU(ensemble.particles[p], \
@@ -904,15 +962,13 @@ class IEWPFOcean:
             hv_a  = self._expand_to_periodic_boundaries(hv_a,  2)
             ensemble.particles[p].upload(eta_a, hu_a, hv_a)
 
-            # TODO
-            #ensemble.particles[p].drifters.setDrifterPositions(newPos)
-            #print "IEWPF (CPU) done for particle: ", p
+            
         # save plot after
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 3)
     
     
-    def iewpf_traditional_CPU(self, ensemble, infoPlots=None, it=None):
+    def iewpf_original_operation_order_CPU(self, ensemble, infoPlots=None, it=None):
         """
         The complete IEWPF algorithm (as described by the SotA-18 paper) implemented on the CPU.
         
@@ -935,18 +991,11 @@ class IEWPFOcean:
 
         # Step 1: Find maximum weight
         target_weight = self.obtainTargetWeight(ensemble, innovations)
-        #print "WWWWWWWWWWWWWWW"
-        #print "Target weight: ", target_weight
-        #print "-log(target_weight): ", -np.log(target_weight)
-        #print "exp(-target_weight): ", np.exp(-target_weight)
-        #print "1/Ne: ", 1.0/ensemble.getNumParticles()
-        #print "WWWWWWWWWWWWWWW"
-
+        
 
         for p in range(ensemble.getNumParticles()):
-            #iewpfOcean.debug = p==0
-
-            # Step 2: Sample xi Ìƒ N(0, P)
+        
+            # Step 2: Sample xi \sim N(0, P)
             p_eta, p_hu, p_hv, gamma = self.drawFromP_CPU(ensemble.particles[p], 
                                                           observed_drifter_position)
             xi = [p_eta, p_hu, p_hv] 
@@ -966,15 +1015,16 @@ class IEWPFOcean:
             hv_a  = self._expand_to_periodic_boundaries(hv_a,  2)
             ensemble.particles[p].upload(eta_a, hu_a, hv_a)
 
-            # TODO
-            #ensemble.particles[p].drifters.setDrifterPositions(newPos)
-
         # save plot after
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 3)
     
     
     def _expand_to_periodic_boundaries(self, interior, ghostcells):
+        """
+        Expand a buffer with the requested number of ghost cells, and fills these
+        ghost cells according to periodic boundary conditions.
+        """
         if ghostcells == 0:
             return interior
         (ny, nx) = interior.shape
@@ -982,12 +1032,12 @@ class IEWPFOcean:
         nx_halo = nx + 2*ghostcells
         ny_halo = ny + 2*ghostcells
         newBuf = np.zeros((ny_halo, nx_halo))
-        newBuf[ghostcells:-ghostcells, ghostcells:-ghostcells] = interior 
+        newBuf[ghostcells:-ghostcells, ghostcells:-ghostcells] = interior
+
+        # Fill ghost cells with values according to periodic boundary conditions
         for g in range(ghostcells):
             newBuf[g, :] = newBuf[ny_halo - 2*ghostcells + g, :]
-            #newBuf[ny_halo - 2*ghostcells + g, :] *=0
             newBuf[ny_halo - 1 - g, :] = newBuf[2*ghostcells - 1 - g, :]
-            #newBuf[2*ghostcells - 1 - g, :] *=0
         for g in range(ghostcells):
             newBuf[:, g] = newBuf[:, nx_halo - 2*ghostcells + g]
             newBuf[:, nx_halo - 1 - g] = newBuf[:, 2*ghostcells - 1 - g]
@@ -1043,8 +1093,6 @@ class IEWPFOcean:
 
                 global_j = global_y_j*self.nx + global_x_j
                 local_j = loc_y_j*7 + loc_x_j
-
-                #loc_vec[local_j] = glob_vec[global_j]
 
                 xi_j = 0.0
                 for loc_y_i in range(7):
@@ -1110,10 +1158,6 @@ class IEWPFOcean:
             q_eta, q_hu, q_hv = draw_from_q_maker._obtainOceanPerturbations_CPU(H_mid, sim.f, sim.coriolis_beta, sim.g)
             self.showMatrices(q_eta[1:-1, 1:-1], q_hu, "Equivalent sample from Q", q_hv)
             self.showMatrices(p_eta[1:-1, 1:-1] - q_eta[1:-1, 1:-1], p_hu - q_hu, "diff sample from P and sample from Q", p_hv - q_hv)
-
-
-        #gamma_from_p = np.sum(p_eta[1:-1, 1:-1]**2) + np.sum(p_hu**2) + np.sum(p_hv**2)
-        #if debug: print "Gamma obtained from P^1/2 xi: ", gamma_from_p
 
         return p_eta[1:-1, 1:-1], p_hu, p_hv, gamma
     
@@ -1189,7 +1233,6 @@ class IEWPFOcean:
                 for i in range(7):
                     i_global = (cell_id_x-3+i+sim.nx)%sim.nx 
                     K_eta_tmp[j_global, i_global] += local_eta[j,i]
-                    #K_eta_tmp[j_global, i_global] += 10000000*local_eta[j,i]
             if self.debug: self.showMatrices(K_eta_tmp, local_eta, "global K_eta from local K_eta, halfway in the calc.")
 
             # 2.2.2) Use K_eta_tmp as the noise.random_numbers_host
@@ -1204,7 +1247,6 @@ class IEWPFOcean:
             total_K_hu  += K_hu
             total_K_hv  += K_hv
             if self.debug: self.showMatrices(total_K_eta, total_K_hu, "Total Kalman gain after drifter " + str(drifter), total_K_hv)
-            #showMatrices(total_K_eta, total_K_hu, "Total Kalman gain after drifter " + str(drifter), total_K_hv)
 
 
             # 3) Obtain phi = d^T * e
@@ -1239,11 +1281,6 @@ class IEWPFOcean:
 
         # 5) obtain gamma
         if self.debug: print ("Shapes of xi: ", xi[0].shape, xi[1].shape, xi[2].shape)
-        #gamma = 0.0
-        #for field in range(3):
-        #    for j in range(ny):
-        #        for i in range(nx):
-        #            gamma += xi[field][j,i]*xi[field][j,i]
         if self.debug: print ("gamma: ", gamma)
         if self.debug: print ("Nx: ", self.Nx)
         if self.debug: print ("w_rest: ", w_rest)
@@ -1255,11 +1292,9 @@ class IEWPFOcean:
         if self.debug: print( "a = phi - w_rest + target_weight: ", a)
             
         c = phi - w_rest
-        if self.debug: 
-            print ("c = phi - w_rest: ", c)
+        if self.debug: print ("c = phi - w_rest: ", c)
 
         # 7) Solving the Lambert W function
-        #alpha = 10000
         lambert_W_arg = -(gamma/self.Nx)*np.exp(a/self.Nx)*np.exp(-gamma/self.Nx)
         alpha_min1 = -(self.Nx/gamma)*np.real(lambertw(lambert_W_arg, k=-1))
         alpha_zero = -(self.Nx/gamma)*np.real(lambertw(lambert_W_arg))
@@ -1288,7 +1323,9 @@ class IEWPFOcean:
             print ("target_weight: ", target_weight)
             print ("phi: ", phi)
             print ("!!!!!!!!!!!!")
-        #if self.debug: print "Drawing random number alpha_u: ", alpha_u
+        
+        # Comment in these lines to have a look specifically at the solution of
+        # the implicit equation.
         #oldDebug = self.debug
         #self.debug = True
         if self.debug: print ("--------------------------------------")
@@ -1296,11 +1333,7 @@ class IEWPFOcean:
         if self.debug: print ("Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1))
         if self.debug: print ("Checking implicit equation with alpha (k=0, k=-1): ", \
             (self._implicitEquation(alpha_zero, gamma, self.Nx, a, c), self._implicitEquation(alpha_min1, gamma, self.Nx, a, c)))
-        #if self.debug: print "Chose alpha = ", alpha
-        #if self.debug: print "The implicit equation looked like: \n\t" + \
-        #    "(alpha - 1)"+str(gamma)+" - " + str(self.Nx) + "log(alpha) + " + str(a) + " = 0"
-        #if self.debug: print "Parameters: (gamma, Nx, aj)", (gamma, self.Nx, a)
-
+        
         alpha = np.sqrt(alpha)
         if self.debug: print ("alpha = np.sqrt(alpha) ->  ", alpha)
         if self.debug: print( "--------------------------------------")

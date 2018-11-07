@@ -47,7 +47,12 @@ except:
     pass
 
 class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
-        
+    """
+    Class that holds an ensemble of ocean states with small scale ocean perturbation as 
+    model errors.
+    
+    Inherits BaseOceanStateEnsemble class. 
+    """
     
     def init(self, driftersPerOceanModel=1):
         warnings.warn('The function init will be deprecated. Please use the improved constructor instead',

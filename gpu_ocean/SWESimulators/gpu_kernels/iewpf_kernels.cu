@@ -1,6 +1,14 @@
 /*
 These CUDA kernels implements specific parts of the Implicit Equal-Weights 
 Particle Filter (IEWPF) algorithm.
+The following papers describe the method, though with mistakes and variations.
+     - 'Implicit equal-weights particle filter' by Zhu, van Leeuwen and Amezcua, Quarterly
+            Journal of the Royal Meteorological Society, 2016
+     - 'State-of-the-art stochastic data assimilation methods for high-dimensional
+            non-Gaussian problems' by Vetra-Carvalho et al, Tellus, 2018
+     - 'A revied Implicit Equal-Weights Particle Filter' by Skauvold et al, ???, 2018
+     
+
 
 Copyright (C) 2018  SINTEF ICT
 
@@ -17,8 +25,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-
-//#include "common.cu"
 
 
 /**

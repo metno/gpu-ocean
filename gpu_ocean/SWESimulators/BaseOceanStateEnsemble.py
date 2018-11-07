@@ -39,7 +39,22 @@ from SWESimulators import Common
 from SWESimulators import DataAssimilationUtils as dautils
 
 class BaseOceanStateEnsemble(object):
-
+    """
+    Class that holds an ensemble of ocean states.
+    
+    gpu_ctx: GPU context
+    numParticles: Number of particles, also known as number of ensemble members
+    sim: A simulator which represent the initial state of all particles
+    num_drifters = 1: Number of drifters that provide us observations
+    observation_type: ObservationType enumerator object
+    observation_variance: Can be a scalar or a covariance matrix
+    observation_variance_factor: If observation_variance is not provided, the 
+        observation_variance will be (observation_variance_factor*dx)**2
+    initialization_variance_factor_drifter_position: Gives an initial perturbation of 
+        drifter positions if non-zero
+    initialization_variance_factor_ocean_field: Gives an initial perturbation of 
+        the ocean field if non-zero
+    """
     __metaclass__ = abc.ABCMeta
         
     def __init__(self, gpu_ctx, numParticles, sim, 
@@ -278,10 +293,11 @@ class BaseOceanStateEnsemble(object):
         
         
     def _addObservation(self, observedDrifterPositions):
-        # Observations are stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
-        # where n is time step and i is drifter
-        
-        #print("Adding observation for time " + str(self.t))
+        """
+        Adds the given observed drifter positions to the observedDrifterPosition 
+        array. Observations are there stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
+        where n is time step and i is drifter
+        """
         self.observedDrifterPositions.append([self.t, observedDrifterPositions])
 
         

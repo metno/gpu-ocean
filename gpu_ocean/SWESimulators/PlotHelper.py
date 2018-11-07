@@ -426,6 +426,11 @@ class EnsembleAnimator:
         drifterPositions = ensemble.observeDrifters()
         trueDrifterPosition = ensemble.observeTrueDrifters()
         
+        # TODO
+        # These lines which updates the drifter positions to the animations
+        # broke when updating from Python 2 to Python 3.
+        # This should be fixed again... 
+        
         #self.true_drifters.set_offsets(drifterPositions)
         #self.true_observations.set_offsets(trueDrifterPosition)
         
