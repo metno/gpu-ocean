@@ -395,7 +395,8 @@ class OceanStateNoise(object):
     
     def perturbOceanStateCPU(self, eta, hu, hv, H, f,  beta=0.0, g=9.81,
                              ghost_cells_x=0, ghost_cells_y=0,
-                             use_existing_GPU_random_numbers=False):
+                             use_existing_GPU_random_numbers=False,
+                             use_existing_CPU_random_numbers=False):
         """
         Apply the SOAR Q covariance matrix on the random field to add
         a perturbation to the incomming eta buffer.
@@ -405,7 +406,7 @@ class OceanStateNoise(object):
         # Call CPU utility function
         if use_existing_GPU_random_numbers:
             self.random_numbers_host = self.getRandomNumbers()
-        else:
+        elif not use_existing_CPU_random_numbers:
             self.generateNormalDistributionCPU()
         
         # generates perturbation (d_eta[ny+4, nx+4], d_hu[ny, nx] and d_hv[ny, nx])

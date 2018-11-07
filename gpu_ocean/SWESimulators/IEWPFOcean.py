@@ -395,10 +395,14 @@ class IEWPFOcean:
         #----------------------------------
     
     
-    def sampleFromP(self, sim, all_observed_drifter_positions):
+    def sampleFromP(self, sim, all_observed_drifter_positions, return_original_random_numbers=False):
         
         # Sample from N(0,I)
         sim.small_scale_model_error.generateNormalDistribution()
+
+        std_norm_host = None        
+        if return_original_random_numbers:
+            std_norm_host = sim.small_scale_model_error.getRandomNumbers()
         
         # Obtain gamma
         sim.gpu_stream.synchronize()
@@ -409,22 +413,25 @@ class IEWPFOcean:
             #print "\nhei from drifter ", drifter
             observed_drifter_position = all_observed_drifter_positions[drifter,:]
             
-            cell_id_x = int(np.floor(observed_drifter_position[0]/sim.dx))
-            cell_id_y = int(np.floor(observed_drifter_position[1]/sim.dy))
+            coarse_cell_id_x = int(np.floor(observed_drifter_position[0]/self.coarse_dx))
+            coarse_cell_id_y = int(np.floor(observed_drifter_position[1]/self.coarse_dy))
             #print "cell id: ", (cell_id_x, cell_id_y)
         
-            self.applyLocalSVDOnGlobalXi(sim, cell_id_x, cell_id_y)
-                
-        return gamma
+            self.applyLocalSVDOnGlobalXi(sim, coarse_cell_id_x, coarse_cell_id_y)
+        
+        if return_original_random_numbers:
+            return gamma, std_norm_host
+        else:
+            return gamma
     
-    def applyLocalSVDOnGlobalXi(self, sim, drifter_cell_id_x, drifter_cell_id_y):
+    def applyLocalSVDOnGlobalXi(self, sim, drifter_coarse_cell_id_x, drifter_coarse_cell_id_y):
         # Assuming that the random numbers buffer for the given sim is filled with N(0,I) numbers
         self.localSVDOnGlobalXiKernel.prepared_async_call(self.global_size_SVD,
                                                           self.local_size_SVD,
                                                           self.master_stream,
-                                                          self.nx, self.ny,
-                                                          np.int32(drifter_cell_id_x),
-                                                          np.int32(drifter_cell_id_y),
+                                                          self.coarse_nx, self.coarse_ny,
+                                                          np.int32(drifter_coarse_cell_id_x),
+                                                          np.int32(drifter_coarse_cell_id_y),
                                                           self.localSVD_device.data.gpudata,
                                                           self.localSVD_device.pitch, 
                                                           sim.small_scale_model_error.random_numbers.data.gpudata,
