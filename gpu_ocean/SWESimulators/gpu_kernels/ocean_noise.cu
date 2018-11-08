@@ -173,7 +173,10 @@ __global__ void SOAR(
         const float dx_, const float dy_,
                 
         // Parameter for the SOAR function
-        const float soar_q0_, const float soar_L_,
+        float soar_q0_, float soar_L_, 
+
+        // Scale parameter for the final stochastic field
+        float perturbation_scale_,
         
         // Periodic domain
         const int periodic_north_south_, const int periodic_east_west_,
@@ -256,7 +259,7 @@ __global__ void SOAR(
 
         //Compute pointer to current row in the coarse array
         float* coarse_row = (float*) ((char*) coarse_ptr_ + coarse_pitch_*(tj));
-        coarse_row[ti] = Qxi;
+        coarse_row[ti] = perturbation_scale_ * Qxi;
     }
 }
 } // extern "C"

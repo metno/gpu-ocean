@@ -151,7 +151,7 @@ class OceanStateNoise(object):
         self.normalDistributionKernel.prepare("iiiPiPi")
         
         self.soarKernel = self.kernels.get_function("SOAR")
-        self.soarKernel.prepare("iiffffiiPiPi")
+        self.soarKernel.prepare("iifffffiiPiPi")
         
         self.geostrophicBalanceKernel = self.kernels.get_function("geostrophicBalance")
         self.geostrophicBalanceKernel.prepare("iiffiiffffPiPiPiPiPi")
@@ -241,7 +241,7 @@ class OceanStateNoise(object):
                                                            self.seed.data.gpudata, self.seed.pitch,
                                                            self.random_numbers.data.gpudata, self.random_numbers.pitch)
     
-    def perturbSim(self, sim, q0_scale=1.0):
+    def perturbSim(self, sim, q0_scale=1.0, update_random_field=True, perturbation_scale=1.0):
         """
         Generating a perturbed ocean state and adding it to sim's ocean state 
         """
@@ -252,12 +252,13 @@ class OceanStateNoise(object):
                                y0_reference_cell=sim.y_zero_reference_cell,
                                ghost_cells_x=sim.ghost_cells_x,
                                ghost_cells_y=sim.ghost_cells_y,
-                               q0_scale=q0_scale)
+                               q0_scale=q0_scale,
+                               update_random_field=update_random_field)
                                
     
     def perturbOceanState(self, eta, hu, hv, H, f, beta=0.0, g=9.81, 
                           y0_reference_cell=0, ghost_cells_x=0, ghost_cells_y=0,
-                          q0_scale=1.0):
+                          q0_scale=1.0, update_random_field=True, perturbation_scale=1.0):
         """
         Apply the SOAR Q covariance matrix on the random ocean field which is
         added to the provided buffers eta, hu and hv.
@@ -265,8 +266,9 @@ class OceanStateNoise(object):
         hu: volume transport in x-direction - CUDAArray2D object.
         hv: volume transport in y-dirextion - CUDAArray2D object.
         """
-        # Need to update the random field, requiering a global sync
-        self.generateNormalDistribution()
+        if update_random_field:
+            # Need to update the random field, requiering a global sync
+            self.generateNormalDistribution()
         
         soar_q0 = np.float32(self.soar_q0 * q0_scale)
         
@@ -279,9 +281,9 @@ class OceanStateNoise(object):
                                             self.coarse_dx, self.coarse_dy,
 
                                             soar_q0, self.soar_L,
+                                            np.float32(perturbation_scale),
                                             
                                             self.periodicNorthSouth, self.periodicEastWest,
-
                                             self.random_numbers.data.gpudata, self.random_numbers.pitch,
                                             self.coarse_buffer.data.gpudata, self.coarse_buffer.pitch)
         
@@ -290,11 +292,14 @@ class OceanStateNoise(object):
                                                                 self.nx, self.ny, 
                                                                 np.int32(ghost_cells_x), np.int32(ghost_cells_y),
                                                                 self.dx, self.dy,
+                                                                
                                                                 self.coarse_nx, self.coarse_ny,
                                                                 np.int32(ghost_cells_x), np.int32(ghost_cells_y),
                                                                 self.coarse_dx, self.coarse_dy,
+                                                                
                                                                 np.float32(g), np.float32(f),
                                                                 np.float32(beta), np.float32(y0_reference_cell),
+                                                                
                                                                 self.coarse_buffer.data.gpudata, self.coarse_buffer.pitch,
                                                                 eta.data.gpudata, eta.pitch,
                                                                 hu.data.gpudata, hu.pitch,
@@ -446,7 +451,7 @@ class OceanStateNoise(object):
                        + self.coarse_dy*self.coarse_dy*(a_y - b_y)**2 )
         return self.soar_q0*(1.0 + dist/self.soar_L)*np.exp(-dist/self.soar_L)
     
-    def _applyQ_CPU(self):
+    def _applyQ_CPU(self, perturbation_scale=1):
         #xi, dx=1, dy=1, q0=0.1, L=1, cutoff=5):
         """
         Create the perturbation field for eta based on the SOAR covariance 
@@ -497,15 +502,14 @@ class OceanStateNoise(object):
                     for b_x in range(start_b_x, end_b_x):
                         Q = self._SOAR_Q_CPU(local_a_x, local_a_y, b_x, b_y)
                         Qx += Q*local_xi[b_y, b_x]
-                Qxi[a_y, a_x] = Qx
+                Qxi[a_y, a_x] = perturbation_scale*Qx
         
         return Qxi
     
     
-    def _obtainOceanPerturbations_CPU(self, H, f, beta, g):
-        
+    def _obtainOceanPerturbations_CPU(self, H, f, beta, g, perturbation_scale=1):
         # Obtain perturbed eta - size (coarse_ny+4, coarse_nx+4)
-        d_eta = self._applyQ_CPU()
+        d_eta = self._applyQ_CPU(perturbation_scale)
 
         # Interpolate if the coarse grid is not the same as the computational grid
         # d_eta then becomes (ny+4, nx+4)
@@ -551,7 +555,7 @@ class OceanStateNoise(object):
 
                 eta_diff_x = (d_eta[local_j, local_i+1] - d_eta[local_j, local_i-1])/(2.0*self.dx)
                 d_hv[j,i] = (g/coriolis)*h_mid*eta_diff_x   
-
+    
         return d_eta, d_hu, d_hv
     
     
