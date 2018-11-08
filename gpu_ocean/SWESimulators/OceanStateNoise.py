@@ -347,11 +347,11 @@ class OceanStateNoise(object):
         if fine_index_i is not None:
             coarse_i = fine_index_i//self.interpolation_factor
             raw_offset_i = fine_index_i % self.interpolation_factor
-            offset_i = int(raw_offset_i - default_offset)
+            offset_i = -int(raw_offset_i - default_offset)
         if fine_index_j is not None:        
             coarse_j = fine_index_j//self.interpolation_factor
             raw_offset_j = fine_index_j % self.interpolation_factor
-            offset_j = int(raw_offset_j - default_offset)
+            offset_j = -int(raw_offset_j - default_offset)
         return offset_i, offset_j
 
     

@@ -398,7 +398,6 @@ class IEWPFOcean:
             coarse_cell_id_x = np.int32(int(np.floor(observed_drifter_position[0]/self.coarse_dx)))
             coarse_cell_id_y = np.int32(int(np.floor(observed_drifter_position[1]/self.coarse_dy)))
             
-
             # 1) Solve linear problem
             e = np.dot(self.S_host, local_innovation)
             
@@ -419,7 +418,6 @@ class IEWPFOcean:
             # The final step of the Kalman gain is to obtain geostrophic balance on the obtained field.
             sim.small_scale_model_error.perturbSim(sim, update_random_field=False,
                                                   align_with_cell_i=cell_id_x, align_with_cell_j=cell_id_y)
-    
         return phi
         # end of addKalmanGain
         #----------------------------------

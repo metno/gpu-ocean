@@ -518,23 +518,11 @@ class OceanStateNoiseTest(unittest.TestCase):
                 # Compare perturbation between CPU and GPU 
                 assert2DListAlmostEqual(self, skewed_eta_cpu.tolist(), etaFromGPU.tolist(), 5, msg+", eta")
 
-                coarse = self.noise.getCoarseBuffer()
-                inner_coarse = coarse[2:-2, 2:-2] / maxVal
-                inner_eta = etaFromGPU[2:-2, 2:-2]
-                first_center_i = int((factor-1)/2) - offset_i
-                first_center_j = int((factor-1)/2) - offset_j
-                #coarse_vals_eta = inner_eta[first_center::factor, first_center::factor]
-
-                # Check that the coarse grid equals with the aligned fine grid points 
-                #assert2DListAlmostEqual(self, inner_coarse.tolist(), coarse_vals_eta.tolist(), 6, msg + " - coarse vs fine")
-
-                #assert2DListAlmostEqual(self, huCPU.tolist(), huFromGPU.tolist(), 5, msg+", hu")
-                #assert2DListAlmostEqual(self, hvCPU.tolist(), hvFromGPU.tolist(), 5, msg+", hv") 
-                
                 count = count+1
         
     def test_interpolation_offset_5(self):
-        self.interpolate_perturbation_ocean_offset("test_interpolation_offset_5 with ", 5, [6,7,8], [6,7,8], [-1,0,1], [-1,0,1])
+        self.interpolate_perturbation_ocean_offset("test_interpolation_offset_5 with ", 5, 
+                                                   [6,7,8], [6,7,8], [1,0,-1], [1,0,-1])
         #self.interpolate_perturbation_ocean_offset("test_interpolation_offset_5 with ", 5, [6,7,8], [6,7,8], [0,0,0], [0,0,0])
   
         

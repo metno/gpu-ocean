@@ -767,7 +767,7 @@ class BaseOceanStateEnsemble(object):
             circ = matplotlib.patches.Circle((cell_id_x, cell_id_y), 1, fill=False)
             ax.add_patch(circ)    
     
-    def plotEnsemble(self):
+    def plotEnsemble(self, num_particles=5):
         """
         Utility function to plot:
             - the true state
@@ -778,7 +778,7 @@ class BaseOceanStateEnsemble(object):
         
         observed_drifter_positions = self.observeTrueDrifters()
 
-        numParticlePlots = min(self.getNumParticles(), 5)
+        numParticlePlots = min(self.getNumParticles(), num_particles)
         numPlots = numParticlePlots + 3
         plotCols = 4
         fig = plt.figure(figsize=(7, 2*numPlots))
