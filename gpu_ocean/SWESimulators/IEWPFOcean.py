@@ -162,6 +162,10 @@ class IEWPFOcean:
                                    int(np.ceil(self.nx / float(self.local_size_domain[0]))), \
                                    int(np.ceil(self.ny / float(self.local_size_domain[1]))) \
                                   ) 
+        self.noise_buffer_domain = ( \
+                                    int(np.ceil(self.coarse_nx / float(self.local_size_domain[0]))), \
+                                    int(np.ceil(self.coarse_ny / float(self.local_size_domain[1]))) \
+                                   ) 
     
        
     
@@ -367,10 +371,11 @@ class IEWPFOcean:
         
             
     def setNoiseBufferToZero(self, sim):
-        self.setBufferToZeroKernel.prepared_async_call(self.global_size_domain,
+        self.setBufferToZeroKernel.prepared_async_call(self.noise_buffer_domain,
                                                        self.local_size_domain, 
                                                        self.master_stream,
-                                                       sim.nx, sim.ny,
+                                                       sim.small_scale_model_error.rand_nx, 
+                                                       sim.small_scale_model_error.rand_ny,
                                                        sim.small_scale_model_error.random_numbers.data.gpudata,
                                                        sim.small_scale_model_error.random_numbers.pitch)
         
@@ -397,7 +402,9 @@ class IEWPFOcean:
 
             # 1) Solve linear problem
             e = np.dot(self.S_host, local_innovation)
-                        
+            
+            #sim.gpu_stream.synchronize()
+            #self.gpu_ctx.synchronize()
             self.halfTheKalmanGainKernel.prepared_async_call(self.global_size_Kalman,
                                                              self.local_size_Kalman,
                                                              self.master_stream,

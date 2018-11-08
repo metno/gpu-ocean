@@ -186,7 +186,7 @@ extern "C" {
 
         // Read the relevant xi field into shared memory
         float* xi_row =  (float*) ((char*) xi_ptr_ + xi_pitch_*(global_y_j));
-        if ((tx < 7) and (ty < 7)) {
+        if ((tx < 7) && (ty < 7)) {
             shared_xi[ty][tx] = xi_row[global_x_j];
         }
         
@@ -200,7 +200,7 @@ extern "C" {
         
         __syncthreads();
 
-        if ((tx < 7) and (ty < 7)) {
+        if ((tx < 7) && (ty < 7)) {
             float xi = 0.0f;
             const int local_j = ty*7 + tx; // thread row index of the SVD block
             int local_i;
