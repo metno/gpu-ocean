@@ -373,14 +373,13 @@ class IEWPFOcean:
     def setNoiseBufferToZero(self, sim):
         self.setBufferToZeroKernel.prepared_async_call(self.noise_buffer_domain,
                                                        self.local_size_domain, 
-                                                       self.master_stream,
+                                                       sim.gpu_stream,
                                                        sim.small_scale_model_error.rand_nx, 
                                                        sim.small_scale_model_error.rand_ny,
                                                        sim.small_scale_model_error.random_numbers.data.gpudata,
                                                        sim.small_scale_model_error.random_numbers.pitch)
         
     def addKalmanGain(self, sim, all_observed_drifter_positions, innovation):
-        
         
         # Find phi as we go: phi = d^T S d
         phi = 0.0
@@ -407,7 +406,7 @@ class IEWPFOcean:
             #self.gpu_ctx.synchronize()
             self.halfTheKalmanGainKernel.prepared_async_call(self.global_size_Kalman,
                                                              self.local_size_Kalman,
-                                                             self.master_stream,
+                                                             sim.gpu_stream,
                                                              self.coarse_nx, self.coarse_ny, 
                                                              self.coarse_dx, self.coarse_dy,
                                                              self.soar_q0, self.soar_L,
@@ -461,7 +460,7 @@ class IEWPFOcean:
         # Assuming that the random numbers buffer for the given sim is filled with N(0,I) numbers
         self.localSVDOnGlobalXiKernel.prepared_async_call(self.global_size_SVD,
                                                           self.local_size_SVD,
-                                                          self.master_stream,
+                                                          sim.gpu_stream,
                                                           self.coarse_nx, self.coarse_ny,
                                                           np.int32(drifter_coarse_cell_id_x),
                                                           np.int32(drifter_coarse_cell_id_y),
