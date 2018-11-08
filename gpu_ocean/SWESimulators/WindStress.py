@@ -27,8 +27,9 @@ from abc import ABCMeta, abstractmethod
 
 class WindStress():
     
-    def __init__(self, t=None, X=None, Y=None):
+    def __init__(self, source_filename=None, t=None, X=None, Y=None):
         
+        self.source_filename = source_filename
         self.t = [0]
         self.X = [np.zeros((1,1), dtype=np.float32, order='C')]
         self.Y = [np.zeros((1,1), dtype=np.float32, order='C')]
