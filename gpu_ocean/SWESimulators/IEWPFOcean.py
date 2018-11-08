@@ -402,8 +402,6 @@ class IEWPFOcean:
             # 1) Solve linear problem
             e = np.dot(self.S_host, local_innovation)
             
-            #sim.gpu_stream.synchronize()
-            #self.gpu_ctx.synchronize()
             self.halfTheKalmanGainKernel.prepared_async_call(self.global_size_Kalman,
                                                              self.local_size_Kalman,
                                                              sim.gpu_stream,
@@ -442,12 +440,10 @@ class IEWPFOcean:
         sim.gpu_stream.synchronize()
             
         for drifter in range(self.numDrifters):
-            #print "\nhei from drifter ", drifter
             observed_drifter_position = all_observed_drifter_positions[drifter,:]
             
             coarse_cell_id_x = int(np.floor(observed_drifter_position[0]/self.coarse_dx))
             coarse_cell_id_y = int(np.floor(observed_drifter_position[1]/self.coarse_dy))
-            #print "cell id: ", (cell_id_x, cell_id_y)
         
             self.applyLocalSVDOnGlobalXi(sim, coarse_cell_id_x, coarse_cell_id_y)
         
@@ -457,6 +453,7 @@ class IEWPFOcean:
             return gamma
     
     def applyLocalSVDOnGlobalXi(self, sim, drifter_coarse_cell_id_x, drifter_coarse_cell_id_y):
+        
         # Assuming that the random numbers buffer for the given sim is filled with N(0,I) numbers
         self.localSVDOnGlobalXiKernel.prepared_async_call(self.global_size_SVD,
                                                           self.local_size_SVD,
