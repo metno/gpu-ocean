@@ -4,7 +4,10 @@
 This python class produces random perturbations that are to be added to 
 the ocean state fields in order to generate model error.
 
-Copyright (C) 2018  SINTEF ICT
+This software is part of GPU Ocean.
+
+Copyright (C) 2018 SINTEF Digital
+Copyright (C) 2018 Norwegian Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
