@@ -211,9 +211,9 @@ __global__ void periodicBoundaryVKernel_EW(
 } // extern "C"
 
 
-
+// Fix north-south boundary before east-west (to get the corners right)
 extern "C" {
-__global__ void closedBoundaryEtaKernel(
+__global__ void closedBoundaryEtaKernel_NS(
         // Discretization parameters
         int nx_, int ny_,
         int bc_north_, int bc_east_, int bc_south_, int bc_west_,
@@ -233,17 +233,53 @@ __global__ void closedBoundaryEtaKernel(
     //Compute pointer to current row in the eta array
     float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj); 
     
-    if ( (  ((tj == 0  ) && (bc_south_ == 1)) || 
-            ((tj == ny_+1)  && (bc_north_ == 1)) )
-         && ti < nx_ + 2) {
-        eta_row[ti] = 0.0f;
+    if (ti < nx_+2) {
+
+        if ( (tj == 0  ) && (bc_south_ == 1)) {
+            float* const eta_row_inner = (float*) ((char*) eta_ptr_ + eta_pitch_*1);
+            eta_row[ti] = eta_row_inner[ti];
+        }
+
+        if ((tj == ny_+1)  && (bc_north_ == 1)) {
+            float* const eta_row_inner = (float*) ((char*) eta_ptr_ + eta_pitch_*ny_);
+            eta_row[ti] = eta_row_inner[ti];
+        }
     }
+
+}
+} // extern "C"
+
+extern "C" {
+__global__ void closedBoundaryEtaKernel_EW(
+        // Discretization parameters
+        int nx_, int ny_,
+        int bc_north_, int bc_east_, int bc_south_, int bc_west_,
+
+        // Data
+        float* eta_ptr_, int eta_pitch_) {
+            
+    // All eta values living outside of a closed boundary should
+    // be ignored by the step-kernel. Anyway, we but them to zero to
+    // make sure they are well defined, but this kernel should not need to
+    // be called between time-steps.
     
-    // We set U = 0 outside of the east and west boundary as well
-    if ( ( ((ti == 0    ) && (bc_west_ == 1)) ||
-           ((ti == nx_+1) && (bc_east_ == 1))    )
-         && tj < ny_+2) {
-        eta_row[ti] = 0.0f;
+    // Index of cell within domain
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
+
+    //Compute pointer to current row in the eta array
+    float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj); 
+    
+    if (tj < ny_+2) {
+        
+        if ((ti == 0    ) && (bc_west_ == 1)) {
+            eta_row[0] = eta_row[1];
+        }
+        
+        if ((ti == nx_+1) && (bc_east_ == 1)) {
+            eta_row[nx_+1] = eta_row[nx_];
+        }
+        
     }
 }
 } // extern "C"

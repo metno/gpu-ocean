@@ -374,8 +374,10 @@ class FBL_periodic_boundary:
         self.periodicBoundaryVKernel_EW = self.periodicBoundaryKernel.get_function("periodicBoundaryVKernel_EW")
         self.periodicBoundaryVKernel_EW.prepare("iiPi")
         
-        self.closedBoundaryEtaKernel = self.periodicBoundaryKernel.get_function("closedBoundaryEtaKernel")
-        self.closedBoundaryEtaKernel.prepare("iiiiiiPi")
+        self.closedBoundaryEtaKernel_NS = self.periodicBoundaryKernel.get_function("closedBoundaryEtaKernel_NS")
+        self.closedBoundaryEtaKernel_NS.prepare("iiiiiiPi")
+        self.closedBoundaryEtaKernel_EW = self.periodicBoundaryKernel.get_function("closedBoundaryEtaKernel_EW")
+        self.closedBoundaryEtaKernel_EW.prepare("iiiiiiPi")
         self.periodicBoundaryEtaKernel_NS = self.periodicBoundaryKernel.get_function("periodicBoundaryEtaKernel_NS")
         self.periodicBoundaryEtaKernel_NS.prepare("iiPi")
         self.periodicBoundaryEtaKernel_EW = self.periodicBoundaryKernel.get_function("periodicBoundaryEtaKernel_EW")
@@ -468,7 +470,11 @@ class FBL_periodic_boundary:
                               self.boundary_conditions.north == 1 or \
                               self.boundary_conditions.south == 1):
             
-            self.closedBoundaryEtaKernel.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
+            self.closedBoundaryEtaKernel_NS.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
+                        self.nx, self.ny, \
+                        self.bc_north, self.bc_east, self.bc_south, self.bc_west, \
+                        eta0.data.gpudata, eta0.pitch)
+            self.closedBoundaryEtaKernel_EW.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
                         self.nx, self.ny, \
                         self.bc_north, self.bc_east, self.bc_south, self.bc_west, \
                         eta0.data.gpudata, eta0.pitch)
