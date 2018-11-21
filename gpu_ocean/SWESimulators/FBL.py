@@ -424,7 +424,7 @@ class FBL_periodic_boundary:
                         self.nx, self.ny, \
                         hu0.data.gpudata, hu0.pitch)
         
-        self.firstU = False
+        #self.firstU = False
 
     def boundaryConditionV(self, gpu_stream, hv0):
         """
@@ -453,7 +453,7 @@ class FBL_periodic_boundary:
                         self.nx, self.ny, \
                         hv0.data.gpudata, hv0.pitch)
         
-        self.firstV = False
+        #self.firstV = False
         
 
     def boundaryConditionEta(self, gpu_stream, eta0):
@@ -483,7 +483,7 @@ class FBL_periodic_boundary:
                         eta0.data.gpudata, eta0.pitch)
                         
                         
-        self.firstEta = False
+        #self.firstEta = False
 
         
     def callSpongeNS(self, gpu_stream, data, staggered_x, staggered_y):
