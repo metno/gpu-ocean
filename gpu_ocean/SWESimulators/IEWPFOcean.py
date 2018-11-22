@@ -36,9 +36,9 @@ import time
 import gc
 import pycuda.driver as cuda
 from scipy.special import lambertw
+import logging
 
-
-from SWESimulators import Common, OceanStateNoise
+from SWESimulators import Common, OceanStateNoise, IPythonMagic
 
 class IEWPFOcean:
     """
@@ -51,6 +51,9 @@ class IEWPFOcean:
     """
     def __init__(self, ensemble, debug=False, show_errors=False,
                  block_width=16, block_height=16):
+        
+        self.logger = logging.getLogger(__name__)
+        self.logger_level = IPythonMagic.GPUOceanLoggerLevels.IEWPF_DEBUG
         
         self.gpu_ctx = ensemble.gpu_ctx
         self.master_stream = cuda.Stream()
@@ -168,6 +171,8 @@ class IEWPFOcean:
                                    ) 
     
        
+    def log(self, msg):
+        self.logger.log(self.logger_level.value, msg)
     
     
     def __del__(self):
@@ -240,6 +245,8 @@ class IEWPFOcean:
             # Reset the drifter positions in each particle.
             # One key line woould be:
             # ensemble.particles[p].drifters.setDrifterPositions(newPos)
+            self.log("#¤%&/()/&#¤Successfully completed a IEWPF step ---- particle " + str(p))
+
         
         # save plot after
         if infoPlots is not None:
