@@ -1029,7 +1029,6 @@ class BaseOceanStateEnsemble(object):
 
         # PLOT POSITIONS OF PARTICLES AND OBSERVATIONS
 
-        #ax = plt.subplot2grid((plotRows,3), (0,0), polar=True, axisbg='#ffffff')
         ax = plt.subplot2grid((plotRows,3), (0,0), polar=True)
         self._fillPolarPlot(ax, drifter_id=0, printInfo=printInfo)
 
@@ -1072,7 +1071,6 @@ class BaseOceanStateEnsemble(object):
 
         if self.driftersPerOceanModel > 1:
             for drifter_id in range(0,min(3, self.driftersPerOceanModel)):
-                #ax = plt.subplot2grid((plotRows,3), (2,drifter_id-1), polar=True, axisbg='#ffffff')
                 ax = plt.subplot2grid((plotRows,3), (2,drifter_id), polar=True)
                 self._fillPolarPlot(ax, drifter_id=drifter_id, printInfo=printInfo)
 

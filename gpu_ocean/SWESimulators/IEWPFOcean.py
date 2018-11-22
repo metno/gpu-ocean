@@ -647,13 +647,13 @@ class IEWPFOcean:
             # north and east values are calculated from the surface in the north-east direction
             # south and west values are calculated from the surface in the south-west direction 
             
-            x_north = interpolation_alias(x_corr, mid_i  , mid_j  ,          0.0,      rel_offset)
-            x_east  = interpolation_alias(x_corr, mid_i  , mid_j  ,   rel_offset,             0.0)
+            x_north = interpolation_alias(x_corr, mid_i  , mid_j  ,            0.0,     rel_offset)
+            x_east  = interpolation_alias(x_corr, mid_i  , mid_j  ,     rel_offset,            0.0)
             x_south = interpolation_alias(x_corr, mid_i-1, mid_j-1,            1.0, 1.0-rel_offset)
             x_west  = interpolation_alias(x_corr, mid_i-1, mid_j-1, 1.0-rel_offset,            1.0)
 
-            y_north = interpolation_alias(y_corr, mid_i  , mid_j  ,          0.0,      rel_offset)
-            y_east  = interpolation_alias(y_corr, mid_i  , mid_j  ,   rel_offset,             0.0)
+            y_north = interpolation_alias(y_corr, mid_i  , mid_j  ,            0.0,     rel_offset)
+            y_east  = interpolation_alias(y_corr, mid_i  , mid_j  ,     rel_offset,            0.0)
             y_south = interpolation_alias(y_corr, mid_i-1, mid_j-1,            1.0, 1.0-rel_offset)
             y_west  = interpolation_alias(y_corr, mid_i-1, mid_j-1, 1.0-rel_offset,            1.0)        
         

@@ -653,23 +653,9 @@ class OceanStateNoise(object):
 
                 assert rel_x >= 0 and rel_x < 1
                 assert rel_y >= 0 and rel_y < 1
-                
-                # Defining the coarse grid points on coarse intersections rather than in grid centers.
-                #coarse_i = int(np.floor(x/coarse_dx + 1))
-                #coarse_j = int(np.floor(y/coarse_dy + 1))
-                #coarse_x = (coarse_i - 1)*coarse_dx 
-                #coarse_y = (coarse_j - 1)*coarse_dy 
-
-                #print ("(i, x, coarse_i, coarse_x)", (i, x, coarse_i, coarse_x))
-                #if loc_j == 0:
-                #    print ("--> (i, x, coarse_i, coarse_x)", (i, x, coarse_i, coarse_x))
-                #if loc_i == 0:
-                #    print ("--> (j, y, coarse_j, coarse_y)", (j, y, coarse_j, coarse_y))
                     
                 d_eta[j,i] = self._bicubic_interpolation_inner(coarse_eta, coarse_i, coarse_j, rel_x, rel_y, interpolation_order)
 
-        #print("(min_rel_x, max_rel_x)", (min_rel_x, max_rel_x))
-        #print("(min_rel_y, max_rel_y)", (min_rel_y, max_rel_y))
         return d_eta
         
         
