@@ -17,6 +17,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// Define total number of threads that should work together to 
+// carry out the reduction. Value 128 chosen arbitrarily.
 #define NUM_THREADS 128
 
 extern "C" {

@@ -28,6 +28,8 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import time
 import abc
+import warnings 
+
 
 import pycuda.driver as cuda
 
@@ -37,15 +39,27 @@ from SWESimulators import BaseOceanStateEnsemble
 from SWESimulators import Common
 from SWESimulators import DataAssimilationUtils as dautils
 
+
+
 try:
     from importlib import reload
 except:
     pass
 
 class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
-        
+    """
+    Class that holds an ensemble of ocean states with small scale ocean perturbation as 
+    model errors.
+    
+    Inherits BaseOceanStateEnsemble class. 
+    """
     
     def init(self, driftersPerOceanModel=1):
+        warnings.warn('The function init will be deprecated. Please use the improved constructor instead',
+                      DeprecationWarning)
+        self._init(driftersPerOceanModel=driftersPerOceanModel)
+    
+    def _init(self, driftersPerOceanModel=1):
         self.driftersPerOceanModel = np.int32(driftersPerOceanModel)
         
         # Define mid-points for the different drifters 
@@ -71,7 +85,8 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                                 boundary_conditions=self.boundaryConditions, \
                                                 write_netcdf=False, \
                                                 small_scale_perturbation=True, \
-                                                small_scale_perturbation_amplitude=self.small_scale_perturbation_amplitude)
+                                                small_scale_perturbation_amplitude=self.small_scale_perturbation_amplitude,
+                                                small_scale_perturbation_interpolation_factor=self.small_scale_perturbation_interpolation_factor)
             
             if self.initialization_variance_factor_ocean_field != 0.0:
                 self.particles[i].perturbState(q0_scale=self.initialization_variance_factor_ocean_field)

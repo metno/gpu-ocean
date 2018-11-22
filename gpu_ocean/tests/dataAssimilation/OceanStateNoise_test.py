@@ -380,6 +380,7 @@ class OceanStateNoiseTest(unittest.TestCase):
 
         
     def interpolate_perturbation_ocean(self, msg, factor):
+        
         self.nx = factor*self.nx
         self.ny = factor*self.ny
         self.datashape = (self.ny+4, self.nx+4)
@@ -390,16 +391,19 @@ class OceanStateNoiseTest(unittest.TestCase):
         self.create_noise(factor=factor)
         self.allocateBuffers(HCPU)
         
+          
         self.noise.perturbOceanState(self.eta, self.hu, self.hv, self.H,
                                      self.f, self.beta, self.g,
                                      ghost_cells_x=self.ghost_cells_x,
                                      ghost_cells_y=self.ghost_cells_y)
-
+      
+        
         self.noise.perturbOceanStateCPU(etaCPU, huCPU, hvCPU, HCPU,
                                         self.f, self.beta, self.g,
                                         use_existing_GPU_random_numbers=True,
                                         ghost_cells_x=self.ghost_cells_x,
                                         ghost_cells_y=self.ghost_cells_y)
+        
         
         etaFromGPU = self.eta.download(self.gpu_stream)
         huFromGPU = self.hu.download(self.gpu_stream)
@@ -418,15 +422,17 @@ class OceanStateNoiseTest(unittest.TestCase):
         huCPU = huCPU / maxValhuv
         hvCPU = hvCPU / maxValhuv
         
-        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, msg)
+        # Compare perturbation between CPU and GPU 
+        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 6, msg+", eta")
         
         coarse = self.noise.getCoarseBuffer()
         inner_coarse = coarse[2:-2, 2:-2] / maxVal
         inner_eta = etaFromGPU[2:-2, 2:-2]
         first_center = int((factor-1)/2)
         coarse_vals_eta = inner_eta[first_center::factor, first_center::factor]
-        
-        assert2DListAlmostEqual(self, inner_coarse.tolist(), coarse_vals_eta.tolist(), 6, msg + " - coarse vs fine")
+
+        # Check that the coarse grid equals with the aligned fine grid points 
+        assert2DListAlmostEqual(self, inner_coarse.tolist(), coarse_vals_eta.tolist(), 5, msg + " - coarse vs fine")
         
         assert2DListAlmostEqual(self, huCPU.tolist(), huFromGPU.tolist(), 5, msg+", hu")
         assert2DListAlmostEqual(self, hvCPU.tolist(), hvFromGPU.tolist(), 5, msg+", hv")
@@ -434,10 +440,89 @@ class OceanStateNoiseTest(unittest.TestCase):
         
         
     def test_interpolation_3_ocean(self):
-        self.interpolate_perturbation_ocean("test_interpolation_3_ocean", 3)
+        self.interpolate_perturbation_ocean("test_interpolation_ocean with factor 3", 3)
     
     def test_interpolation_5_ocean(self):
-        self.interpolate_perturbation_ocean("test_interpolation_5_ocean", 5)
+        self.interpolate_perturbation_ocean("test_interpolation_ocean with factor 5", 5)
     
     def test_interpolation_7_ocean(self):
-        self.interpolate_perturbation_ocean("test_interpolation_7_ocean", 7)
+        self.interpolate_perturbation_ocean("test_interpolation_ocean with factor 7", 7)
+
+    def interpolate_perturbation_ocean_offset(self, base_msg, factor, align_i_list, align_j_list, offset_i_list, offset_j_list):
+        
+        self.nx = self.nx
+        self.ny = self.ny
+        self.datashape = (self.ny+4, self.nx+4)
+        etaCPU = np.zeros(self.datashape)
+        huCPU =  np.zeros(self.datashape)
+        hvCPU =  np.zeros(self.datashape)
+        HCPU = np.ones((self.datashape[0]+1, self.datashape[1]+1))*5
+        self.create_noise(factor=factor)
+        self.allocateBuffers(HCPU)
+        
+        self.noise.generateNormalDistribution()
+        
+        self.noise.perturbOceanStateCPU(etaCPU, huCPU, hvCPU, HCPU,
+                                        self.f, self.beta, self.g,
+                                        use_existing_GPU_random_numbers=True,
+                                        ghost_cells_x=self.ghost_cells_x,
+                                        ghost_cells_y=self.ghost_cells_y)
+        
+        # Scale so that largest value becomes ~ 1
+        maxVal = np.max(etaCPU)
+        etaCPU = etaCPU[2:-2,2:-2]/ maxVal
+       
+    
+        maxValhuv = np.max(huCPU)
+        huCPU = huCPU / maxValhuv
+        hvCPU = hvCPU / maxValhuv
+                
+        count = 0
+        for align_j, offset_j in zip(align_j_list, offset_j_list) :
+            for align_i, offset_i in zip(align_i_list, offset_i_list):
+                
+                msg = base_msg + " align " + str((align_i, align_j)) +  ", offset " + str((offset_i, offset_j)) + ", "
+                
+                # Set variables to zero
+                self.eta.upload(self.noise.gpu_stream, np.zeros(self.datashape, dtype=np.float32))
+                self.hu.upload(self.noise.gpu_stream, np.zeros(self.datashape, dtype=np.float32))
+                self.hv.upload(self.noise.gpu_stream, np.zeros(self.datashape, dtype=np.float32))
+                
+        
+                self.noise.perturbOceanState(self.eta, self.hu, self.hv, self.H,
+                                             self.f, self.beta, self.g,
+                                             ghost_cells_x=self.ghost_cells_x,
+                                             ghost_cells_y=self.ghost_cells_y,
+                                             update_random_field=False,
+                                             align_with_cell_i=align_i, align_with_cell_j=align_j)
+
+                etaFromGPU = self.eta.download(self.gpu_stream)[2:-2, 2:-2]
+                huFromGPU = self.hu.download(self.gpu_stream)
+                hvFromGPU = self.hv.download(self.gpu_stream)
+
+                skewed_eta_cpu_tmp = etaCPU.copy()
+                if not offset_j == 0:
+                    skewed_eta_cpu_tmp[-offset_j:,:] = etaCPU[:offset_j,:]
+                    skewed_eta_cpu_tmp[:-offset_j,:] = etaCPU[offset_j:,:]
+                skewed_eta_cpu = skewed_eta_cpu_tmp.copy()
+                if not offset_i == 0:
+                    skewed_eta_cpu[:, -offset_i:] = skewed_eta_cpu_tmp[:,:offset_i]
+                    skewed_eta_cpu[:, :-offset_i] = skewed_eta_cpu_tmp[:,offset_i:]
+                
+                
+                #print("maxVal: ", maxVal)
+                etaFromGPU = etaFromGPU / maxVal
+                huFromGPU = huFromGPU / maxValhuv
+                hvFromGPU = hvFromGPU / maxValhuv
+
+                # Compare perturbation between CPU and GPU 
+                assert2DListAlmostEqual(self, skewed_eta_cpu.tolist(), etaFromGPU.tolist(), 5, msg+", eta")
+
+                count = count+1
+        
+    def test_interpolation_offset_5(self):
+        self.interpolate_perturbation_ocean_offset("test_interpolation_offset_5 with ", 5, 
+                                                   [6,7,8], [6,7,8], [1,0,-1], [1,0,-1])
+        #self.interpolate_perturbation_ocean_offset("test_interpolation_offset_5 with ", 5, [6,7,8], [6,7,8], [0,0,0], [0,0,0])
+  
+        
