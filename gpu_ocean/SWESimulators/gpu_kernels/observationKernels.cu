@@ -29,20 +29,20 @@ __global__ void observeUnderlyingFlow(
         float dx_, float dy_,
 
         int x_zero_reference_cell_, // the cell column representing x0 (x0 at western face)
-	int y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
+        int y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
 	
-	// Data
+    	// Data
         float* eta_ptr_, int eta_pitch_,
         float* hu_ptr_, int hu_pitch_,
         float* hv_ptr_, int hv_pitch_,
-	// H should be read from buffer, but for now we use a constant value
-	//__global float* H_ptr_, int H_pitch_,
-	float H_,
+	    // H should be read from buffer, but for now we use a constant value
+        //__global float* H_ptr_, int H_pitch_,
+        float H_,
 
-	
-	int num_drifters_,
-	float* drifters_positions_, int drifters_pitch_,
-	float* observation_ptr_, int observation_pitch_
+
+        int num_drifters_,
+        float* drifters_positions_, int drifters_pitch_,
+        float* observation_ptr_, int observation_pitch_
     ) {
 
     //Index of thread within block (only needed in one dim)
@@ -64,20 +64,16 @@ __global__ void observeUnderlyingFlow(
 	int const cell_id_x = (int)(floor(drifter_pos_x/dx_) + x_zero_reference_cell_);
 	int const cell_id_y = (int)(floor(drifter_pos_y/dy_) + y_zero_reference_cell_);
 
-	// Read the water velocity from global memory
-	float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*cell_id_y);
-	float const h = H_ + eta_row[cell_id_x];
-
 	float* const hu_row = (float*) ((char*) hu_ptr_ + hu_pitch_*cell_id_y);
-	float const u = hu_row[cell_id_x]/h;
+	float const hu = hu_row[cell_id_x];
 
 	float* const hv_row = (float*) ((char*) hv_ptr_ + hv_pitch_*cell_id_y);
-	float const v = hv_row[cell_id_x]/h;
+	float const hv = hv_row[cell_id_x];
 
-        // Obtain pointer to my observation:
-        float* observation = (float*)((char*) observation_ptr_ + observation_pitch_*ti);
-        observation[0] = u;
-        observation[1] = v;
+    // Obtain pointer to my observation:
+    float* observation = (float*)((char*) observation_ptr_ + observation_pitch_*ti);
+    observation[0] = hu;
+    observation[1] = hv;
     }
 }
 } // extern "C"

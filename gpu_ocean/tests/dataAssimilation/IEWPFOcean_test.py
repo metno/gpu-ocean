@@ -108,12 +108,12 @@ class IEWPFOceanTest(unittest.TestCase):
                                    small_scale_perturbation=True, \
                                    small_scale_perturbation_amplitude=self.q0)
         
-        self.ensemble = OceanNoiseEnsemble.OceanNoiseEnsemble(self.ensembleSize, self.gpu_ctx,  
-                                                              observation_type=dautils.ObservationType.DirectUnderlyingFlow)
-        self.ensemble.setGridInfoFromSim(self.sim)
-        self.ensemble.setStochasticVariables(observation_variance = 0.01**2,
-                                             small_scale_perturbation_amplitude=self.q0)
-        self.ensemble.init(driftersPerOceanModel=self.driftersPerOceanModel)
+
+        self.ensemble = OceanNoiseEnsemble.OceanNoiseEnsemble(self.gpu_ctx, self.ensembleSize, self.sim,
+                                                              num_drifters =self.driftersPerOceanModel,
+                                                              observation_type=dautils.ObservationType.DirectUnderlyingFlow,
+                                                              observation_variance = 0.01**2)
+
 
         self.iewpf = IEWPFOcean.IEWPFOcean(self.ensemble)
 
@@ -161,10 +161,59 @@ class IEWPFOceanTest(unittest.TestCase):
         self.assertEqual(self.iewpf.localSVD_host.shape, (49, 49))
         self.assertEqual(localSVD_from_GPU.shape, (49, 49))
 
-        assert2DListAlmostEqual(self, localSVD_from_GPU.tolist(), self.iewpf.localSVD_host.tolist(), 7, "S matrix GPU vs CPU")
-        assert2DListAlmostEqual(self, localSVD_from_GPU.tolist(), localSVD_from_file.tolist(), 7, "S matrix GPU vs file")
+        assert2DListAlmostEqual(self, localSVD_from_GPU.tolist(), self.iewpf.localSVD_host.tolist(), 7, "SVD matrix GPU vs CPU")
+        
+        # Compare the full matrix (not the matrix square root) to the reference solution,
+        # since the matrix square root is (in general) not unique.
+        full_matrix_gpu = np.dot(localSVD_from_GPU, localSVD_from_GPU.transpose())
+        full_matrix_reference = np.dot(localSVD_from_file, localSVD_from_file.transpose())
+        assert2DListAlmostEqual(self, full_matrix_gpu.tolist(), full_matrix_reference.tolist(), 5, "Full SVD matrix GPU vs file")
 
+        
+    def test_local_SVD_to_global_GPU_ref_data(self):
+        
+        ### Since the matrix square root is not in general unique, the local SVD buffer is not
+        # always the same, even though it is still just as valid.
+        # A consequence is therefore that the application of the local SVD to a ocean state will not compare to 
+        # a reference solution. 
+        # To test this functionality, we therefore upload the reference SVD block before applying the block and 
+        # comparing the results
+        
+        # Alias for the particle we use.
+        # We will always use sim's gpu_stream throughout this test.
+        sim = self.ensemble.particles[0]
+        
+        # Upload refrence SVD to the GPU
+        localSVD_from_file = np.loadtxt("iewpfRefData/localSVD.dat")
+        self.iewpf.localSVD_device.upload(sim.gpu_stream, localSVD_from_file.astype(np.float32))
+        
+        test_data = np.loadtxt("iewpfRefData/preLocalSVDtoGlobal.dat")
+        results_from_file = np.loadtxt("iewpfRefData/postLocalSVDtoGlobal.dat")
+
+        self.assertEqual(test_data.shape, (self.ny, self.nx))
+
+        # Upload reference input data to the sim random numbers buffer:
+        sim.small_scale_model_error.random_numbers.upload(sim.gpu_stream,
+                                                          test_data.astype(np.float32))
+        
+        # Apply SVD centered in the chosen cell (30, 30):
+        self.iewpf.applyLocalSVDOnGlobalXi(sim, 30, 30)
+        
+        # Download results:
+        gpu_result = sim.small_scale_model_error.random_numbers.download(sim.gpu_stream)
+
+        # Compare:
+        rel_norm_results = np.linalg.norm(gpu_result - results_from_file)/np.max(results_from_file)
+        self.assertAlmostEqual(rel_norm_results, 0.0, places=6)
+        
     def test_local_SVD_to_global_CPU_ref_data(self):
+    
+        # See comment for test_local_SVD_to_global_GPU_ref_data(self).
+        
+        # Set refrence SVD to the SVD block for the host
+        localSVD_from_file = np.loadtxt("iewpfRefData/localSVD.dat")
+        self.iewpf.localSVD_host = localSVD_from_file
+        
         test_data = np.loadtxt("iewpfRefData/preLocalSVDtoGlobal.dat")
         results_from_file = np.loadtxt("iewpfRefData/postLocalSVDtoGlobal.dat")
 
@@ -173,28 +222,7 @@ class IEWPFOceanTest(unittest.TestCase):
         self.iewpf._apply_local_SVD_to_global_xi_CPU(test_data, 30, 30)
 
         assert2DListAlmostEqual(self, test_data.tolist(), results_from_file.tolist(), 10, "test_local_SVD_to_global_CPU")
-        
-    def test_local_SVD_to_global_GPU_ref_data(self):
-        test_data = np.loadtxt("iewpfRefData/preLocalSVDtoGlobal.dat")
-        results_from_file = np.loadtxt("iewpfRefData/postLocalSVDtoGlobal.dat")
-
-        self.assertEqual(test_data.shape, (self.ny, self.nx))
-
-        sim = self.ensemble.particles[0]
-
-        # Upload reference input data to the sim random numbers buffer:
-        sim.small_scale_model_error.random_numbers.upload(self.iewpf.master_stream,
-                                                          test_data.astype(np.float32))
-        
-        # Apply SVD centered in the chosen cell (30, 30):
-        self.iewpf.applyLocalSVDOnGlobalXi(sim, 30, 30)
-        
-        # Download results:
-        gpu_result = sim.small_scale_model_error.random_numbers.download(self.iewpf.master_stream)
-
-        # Compare:
-        rel_norm_results = np.linalg.norm(gpu_result - results_from_file)/np.max(results_from_file)
-        self.assertAlmostEqual(rel_norm_results, 0.0, places=6)
+    
         
     def test_empty_reduction_buffer(self):
         buffer_host = self.iewpf.download_reduction_buffer()
@@ -213,11 +241,12 @@ class IEWPFOceanTest(unittest.TestCase):
 
     def test_set_buffer_to_zero(self):
         self.ensemble.particles[0].small_scale_model_error.generateNormalDistribution()
+        
         self.iewpf.setNoiseBufferToZero(self.ensemble.particles[0])
-
+        
         obtained_random_numbers = self.ensemble.particles[0].small_scale_model_error.getRandomNumbers()
-        for j in range(self.ny):
-            for i in range(self.nx):
+        for j in range(self.iewpf.coarse_ny):
+            for i in range(self.iewpf.coarse_nx):
                 self.assertEqual(obtained_random_numbers[j,i], 0.0)
 
     def test_kalman_gain(self):
@@ -237,11 +266,9 @@ class IEWPFOceanTest(unittest.TestCase):
 
         eta, hu, hv = self.ensemble.particles[0].download(interior_domain_only=True)
 
-        dummy_target_weight = 2.0
         etaCPU, huCPU, hvCPU, gamma = self.iewpf.applyKalmanGain_CPU(self.ensemble.particles[0],
                                                                      observed_drifter_positions,
-                                                                     innovation, dummy_target_weight,
-                                                                     returnKalmanGainTerm=True)
+                                                                     innovation, returnKalmanGainTerm=True)
         rel_norm_eta = np.linalg.norm(eta - etaCPU)/np.max(eta)
         rel_norm_hu  = np.linalg.norm(hu - huCPU)/np.max(hu)
         rel_norm_hv  = np.linalg.norm(hv - hvCPU)/np.max(hv)

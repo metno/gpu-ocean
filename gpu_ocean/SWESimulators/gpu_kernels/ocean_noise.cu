@@ -406,6 +406,7 @@ __global__ void bicubicInterpolation(
         const int coarse_nx_, const int coarse_ny_,
         const int coarse_ghost_cells_x_, const int coarse_ghost_cells_y_,
         const float coarse_dx_, const float coarse_dy_,
+        const int offset_i_, const int offset_j_,
     
         // physical parameters
         const float g_, const float f_, const float beta_, const float y0_reference_cell_,
@@ -465,13 +466,13 @@ __global__ void bicubicInterpolation(
     
     // Find coarse index for thread (0,0). All threads need to know this in order to read
     // coarse data correctly into coarse shmem.
-    const int bx_x = (bx - ghost_cells_x_ + 0.5)*dx_;
-    const int by_y = (by - ghost_cells_y_ + 0.5)*dy_;
+    const int bx_x = (bx - ghost_cells_x_ + 0.5 + offset_i_)*dx_;
+    const int by_y = (by - ghost_cells_y_ + 0.5 + offset_j_)*dy_;
 
     // The start of the coarse buffer which needs to be read into shared memory.
     // The coarse buffer has two layers of ghost cells.
-    const int coarse_bx = (int)(floorf((bx_x/coarse_dx_) + coarse_ghost_cells_x_ - 2.5f));
-    const int coarse_by = (int)(floorf((by_y/coarse_dy_) + coarse_ghost_cells_y_ - 2.5f));
+    const int coarse_bx = (int)(floorf((bx_x/coarse_dx_) + coarse_ghost_cells_x_ - 2.5f ));
+    const int coarse_by = (int)(floorf((by_y/coarse_dy_) + coarse_ghost_cells_y_ - 2.5f ));
 
     // Read d_eta from coarse_buffer into shared memory.
     // For very small blocks which is particularly bad alligned with the coarse grid,
@@ -504,8 +505,8 @@ __global__ void bicubicInterpolation(
             const int loop_tj = by + j - 1;
 
             // Find coarse index for this thread
-            const float x = (loop_ti - ghost_cells_x_ + 0.5)*dx_;
-            const float y = (loop_tj - ghost_cells_y_ + 0.5)*dy_;
+            const float x = (loop_ti - ghost_cells_x_ + 0.5 + offset_i_)*dx_;
+            const float y = (loop_tj - ghost_cells_y_ + 0.5 + offset_j_)*dy_;
             
             // Location in the coarse grid:
             int coarse_i = (int)(floorf((x/coarse_dx_) + coarse_ghost_cells_x_ - 0.5f));

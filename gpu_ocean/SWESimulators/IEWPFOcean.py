@@ -4,6 +4,13 @@
 This python class implements an the
 Implicit Equal-Weight Particle Filter, for use on
 simplified ocean models.
+The following papers describe the method, though with mistakes and variations.
+     - 'Implicit equal-weights particle filter' by Zhu, van Leeuwen and Amezcua, Quarterly
+            Journal of the Royal Meteorological Society, 2016
+     - 'State-of-the-art stochastic data assimilation methods for high-dimensional
+            non-Gaussian problems' by Vetra-Carvalho et al, Tellus, 2018
+     - 'A revied Implicit Equal-Weights Particle Filter' by Skauvold et al, ???, 2018
+     
 
 Copyright (C) 2018  SINTEF ICT
 
@@ -34,7 +41,14 @@ from scipy.special import lambertw
 from SWESimulators import Common, OceanStateNoise
 
 class IEWPFOcean:
+    """
+    This class implements the Implicit Equal-Weight Particle Filter for an ocean
+    model with small scale ocean state perturbations as model errors.
     
+    Input to constructor:
+    ensemble: An object of super-type BaseOceanStateEnsemble.
+            
+    """
     def __init__(self, ensemble, debug=False, show_errors=False,
                  block_width=16, block_height=16):
         
@@ -50,6 +64,20 @@ class IEWPFOcean:
         self.dt = np.float32(ensemble.dt)
         self.nx = np.int32(ensemble.nx)
         self.ny = np.int32(ensemble.ny)
+        
+        self.interpolation_factor = np.int32(ensemble.small_scale_perturbation_interpolation_factor)
+        
+        # Check that the interpolation factor plays well with the grid size:
+        assert ( self.interpolation_factor > 0 and self.interpolation_factor % 2 == 1), 'interpolation_factor must be a positive odd integer'
+        assert (self.nx % self.interpolation_factor == 0), 'nx must be divisible by the interpolation factor'
+        assert (self.ny % self.interpolation_factor == 0), 'ny must be divisible by the interpolation factor'
+        
+        # The size of the coarse grid 
+        self.coarse_nx = np.int32(self.nx/self.interpolation_factor)
+        self.coarse_ny = np.int32(self.ny/self.interpolation_factor)
+        self.coarse_dx = np.float32(self.dx*self.interpolation_factor)
+        self.coarse_dy = np.float32(self.dy*self.interpolation_factor)
+        
         self.soar_q0 = np.float32(ensemble.small_scale_perturbation_amplitude)
         self.soar_L  = np.float32(ensemble.particles[0].small_scale_model_error.soar_L)
         self.f = np.float32(ensemble.f)
@@ -77,14 +105,16 @@ class IEWPFOcean:
         assert (self.dx == self.dy)
         
         
-        # Do not store the ensemble!!!
+        # Note the we intentionally do not add the ensemble as a member variable.
         
-        # Create constant matrix S and copy to the GPU
+        # Create constant matrix S = (HQH^T + R)^-1 and copy to the GPU
+        # The matrix represents the combined "observed model error" and observation error.
         self.S_host, self.S_device = None, None
         self.S_host = self._createS(ensemble)
         self.S_device = Common.CUDAArray2D(self.master_stream, 2, 2, 0, 0, self.S_host)
         
-        # Create constant localized SVD matrix and copy to the GPU
+        # Create constant localized SVD matrix and copy to the GPU.
+        # This matrix is defined for the coarse grid, and ignores all use of the interpolation operator.
         self.localSVD_host, self.localSVD_device = None, None
         self.localSVD_host = self._generateLocaleSVDforP(ensemble)
         self.localSVD_device = Common.CUDAArray2D(self.master_stream, 49, 49, 0, 0, self.localSVD_host)
@@ -132,6 +162,10 @@ class IEWPFOcean:
                                    int(np.ceil(self.nx / float(self.local_size_domain[0]))), \
                                    int(np.ceil(self.ny / float(self.local_size_domain[1]))) \
                                   ) 
+        self.noise_buffer_domain = ( \
+                                    int(np.ceil(self.coarse_nx / float(self.local_size_domain[0]))), \
+                                    int(np.ceil(self.coarse_ny / float(self.local_size_domain[1]))) \
+                                   ) 
     
        
     
@@ -161,6 +195,14 @@ class IEWPFOcean:
         Retrieves innovations and target weights from the ensemble, and updates 
         each particle according to the IEWPF method.
         """
+        
+        #
+        # For definitions of phi, gamma, alpha, and description of the steps in this
+        # algorithm, please take a look at the pseudocode in the paper
+        # 'State-of-the-art stochastic data assimilation methods for high-dimensional
+        # non-Gaussian problems' by Vetra-Carvalho et al, Tellus, 2018
+        #
+        
         # Step -1: Deterministic step
         t = ensemble.step_truth(self.dt, stochastic=True)
         t = ensemble.step_particles(self.dt, stochastic=False)
@@ -195,7 +237,9 @@ class IEWPFOcean:
                                                                      perturbation_scale=alpha)   
             
             # TODO
-            #ensemble.particles[p].drifters.setDrifterPositions(newPos)
+            # Reset the drifter positions in each particle.
+            # One key line woould be:
+            # ensemble.particles[p].drifters.setDrifterPositions(newPos)
         
         # save plot after
         if infoPlots is not None:
@@ -205,6 +249,9 @@ class IEWPFOcean:
     
     def iewpf_timer(self, ensemble, infoPlots=None, it=None):
         """
+        Same as the function iewpf(self, ...) but with lots of events so that
+        various parts of the IEWPF algorithm can be timed.
+        
         The complete IEWPF algorithm implemented on the GPU.
         
         Retrieves innovations and target weights from the ensemble, and updates 
@@ -298,9 +345,7 @@ class IEWPFOcean:
             
             print ("Done particle " + str(p))
             print ("----------")
-            # TODO
-            #ensemble.particles[p].drifters.setDrifterPositions(newPos)
-            #print "IEWPF done for particle: ", p
+            
         # save plot after
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 3)
@@ -326,38 +371,43 @@ class IEWPFOcean:
         
             
     def setNoiseBufferToZero(self, sim):
-        self.setBufferToZeroKernel.prepared_async_call(self.global_size_domain,
-                                                      self.local_size_domain, 
-                                                      self.master_stream,
-                                                      sim.nx, sim.ny,
-                                                      sim.small_scale_model_error.random_numbers.data.gpudata,
-                                                      sim.small_scale_model_error.random_numbers.pitch)
+        self.setBufferToZeroKernel.prepared_async_call(self.noise_buffer_domain,
+                                                       self.local_size_domain, 
+                                                       sim.gpu_stream,
+                                                       sim.small_scale_model_error.rand_nx, 
+                                                       sim.small_scale_model_error.rand_ny,
+                                                       sim.small_scale_model_error.random_numbers.data.gpudata,
+                                                       sim.small_scale_model_error.random_numbers.pitch)
         
     def addKalmanGain(self, sim, all_observed_drifter_positions, innovation):
-        
-        # Reset the random numbers buffer for the given sim to zero:
-        self.setNoiseBufferToZero(sim)
         
         # Find phi as we go: phi = d^T S d
         phi = 0.0
         
         # Loop over drifters to get half the Kalman gain for each innovation
         for drifter in range(self.numDrifters):
+            
+            # Reset the random numbers buffer for the given sim to zero:
+            self.setNoiseBufferToZero(sim)
+        
             local_innovation = innovation[drifter,:]
             observed_drifter_position = all_observed_drifter_positions[drifter,:]
             
-            cell_id_x = np.int32(int(np.floor(observed_drifter_position[0]/sim.dx)))
-            cell_id_y = np.int32(int(np.floor(observed_drifter_position[1]/sim.dy)))
-
+            cell_id_x = np.int32(int(np.floor(observed_drifter_position[0]/self.dx)))
+            cell_id_y = np.int32(int(np.floor(observed_drifter_position[1]/self.dy)))
+            coarse_cell_id_x = np.int32(int(np.floor(observed_drifter_position[0]/self.coarse_dx)))
+            coarse_cell_id_y = np.int32(int(np.floor(observed_drifter_position[1]/self.coarse_dy)))
+            
             # 1) Solve linear problem
             e = np.dot(self.S_host, local_innovation)
-                        
+            
             self.halfTheKalmanGainKernel.prepared_async_call(self.global_size_Kalman,
                                                              self.local_size_Kalman,
-                                                             self.master_stream,
-                                                             self.nx, self.ny, self.dx, self.dy,
+                                                             sim.gpu_stream,
+                                                             self.coarse_nx, self.coarse_ny, 
+                                                             self.coarse_dx, self.coarse_dy,
                                                              self.soar_q0, self.soar_L,
-                                                             cell_id_x, cell_id_y,
+                                                             coarse_cell_id_x, coarse_cell_id_y,
                                                              self.geoBalanceConst,
                                                              np.float32(e[0,0]), np.float32(e[0,1]),
                                                              sim.small_scale_model_error.random_numbers.data.gpudata,
@@ -365,18 +415,22 @@ class IEWPFOcean:
             
             phi += local_innovation[0]*e[0,0] + local_innovation[1]*e[0,1]
             
-        # The final step of the Kalman gain is to obtain geostrophic balance on the obtained field.
-        sim.small_scale_model_error.perturbSim(sim, update_random_field=False)
-    
+            # The final step of the Kalman gain is to obtain geostrophic balance on the obtained field.
+            sim.small_scale_model_error.perturbSim(sim, update_random_field=False,
+                                                  align_with_cell_i=cell_id_x, align_with_cell_j=cell_id_y)
         return phi
         # end of addKalmanGain
         #----------------------------------
     
     
-    def sampleFromP(self, sim, all_observed_drifter_positions):
+    def sampleFromP(self, sim, all_observed_drifter_positions, return_original_random_numbers=False):
         
         # Sample from N(0,I)
         sim.small_scale_model_error.generateNormalDistribution()
+
+        std_norm_host = None        
+        if return_original_random_numbers:
+            std_norm_host = sim.small_scale_model_error.getRandomNumbers()
         
         # Obtain gamma
         sim.gpu_stream.synchronize()
@@ -384,29 +438,31 @@ class IEWPFOcean:
         sim.gpu_stream.synchronize()
             
         for drifter in range(self.numDrifters):
-            #print "\nhei from drifter ", drifter
             observed_drifter_position = all_observed_drifter_positions[drifter,:]
             
-            cell_id_x = int(np.floor(observed_drifter_position[0]/sim.dx))
-            cell_id_y = int(np.floor(observed_drifter_position[1]/sim.dy))
-            #print "cell id: ", (cell_id_x, cell_id_y)
+            coarse_cell_id_x = int(np.floor(observed_drifter_position[0]/self.coarse_dx))
+            coarse_cell_id_y = int(np.floor(observed_drifter_position[1]/self.coarse_dy))
         
-            self.applyLocalSVDOnGlobalXi(sim, cell_id_x, cell_id_y)
-                
-        return gamma
+            self.applyLocalSVDOnGlobalXi(sim, coarse_cell_id_x, coarse_cell_id_y)
+        
+        if return_original_random_numbers:
+            return gamma, std_norm_host
+        else:
+            return gamma
     
-    def applyLocalSVDOnGlobalXi(self, sim, drifter_cell_id_x, drifter_cell_id_y):
+    def applyLocalSVDOnGlobalXi(self, sim, drifter_coarse_cell_id_x, drifter_coarse_cell_id_y):
+        
         # Assuming that the random numbers buffer for the given sim is filled with N(0,I) numbers
         self.localSVDOnGlobalXiKernel.prepared_async_call(self.global_size_SVD,
                                                           self.local_size_SVD,
-                                                          self.master_stream,
-                                                          self.nx, self.ny,
-                                                          np.int32(drifter_cell_id_x),
-                                                          np.int32(drifter_cell_id_y),
+                                                          sim.gpu_stream,
+                                                          self.coarse_nx, self.coarse_ny,
+                                                          np.int32(drifter_coarse_cell_id_x),
+                                                          np.int32(drifter_coarse_cell_id_y),
                                                           self.localSVD_device.data.gpudata,
                                                           self.localSVD_device.pitch, 
-                                                              sim.small_scale_model_error.random_numbers.data.gpudata,
-                                                             sim.small_scale_model_error.random_numbers.pitch)
+                                                          sim.small_scale_model_error.random_numbers.data.gpudata,
+                                                          sim.small_scale_model_error.random_numbers.pitch)
     
     
     
@@ -414,6 +470,7 @@ class IEWPFOcean:
     ### CPU Methods
     ###------------------------
     # Parts of the efficient IEWPF method that is solved on the CPU
+    
     
     # As we have S = (HQH^T + R)^-1, we can do step 1 of the IEWPF algorithm
     def obtainTargetWeight(self, ensemble, d, w_rest=None):
@@ -520,7 +577,7 @@ class IEWPFOcean:
         Create the 2x2 matrix S = (HQH^T + R)^-1
 
         Constant as long as
-         - one drifter only,
+         - the forcing on the drifters, and the drifters themselves, are independent,
          - H(x,y) = const, and
          - double periodic boundary conditions
         """
@@ -535,13 +592,16 @@ class IEWPFOcean:
         mid_i, mid_j = 3, 3
 
         # Fill the buffers with U_{GB}^T H^T
-        x_corr[mid_j+1, mid_i] = -self.geoBalanceConst/self.dy
-        x_corr[mid_j-1, mid_i] =  self.geoBalanceConst/self.dy
-        y_corr[mid_j, mid_i+1] =  self.geoBalanceConst/self.dx
-        y_corr[mid_j, mid_i-1] = -self.geoBalanceConst/self.dx
+        # Spread information from central point to the neighbours according to 
+        # geostrophic balance.
+        x_corr[mid_j+1, mid_i] = -self.geoBalanceConst/self.coarse_dy
+        x_corr[mid_j-1, mid_i] =  self.geoBalanceConst/self.coarse_dy
+        y_corr[mid_j, mid_i+1] =  self.geoBalanceConst/self.coarse_dx
+        y_corr[mid_j, mid_i-1] = -self.geoBalanceConst/self.coarse_dx
         if self.debug: self.showMatrices(x_corr, y_corr, "$U_{GB}^T  H^T$")
     
-        # Apply the SOAR function to fill x and y with 7x5 and 5x7 respectively
+        # Apply the SOAR function to fill x and y with 7x5 and 5x7 respectively.
+        # Each of the values above is spread according to the SOAR function
         # First for x:
         for j,i in [mid_j+1, mid_i], [mid_j-1, mid_i]:
             for b in range(j-2, j+3):
@@ -554,25 +614,69 @@ class IEWPFOcean:
                     tmp_y[b, a] += y_corr[j,i]*self._SOAR_Q_CPU(a, b, i, j)
         if self.debug: self.showMatrices(tmp_x, tmp_y, "$Q_{SOAR} U_{GB}^T H^T$")   
         
+        
         # Apply the SOARfunction again to fill the points needed to find drift in (mid_i, mid_j)
-        # For both x and y:
-        # This means that we only need to evaluate Q_{SOAR} Q_{SOAR} U_{GB}^T H^T at four points
-        for j,i in [mid_j+1, mid_i], [mid_j-1, mid_i], [mid_j, mid_i-1], [mid_j, mid_i+1]:
-            x_corr[j,i] = 0
-            y_corr[j,i] = 0
-            for b in range(j-2, j+3):
-                for a in range(i-2, i+3):
-                    SOAR_Q_res = self._SOAR_Q_CPU(a, b, i, j)
-                    x_corr[j,i] += tmp_x[b, a]*SOAR_Q_res
-                    y_corr[j,i] += tmp_y[b, a]*SOAR_Q_res
-            if self.debug: print ("(j, i ,x_corr[j,i], y_corr[j,i]): ", (j, i ,x_corr[j,i], y_corr[j,i]))
+        # In order to reuse the bicubic interpolation routine, we need to calculate the SOAR values
+        # in the 5x5 area centered in the mid-cell.
+        # The values outside of the 7x7 buffers are all zero, so we don't have to loop over them.
+        for j in range(mid_j-2, mid_j+3):
+            for i in range(mid_i-2, mid_i+3):
+                x_corr[j,i] = 0
+                y_corr[j,i] = 0
+                for b in range(max(j-2,0), min(j+3,7)):
+                    for a in range(max(i-2,0), min(i+3,7)):
+                        SOAR_Q_res = self._SOAR_Q_CPU(a, b, i, j)
+                        x_corr[j,i] += tmp_x[b, a]*SOAR_Q_res
+                        y_corr[j,i] += tmp_y[b, a]*SOAR_Q_res
+                if self.debug: print ("(j, i ,x_corr[j,i], y_corr[j,i]): ", (j, i ,x_corr[j,i], y_corr[j,i]))
         if self.debug: self.showMatrices(x_corr, y_corr, "$Q_{SOAR} Q_{SOAR} U_{GB}^T H^T$")
+        
+        
+        # Obtaining the values required for finding geostrophic balanced values in the center cell.
+        # Need only consider one cell in each direction.
+        # We find these values by interpolation or direct reading of x_corr and y_corr values
+        if self.interpolation_factor > 1:
+            
+            # Use a function alias to get more readable code
+            # This function has input values: coarse_eta, coarse_i, coarse_j, rel_x, rel_y
+            interpolation_alias = ensemble.particles[0].small_scale_model_error._bicubic_interpolation_inner
+            
+            # Relative offset of neighbouring fine grid point
+            rel_offset = 1.0/self.interpolation_factor
+            
+            # north and east values are calculated from the surface in the north-east direction
+            # south and west values are calculated from the surface in the south-west direction 
+            
+            x_north = interpolation_alias(x_corr, mid_i  , mid_j  ,            0.0,     rel_offset)
+            x_east  = interpolation_alias(x_corr, mid_i  , mid_j  ,     rel_offset,            0.0)
+            x_south = interpolation_alias(x_corr, mid_i-1, mid_j-1,            1.0, 1.0-rel_offset)
+            x_west  = interpolation_alias(x_corr, mid_i-1, mid_j-1, 1.0-rel_offset,            1.0)
 
+            y_north = interpolation_alias(y_corr, mid_i  , mid_j  ,            0.0,     rel_offset)
+            y_east  = interpolation_alias(y_corr, mid_i  , mid_j  ,     rel_offset,            0.0)
+            y_south = interpolation_alias(y_corr, mid_i-1, mid_j-1,            1.0, 1.0-rel_offset)
+            y_west  = interpolation_alias(y_corr, mid_i-1, mid_j-1, 1.0-rel_offset,            1.0)        
+        
+        else:
+            x_north = x_corr[mid_j+1, mid_i  ]
+            x_south = x_corr[mid_j-1, mid_i  ]
+            x_west  = x_corr[mid_j  , mid_i-1]
+            x_east  = x_corr[mid_j  , mid_i+1]
+
+            y_north = y_corr[mid_j+1, mid_i  ]
+            y_south = y_corr[mid_j-1, mid_i  ]
+            y_west  = y_corr[mid_j  , mid_i-1]
+            y_east  = y_corr[mid_j  , mid_i+1]
+        
+        if self.debug: print("[x_north, x_east, x_south, x_west]: ", [x_north, x_east, x_south, x_west])
+        if self.debug: print("[y_north, y_east, y_south, y_west]: ", [y_north, y_east, y_south, y_west])
+            
+        
         # geostrophic balance:
-        x_hu = -self.geoBalanceConst*(x_corr[mid_j+1, mid_i  ] - x_corr[mid_j-1, mid_i  ])/self.dy
-        x_hv =  self.geoBalanceConst*(x_corr[mid_j  , mid_i+1] - x_corr[mid_j  , mid_i-1])/self.dx
-        y_hu = -self.geoBalanceConst*(y_corr[mid_j+1, mid_i  ] - y_corr[mid_j-1, mid_i  ])/self.dy
-        y_hv =  self.geoBalanceConst*(y_corr[mid_j  , mid_i+1] - y_corr[mid_j  , mid_i-1])/self.dx 
+        x_hu = -self.geoBalanceConst*(x_north - x_south)/self.dy
+        x_hv =  self.geoBalanceConst*(x_east  - x_west )/self.dx
+        y_hu = -self.geoBalanceConst*(y_north - y_south)/self.dy
+        y_hv =  self.geoBalanceConst*(y_east  - y_west )/self.dx 
 
         # Structure the information as a  
         HQHT = np.matrix([[x_hu, y_hu],[x_hv, y_hv]])    
@@ -583,6 +687,9 @@ class IEWPFOcean:
         S = np.linalg.inv(S_inv)
         if self.debug: print( "S\n", S)
         return S.astype(np.float32, order='C')
+    
+    
+    
         
     
     ###---------------------------
@@ -590,12 +697,23 @@ class IEWPFOcean:
     ###---------------------------
     
     def download_S(self):
+        """
+        2x2 matrix: S = (H Q H^T + R)^-1
+        """
         return self.S_device.download(self.master_stream)
     
     def download_localSVD(self):
+        """
+        The 49 x 49 matrix that holds the matrix square root of term that turns up in
+        the middle of the P covariance matrix.
+        """
         return self.localSVD_device.download(self.master_stream)
     
     def download_reduction_buffer(self):
+        """
+        This buffer holds only a single float, and is used to store the result
+        from reduction operations.
+        """
         return self.reduction_buffer.download(self.master_stream)
     
         
@@ -625,26 +743,36 @@ class IEWPFOcean:
         CPU implementation of a SOAR covariance function between grid points
         (a_x, a_y) and (b_x, b_y) with periodic boundaries
         """
-        dist_x = min((a_x - b_x)**2, (a_x - (b_x + self.nx))**2, (a_x - (b_x - self.nx))**2)
-        dist_y = min((a_y - b_y)**2, (a_y - (b_y + self.ny))**2, (a_y - (b_y - self.ny))**2)
+        dist_x = min((a_x - b_x)**2, (a_x - (b_x + self.coarse_nx))**2, (a_x - (b_x - self.coarse_nx))**2)
+        dist_y = min((a_y - b_y)**2, (a_y - (b_y + self.coarse_ny))**2, (a_y - (b_y - self.coarse_ny))**2)
         
-        dist = np.sqrt( self.dx*self.dx*dist_x  +  self.dy*self.dy*dist_y)
+        dist = np.sqrt( self.coarse_dx*self.coarse_dx*dist_x  +  self.coarse_dy*self.coarse_dy*dist_y)
         
         return self.soar_q0*(1.0 + dist/self.soar_L)*np.exp(-dist/self.soar_L)
 
 
 
     def _createCutoffSOARMatrixQ(self, ensemble, nx=None, ny=None, cutoff=2):
+        """
+        Creates a full matrix representing Q_{SOAR}^{1/2}.
+        Should never be called with large (nx, ny), and should only be used when the
+        grid size is really really small, and/or for debuging purposes
         
+        Resulting matrix is (nx*ny \times nx*ny)
+        """
         if nx is None:
-            nx = ensemble.nx
+            nx = self.coarse_nx
         if ny is None:
-            ny = ensemble.ny
+            ny = self.coarse_ny
         
         Q = np.zeros((ny*nx, ny*nx))
         for a_y in range(ny):
             for a_x in range(nx):
+            
+                # index on the "flattened" grid, and col index in the resulting matrix
                 j = a_y*nx + a_x
+                
+                # Loop over SOAR correlation area
                 for b_y in range(a_y-cutoff, a_y+cutoff+1):
                     if b_y < 0:    
                          b_y = b_y + ny
@@ -664,18 +792,26 @@ class IEWPFOcean:
 
 
     def _createUGBmatrix(self, ensemble, nx=None, ny=None):
-    
+        """
+        Creates a full matrix representing Q_{GB}^{1/2}.
+        Should never be called with large (nx, ny), and should only be used when the
+        grid size is really really small, and/or for debuging purposes.
+        
+        Resulting matrix is (3*nx*ny \times nx*ny)
+        """
         if nx is None:
-            nx = ensemble.nx
+            nx = self.coarse_nx
         if ny is None:
-            ny = ensemble.ny
+            ny = self.coarse_ny
         
         I = np.eye(nx*ny)
         A_hu = np.zeros((ny*nx, ny*nx))
         A_hv = np.zeros((ny*nx, ny*nx))
         for a_y in range(ny):
             for a_x in range(nx):
-                j = a_y*nx + a_x
+                
+                # index on the "flattened" grid, and col index in the resulting block matrix
+                j = a_y*nx + a_x 
                 
                 # geo balance for hu:
                 i = (a_y+1)*nx + a_x
@@ -698,21 +834,29 @@ class IEWPFOcean:
                     i = a_y*nx + nx - 1
                 A_hv[j,i] = -1.0
 
-        A_hu *= -self.geoBalanceConst/self.dy
-        A_hv *=  self.geoBalanceConst/self.dx
+        A_hu *= -self.geoBalanceConst/self.coarse_dy
+        A_hv *=  self.geoBalanceConst/self.coarse_dx
             
         return np.bmat([[I], [A_hu], [A_hv]])
 
     def _createMatrixH(self, nx, ny, pos_x, pos_y):
+        """
+        Creates a full observation matrix H.
+        Should never be called with large (nx, ny), and should only be used when the
+        grid size is really really small, and/or for debuging purposes
+        
+        Resulting matrix size: [2, 3*nx*ny]
+        """
         H = np.zeros((2, 3*nx*ny))
         index = pos_y*nx + pos_x
         H[0, 1*nx*ny + index] = 1
         H[1, 2*nx*ny + index] = 1
         return H
 
-    def _generateLocaleSVDforP(self, ensemble):
+    def _generateLocaleSVDforP(self, ensemble, returnUSigV=False):
         """
         Generates the local square root of the SVD-block needed for P^1/2.
+        This matrix is defined for the coarse grid, and ignores all use of the interpolation operator.
 
         Finding:   U*Sigma*V^H = I - Q*U_GB^T*H^T*S*H*U_GB*Q
         Returning: U*sqrt(Sigma)
@@ -738,7 +882,7 @@ class IEWPFOcean:
         QUTHTSHUQ = np.dot(Q_soar, UTHTSHUQ)
 
         svd_input = np.eye(local_nx*local_nx) - QUTHTSHUQ
-
+        
         u, s, vh = np.linalg.svd(svd_input, full_matrices=True)
 
         if self.debug:
@@ -758,7 +902,9 @@ class IEWPFOcean:
             plt.title("u")
             plt.colorbar()
 
-
+        if returnUSigV:
+            return u, s, vh
+        
         return np.dot(u, np.diag(np.sqrt(s))).astype(np.float32, order='C')
     
     
@@ -788,21 +934,14 @@ class IEWPFOcean:
 
         # Step 1: Find maximum weight
         target_weight = self.obtainTargetWeight(ensemble, innovations)
-        #print "WWWWWWWWWWWWWWW"
-        #print "Target weight: ", target_weight
-        #print "-log(target_weight): ", -np.log(target_weight)
-        #print "exp(-target_weight): ", np.exp(-target_weight)
-        #print "1/Ne: ", 1.0/ensemble.getNumParticles()
-        #print "WWWWWWWWWWWWWWW"
-
+        
 
         for p in range(ensemble.getNumParticles()):
-            #iewpfOcean.debug = p==0
             
             # Loop step 1: Pull particles towards observation by adding a Kalman gain term
             eta_a, hu_a, hv_a, phi = self.applyKalmanGain_CPU(ensemble.particles[p], \
                                                               observed_drifter_position,
-                                                              innovations[p], target_weight)
+                                                              innovations[p])
             
             
 
@@ -824,15 +963,13 @@ class IEWPFOcean:
             hv_a  = self._expand_to_periodic_boundaries(hv_a,  2)
             ensemble.particles[p].upload(eta_a, hu_a, hv_a)
 
-            # TODO
-            #ensemble.particles[p].drifters.setDrifterPositions(newPos)
-            #print "IEWPF (CPU) done for particle: ", p
+            
         # save plot after
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 3)
     
     
-    def iewpf_traditional_CPU(self, ensemble, infoPlots=None, it=None):
+    def iewpf_original_operation_order_CPU(self, ensemble, infoPlots=None, it=None):
         """
         The complete IEWPF algorithm (as described by the SotA-18 paper) implemented on the CPU.
         
@@ -855,18 +992,11 @@ class IEWPFOcean:
 
         # Step 1: Find maximum weight
         target_weight = self.obtainTargetWeight(ensemble, innovations)
-        #print "WWWWWWWWWWWWWWW"
-        #print "Target weight: ", target_weight
-        #print "-log(target_weight): ", -np.log(target_weight)
-        #print "exp(-target_weight): ", np.exp(-target_weight)
-        #print "1/Ne: ", 1.0/ensemble.getNumParticles()
-        #print "WWWWWWWWWWWWWWW"
-
+        
 
         for p in range(ensemble.getNumParticles()):
-            #iewpfOcean.debug = p==0
-
-            # Step 2: Sample xi Ìƒ N(0, P)
+        
+            # Step 2: Sample xi \sim N(0, P)
             p_eta, p_hu, p_hv, gamma = self.drawFromP_CPU(ensemble.particles[p], 
                                                           observed_drifter_position)
             xi = [p_eta, p_hu, p_hv] 
@@ -874,7 +1004,7 @@ class IEWPFOcean:
             # Step 3: Pull particles towards observation by adding a Kalman gain term
             eta_a, hu_a, hv_a, phi = self.applyKalmanGain_CPU(ensemble.particles[p], \
                                                               observed_drifter_position,
-                                                              innovations[p], target_weight)
+                                                              innovations[p])
 
             # Step 4: Solve implicit equation and add scaled sample from P
             self.applyScaledPSample_CPU(ensemble.particles[p], eta_a, hu_a, hv_a, \
@@ -886,15 +1016,16 @@ class IEWPFOcean:
             hv_a  = self._expand_to_periodic_boundaries(hv_a,  2)
             ensemble.particles[p].upload(eta_a, hu_a, hv_a)
 
-            # TODO
-            #ensemble.particles[p].drifters.setDrifterPositions(newPos)
-
         # save plot after
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 3)
     
     
     def _expand_to_periodic_boundaries(self, interior, ghostcells):
+        """
+        Expand a buffer with the requested number of ghost cells, and fills these
+        ghost cells according to periodic boundary conditions.
+        """
         if ghostcells == 0:
             return interior
         (ny, nx) = interior.shape
@@ -902,12 +1033,12 @@ class IEWPFOcean:
         nx_halo = nx + 2*ghostcells
         ny_halo = ny + 2*ghostcells
         newBuf = np.zeros((ny_halo, nx_halo))
-        newBuf[ghostcells:-ghostcells, ghostcells:-ghostcells] = interior 
+        newBuf[ghostcells:-ghostcells, ghostcells:-ghostcells] = interior
+
+        # Fill ghost cells with values according to periodic boundary conditions
         for g in range(ghostcells):
             newBuf[g, :] = newBuf[ny_halo - 2*ghostcells + g, :]
-            #newBuf[ny_halo - 2*ghostcells + g, :] *=0
             newBuf[ny_halo - 1 - g, :] = newBuf[2*ghostcells - 1 - g, :]
-            #newBuf[2*ghostcells - 1 - g, :] *=0
         for g in range(ghostcells):
             newBuf[:, g] = newBuf[:, nx_halo - 2*ghostcells + g]
             newBuf[:, nx_halo - 1 - g] = newBuf[:, 2*ghostcells - 1 - g]
@@ -963,8 +1094,6 @@ class IEWPFOcean:
 
                 global_j = global_y_j*self.nx + global_x_j
                 local_j = loc_y_j*7 + loc_x_j
-
-                #loc_vec[local_j] = glob_vec[global_j]
 
                 xi_j = 0.0
                 for loc_y_i in range(7):
@@ -1031,16 +1160,12 @@ class IEWPFOcean:
             self.showMatrices(q_eta[1:-1, 1:-1], q_hu, "Equivalent sample from Q", q_hv)
             self.showMatrices(p_eta[1:-1, 1:-1] - q_eta[1:-1, 1:-1], p_hu - q_hu, "diff sample from P and sample from Q", p_hv - q_hv)
 
-
-        #gamma_from_p = np.sum(p_eta[1:-1, 1:-1]**2) + np.sum(p_hu**2) + np.sum(p_hv**2)
-        #if debug: print "Gamma obtained from P^1/2 xi: ", gamma_from_p
-
         return p_eta[1:-1, 1:-1], p_hu, p_hv, gamma
     
     
     
     def applyKalmanGain_CPU(self, sim, \
-                        all_observed_drifter_positions, innovation, target_weight, \
+                        all_observed_drifter_positions, innovation, \
                         returnKalmanGainTerm=False):
         """
         Creating a Kalman gain type field, K = QH^T S d
@@ -1051,7 +1176,6 @@ class IEWPFOcean:
         if self.debug: print ("(nx, ny, dx, dy): ", (sim.nx, sim.ny, sim.dx, sim.dy))
         if self.debug: print ("all_observed_drifter_positions: ", all_observed_drifter_positions)
         if self.debug: print ("innovation:  ", innovation)
-        if self.debug: print ("target_weight: ", target_weight)
 
         # 0.1) Allocate buffers
         total_K_eta = np.zeros((sim.ny, sim.nx))
@@ -1110,7 +1234,6 @@ class IEWPFOcean:
                 for i in range(7):
                     i_global = (cell_id_x-3+i+sim.nx)%sim.nx 
                     K_eta_tmp[j_global, i_global] += local_eta[j,i]
-                    #K_eta_tmp[j_global, i_global] += 10000000*local_eta[j,i]
             if self.debug: self.showMatrices(K_eta_tmp, local_eta, "global K_eta from local K_eta, halfway in the calc.")
 
             # 2.2.2) Use K_eta_tmp as the noise.random_numbers_host
@@ -1121,11 +1244,10 @@ class IEWPFOcean:
             K_eta , K_hu, K_hv = sim.small_scale_model_error._obtainOceanPerturbations_CPU(H_mid, sim.f, sim.coriolis_beta, sim.g)
             if self.debug: self.showMatrices(K_eta[1:-1, 1:-1], K_hu, "Kalman gain from drifter " + str(drifter), K_hv)
 
-            total_K_eta += K_eta[1:-1, 1:-1]
+            total_K_eta += K_eta[2:-2, 2:-2]
             total_K_hu  += K_hu
             total_K_hv  += K_hv
             if self.debug: self.showMatrices(total_K_eta, total_K_hu, "Total Kalman gain after drifter " + str(drifter), total_K_hv)
-            #showMatrices(total_K_eta, total_K_hu, "Total Kalman gain after drifter " + str(drifter), total_K_hv)
 
 
             # 3) Obtain phi = d^T * e
@@ -1160,11 +1282,6 @@ class IEWPFOcean:
 
         # 5) obtain gamma
         if self.debug: print ("Shapes of xi: ", xi[0].shape, xi[1].shape, xi[2].shape)
-        #gamma = 0.0
-        #for field in range(3):
-        #    for j in range(ny):
-        #        for i in range(nx):
-        #            gamma += xi[field][j,i]*xi[field][j,i]
         if self.debug: print ("gamma: ", gamma)
         if self.debug: print ("Nx: ", self.Nx)
         if self.debug: print ("w_rest: ", w_rest)
@@ -1176,11 +1293,9 @@ class IEWPFOcean:
         if self.debug: print( "a = phi - w_rest + target_weight: ", a)
             
         c = phi - w_rest
-        if self.debug: 
-            print ("c = phi - w_rest: ", c)
+        if self.debug: print ("c = phi - w_rest: ", c)
 
         # 7) Solving the Lambert W function
-        #alpha = 10000
         lambert_W_arg = -(gamma/self.Nx)*np.exp(a/self.Nx)*np.exp(-gamma/self.Nx)
         alpha_min1 = -(self.Nx/gamma)*np.real(lambertw(lambert_W_arg, k=-1))
         alpha_zero = -(self.Nx/gamma)*np.real(lambertw(lambert_W_arg))
@@ -1209,7 +1324,9 @@ class IEWPFOcean:
             print ("target_weight: ", target_weight)
             print ("phi: ", phi)
             print ("!!!!!!!!!!!!")
-        #if self.debug: print "Drawing random number alpha_u: ", alpha_u
+        
+        # Comment in these lines to have a look specifically at the solution of
+        # the implicit equation.
         #oldDebug = self.debug
         #self.debug = True
         if self.debug: print ("--------------------------------------")
@@ -1217,11 +1334,7 @@ class IEWPFOcean:
         if self.debug: print ("Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1))
         if self.debug: print ("Checking implicit equation with alpha (k=0, k=-1): ", \
             (self._implicitEquation(alpha_zero, gamma, self.Nx, a, c), self._implicitEquation(alpha_min1, gamma, self.Nx, a, c)))
-        #if self.debug: print "Chose alpha = ", alpha
-        #if self.debug: print "The implicit equation looked like: \n\t" + \
-        #    "(alpha - 1)"+str(gamma)+" - " + str(self.Nx) + "log(alpha) + " + str(a) + " = 0"
-        #if self.debug: print "Parameters: (gamma, Nx, aj)", (gamma, self.Nx, a)
-
+        
         alpha = np.sqrt(alpha)
         if self.debug: print ("alpha = np.sqrt(alpha) ->  ", alpha)
         if self.debug: print( "--------------------------------------")
