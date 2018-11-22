@@ -35,7 +35,7 @@ import numpy as np
 import time
 import gc
 import pycuda.driver as cuda
-from scipy.special import lambertw
+from scipy.special import lambertw, gammainc
 import logging
 
 from SWESimulators import Common, OceanStateNoise, IPythonMagic
@@ -92,6 +92,8 @@ class IEWPFOcean:
         self.geoBalanceConst = np.float32(self.g*self.const_H/(2.0*self.f))
 
         self.Nx = np.int32(self.nx*self.ny*3)  # state dimension
+        self.Nx = np.int32(self.coarse_nx*self.coarse_ny) # The size of the random vector
+        
         self.numParticles = np.int32(ensemble.getNumParticles())
         self.numDrifters  = np.int32(ensemble.getNumDrifters())
         
@@ -245,7 +247,6 @@ class IEWPFOcean:
             # Reset the drifter positions in each particle.
             # One key line woould be:
             # ensemble.particles[p].drifters.setDrifterPositions(newPos)
-            self.log("#¤%&/()/&#¤Successfully completed a IEWPF step ---- particle " + str(p))
 
         
         # save plot after
@@ -370,8 +371,8 @@ class IEWPFOcean:
         """
         self.squareSumKernel.prepared_async_call(self.global_size_reductions,
                                                  self.local_size_reductions, 
-                                                 self.master_stream,
-                                                 self.nx, self.ny,
+                                                 sim.gpu_stream,
+                                                 sim.small_scale_model_error.rand_nx, sim.small_scale_model_error.rand_ny,
                                                  sim.small_scale_model_error.random_numbers.data.gpudata,
                                                  self.reduction_buffer.data.gpudata)
         return self.download_reduction_buffer()[0,0]
@@ -492,22 +493,34 @@ class IEWPFOcean:
             for drifter in range(ensemble.driftersPerOceanModel):
                 e = np.dot(self.S_host, d[particle,drifter,:])
                 db += np.dot(e, d[particle, drifter, :])
-            c[particle] = w_rest[particle] + 0.5*db
+            #c[particle] = w_rest[particle] + 0.5*db
+            c[particle] = w_rest[particle] + db
             if self.debug: print( "c[" + str(particle) + "]: ", c[particle])
             if self.debug: print ("exp(-c[" + str(particle) + "]: ", np.exp(-c[particle]))
-        return np.min(c)
+        target_weight = np.max(c)
+        self.log('-------------------------------------')
+        self.log('w_rest: ' + str(w_rest[0]))
+        self.log("c values:\n" + str(c))
+        self.log("w_target --> " + str(target_weight))
+        return target_weight
 
     
     ### Solving the implicit equation on the CPU:
     
-    def _old_implicitEquation(self, alpha, gamma, Nx, a):
+    def _old_old_implicitEquation(self, alpha, gamma, Nx, a):
         return (alpha-1.0)*gamma - Nx*np.log(alpha) + a
     
-    def _implicitEquation(self, alpha, gamma, Nx, target_weight, c):
+    def _old_implicitEquation(self, alpha, gamma, Nx, target_weight, c):
         """
         This is the equation that we now should have solved by using the lambert W function
         """
         return np.log(alpha*alpha*Nx/gamma) - (alpha*alpha*Nx/gamma) - ((target_weight - c)/Nx) + 1
+        
+    def _implicitEquation_no_limit(self, alpha, gamma, Nx, c_star):
+        lhs = gammainc(Nx/2, alpha*gamma/2)
+        rhs = gammainc(Nx/2, gamma/2)
+        expo = np.exp(-c_star/2)
+        return lhs - expo*rhs
         
     def solveImplicitEquation(self, phi, gamma, 
                                target_weight, w_rest, particle_id=None):
@@ -516,23 +529,40 @@ class IEWPFOcean:
         updating the buffers eta_a, hu_a, hv_a as:
         x_a = x_a + alpha*xi
         """
-        if self.debug:
-            print ("gamma: ", gamma)
-            print ("Nx: ", self.Nx)
-            print ("w_rest: ", w_rest)
-            print ("target_weight: ", target_weight)
-            print ("phi: ", phi)
-
-        # 6) Find c
-        c = phi - w_rest
-        if self.debug: 
-            print ("c = phi - w_rest: ", c)
-
+        self.log("")
+        self.log("---- Implicit equation particle " + str(particle_id) + " ---------")
+        
+        c_star = target_weight - (phi - w_rest)
+        params = {
+            'gamma': gamma,
+            'Nx': self.Nx,
+            'w_rest': w_rest,
+            'target_weight': target_weight,
+            'phi': phi,
+            'c_star': c_star
+        }
+        self.log("Input params:")
+        self.log(params)
+        
+        
         # 7) Solving the Lambert W function
-        lambert_W_arg = -np.exp((target_weight - c)/self.Nx  - 1)
-
+        lambert_W_arg = -np.exp((c_star/self.Nx) - 1.0)
         alpha_min1 = np.sqrt(-(gamma/self.Nx)*np.real(lambertw(lambert_W_arg, k=-1)))
         alpha_zero = np.sqrt(-(gamma/self.Nx)*np.real(lambertw(lambert_W_arg)))
+        
+        solutions = {
+            'alpha_min1': alpha_min1,            
+            'alpha_zero': alpha_zero
+        }
+        self.log('Solutions for alpha: ' + str(solutions))
+        self.log('Requirement for Lambert W sol: ' + str(-1.0/np.exp(1)) + " < " + str(lambert_W_arg) + " < 0 = " + str((-1.0/np.exp(1) < lambert_W_arg, lambert_W_arg < 0)))
+        self.log('Lambert W results:')
+        self.log({'for alpha_min1': lambertw(lambert_W_arg, k=-1),
+                  'for alpha_zero': lambertw(lambert_W_arg      )})
+        
+        self.log("Discrepancy when inserting the alphas into the implicit equation:")
+        self.log({'from alpha_min1': self._implicitEquation_no_limit(alpha_min1, gamma, self.Nx, c_star),
+                  'from alpha_zero': self._implicitEquation_no_limit(alpha_zero, gamma, self.Nx, c_star)})
         
         if self.debug: 
             print ("Check a against the Lambert W requirement: ")
@@ -561,8 +591,8 @@ class IEWPFOcean:
             print ("phi: ", phi)
             print ("The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
             print ("Checking implicit equation with alpha (k=0, k=-1): ", \
-            (self._implicitEquation(alpha_zero, gamma, self.Nx, target_weight, c), \
-             self._implicitEquation(alpha_min1, gamma, self.Nx, target_weight, c)))
+            (self._old_implicitEquation(alpha_zero, gamma, self.Nx, target_weight, c_star), \
+             self._old_implicitEquation(alpha_min1, gamma, self.Nx, target_weight, c_star)))
             print( "!!!!!!!!!!!!")
         
         
@@ -571,11 +601,12 @@ class IEWPFOcean:
             print ("Obtained (lambert_ans k=0, lambert_ans k=-1): ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
             print ("Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1))
             print ("Checking implicit equation with alpha (k=0, k=-1): ", \
-            (self._implicitEquation(alpha_zero, gamma, self.Nx, target_weight, c), \
-             self._implicitEquation(alpha_min1, gamma, self.Nx, target_weight, c)))
+            (self._old_implicitEquation(alpha_zero, gamma, self.Nx, target_weight, c_star), \
+             self._old_implicitEquation(alpha_min1, gamma, self.Nx, target_weight, c_star)))
             print ("Selected alpha: ", alpha)
             print ("\n")
-
+            
+        self.log("returning alpha = " + str(alpha))
         return alpha
         
         
