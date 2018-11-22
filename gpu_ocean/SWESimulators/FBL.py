@@ -333,8 +333,8 @@ class FBL_periodic_boundary:
                  block_width=16, block_height=16 ):
 
         self.boundary_conditions = boundary_conditions
-        self.ghostsX = np.int32(2)
-        self.ghostsY = np.int32(2)
+        self.ghostsX = np.int32(1)
+        self.ghostsY = np.int32(1)
 
         self.bc_north = np.int32(boundary_conditions.north)
         self.bc_east  = np.int32(boundary_conditions.east)
@@ -406,7 +406,7 @@ class FBL_periodic_boundary:
         """
 
         # Start with fixing the potential sponge
-        self.callSpongeNS(gpu_stream, hu0, 1, 0)
+        self.callSpongeNS(gpu_stream, hu0, 0, 0, nx_offset=-2)
         
         if  self.boundary_conditions.east == 1 or \
             self.boundary_conditions.west == 1 or \
@@ -515,14 +515,15 @@ class FBL_periodic_boundary:
                         
 
         
-    def callSpongeNS(self, gpu_stream, data, staggered_x, staggered_y):
+    def callSpongeNS(self, gpu_stream, data, staggered_x, staggered_y,
+                     nx_offset=0, ny_offset=0):
         staggered_x_int32 = np.int32(staggered_x)
         staggered_y_int32 = np.int32(staggered_y)
         
         if (self.bc_north == 3) or (self.bc_south ==3):
             self.boundary_flowRelaxationScheme_NS.prepared_async_call( \
                 self.global_size, self.local_size, gpu_stream, \
-                self.nx, self.ny, \
+                np.int32(self.nx+ny_offset), np.int32(self.ny+ny_offset), \
                 self.ghostsX, self.ghostsY, \
                 staggered_x_int32, staggered_y_int32, \
                 self.boundary_conditions.spongeCells[0], \
@@ -533,7 +534,7 @@ class FBL_periodic_boundary:
         if (self.bc_east == 3) or (self.bc_west == 3):
             self.boundary_flowRelaxationScheme_EW.prepared_async_call( \
                 self.global_size, self.local_size, gpu_stream, \
-                self.nx, self.ny, \
+                np.int32(self.nx+ny_offset), np.int32(self.ny+ny_offset), \
                 self.ghostsX, self.ghostsY, \
                 staggered_x_int32, staggered_y_int32, \
                 self.boundary_conditions.spongeCells[1], \
