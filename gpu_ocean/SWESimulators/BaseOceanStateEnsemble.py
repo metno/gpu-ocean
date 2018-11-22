@@ -114,14 +114,6 @@ class BaseOceanStateEnsemble(object):
             self.observation_buffer.release()
         self.gpu_ctx = None
         
-    def setGridInfo(self, nx, ny, dx, dy, dt, 
-                    boundaryConditions=Common.BoundaryConditions(), 
-                    eta=None, hu=None, hv=None, H=None):
-        warnings.warn('The function setGridInfo will be deprecated. Please use the improved constructor instead',
-                      DeprecationWarning)
-        self._setGridInfo(nx, ny, dx, dy, dt, boundaryCondtions=boundaryCondtions, 
-                          eta=eta, hu=hu, hv=hv, H=H)
-        
         
     def _setGridInfo(self, nx, ny, dx, dy, dt, 
                     boundaryConditions=Common.BoundaryConditions(), 
@@ -163,11 +155,6 @@ class BaseOceanStateEnsemble(object):
             waterDepth = 10
             self.base_H = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C')*waterDepth
 
-
-    def setGridInfoFromSim(self, sim):
-        warnings.warn('The function setGridInfoFromSim will be deprecated. Please use the improved constructor instead',
-                      DeprecationWarning)
-        self._setGridInfoFromSim(sim)
         
     def _setGridInfoFromSim(self, sim):
         
@@ -191,28 +178,6 @@ class BaseOceanStateEnsemble(object):
             self.small_scale_perturbation_interpolation_factor = sim.small_scale_perturbation_interpolation_factor
             
         
-        
-    
-    def setParameters(self, f=0, g=9.81, beta=0, r=0, wind=WindStress.WindStress()):
-        warnings.warn('The function setParameters will be deprecated. Please use the improved constructor instead',
-                      DeprecationWarning)
-        
-    
-    def setStochasticVariables(self, 
-                               observation_variance = None, 
-                               observation_variance_factor = 5.0,
-                               small_scale_perturbation_amplitude = 0.0,
-                               small_scale_perturbation_interpolation_factor = 1,
-                               initialization_variance_factor_drifter_position = 0.0,
-                               initialization_variance_factor_ocean_field = 0.0):
-        warnings.warn('The function setStochasticVariables will be deprecated. Please use the improved constructor instead',
-                      DeprecationWarning)
-        self._setStochasticVariables(observation_variance = observation_variance, 
-                                     observation_variance_factor = observation_variance_factor,
-                                     small_scale_perturbation_amplitude = small_scale_perturbation_amplitude,
-                                     small_scale_perturbation_interpolation_factor = small_scale_perturbation_interpolation_factor,
-                                     initialization_variance_factor_drifter_position = initialization_variance_factor_drifter_position,
-                                     initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field)
         
     def _setStochasticVariables(self, 
                                observation_variance = None, 
