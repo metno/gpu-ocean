@@ -163,6 +163,9 @@ class OceanStateNoise(object):
         self.squareSumKernel = self.reduction_kernels.get_function("squareSum")
         self.squareSumKernel.prepare("iiPP")
         
+        self.squareSumDoubleKernel = self.reduction_kernels.get_function("squareSumDouble")
+        self.squareSumDoubleKernel.prepare("iiPPP")
+        
         self.uniformDistributionKernel = self.kernels.get_function("uniformDistribution")
         self.uniformDistributionKernel.prepare("iiiPiPi")
         
@@ -188,20 +191,27 @@ class OceanStateNoise(object):
         self.global_size_random_numbers = ( \
                        int(np.ceil(self.seed_nx / float(self.local_size[0]))), \
                        int(np.ceil(self.seed_ny / float(self.local_size[1]))) \
-                                  ) 
+                     ) 
+        
+        # Launch on thread for each random number (in order to create perpendicular random numbers)
+        self.global_size_perpendicular = ( \
+                      int(np.ceil(self.rand_nx / float(self.local_size[0]))), \
+                      int(np.ceil(self.rand_ny / float(self.local_size[1]))) \
+                     )
+        
         
         # Launch one thread per SOAR-correlated result - need to write to two ghost 
         # cells in order to do bicubic interpolation based on the result
         self.global_size_SOAR = ( \
-                                 int(np.ceil( (self.coarse_nx+4)/float(self.local_size[0]))), \
-                                 int(np.ceil( (self.coarse_ny+4)/float(self.local_size[1]))) \
-                                )
+                     int(np.ceil( (self.coarse_nx+4)/float(self.local_size[0]))), \
+                     int(np.ceil( (self.coarse_ny+4)/float(self.local_size[1]))) \
+                    )
         
         # One thread per resulting perturbed grid cell
         self.global_size_geo_balance = ( \
-                                        int(np.ceil( (self.nx)/float(self.local_size[0]))), \
-                                        int(np.ceil( (self.ny)/float(self.local_size[1]))) \
-                                       )
+                    int(np.ceil( (self.nx)/float(self.local_size[0]))), \
+                    int(np.ceil( (self.ny)/float(self.local_size[1]))) \
+                   )
         
         
         
@@ -399,7 +409,18 @@ class OceanStateNoise(object):
         return self.getReductionBuffer()[0,0]
     
    
-    
+    def getDoubleNormAndDot(self):
+        """
+        Calculates sum(xi^2), sum(nu^2), sum(xi*nu)
+        and stores these values in the reduction buffer
+        """
+        self.squareSumDoubleKernel.prepared_async_call(self.global_size_reductions,
+                                                       self.local_size_reductions, 
+                                                       self.gpu_stream,
+                                                       self.rand_nx, self.rand_ny,
+                                                       self.random_numbers.data.gpudata,
+                                                       self.perpendicular_random_numbers.data.gpudata,
+                                                       self.reduction_buffer.data.gpudata)
     
     def generatePerpendicularNormalDistributions(self):
         """
@@ -423,9 +444,10 @@ class OceanStateNoise(object):
         
         #self.
     
-    
-        reduction_buffer_host = self.download_reduction_buffer()
-        return reduction_buffer_host[0], reduction_buffer_host[1], reduction_buffer_host[2]
+        
+        reduction_buffer_host = self.getReductionBuffer()
+        print("reduction_buffer_host.shape: ", reduction_buffer_host.shape)
+        return reduction_buffer_host[0,0], reduction_buffer_host[0,1], reduction_buffer_host[0,2]
     
     
     ##### CPU versions of the above functions ####
