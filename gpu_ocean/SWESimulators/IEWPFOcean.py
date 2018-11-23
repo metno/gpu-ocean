@@ -39,7 +39,7 @@ from scipy.special import lambertw, gammainc
 from scipy.optimize import newton
 import logging
 
-from SWESimulators import Common, OceanStateNoise, IPythonMagic
+from SWESimulators import Common, OceanStateNoise, config
 
 class IEWPFOcean:
     """
@@ -54,7 +54,7 @@ class IEWPFOcean:
                  block_width=16, block_height=16):
         
         self.logger = logging.getLogger(__name__)
-        self.logger_level = IPythonMagic.GPUOceanLoggerLevels.IEWPF_DEBUG
+        self.logger_level = config.GPUOceanLoggerLevels.IEWPF_DEBUG
         
         self.gpu_ctx = ensemble.gpu_ctx
         self.master_stream = cuda.Stream()
@@ -126,23 +126,11 @@ class IEWPFOcean:
         self.localSVD_device = Common.CUDAArray2D(self.master_stream, 49, 49, 0, 0, self.localSVD_host)
     
         
-        # Allocate extra memory needed for reduction kernel.
-        # Currently: one single GPU buffer with 1x1 elements
-        self.reduction_buffer = None
-        reduction_buffer_host = np.zeros((1,1), dtype=np.float32)
-        self.reduction_buffer = Common.CUDAArray2D(self.master_stream, 1, 1, 0, 0, reduction_buffer_host)
-        
-        # Generate kernels
-        self.reduction_kernels = self.gpu_ctx.get_kernel("reductions.cu", \
-                                                         defines={})
         self.iewpf_kernels = self.gpu_ctx.get_kernel("iewpf_kernels.cu", \
                                                      defines={'block_width': block_width, 'block_height': block_height})
         
         
         # Get CUDA functions and define data types for prepared_{async_}call()
-        self.squareSumKernel = self.reduction_kernels.get_function("squareSum")
-        self.squareSumKernel.prepare("iiPP")
-        
         self.setBufferToZeroKernel = self.iewpf_kernels.get_function("setBufferToZero")
         self.setBufferToZeroKernel.prepare("iiPi")
         
@@ -154,9 +142,6 @@ class IEWPFOcean:
         
         
         #Compute kernel launch parameters
-        self.local_size_reductions  = (128, 1, 1)
-        self.global_size_reductions = (1,   1)
-        
         self.local_size_Kalman  = (7, 7, 1)
         self.global_size_Kalman = (1, 1)
         
@@ -188,8 +173,6 @@ class IEWPFOcean:
             self.S_device.release()
         if self.localSVD_device is not None:
             self.localSVD_device.release()
-        if self.reduction_buffer is not None:
-            self.reduction_buffer.release()
         self.gpu_ctx = None
     
     
@@ -364,21 +347,6 @@ class IEWPFOcean:
     ###------------------------
     # Functions needed for the GPU implementation of IEWPF
     
-    def obtainGamma(self, sim):
-        """
-        Gamma = sum(xi^2), where xi \sim N(0,I)
-        Calling a kernel that sums the square of all elements in the random buffer of the
-        small scale model error of the provided simulator.
-        """
-        self.squareSumKernel.prepared_async_call(self.global_size_reductions,
-                                                 self.local_size_reductions, 
-                                                 sim.gpu_stream,
-                                                 sim.small_scale_model_error.rand_nx, sim.small_scale_model_error.rand_ny,
-                                                 sim.small_scale_model_error.random_numbers.data.gpudata,
-                                                 self.reduction_buffer.data.gpudata)
-        return self.download_reduction_buffer()[0,0]
-        
-            
     def setNoiseBufferToZero(self, sim):
         self.setBufferToZeroKernel.prepared_async_call(self.noise_buffer_domain,
                                                        self.local_size_domain, 
@@ -443,7 +411,7 @@ class IEWPFOcean:
         
         # Obtain gamma
         sim.gpu_stream.synchronize()
-        gamma = self.obtainGamma(sim)
+        gamma = sim.small_scale_model_error.getRandomNorm()
         sim.gpu_stream.synchronize()
             
         for drifter in range(self.numDrifters):

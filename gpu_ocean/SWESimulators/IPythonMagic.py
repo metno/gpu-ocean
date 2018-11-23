@@ -26,16 +26,9 @@ from IPython.core import magic_arguments
 from IPython.core.magic import line_magic, Magics, magics_class
 import pycuda.driver as cuda
 
-from enum import Enum
-
 from SWESimulators import Common
 
 
-        
-        
-class GPUOceanLoggerLevels(Enum):
-    IEWPF_DEBUG = 15 
-        
 
 @magics_class
 class MyIPythonMagic(Magics): 
@@ -124,8 +117,10 @@ class MyIPythonMagic(Magics):
           10 DEBUG
           0  NOTSET
         
-        The following logging levels are used by the GPU Ocean project:
+        The following logging levels are used by the GPU Ocean project, and are defined in config.GPUOceanLoggerLevels:
           15 Implicit Equal-Weights Particle Filter
+          
+        
           
         """
         if (self.logger_initialized):
