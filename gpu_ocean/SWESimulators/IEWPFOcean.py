@@ -36,6 +36,7 @@ import time
 import gc
 import pycuda.driver as cuda
 from scipy.special import lambertw, gammainc
+from scipy.optimize import newton
 import logging
 
 from SWESimulators import Common, OceanStateNoise, IPythonMagic
@@ -521,6 +522,9 @@ class IEWPFOcean:
         rhs = gammainc(Nx/2, gamma/2)
         expo = np.exp(-c_star/2)
         return lhs - expo*rhs
+    
+    def _implicitEquation_no_limit_derivative(self, alpha, gamma, Nx, c_star):
+        return (alpha*gamma/2)**(Nx/2 - 1) *np.exp(-alpha*gamma/2)*gamma/2
         
     def solveImplicitEquation(self, phi, gamma, 
                                target_weight, w_rest, particle_id=None):
@@ -563,6 +567,13 @@ class IEWPFOcean:
         self.log("Discrepancy when inserting the alphas into the implicit equation:")
         self.log({'from alpha_min1': self._implicitEquation_no_limit(alpha_min1, gamma, self.Nx, c_star),
                   'from alpha_zero': self._implicitEquation_no_limit(alpha_zero, gamma, self.Nx, c_star)})
+        
+        
+        alpha_newton = newton(lambda x: self._implicitEquation_no_limit(x, gamma, self.Nx, c_star), 0.5, maxiter=2000)
+                              #fprime=lambda x: self._implicitEquation_no_limit_derivative(x, gamma, self.Nx, c_star))
+        self.log("alpha_newton from Newton's method: " + str(alpha_newton))
+        self.log("Discrepancy with alpha_newton: "+ str(self._implicitEquation_no_limit(alpha_newton, gamma, self.Nx, c_star)))
+        alpha = alpha_newton
         
         if self.debug: 
             print ("Check a against the Lambert W requirement: ")
