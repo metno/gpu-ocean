@@ -177,8 +177,69 @@ class IEWPFOcean:
     
     
     
+    ### Main two-stage IEWPF METHOD
+    def iewpf_2stage(self, ensemble, infoPlots=None, it=None):
+        """
+        The complete two-stage IEWPF algorithm implemented on the GPU.
+        """
     
-    ### MAIN IEWPF METHOD
+        # Step the truth and particles the final timestep:
+        t = ensemble.step_truth(self.dt, stochastic=True)
+        t = ensemble.step_particles(self.dt, stochastic=False)
+        
+        # Obtain observations, innovations and the weight from previous timestep
+        observed_drifter_positions = ensemble.observeTrueDrifters()
+        innovations = ensemble.getInnovations()
+        w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
+        
+        # save plot before
+        if infoPlots is not None:
+            self._keepPlot(ensemble, infoPlots, it, 1)
+            
+        # Create required arrays
+        phi_array     = np.zeros(ensemble.getNumParticles())
+        nu_norm_array = np.zeros(ensemble.getNumParticles())
+        gamma_array   = np.zeros(ensemble.getNumParticles())
+        
+        for p in range(ensemble.getNumParticles()):
+            # Pull particles towards observation by adding a Kalman gain term
+            #     Also, we find phi within this function
+            phi_array[p] = self.addKalmanGain(ensemble.particles[p], observed_drifter_positions, innovations[p])
+            
+            # Sample perpendicular xi and nu, and apply the SVD to both fields
+            # Obtain gamma = xi^T * xi and nu^T * nu at the same time
+            gamma_array[p], nu_norm_array[p] = self.samplePerpendicularSVD(ensemble.particles[p], observed_drifter_positions)
+            
+        self.log('------------------------------------')
+        self.log('------ Half in 2-stage IEWPF -------')
+        self.log('------------------------------------')
+        self.log('phi_array:\n ' + str(phi_array))
+        self.log("nu_norm_array:\n" + str(nu_norm_array))
+        self.log("gamma_array:\n" + str(gamma_array))
+        
+        # Synchronize all particles in order to find the target weight and beta
+        target_weight, beta = self.obtainTargetWeightTwoStage(phi_array, w_rest, nu_norm_array)
+        
+        self.log('target_weight: ' + str(target_weight))
+        self.log('beta         : ' + str(beta))
+        
+        for p in range(ensemble.getNumParticles()):
+            # Solve implicit equation
+            c_star = target_weight - (phi_array[p] + w_rest[p]) - (beta - 1)*nu_norm_array[p]
+            alpha = self.solveImplicitEquation(phi_array[p], gamma_array[p], target_weight, w_rest[p], c_star, particle_id=p)
+            
+            # Add scaled sample from P to the state vector
+            ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
+                                                                     update_random_field=False, \
+                                                                     perturbation_scale=alpha,
+                                                                     perpendicular_scale=beta)  
+        # save plot after
+        if infoPlots is not None:
+            self._keepPlot(ensemble, infoPlots, it, 3)
+            
+            
+    
+    ### MAIN one-stage IEWPF METHOD
     def iewpf(self, ensemble, infoPlots=None, it=None):
         """
         The complete IEWPF algorithm implemented on the GPU.
@@ -220,7 +281,8 @@ class IEWPFOcean:
             gamma = self.sampleFromP(ensemble.particles[p], observed_drifter_positions)
             
             # Loop step 3: Solve implicit equation
-            alpha = self.solveImplicitEquation(phi, gamma, target_weight, w_rest[p], particle_id=p)
+            c_star = target_weight - (phi + w_rest[p])
+            alpha = self.solveImplicitEquation(phi, gamma, target_weight, w_rest[p], c_star, particle_id=p)
             
             # Loop steps 4:Add scaled sample from P to the state vector
             ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
@@ -321,7 +383,8 @@ class IEWPFOcean:
             print ("Sample from P took: " + str(gpu_elapsed) )
             
             # Loop step 3: Solve implicit equation
-            alpha = self.solveImplicitEquation(phi, gamma, target_weight, w_rest[p], particle_id=p)
+            c_star = target_weight - (phi + w_rest)
+            alpha = self.solveImplicitEquation(phi, gamma, target_weight, w_rest[p], c_star, particle_id=p)
             
             
             
@@ -427,7 +490,9 @@ class IEWPFOcean:
         else:
             return gamma
     
-    def applyLocalSVDOnGlobalXi(self, sim, drifter_coarse_cell_id_x, drifter_coarse_cell_id_y):
+    def applyLocalSVDOnGlobal(self, sim, 
+                              drifter_coarse_cell_id_x, drifter_coarse_cell_id_y,
+                              random_numbers):
         
         # Assuming that the random numbers buffer for the given sim is filled with N(0,I) numbers
         self.localSVDOnGlobalXiKernel.prepared_async_call(self.global_size_SVD,
@@ -438,9 +503,58 @@ class IEWPFOcean:
                                                           np.int32(drifter_coarse_cell_id_y),
                                                           self.localSVD_device.data.gpudata,
                                                           self.localSVD_device.pitch, 
-                                                          sim.small_scale_model_error.random_numbers.data.gpudata,
-                                                          sim.small_scale_model_error.random_numbers.pitch)
+                                                          random_numbers.data.gpudata,
+                                                          random_numbers.pitch)
+
+    def applyLocalSVDOnGlobalXi(self, sim, drifter_coarse_cell_id_x, drifter_coarse_cell_id_y):
+        """
+        Calling applyLocalSVDOnGlobal with the xi buffer
+        """
+        self.applyLocalSVDOnGlobal(sim, 
+                                   drifter_coarse_cell_id_x, drifter_coarse_cell_id_y,
+                                   sim.small_scale_model_error.random_numbers)
+        
+    def applyLocalSVDOnGlobalNu(self, sim, drifter_coarse_cell_id_x, drifter_coarse_cell_id_y):
+        """
+        Calling applyLocalSVDOnGlobal with the nu buffer
+        """
+        self.applyLocalSVDOnGlobal(sim, 
+                                   drifter_coarse_cell_id_x, drifter_coarse_cell_id_y,
+                                   sim.small_scale_model_error.perpendicular_random_numbers)
+        
     
+    
+    def samplePerpendicularSVD(self, sim, all_observed_drifter_positions, return_original_random_numbers=False):
+        
+        # Sample perpendicular xi and nu
+        sim.small_scale_model_error.generatePerpendicularNormalDistributions()
+        
+        orig_xi_host, orig_nu_host = None, None       
+        if return_original_random_numbers:
+            orig_xi_host = sim.small_scale_model_error.getRandomNumbers()
+            orig_nu_host = sim.small_scale_model_error.getPerpendicularRandomNumbers()
+        
+        # Obtain the norms of
+        sim.gpu_stream.synchronize()
+        reduction_buffer_host = sim.small_scale_model_error.getReductionBuffer()
+        sim.gpu_stream.synchronize()
+        
+        gamma = reduction_buffer_host[0,0]
+        nu_norm = reduction_buffer_host[0,1]
+        
+        for drifter in range(self.numDrifters):
+            observed_drifter_position = all_observed_drifter_positions[drifter,:]
+            
+            coarse_cell_id_x = int(np.floor(observed_drifter_position[0]/self.coarse_dx))
+            coarse_cell_id_y = int(np.floor(observed_drifter_position[1]/self.coarse_dy))
+        
+            self.applyLocalSVDOnGlobalXi(sim, coarse_cell_id_x, coarse_cell_id_y)
+            self.applyLocalSVDOnGlobalNu(sim, coarse_cell_id_x, coarse_cell_id_y)
+        
+        if return_original_random_numbers:
+            return gamma, nu_norm, orig_xi_host, orig_nu_host
+        else:
+            return gamma, nu_norm
     
     
     ###------------------------    
@@ -472,7 +586,22 @@ class IEWPFOcean:
         self.log("c values:\n" + str(c))
         self.log("w_target --> " + str(target_weight))
         return target_weight
-
+    
+    def obtainTargetWeightTwoStage(self, phi_array, w_rest, nu_norms):
+        """
+        Calculates the target weight and the beta parameter for the 
+        two-stage IEWPF scheme.
+        Returns w_target, beta
+        """
+        assert(len(phi_array) == len(w_rest))
+        assert(len(phi_array) == len(nu_norms))
+        
+        w_target = np.mean(phi_array + w_rest)
+        
+        beta = np.min( (w_target - (phi_array + w_rest))/nu_norms) + 1.0
+        
+        return w_target, beta
+        
     
     ### Solving the implicit equation on the CPU:
     
@@ -495,7 +624,8 @@ class IEWPFOcean:
         return (alpha*gamma/2)**(Nx/2 - 1) *np.exp(-alpha*gamma/2)*gamma/2
         
     def solveImplicitEquation(self, phi, gamma, 
-                               target_weight, w_rest, particle_id=None):
+                              target_weight, w_rest, c_star,
+                              particle_id=None):
         """
         Solving the scalar implicit equation using the Lambert W function, and 
         updating the buffers eta_a, hu_a, hv_a as:
@@ -504,7 +634,6 @@ class IEWPFOcean:
         self.log("")
         self.log("---- Implicit equation particle " + str(particle_id) + " ---------")
         
-        c_star = target_weight - (phi - w_rest)
         params = {
             'gamma': gamma,
             'Nx': self.Nx,

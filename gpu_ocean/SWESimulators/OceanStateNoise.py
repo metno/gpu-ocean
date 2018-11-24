@@ -294,7 +294,8 @@ class OceanStateNoise(object):
                                                            self.random_numbers.data.gpudata, self.random_numbers.pitch)
     
     
-    def perturbSim(self, sim, q0_scale=1.0, update_random_field=True, perturbation_scale=1.0,
+    def perturbSim(self, sim, q0_scale=1.0, update_random_field=True, 
+                   perturbation_scale=1.0, perpendicular_scale=0.0,
                    align_with_cell_i=None, align_with_cell_j=None):
         """
         Generating a perturbed ocean state and adding it to sim's ocean state 
@@ -308,13 +309,16 @@ class OceanStateNoise(object):
                                ghost_cells_y=sim.ghost_cells_y,
                                q0_scale=q0_scale,
                                update_random_field=update_random_field,
+                               perturbation_scale=perturbation_scale,
+                               perpendicular_scale=perpendicular_scale,
                                align_with_cell_i=align_with_cell_i,
                                align_with_cell_j=align_with_cell_j)
                                
     
     def perturbOceanState(self, eta, hu, hv, H, f, beta=0.0, g=9.81, 
                           y0_reference_cell=0, ghost_cells_x=0, ghost_cells_y=0,
-                          q0_scale=1.0, update_random_field=True, perturbation_scale=1.0,
+                          q0_scale=1.0, update_random_field=True, 
+                          perturbation_scale=1.0, perpendicular_scale=0.0,
                           align_with_cell_i=None, align_with_cell_j=None):
         """
         Apply the SOAR Q covariance matrix on the random ocean field which is
@@ -327,7 +331,8 @@ class OceanStateNoise(object):
         q0_scale=1: scale factor to the SOAR amplitude parameter q0
         update_random_field=True: whether to generate new random numbers or use those already 
             present in the random numbers buffer
-        perturbation_scale=1: scale factor to the perturbation of the eta field
+        perturbation_scale=1.0: scale factor to the perturbation of the eta field
+        perpendicular_scale=0.0: scale factor for additional perturbation from the perpendicular random field
         align_with_cell_i=None, align_with_cell_j=None: Index to a cell for which to align the coarse grid.
             The default value align_with_cell=None corresponds to zero offset between the coarse and fine grid.
         """
@@ -352,6 +357,17 @@ class OceanStateNoise(object):
                                             self.periodicNorthSouth, self.periodicEastWest,
                                             self.random_numbers.data.gpudata, self.random_numbers.pitch,
                                             self.coarse_buffer.data.gpudata, self.coarse_buffer.pitch)
+        if perpendicular_scale > 0:
+            self.soarKernel.prepared_async_call(self.global_size_SOAR, self.local_size, self.gpu_stream,
+                                                self.coarse_nx, self.coarse_ny,
+                                                self.coarse_dx, self.coarse_dy,
+
+                                                soar_q0, self.soar_L,
+                                                np.float32(perpendicular_scale),
+
+                                                self.periodicNorthSouth, self.periodicEastWest,
+                                                self.perpendicular_random_numbers.data.gpudata, self.perpendicular_random_numbers.pitch,
+                                                self.coarse_buffer.data.gpudata, self.coarse_buffer.pitch)
         
         if self.interpolation_factor > 1:
             self.bicubicInterpolationKernel.prepared_async_call(self.global_size_geo_balance, self.local_size, self.gpu_stream,
