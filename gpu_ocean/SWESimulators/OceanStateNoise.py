@@ -162,9 +162,12 @@ class OceanStateNoise(object):
         # Generate kernels
         self.squareSumKernel = self.reduction_kernels.get_function("squareSum")
         self.squareSumKernel.prepare("iiPP")
-        
+                
         self.squareSumDoubleKernel = self.reduction_kernels.get_function("squareSumDouble")
         self.squareSumDoubleKernel.prepare("iiPPP")
+        
+        self.makePerpendicularKernel = self.kernels.get_function("makePerpendicular")
+        self.makePerpendicularKernel.prepare("iiPiPiP")
         
         self.uniformDistributionKernel = self.kernels.get_function("uniformDistribution")
         self.uniformDistributionKernel.prepare("iiiPiPi")
@@ -274,6 +277,13 @@ class OceanStateNoise(object):
                                                           self.rand_nx,
                                                           self.seed.data.gpudata, self.seed.pitch,
                                                           self.random_numbers.data.gpudata, self.random_numbers.pitch)
+    
+    def generateNormalDistributionPerpendicular(self):
+        self.normalDistributionKernel.prepared_async_call(self.global_size_random_numbers, self.local_size, self.gpu_stream, 
+                                                          self.seed_nx, self.seed_ny,
+                                                          self.rand_nx,
+                                                          self.seed.data.gpudata, self.seed.pitch,
+                                                          self.perpendicular_random_numbers.data.gpudata, self.perpendicular_random_numbers.pitch)
         
     def generateUniformDistribution(self):
         # Call kernel -> new random numbers
@@ -409,7 +419,7 @@ class OceanStateNoise(object):
         return self.getReductionBuffer()[0,0]
     
    
-    def getDoubleNormAndDot(self):
+    def findDoubleNormAndDot(self):
         """
         Calculates sum(xi^2), sum(nu^2), sum(xi*nu)
         and stores these values in the reduction buffer
@@ -421,33 +431,26 @@ class OceanStateNoise(object):
                                                        self.random_numbers.data.gpudata,
                                                        self.perpendicular_random_numbers.data.gpudata,
                                                        self.reduction_buffer.data.gpudata)
+        
+    def _makePerpendicular(self):
+        self.makePerpendicularKernel.prepared_async_call(self.global_size_perpendicular, self.local_size, self.gpu_stream,
+                                                         self.rand_nx, self.rand_ny,
+                                                         self.random_numbers.data.gpudata, self.random_numbers.pitch,
+                                                         self.perpendicular_random_numbers.data.gpudata, self.perpendicular_random_numbers.pitch,
+                                                         self.reduction_buffer.data.gpudata)
     
     def generatePerpendicularNormalDistributions(self):
         """
         Generates xi, nu \sim N(0,I) such that xi and nu are perpendicular.
-        In the process, it calculates sum(xi^2), sum(nu^2), sum(xi*nu),
-        and these values are returned
+        In the process, it calculates sum(xi^2), sum(nu^2), which are written to the first two 
+        elements in the reduction buffer.
+        The third reduction buffer will contain the original, now outdated, dot(xi, nu), which 
+        was used to construct a random nu that is perpendicular to xi in the first place.
         """
-        
-        # Sample independent random fields in both buffers:
-        self.normalDistributionKernel.prepared_async_call(self.global_size_random_numbers, self.local_size, self.gpu_stream, 
-                                                          self.seed_nx, self.seed_ny,
-                                                          self.rand_nx,
-                                                          self.seed.data.gpudata, self.seed.pitch,
-                                                          self.random_numbers.data.gpudata, self.random_numbers.pitch)
-        
-        self.normalDistributionKernel.prepared_async_call(self.global_size_random_numbers, self.local_size, self.gpu_stream, 
-                                                          self.seed_nx, self.seed_ny,
-                                                          self.rand_nx,
-                                                          self.seed.data.gpudata, self.seed.pitch,
-                                                          self.perpendicular_random_numbers.data.gpudata, self.perpendicular_random_numbers.pitch)
-        
-        #self.
-    
-        
-        reduction_buffer_host = self.getReductionBuffer()
-        print("reduction_buffer_host.shape: ", reduction_buffer_host.shape)
-        return reduction_buffer_host[0,0], reduction_buffer_host[0,1], reduction_buffer_host[0,2]
+        self.generateNormalDistribution()
+        self.generateNormalDistributionPerpendicular()
+        self.findDoubleNormAndDot()
+        self._makePerpendicular()
     
     
     ##### CPU versions of the above functions ####

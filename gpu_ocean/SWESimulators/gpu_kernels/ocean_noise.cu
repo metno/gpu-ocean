@@ -150,6 +150,51 @@ __global__ void normalDistribution(
 } // extern "C"
 
 /**
+  * Kernel that takes two random vectors (xi, nu) as input, and make nu perpendicular to xi 
+  */
+extern "C" {
+__global__ void makePerpendicular(
+        // Size of data
+        const int nx_, const int ny_,
+        
+        //Data
+        float* xi_ptr_, const int xi_pitch_,           // size [nx, ny]
+        float* nu_ptr_, const int nu_pitch_,           // size [nx, ny]  
+        float* reduction_buffer                        // [xi*xi, nu*nu, xi*nu]
+    ) {
+    
+    //Index of cell within domain
+    const int ti = (blockDim.x * blockIdx.x) + threadIdx.x;
+    const int tj = (blockDim.y * blockIdx.y) + threadIdx.y;
+
+    // Each thread computes and writes two uniform numbers.
+
+    if ((ti < nx_) && (tj < ny_)) {
+        
+        // Read the values from the reduction buffer
+        const float xi_norm = reduction_buffer[0];
+        const float nu_norm = reduction_buffer[1];
+        const float dot_product = reduction_buffer[2];
+        
+        const float parallel_factor = dot_product/xi_norm; //nu_norm;
+        const float perpendicular_norm = xi_norm - (2*parallel_factor*dot_product) + parallel_factor*parallel_factor*nu_norm;
+        
+        //Compute pointer to current row in the xi and nu arrays
+        float* xi_row = (float*) ((char*) xi_ptr_ + xi_pitch_*tj);
+        float* nu_row = (float*) ((char*) nu_ptr_ + nu_pitch_*tj);
+        
+        
+        
+        
+        nu_row[ti] = sqrt(xi_norm/perpendicular_norm)*(nu_row[ti] - (parallel_factor*xi_row[ti]));
+    }
+}
+} // extern "C"
+
+
+
+
+/**
   * Local function calculating the SOAR function given two grid locations
   */
 __device__ float soar_covariance(int a_x, int a_y, int b_x, int b_y,
