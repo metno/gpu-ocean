@@ -76,6 +76,63 @@ class RandomNumbersTest(OceanStateNoiseTestParent):
         self.assertLess(np.abs(mean), 0.01)
         self.assertLess(np.abs(var - 1.0), 0.01)
 
+    def test_random_normal_nu(self):
+        self.create_large_noise()
+
+        self.large_noise.generateNormalDistributionPerpendicular()
+
+        U = self.large_noise.getPerpendicularRandomNumbers()
+
+        mean = np.mean(U)
+        var = np.var(U)
+
+        # Check the mean and var with very low accuracy.
+        # Gives error if the distribution is way off
+        self.assertLess(np.abs(mean), 0.01)
+        self.assertLess(np.abs(var - 1.0), 0.01)
+        
+    def test_random_normal_perpendicular(self):
+        self.create_large_noise()
+        tol = 6
+
+        self.large_noise.generatePerpendicularNormalDistributions()
+
+        xi = self.large_noise.getRandomNumbers()
+        nu = self.large_noise.getPerpendicularRandomNumbers()
+        rel = np.sum(xi*xi)
+        
+        mean_xi = np.mean(xi)
+        var_xi = np.var(xi)
+        mean_nu = np.mean(nu)
+        var_nu = np.var(nu)
+
+        # Check the mean and var with very low accuracy.
+        # Gives error if the distribution is way off
+        self.assertLess(np.abs(mean_xi), 0.01)
+        self.assertLess(np.abs(var_xi - 1.0), 0.01)
+        self.assertLess(np.abs(mean_nu), 0.01)
+        self.assertLess(np.abs(var_nu - 1.0), 0.01)
+        
+        # Get the norms of the random vectors before they became perpendicular 
+        pre_reduction_buffer = self.large_noise.getReductionBuffer()
+        
+        # Get the norms of the random vectors after they became perpendicular 
+        self.large_noise.findDoubleNormAndDot()
+        post_reduction_buffer = self.large_noise.getReductionBuffer()
+        
+        # Check that the final norms on the GPU matches those on the CPU
+        self.assertAlmostEqual(post_reduction_buffer[0,0]/rel, np.sum(xi*xi)/rel, tol)
+        self.assertAlmostEqual(post_reduction_buffer[0,1]/rel, np.sum(nu*nu)/rel, tol)
+        
+        # Check that the first values are the same:
+        self.assertAlmostEqual(post_reduction_buffer[0,0]/rel, pre_reduction_buffer[0,0]/rel, tol)
+        self.assertAlmostEqual(post_reduction_buffer[0,1]/rel, pre_reduction_buffer[0,1]/rel, tol)
+        
+        # Check that their dot-products (both from the GPU and CPU) are zero
+        self.assertAlmostEqual(post_reduction_buffer[0,2]/rel, 0.0, places=3)
+        self.assertAlmostEqual(np.sum(xi*nu), 0.0, places=3)
+        
+        
 
     def test_seed_diff(self):
         self.create_noise()
