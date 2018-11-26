@@ -176,7 +176,7 @@ class OceanStateNoise(object):
         self.normalDistributionKernel.prepare("iiiPiPi")
         
         self.soarKernel = self.kernels.get_function("SOAR")
-        self.soarKernel.prepare("iifffffiiPiPi")
+        self.soarKernel.prepare("iifffffiiPiPii")
         
         self.geostrophicBalanceKernel = self.kernels.get_function("geostrophicBalance")
         self.geostrophicBalanceKernel.prepare("iiffiiffffPiPiPiPiPi")
@@ -356,7 +356,8 @@ class OceanStateNoise(object):
                                             
                                             self.periodicNorthSouth, self.periodicEastWest,
                                             self.random_numbers.data.gpudata, self.random_numbers.pitch,
-                                            self.coarse_buffer.data.gpudata, self.coarse_buffer.pitch)
+                                            self.coarse_buffer.data.gpudata, self.coarse_buffer.pitch,
+                                            np.int32(0))
         if perpendicular_scale > 0:
             self.soarKernel.prepared_async_call(self.global_size_SOAR, self.local_size, self.gpu_stream,
                                                 self.coarse_nx, self.coarse_ny,
@@ -367,7 +368,8 @@ class OceanStateNoise(object):
 
                                                 self.periodicNorthSouth, self.periodicEastWest,
                                                 self.perpendicular_random_numbers.data.gpudata, self.perpendicular_random_numbers.pitch,
-                                                self.coarse_buffer.data.gpudata, self.coarse_buffer.pitch)
+                                                self.coarse_buffer.data.gpudata, self.coarse_buffer.pitch,
+                                                np.int32(1))
         
         if self.interpolation_factor > 1:
             self.bicubicInterpolationKernel.prepared_async_call(self.global_size_geo_balance, self.local_size, self.gpu_stream,

@@ -231,8 +231,8 @@ class IEWPFOcean:
             # Add scaled sample from P to the state vector
             ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
                                                                      update_random_field=False, \
-                                                                     perturbation_scale=alpha,
-                                                                     perpendicular_scale=beta)  
+                                                                     perturbation_scale=np.sqrt(alpha),
+                                                                     perpendicular_scale=np.sqrt(beta))  
         # save plot after
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 3)
@@ -287,7 +287,7 @@ class IEWPFOcean:
             # Loop steps 4:Add scaled sample from P to the state vector
             ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
                                                                      update_random_field=False, \
-                                                                     perturbation_scale=alpha)   
+                                                                     perturbation_scale=np.sqrt(alpha))   
             
             # TODO
             # Reset the drifter positions in each particle.
@@ -391,7 +391,7 @@ class IEWPFOcean:
             # Loop steps 4:Add scaled sample from P to the state vector
             ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
                                                                      update_random_field=False, \
-                                                                     perturbation_scale=alpha)   
+                                                                     perturbation_scale=np.sqrt(alpha))
             
             add_scaled_event.record(self.master_stream)
             add_scaled_event.synchronize()
@@ -681,6 +681,8 @@ class IEWPFOcean:
             print ("The two reals from Lambert W: ", (np.real(lambertw(lambert_W_arg)), np.real(lambertw(lambert_W_arg, k=-1))))
 
         alpha = alpha_zero
+        
+        self.show_errors=self.debug
         if lambert_W_arg > (-1.0/np.exp(1)) :
             alpha_u = np.random.rand()
             if alpha_u < 0.5:
@@ -714,6 +716,7 @@ class IEWPFOcean:
             print ("Selected alpha: ", alpha)
             print ("\n")
             
+        alpha = alpha_newton
         self.log("returning alpha = " + str(alpha))
         return alpha
         

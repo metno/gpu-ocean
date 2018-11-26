@@ -232,7 +232,8 @@ __global__ void SOAR(
 
         // Coarse grid data variable (output) - size [nx+4, ny+4]
         // Write to all cells
-        float* coarse_ptr_, const int coarse_pitch_
+        float* coarse_ptr_, const int coarse_pitch_,
+        const int additive_ // Interpreted as a bool
     ) {
 
     // Find this thread's indices
@@ -304,7 +305,12 @@ __global__ void SOAR(
 
         //Compute pointer to current row in the coarse array
         float* coarse_row = (float*) ((char*) coarse_ptr_ + coarse_pitch_*(tj));
-        coarse_row[ti] = perturbation_scale_ * Qxi;
+        if (additive_ > 0) {
+            coarse_row[ti] += perturbation_scale_ * Qxi;
+        }
+        else {
+            coarse_row[ti] = perturbation_scale_ * Qxi;
+        }
     }
 }
 } // extern "C"
