@@ -451,6 +451,13 @@ class OceanStateNoise(object):
                                                        self.reduction_buffer.data.gpudata)
         
     def _makePerpendicular(self):
+        """
+        Calls the kernel that transform nu (perpendicular_random_numbers buffer) to be 
+        perpendicular to xi (random_numbers buffer).
+        Both nu and xi should be independent samples from N(0,I) prior to calling this function.
+        After this function, they are still both samples from N(0,I), but are no longer independent
+        (but lineary independent).
+        """
         self.makePerpendicularKernel.prepared_async_call(self.global_size_perpendicular, self.local_size, self.gpu_stream,
                                                          self.rand_nx, self.rand_ny,
                                                          self.random_numbers.data.gpudata, self.random_numbers.pitch,
