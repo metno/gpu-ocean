@@ -23,4 +23,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
+from enum import Enum
+
+
 soar_cutoff = 2
+
+
+class GPUOceanLoggerLevels(Enum):
+    IEWPF_DEBUG = 15 
+        
