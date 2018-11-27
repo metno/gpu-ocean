@@ -56,7 +56,7 @@ class FBL(Simulator.Simulator):
         H: Water depth incl ghost cells, (nx+2)*(ny+2) cells
         eta0: Initial deviation from mean sea level incl ghost cells, (nx+2)*(ny+2) cells
         hu0: Initial momentum along x-axis incl ghost cells, (nx+1)*(ny+2) cells
-        hv0: Initial momentum along y-axis incl ghost cells, (nx+2)*(ny+3) cells
+        hv0: Initial momentum along y-axis incl ghost cells, (nx+2)*(ny+1) cells
         nx: Number of cells along x-axis
         ny: Number of cells along y-axis
         dx: Grid cell spacing along x-axis (20 000 m)
@@ -72,28 +72,6 @@ class FBL(Simulator.Simulator):
         write_netcdf: Write the results after each superstep to a netCDF file
         """
         
-        #### THIS ALLOWS MAKES IT POSSIBLE TO GIVE THE OLD INPUT SHAPES TO NEW GHOST CELL REGIME: Only valid for benchmarking!
-        if (eta0.shape == (ny, nx)):
-            new_eta = np.zeros((ny+2, nx+2),  dtype=np.float32)
-            new_eta[:ny, :nx] = eta0.copy()
-            eta0 = new_eta.copy()
-        if (H.shape == (ny, nx)):
-            new_H = np.ones((ny+2, nx+2),  dtype=np.float32)*np.max(H)
-            new_H[:ny,:nx] = H.copy()
-            H = new_H.copy()
-        if (hu0.shape == (ny, nx+1)):
-            new_hu = np.zeros((ny+2, nx+1),  dtype=np.float32)
-            new_hu[:ny, :nx+1] = hu0.copy()
-            hu0 = new_hu.copy()
-        if (hv0.shape == (ny+1, nx)):
-            new_hv = np.zeros((ny+3, nx+2),  dtype=np.float32)
-            new_hv[:ny+1,:nx] = hv0.copy()
-            hv0 = new_hv.copy()
-        
-            
-         
-        
-        
         #Create data by uploading to device
         ghost_cells_x = 1
         ghost_cells_y = 1
@@ -108,8 +86,8 @@ class FBL(Simulator.Simulator):
         self.boundary_conditions = boundary_conditions
 
         if boundary_conditions.isSponge():
-            nx = nx - 2 + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3]
-            ny = ny - 2 + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2]
+            nx = nx - 2 + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3]# - self.asym_ghost_cells[1] - self.asym_ghost_cells[3]
+            ny = ny - 2 + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2]# - self.asym_ghost_cells[0] - self.asym_ghost_cells[2]
             y_zero_reference_cell = y_zero_reference_cell + boundary_conditions.spongeCells[2]
           
         rk_order = None
@@ -134,7 +112,7 @@ class FBL(Simulator.Simulator):
         
         
         #Get kernels
-        self.step_kernel = gpu_ctx.get_kernel("FBL_step_kernel.cu", 
+        self.u_kernel = gpu_ctx.get_kernel("FBL_U_kernel.cu", 
                 defines={'block_width': block_width, 'block_height': block_height},
                 compile_args={
                     'no_extern_c': True,
@@ -148,15 +126,48 @@ class FBL(Simulator.Simulator):
                     #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
                 }
         )
-         
+        self.v_kernel = gpu_ctx.get_kernel("FBL_V_kernel.cu", 
+                defines={'block_width': block_width, 'block_height': block_height},
+                compile_args={
+                    'no_extern_c': True,
+                    'options': ["--use_fast_math"],
+                    #'options': ["--generate-line-info"], 
+                    #'options': ["--maxrregcount=32"]
+                    #'arch': "compute_50", 
+                    #'code': "sm_50"
+                },
+                jit_compile_args={
+                    #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
+                }
+        )
+        self.eta_kernel = gpu_ctx.get_kernel("FBL_eta_kernel.cu", 
+                defines={'block_width': block_width, 'block_height': block_height},
+                compile_args={
+                    'no_extern_c': True,
+                    'options': ["--use_fast_math"],
+                    #'options': ["--generate-line-info"], 
+                    #'options': ["--maxrregcount=32"]
+                    #'arch': "compute_50", 
+                    #'code': "sm_50"
+                },
+                jit_compile_args={
+                    #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
+                }
+        )
+        
         # Get CUDA functions 
-        self.fblStepKernel = self.step_kernel.get_function("fblStepKernel")
+        self.computeUKernel = self.u_kernel.get_function("computeUKernel")
+        self.computeVKernel = self.v_kernel.get_function("computeVKernel")
+        self.computeEtaKernel = self.eta_kernel.get_function("computeEtaKernel")
         
         # Prepare kernel lauches
-        self.fblStepKernel.prepare("iiffffffffPiPiPiPiif")
+        self.computeUKernel.prepare("iiffffffffPiPiPiPiif")
+        self.computeVKernel.prepare("iiffffffffPiPiPiPiif")
+        self.computeEtaKernel.prepare("iiffffffffPiPiPiPi")
         
         # Set up textures
-        self.update_wind_stress(self.step_kernel, self.fblStepKernel)
+        self.update_wind_stress(self.u_kernel, self.computeUKernel)
+        self.update_wind_stress(self.v_kernel, self.computeVKernel)
         
         self.H = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H)
         self.gpu_data = Common.SWEDataArakawaC(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0, fbl=True)
@@ -184,8 +195,7 @@ class FBL(Simulator.Simulator):
 
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
-                                    staggered_grid=True, \
-                                    offset_x=self.offset_x, offset_y=self.offset_y)
+                                    staggered_grid=True, offset_x=self.offset_x, offset_y=self.offset_y)
             
     @classmethod
     def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True):
@@ -295,9 +305,10 @@ class FBL(Simulator.Simulator):
             if (local_dt <= 0.0):
                 break
                 
-            wind_stress_t = np.float32(self.update_wind_stress(self.step_kernel, self.fblStepKernel))
+            self.update_wind_stress(self.u_kernel, self.computeUKernel)
+            wind_stress_t = np.float32(self.update_wind_stress(self.v_kernel, self.computeVKernel))
 
-            self.fblStepKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+            self.computeUKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                     self.nx, self.ny, \
                     self.dx, self.dy, local_dt, \
                     self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
@@ -306,14 +317,32 @@ class FBL(Simulator.Simulator):
                     self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
                     self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch, \
                     self.wall_bc, wind_stress_t)
-            
+
             # Fix U boundary
             self.bc_kernel.boundaryConditionU(self.gpu_stream, self.gpu_data.hu0)
             
+            self.computeVKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+                    self.nx, self.ny, \
+                    self.dx, self.dy, local_dt, \
+                    self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
+                    self.H.data.gpudata, self.H.pitch, \
+                    self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
+                    self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
+                    self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch, \
+                    self.wall_bc, wind_stress_t)
+
             # Fix V boundary
             self.bc_kernel.boundaryConditionV(self.gpu_stream, self.gpu_data.hv0)
             
-            # Fix eta boundary
+            self.computeEtaKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+                    self.nx, self.ny, \
+                    self.dx, self.dy, local_dt, \
+                    self.g, self.f, self.coriolis_beta, self.y_zero_reference_cell, self.r, \
+                    self.H.data.gpudata, self.H.pitch, \
+                    self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
+                    self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
+                    self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch)
+
             self.bc_kernel.boundaryConditionEta(self.gpu_stream, self.gpu_data.h0)
    
             self.t += np.float64(local_dt)
@@ -333,8 +362,8 @@ class FBL_periodic_boundary:
                  block_width=16, block_height=16 ):
 
         self.boundary_conditions = boundary_conditions
-        self.ghostsX = np.int32(2)
-        self.ghostsY = np.int32(2)
+        self.ghostsX = np.int32(0) #self.asym_ghost_cells[1] + self.asym_ghost_cells[3])
+        self.ghostsY = np.int32(0) #self.asym_ghost_cells[0] + self.asym_ghost_cells[2])
 
         self.bc_north = np.int32(boundary_conditions.north)
         self.bc_east  = np.int32(boundary_conditions.east)
@@ -348,9 +377,8 @@ class FBL_periodic_boundary:
 
         # Debugging variables
         debug = False
-        self.firstU = True
-        self.firstV = True
-        self.firstEta = True
+        self.firstU = debug
+        self.firstV = debug
         self.firstGhostU = debug
         self.firstGhostV = debug
         self.firstGhostEta = debug
@@ -405,10 +433,10 @@ class FBL_periodic_boundary:
         # Start with fixing the potential sponge
         self.callSpongeNS(gpu_stream, hu0, 1, 0)
         
-        if self.firstU and (self.boundary_conditions.east == 1 or \
-                            self.boundary_conditions.west == 1 or \
-                            self.boundary_conditions.north == 1 or \
-                            self.boundary_conditions.south == 1):
+        if (self.boundary_conditions.east == 1 or \
+            self.boundary_conditions.west == 1 or \
+            self.boundary_conditions.north == 1 or \
+            self.boundary_conditions.south == 1):
             
             self.closedBoundaryUKernel.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
                         self.nx, self.ny, \
@@ -424,7 +452,7 @@ class FBL_periodic_boundary:
                         self.nx, self.ny, \
                         hu0.data.gpudata, hu0.pitch)
         
-        self.firstU = False
+         
 
     def boundaryConditionV(self, gpu_stream, hv0):
         """
@@ -434,10 +462,10 @@ class FBL_periodic_boundary:
         # Start with fixing the potential sponge
         self.callSpongeNS(gpu_stream, hv0, 0, 1)
         
-        if self.firstV and (self.boundary_conditions.east == 1 or \
-                            self.boundary_conditions.west == 1 or \
-                            self.boundary_conditions.north == 1 or \
-                            self.boundary_conditions.south == 1):
+        if (self.boundary_conditions.east == 1 or \
+            self.boundary_conditions.west == 1 or \
+            self.boundary_conditions.north == 1 or \
+            self.boundary_conditions.south == 1):
             
             self.closedBoundaryVKernel.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
                         self.nx, self.ny, \
@@ -453,7 +481,7 @@ class FBL_periodic_boundary:
                         self.nx, self.ny, \
                         hv0.data.gpudata, hv0.pitch)
         
-        self.firstV = False
+       
         
 
     def boundaryConditionEta(self, gpu_stream, eta0):
@@ -463,10 +491,10 @@ class FBL_periodic_boundary:
         # Start with fixing the potential sponge
         self.callSpongeNS(gpu_stream, eta0, 0, 0)
         
-        if self.firstEta and (self.boundary_conditions.east == 1 or \
-                              self.boundary_conditions.west == 1 or \
-                              self.boundary_conditions.north == 1 or \
-                              self.boundary_conditions.south == 1):
+        if (self.boundary_conditions.east == 1 or \
+            self.boundary_conditions.west == 1 or \
+            self.boundary_conditions.north == 1 or \
+            self.boundary_conditions.south == 1):
             
             self.closedBoundaryEtaKernel.prepared_async_call(self.global_size, self.local_size, gpu_stream, \
                         self.nx, self.ny, \
@@ -483,7 +511,7 @@ class FBL_periodic_boundary:
                         eta0.data.gpudata, eta0.pitch)
                         
                         
-        self.firstEta = False
+         
 
         
     def callSpongeNS(self, gpu_stream, data, staggered_x, staggered_y):
