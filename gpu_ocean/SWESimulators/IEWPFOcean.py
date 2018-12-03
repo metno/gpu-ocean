@@ -645,76 +645,11 @@ class IEWPFOcean:
         self.log("Input params:")
         self.log(params)
         
-        
-        # 7) Solving the Lambert W function
-        lambert_W_arg = -np.exp((c_star/self.Nx) - 1.0)
-        alpha_min1 = np.sqrt(-(gamma/self.Nx)*np.real(lambertw(lambert_W_arg, k=-1)))
-        alpha_zero = np.sqrt(-(gamma/self.Nx)*np.real(lambertw(lambert_W_arg)))
-        
-        solutions = {
-            'alpha_min1': alpha_min1,            
-            'alpha_zero': alpha_zero
-        }
-        self.log('Solutions for alpha: ' + str(solutions))
-        self.log('Requirement for Lambert W sol: ' + str(-1.0/np.exp(1)) + " < " + str(lambert_W_arg) + " < 0 = " + str((-1.0/np.exp(1) < lambert_W_arg, lambert_W_arg < 0)))
-        self.log('Lambert W results:')
-        self.log({'for alpha_min1': lambertw(lambert_W_arg, k=-1),
-                  'for alpha_zero': lambertw(lambert_W_arg      )})
-        
-        self.log("Discrepancy when inserting the alphas into the implicit equation:")
-        self.log({'from alpha_min1': self._implicitEquation_no_limit(alpha_min1, gamma, self.Nx, c_star),
-                  'from alpha_zero': self._implicitEquation_no_limit(alpha_zero, gamma, self.Nx, c_star)})
-        
-        
-        alpha_newton = newton(lambda x: self._implicitEquation_no_limit(x, gamma, self.Nx, c_star), 0.5, maxiter=2000)
+        alpha_newton = newton(lambda x: self._implicitEquation_no_limit(x, gamma, self.Nx, c_star),
+                              0.5, maxiter=2000, tol=1e-6)
                               #fprime=lambda x: self._implicitEquation_no_limit_derivative(x, gamma, self.Nx, c_star))
         self.log("alpha_newton from Newton's method: " + str(alpha_newton))
         self.log("Discrepancy with alpha_newton: "+ str(self._implicitEquation_no_limit(alpha_newton, gamma, self.Nx, c_star)))
-        alpha = alpha_newton
-        
-        if self.debug: 
-            print ("Check a against the Lambert W requirement: ")
-            print ("-e^-1 < z < 0 : ", -1.0/np.exp(1), " < ", lambert_W_arg, " < ", 0, " = ", \
-                    (-1.0/np.exp(1) < lambert_W_arg, lambert_W_arg < 0))
-            print ("Obtained (alpha k=-1, alpha k=0): ", (alpha_min1, alpha_zero))
-            print ("The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
-            print ("The two reals from Lambert W: ", (np.real(lambertw(lambert_W_arg)), np.real(lambertw(lambert_W_arg, k=-1))))
-
-        alpha = alpha_zero
-        
-        self.show_errors=self.debug
-        if lambert_W_arg > (-1.0/np.exp(1)) :
-            alpha_u = np.random.rand()
-            if alpha_u < 0.5:
-                alpha = alpha_min1
-                if self.debug: print ("Drew alpha from -1-branch")
-        elif self.show_errors:
-            print ("!!!!!!!!!!!!")
-            print ("BAD BAD ARGUMENT TO LAMBERT W")
-            print ("Particle ID: ", particle_id)
-            print( "Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1))
-            print ("The requirement is lamber_W_arg > (-1.0/exp(1)): " + str(lambert_W_arg) + " > " + str(-1.0/np.exp(1.0)))
-            print ("gamma: ", gamma)
-            print ("Nx: ", self.Nx)
-            print ("w_rest: ", w_rest)
-            print ("target_weight: ", target_weight)
-            print ("phi: ", phi)
-            print ("The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
-            print ("Checking implicit equation with alpha (k=0, k=-1): ", \
-            (self._old_implicitEquation(alpha_zero, gamma, self.Nx, target_weight, c_star), \
-             self._old_implicitEquation(alpha_min1, gamma, self.Nx, target_weight, c_star)))
-            print( "!!!!!!!!!!!!")
-        
-        
-        if self.debug: 
-            print ("--------------------------------------")
-            print ("Obtained (lambert_ans k=0, lambert_ans k=-1): ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
-            print ("Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1))
-            print ("Checking implicit equation with alpha (k=0, k=-1): ", \
-            (self._old_implicitEquation(alpha_zero, gamma, self.Nx, target_weight, c_star), \
-             self._old_implicitEquation(alpha_min1, gamma, self.Nx, target_weight, c_star)))
-            print ("Selected alpha: ", alpha)
-            print ("\n")
             
         alpha = alpha_newton
         self.log("returning alpha = " + str(alpha))
