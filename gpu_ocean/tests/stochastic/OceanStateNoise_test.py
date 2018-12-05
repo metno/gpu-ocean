@@ -18,6 +18,9 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
     def test_init_periodic_nonstaggered(self):
         self.create_noise()
 
+        if not self.noise.use_lcg:
+            self.skipTest('not using LCG for RNG')
+
         self.assertEqual(self.noise.rand_nx, self.nx)
         self.assertEqual(self.noise.rand_ny, self.ny)
         self.assertEqual(self.noise.seed_nx, self.nx/2)
@@ -32,6 +35,9 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
     def test_init_periodic_staggered(self):
         self.staggered = True
         self.create_noise()
+
+        if not self.noise.use_lcg:
+            self.skipTest('not using LCG for RNG')
 
         self.assertEqual(self.noise.rand_nx, self.nx)
         self.assertEqual(self.noise.rand_ny, self.ny)
@@ -48,6 +54,9 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
         self.periodicNS = False
         self.create_noise()
 
+        if not self.noise.use_lcg:
+            self.skipTest('not using LCG for RNG')
+
         self.assertEqual(self.noise.rand_nx, self.nx_nonPeriodic)
         self.assertEqual(self.noise.rand_ny, self.ny_nonPeriodic)
         self.assertEqual(self.noise.seed_nx, self.nx_nonPeriodic/2)
@@ -62,6 +71,9 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
         self.periodicEW = False
         self.create_noise()
 
+        if not self.noise.use_lcg:
+            self.skipTest('not using LCG for RNG')
+
         self.assertEqual(self.noise.rand_nx, self.nx_nonPeriodic)
         self.assertEqual(self.noise.rand_ny, self.ny)
         self.assertEqual(self.noise.seed_nx, self.nx_nonPeriodic/2)
@@ -75,6 +87,9 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
     def test_init_periodicEW_nonstaggered(self):
         self.periodicNS = False
         self.create_noise()
+
+        if not self.noise.use_lcg:
+            self.skipTest('not using LCG for RNG')
 
         self.assertEqual(self.noise.rand_nx, self.nx)
         self.assertEqual(self.noise.rand_ny, self.ny_nonPeriodic)
