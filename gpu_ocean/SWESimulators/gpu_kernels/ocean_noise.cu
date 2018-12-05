@@ -50,9 +50,7 @@ __device__ float2 ansic_lcg(unsigned long long* seed_ptr) {
   *  Generates two random numbers, drawn from a normal distribtion with mean 0 and
   *  variance 1. Based on the Box Muller transform.
   */
-__device__ float2 boxMuller(unsigned long long* seed) {
-    float2 u = ansic_lcg(seed);
-    
+__device__ float2 boxMuller(float2 u) {
     float r = sqrt(-2.0f*log(u.x));
     float n1 = r*cospi(2*u.y);
     float n2 = r*sinpi(2*u.y);
@@ -61,8 +59,6 @@ __device__ float2 boxMuller(unsigned long long* seed) {
     out.x = n1;
     out.y = n2;
     return out;
-    
-    //return make_float2(n1, n2);
 }
 
 /**
@@ -134,7 +130,8 @@ __global__ void normalDistribution(
         float* const random_row = (float*) ((char*) random_ptr_ + random_pitch_*tj);
         
         unsigned long long seed = seed_row[ti];
-        float2 u = boxMuller(&seed);
+        float2 r = ansic_lcg(&seed);
+        float2 u = boxMuller(r);
 
         seed_row[ti] = seed;
 
