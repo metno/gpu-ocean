@@ -22,21 +22,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "common.cu"
 
+// Fix  east-west boundary before north-south (to get the corners right)
+// This is contrary to all the other BC kernels.
 extern "C" {
-__global__ void closedBoundaryUKernel(
+__global__ void closedBoundaryUKernel_EW(
         // Discretization parameters
         int nx_, int ny_,
         int bc_north_, int bc_east_, int bc_south_, int bc_west_,
 
         // Data
         float* U_ptr_, int U_pitch_) {
-            
-    // Note that U values on the western boundary are sat to zero
-    // by the step-kernel, and U values on all other boundaries are 
-    // never written by the step-kernel. 
-    // It should be sufficient to only call this kernel only once, 
-    // at the beginning of the entire simulation.
-
+ 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
@@ -48,15 +44,39 @@ __global__ void closedBoundaryUKernel(
            ((ti == nx_) && (bc_east_ == 1))    ) && tj < ny_ + 2) {
         U_row[ti] = 0.0f;
     }
-    
-    // We set U = 0 outside of the boundary as well, on north and south.
-    if ( ( ((tj == 0    ) && (bc_south_ == 1)) ||
-           ((tj == ny_+1) && (bc_north_ == 1))    ) && ti < nx_+1) {
-        U_row[ti] = 0.0f;
-    }
-    
 }
 } // extern "C" 
+
+extern "C" {
+__global__ void closedBoundaryUKernel_NS(
+        // Discretization parameters
+        int nx_, int ny_,
+        int bc_north_, int bc_east_, int bc_south_, int bc_west_,
+
+        // Data
+        float* U_ptr_, int U_pitch_) {
+            
+    // Index of cell within domain
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
+
+    //Compute pointer to current row in the U array
+    float* const U_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);   
+    
+    if (ti < nx_+1) {
+        if ((tj == 0    ) && (bc_south_ == 1)) {
+            float* const U_row_inner = (float*) ((char*) U_ptr_ + U_pitch_*1);
+            U_row[ti] = U_row_inner[ti];
+        }
+        if ((tj == ny_+1) && (bc_north_ == 1)) {
+            float* const U_row_inner = (float*) ((char*) U_ptr_ + U_pitch_*ny_);
+            U_row[ti] = U_row_inner[ti];
+        }
+    }
+}
+} // extern "C" 
+
+
 
  // Fix north-south boundary before east-west (to get the corners right)
  extern "C" {
@@ -111,9 +131,9 @@ __global__ void periodicBoundaryUKernel_EW(
 
 
 
-
+// Fix north-south boundary before east-west (to get the corners right)
 extern "C" {
-__global__ void closedBoundaryVKernel(
+__global__ void closedBoundaryVKernel_NS(
         // Discretization parameters
         int nx_, int ny_,
         int bc_north_, int bc_east_, int bc_south_, int bc_west_,
@@ -121,12 +141,6 @@ __global__ void closedBoundaryVKernel(
         // Data
         float* V_ptr_, int V_pitch_) {
             
-    // Note that V values on the southern boundary are sat to zero
-    // by the step-kernel, and V values on all other boundaries are 
-    // never written by the step-kernel. 
-    // It should be sufficient to only call this kernel only once, 
-    // at the beginning of the entire simulation.
-    
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
@@ -134,21 +148,55 @@ __global__ void closedBoundaryVKernel(
     //Compute pointer to current row in the V array
     float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);   
     
-    if ( ( ((tj < 2  ) && (bc_south_ == 1)) || 
-           (((tj == ny_+1) || (tj == ny_+2)) && (bc_north_ == 1)) )
-         && ti < nx_ + 2) {
-        V_row[ti] = 0.0f;
+    if (ti < nx_ + 2) {
+        
+        if ((tj == 1 ) && (bc_south_ == 1)) {
+            V_row[ti] == 0.0f;
+        }
+        
+       if ((tj == ny_+1) && (bc_north_ == 1)) {
+           V_row[ti] = 0.0;
+       }
+        
+        if ((tj == 0) && (bc_south_ == 1)) {
+            float* const V_row_inner = (float*) ((char*) V_ptr_ + V_pitch_*2);   
+            V_row[ti] = -V_row_inner[ti];
+        }
+        
+        if ((tj == ny_+2) && (bc_north_ == 1)) {
+            float* const V_row_inner = (float*) ((char*) V_ptr_ + V_pitch_*ny_);   
+            V_row[ti] = -V_row_inner[ti];
+        }
     }
-    
-    // We set V = 0 outside of the east and west boundary as well
-    if ( ( ((ti == 0    ) && (bc_west_ == 1)) ||
-           ((ti == nx_+1) && (bc_east_ == 1))    ) && tj < ny_+3) {
-        V_row[ti] = 0.0f;
-    }
-    
 }
 } // extern "C"'
 
+extern "C" {
+__global__ void closedBoundaryVKernel_EW(
+        // Discretization parameters
+        int nx_, int ny_,
+        int bc_north_, int bc_east_, int bc_south_, int bc_west_,
+
+        // Data
+        float* V_ptr_, int V_pitch_) {
+            
+    // Index of cell within domain
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
+
+    //Compute pointer to current row in the V array
+    float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);   
+    
+    if ( tj < ny_+3 ) {
+        if ((ti == 0    ) && (bc_west_ == 1)) {
+            V_row[ti] = V_row[1];
+        }
+        if ((ti == nx_+1) && (bc_east_ == 1)) {
+            V_row[ti] = V_row[nx_];
+        }
+    }
+}
+} // extern "C"'
 
  // Fix north-south boundary before east-west (to get the corners right)
  extern "C" {
@@ -211,9 +259,9 @@ __global__ void periodicBoundaryVKernel_EW(
 } // extern "C"
 
 
-
+// Fix north-south boundary before east-west (to get the corners right)
 extern "C" {
-__global__ void closedBoundaryEtaKernel(
+__global__ void closedBoundaryEtaKernel_NS(
         // Discretization parameters
         int nx_, int ny_,
         int bc_north_, int bc_east_, int bc_south_, int bc_west_,
@@ -233,17 +281,53 @@ __global__ void closedBoundaryEtaKernel(
     //Compute pointer to current row in the eta array
     float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj); 
     
-    if ( (  ((tj == 0  ) && (bc_south_ == 1)) || 
-            ((tj == ny_+1)  && (bc_north_ == 1)) )
-         && ti < nx_ + 2) {
-        eta_row[ti] = 0.0f;
+    if (ti < nx_+2) {
+
+        if ( (tj == 0  ) && (bc_south_ == 1)) {
+            float* const eta_row_inner = (float*) ((char*) eta_ptr_ + eta_pitch_*1);
+            eta_row[ti] = eta_row_inner[ti];
+        }
+
+        if ((tj == ny_+1)  && (bc_north_ == 1)) {
+            float* const eta_row_inner = (float*) ((char*) eta_ptr_ + eta_pitch_*ny_);
+            eta_row[ti] = eta_row_inner[ti];
+        }
     }
+
+}
+} // extern "C"
+
+extern "C" {
+__global__ void closedBoundaryEtaKernel_EW(
+        // Discretization parameters
+        int nx_, int ny_,
+        int bc_north_, int bc_east_, int bc_south_, int bc_west_,
+
+        // Data
+        float* eta_ptr_, int eta_pitch_) {
+            
+    // All eta values living outside of a closed boundary should
+    // be ignored by the step-kernel. Anyway, we but them to zero to
+    // make sure they are well defined, but this kernel should not need to
+    // be called between time-steps.
     
-    // We set U = 0 outside of the east and west boundary as well
-    if ( ( ((ti == 0    ) && (bc_west_ == 1)) ||
-           ((ti == nx_+1) && (bc_east_ == 1))    )
-         && tj < ny_+2) {
-        eta_row[ti] = 0.0f;
+    // Index of cell within domain
+    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
+
+    //Compute pointer to current row in the eta array
+    float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj); 
+    
+    if (tj < ny_+2) {
+        
+        if ((ti == 0    ) && (bc_west_ == 1)) {
+            eta_row[0] = eta_row[1];
+        }
+        
+        if ((ti == nx_+1) && (bc_east_ == 1)) {
+            eta_row[nx_+1] = eta_row[nx_];
+        }
+        
     }
 }
 } // extern "C"
