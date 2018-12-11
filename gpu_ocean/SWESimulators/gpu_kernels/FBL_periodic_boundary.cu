@@ -169,7 +169,7 @@ __global__ void closedBoundaryVKernel_NS(
         }
     }
 }
-} // extern "C"'
+} // extern "C"
 
 extern "C" {
 __global__ void closedBoundaryVKernel_EW(
