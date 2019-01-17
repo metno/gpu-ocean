@@ -150,6 +150,51 @@ __global__ void normalDistribution(
 } // extern "C"
 
 /**
+  * Kernel that takes two random vectors (xi, nu) as input, and make nu perpendicular to xi 
+  */
+extern "C" {
+__global__ void makePerpendicular(
+        // Size of data
+        const int nx_, const int ny_,
+        
+        //Data
+        float* xi_ptr_, const int xi_pitch_,           // size [nx, ny]
+        float* nu_ptr_, const int nu_pitch_,           // size [nx, ny]  
+        float* reduction_buffer                        // [xi*xi, nu*nu, xi*nu]
+    ) {
+    
+    //Index of cell within domain
+    const int ti = (blockDim.x * blockIdx.x) + threadIdx.x;
+    const int tj = (blockDim.y * blockIdx.y) + threadIdx.y;
+
+    // Each thread computes and writes two uniform numbers.
+
+    if ((ti < nx_) && (tj < ny_)) {
+        
+        // Read the values from the reduction buffer
+        const float xi_norm = reduction_buffer[0];
+        const float nu_norm = reduction_buffer[1];
+        const float dot_product = reduction_buffer[2];
+        
+        const float parallel_factor = dot_product/xi_norm; //nu_norm;
+        const float perpendicular_norm = xi_norm - (2*parallel_factor*dot_product) + parallel_factor*parallel_factor*nu_norm;
+        
+        //Compute pointer to current row in the xi and nu arrays
+        float* xi_row = (float*) ((char*) xi_ptr_ + xi_pitch_*tj);
+        float* nu_row = (float*) ((char*) nu_ptr_ + nu_pitch_*tj);
+        
+        
+        
+        
+        nu_row[ti] = sqrt(xi_norm/perpendicular_norm)*(nu_row[ti] - (parallel_factor*xi_row[ti]));
+    }
+}
+} // extern "C"
+
+
+
+
+/**
   * Local function calculating the SOAR function given two grid locations
   */
 __device__ float soar_covariance(int a_x, int a_y, int b_x, int b_y,
@@ -187,7 +232,8 @@ __global__ void SOAR(
 
         // Coarse grid data variable (output) - size [nx+4, ny+4]
         // Write to all cells
-        float* coarse_ptr_, const int coarse_pitch_
+        float* coarse_ptr_, const int coarse_pitch_,
+        const int additive_ // Interpreted as a bool
     ) {
 
     // Find this thread's indices
@@ -259,7 +305,12 @@ __global__ void SOAR(
 
         //Compute pointer to current row in the coarse array
         float* coarse_row = (float*) ((char*) coarse_ptr_ + coarse_pitch_*(tj));
-        coarse_row[ti] = perturbation_scale_ * Qxi;
+        if (additive_ > 0) {
+            coarse_row[ti] += perturbation_scale_ * Qxi;
+        }
+        else {
+            coarse_row[ti] = perturbation_scale_ * Qxi;
+        }
     }
 }
 } // extern "C"
@@ -406,6 +457,7 @@ __global__ void bicubicInterpolation(
         const int coarse_nx_, const int coarse_ny_,
         const int coarse_ghost_cells_x_, const int coarse_ghost_cells_y_,
         const float coarse_dx_, const float coarse_dy_,
+        const int offset_i_, const int offset_j_,
     
         // physical parameters
         const float g_, const float f_, const float beta_, const float y0_reference_cell_,
@@ -465,13 +517,13 @@ __global__ void bicubicInterpolation(
     
     // Find coarse index for thread (0,0). All threads need to know this in order to read
     // coarse data correctly into coarse shmem.
-    const int bx_x = (bx - ghost_cells_x_ + 0.5)*dx_;
-    const int by_y = (by - ghost_cells_y_ + 0.5)*dy_;
+    const int bx_x = (bx - ghost_cells_x_ + 0.5 + offset_i_)*dx_;
+    const int by_y = (by - ghost_cells_y_ + 0.5 + offset_j_)*dy_;
 
     // The start of the coarse buffer which needs to be read into shared memory.
     // The coarse buffer has two layers of ghost cells.
-    const int coarse_bx = (int)(floorf((bx_x/coarse_dx_) + coarse_ghost_cells_x_ - 2.5f));
-    const int coarse_by = (int)(floorf((by_y/coarse_dy_) + coarse_ghost_cells_y_ - 2.5f));
+    const int coarse_bx = (int)(floorf((bx_x/coarse_dx_) + coarse_ghost_cells_x_ - 2.5f ));
+    const int coarse_by = (int)(floorf((by_y/coarse_dy_) + coarse_ghost_cells_y_ - 2.5f ));
 
     // Read d_eta from coarse_buffer into shared memory.
     // For very small blocks which is particularly bad alligned with the coarse grid,
@@ -504,8 +556,8 @@ __global__ void bicubicInterpolation(
             const int loop_tj = by + j - 1;
 
             // Find coarse index for this thread
-            const float x = (loop_ti - ghost_cells_x_ + 0.5)*dx_;
-            const float y = (loop_tj - ghost_cells_y_ + 0.5)*dy_;
+            const float x = (loop_ti - ghost_cells_x_ + 0.5 + offset_i_)*dx_;
+            const float y = (loop_tj - ghost_cells_y_ + 0.5 + offset_j_)*dy_;
             
             // Location in the coarse grid:
             int coarse_i = (int)(floorf((x/coarse_dx_) + coarse_ghost_cells_x_ - 0.5f));

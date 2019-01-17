@@ -1,6 +1,14 @@
 /*
 These CUDA kernels implements specific parts of the Implicit Equal-Weights 
 Particle Filter (IEWPF) algorithm.
+The following papers describe the method, though with mistakes and variations.
+     - 'Implicit equal-weights particle filter' by Zhu, van Leeuwen and Amezcua, Quarterly
+            Journal of the Royal Meteorological Society, 2016
+     - 'State-of-the-art stochastic data assimilation methods for high-dimensional
+            non-Gaussian problems' by Vetra-Carvalho et al, Tellus, 2018
+     - 'A revied Implicit Equal-Weights Particle Filter' by Skauvold et al, ???, 2018
+     
+
 
 Copyright (C) 2018  SINTEF ICT
 
@@ -17,8 +25,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-
-//#include "common.cu"
 
 
 /**
@@ -65,6 +71,14 @@ __device__ float soar_covariance(const int a_x, const int a_y,
 /**
   * Kernel that obtains the first half of the Kalman gain based on the
   * innovation from a single drifter.
+  *
+  * nx, ny: domain size
+  * dx, dx: cell size
+  * soar_q0, soar_L: amplitude and correlation radius, respectively, of the model error covariance
+  * drifter_cell_x, drifter_cell_y: Cell in which the drifter is observed
+  * geo_balance_const: constant appearing in the geostrophic balance, = g*H/(2*f)
+  * e_x, e_y: Scaled innovation for given drifter, = S*d
+  * K_ptr, K_pitch: Output buffer to write the Kalman gain contribution, size [ny, nx].
   */
 extern "C" {
     __global__ void halfTheKalmanGain(const int nx_, const int ny_,
@@ -123,6 +137,7 @@ extern "C" {
                                                         dx_, dy_, nx_, ny_, soar_q0_, soar_L_);
             }
             
+            // Index in the K buffer (7x7 area centered  in drifter_cell_x and y)
             const int global_id_x = (drifter_cell_x_ - 3 + tx + nx_) % nx_;
             const int global_id_y = (drifter_cell_y_ - 3 + ty + ny_) % ny_;
 
@@ -171,7 +186,7 @@ extern "C" {
 
         // Read the relevant xi field into shared memory
         float* xi_row =  (float*) ((char*) xi_ptr_ + xi_pitch_*(global_y_j));
-        if ((tx < 7) and (ty < 7)) {
+        if ((tx < 7) && (ty < 7)) {
             shared_xi[ty][tx] = xi_row[global_x_j];
         }
         
@@ -185,7 +200,7 @@ extern "C" {
         
         __syncthreads();
 
-        if ((tx < 7) and (ty < 7)) {
+        if ((tx < 7) && (ty < 7)) {
             float xi = 0.0f;
             const int local_j = ty*7 + tx; // thread row index of the SVD block
             int local_i;
@@ -202,3 +217,5 @@ extern "C" {
     }
             
 } // extern "C"
+
+

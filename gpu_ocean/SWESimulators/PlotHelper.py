@@ -377,6 +377,7 @@ class EnsembleAnimator:
         # Obtain the following fields:
             
         eta_true, hu_true, hv_true = ensemble.downloadTrueOceanState()
+        
         if not self.trueStateOnly:
             eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse, eta_r, hu_r, hv_r = ensemble.downloadEnsembleStatisticalFields()
         
@@ -424,6 +425,11 @@ class EnsembleAnimator:
         # Drifters
         drifterPositions = ensemble.observeDrifters()
         trueDrifterPosition = ensemble.observeTrueDrifters()
+        
+        # TODO
+        # These lines which updates the drifter positions to the animations
+        # broke when updating from Python 2 to Python 3.
+        # This should be fixed again... 
         
         #self.true_drifters.set_offsets(drifterPositions)
         #self.true_observations.set_offsets(trueDrifterPosition)

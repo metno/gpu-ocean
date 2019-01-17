@@ -75,11 +75,12 @@ __device__ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
 
 
 __device__
-float3 computeFFaceFlux(int i, int j,
+float3 computeFFaceFlux(const int i, const int j, const int bx, const int nx_,
                 float R[3][block_height+4][block_width+4],
                 float Qx[3][block_height+2][block_width+2],
                 float Hi[block_height+1][block_width+1],
-                const float g_, const float coriolis_f, const float dx_) {
+                const float g_, const float coriolis_f, const float dx_,
+                const int wall_bc_) {
     const int l = j + 2; //Skip ghost cells (be consistent with reconstruction offsets)
     const int k = i + 1;
 
@@ -89,8 +90,8 @@ float3 computeFFaceFlux(int i, int j,
     const float eta_bar_m = R[0][l][k  ];
     const float up = R[1][l][k+1];
     const float um = R[1][l][k  ];
-    const float vp = R[2][l][k+1];
-    const float vm = R[2][l][k  ];
+    float vp = R[2][l][k+1];
+    float vm = R[2][l][k  ];
 
     const float2 Rp = make_float2(up - 0.5f*Qx[0][j][i+1], vp - 0.5f*Qx[1][j][i+1]);
     const float2 Rm = make_float2(um + 0.5f*Qx[0][j][i  ], vm + 0.5f*Qx[1][j][i  ]);
@@ -101,7 +102,12 @@ float3 computeFFaceFlux(int i, int j,
     // Qx[2] is really dx*Kx
     const float Kx_p = Qx[2][j][i+1];
     const float Kx_m = Qx[2][j][i  ];
-
+    
+    // Fix west boundary for reconstruction of eta (corresponding to Kx)
+    if ((wall_bc_ & 0x08) && (bx + i + 2 == 2    )) { vm = -vm; }
+    // Fix east boundary for reconstruction of eta (corresponding to Kx)
+    if ((wall_bc_ & 0x02) && (bx + i + 2 == nx_+2)) { vp = -vp; }
+    
     // Reconstruct h
     const float hp = eta_bar_p + H_face - (Kx_p + dx_*coriolis_f*vp)/(2.0f*g_);
     const float hm = eta_bar_m + H_face + (Kx_m + dx_*coriolis_f*vm)/(2.0f*g_);
@@ -118,19 +124,20 @@ float3 computeFFaceFlux(int i, int j,
 
 
 __device__
-float3 computeGFaceFlux(int i, int j,
+float3 computeGFaceFlux(const int i, const int j, const int by, const int ny_,
                 float R[3][block_height+4][block_width+4],
                 float Qy[3][block_height+2][block_width+2],
                 float Hi[block_height+1][block_width+1],
-                const float g_, const float coriolis_fm, const float coriolis_fp, const float dy_) {
+                const float g_, const float coriolis_fm, const float coriolis_fp, const float dy_,
+                const int wall_bc_) {
     const int l = j + 1;
     const int k = i + 2; //Skip ghost cells
     // Q at interface from the right and left
     // Variables to reconstruct h from u, v, K, L
     const float eta_bar_p = R[0][l+1][k];
     const float eta_bar_m = R[0][l  ][k];
-    const float up = R[1][l+1][k];
-    const float um = R[1][l  ][k];
+    float up = R[1][l+1][k];
+    float um = R[1][l  ][k];
     const float vp = R[2][l+1][k];
     const float vm = R[2][l  ][k];
 
@@ -144,6 +151,11 @@ float3 computeGFaceFlux(int i, int j,
     const float Ly_p = Qy[2][j+1][i];
     const float Ly_m = Qy[2][j  ][i];
 
+    // Fix south boundary for reconstruction of eta (corresponding to Ly)
+    if ((wall_bc_ & 0x04) && (by + j + 2 == 2    )) { um = -um; }
+    // Fix north boundary for reconstruction of eta (corresponding to Ly)
+    if ((wall_bc_ & 0x01) && (by + j + 2 == ny_+2)) { up = -up; }
+    
     // Reconstruct h
     const float hp = eta_bar_p + H_face - ( Ly_p - dy_*coriolis_fp*up)/(2.0f*g_);
     const float hm = eta_bar_m + H_face + ( Ly_m - dy_*coriolis_fm*um)/(2.0f*g_);
@@ -378,10 +390,23 @@ __global__ void swe_2D(
                 Qx[0][j][i] = minmodSlope(left_u, center_u, right_u, theta_);
             }
 
-            const float left_v   = R[2][l][k-1];
-            const float center_v = R[2][l][k  ];
-            const float right_v  = R[2][l][k+1];
+            float left_v   = R[2][l][k-1];
+            float center_v = R[2][l][k  ];
+            float right_v  = R[2][l][k+1];
             Qx[1][j][i] = minmodSlope(left_v, center_v, right_v, theta_);
+            
+            // Enforce wall boundary conditions for Kx:
+            int global_thread_id_x = bx + i + 1; // index including ghost cells'
+            // Western BC
+            if (wall_bc_ & 0x08) {
+                if (global_thread_id_x < 3    ) { left_v   = -left_v;   }
+                if (global_thread_id_x < 2    ) { center_v = -center_v; }
+            }
+            // Eastern BC
+            if (wall_bc_ & 0x02) {
+                if (global_thread_id_x > nx_  ) { right_v  = -right_v;  }
+                if (global_thread_id_x > nx_+1) { center_v = -center_v; }
+            }
 
             // by + j + 2 = global thread id + ghost cells
             const float coriolis_f = f_ + beta_ * ((by + j + 2)-y_zero_reference_cell_ + 0.5f)*dy_;
@@ -400,8 +425,8 @@ __global__ void swe_2D(
     __syncthreads();
     
     // Compute flux along x axis
-    float3 flux_diff = (  computeFFaceFlux(tx+1, ty, R, Qx, Hi,g_, coriolis_f_central, dx_) 
-                        - computeFFaceFlux(tx  , ty, R, Qx, Hi,g_, coriolis_f_central, dx_)) / dx_;
+    float3 flux_diff = (  computeFFaceFlux(tx+1, ty, bx, nx_, R, Qx, Hi,g_, coriolis_f_central, dx_, wall_bc_) 
+                        - computeFFaceFlux(tx  , ty, bx, nx_, R, Qx, Hi,g_, coriolis_f_central, dx_, wall_bc_)) / dx_;
     __syncthreads();
 
     //Reconstruct slopes along y axis
@@ -417,11 +442,10 @@ __global__ void swe_2D(
             const float center_eta = R[0][l  ][k];
             const float upper_eta  = R[0][l+1][k];
 
-            const float lower_u  = R[1][l-1][k];
-            const float center_u = R[1][l  ][k];
-            const float upper_u  = R[1][l+1][k];
+            float lower_u  = R[1][l-1][k];
+            float center_u = R[1][l  ][k];
+            float upper_u  = R[1][l+1][k];
             Qx[0][j][i] = minmodSlope(lower_u, center_u, upper_u, theta_);
-
 
             {
                 const float lower_v  = R[2][l-1][k];
@@ -430,6 +454,19 @@ __global__ void swe_2D(
                 Qx[1][j][i] = minmodSlope(lower_v, center_v, upper_v, theta_);
             }
 
+            // Enforce wall boundary conditions for Ly
+            int global_thread_id_y = by + j + 1; // index including ghost cells
+            // southern BC
+            if (wall_bc_ & 0x04) {
+                if (global_thread_id_y < 3    ) { lower_u  = -lower_u;  }
+                if (global_thread_id_y < 2    ) { center_u = -center_u; }
+            }
+            // northern BC
+            if (wall_bc_ & 0x01) {
+                if (global_thread_id_y > ny_  ) { upper_u  = -upper_u;  }
+                if (global_thread_id_y > ny_+1) { center_u = -center_u; }
+            }
+            
             const float thread_y_diff = by + j - 1 + 2 - y_zero_reference_cell_; // (by + j - 1) + 2 = global cell id + ghost cell
             const float center_coriolis_f = f_ + beta_ * (thread_y_diff        + 0.5f)*dy_;
             const float lower_coriolis_f  = f_ + beta_ * (thread_y_diff - 1.0f + 0.5f)*dy_;
@@ -452,8 +489,8 @@ __global__ void swe_2D(
     __syncthreads();
 
     //Compute fluxes along the y axis    
-    flux_diff = flux_diff + (  computeGFaceFlux(tx, ty+1, R, Qx, Hi, g_, coriolis_f_central,   coriolis_f_upper, dy_)
-                             - computeGFaceFlux(tx, ty  , R, Qx, Hi, g_,   coriolis_f_lower, coriolis_f_central, dy_)) / dy_;
+    flux_diff = flux_diff + (  computeGFaceFlux(tx, ty+1, by, ny_, R, Qx, Hi, g_, coriolis_f_central,   coriolis_f_upper, dy_, wall_bc_)
+                             - computeGFaceFlux(tx, ty  , by, ny_, R, Qx, Hi, g_,   coriolis_f_lower, coriolis_f_central, dy_, wall_bc_)) / dy_;
     __syncthreads();
 
 

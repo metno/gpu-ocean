@@ -27,6 +27,8 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import time
 import abc
+import warnings
+
 
 import pycuda.driver as cuda
 
@@ -37,10 +39,31 @@ from SWESimulators import Common
 from SWESimulators import DataAssimilationUtils as dautils
 
 class BaseOceanStateEnsemble(object):
-
+    """
+    Class that holds an ensemble of ocean states.
+    
+    gpu_ctx: GPU context
+    numParticles: Number of particles, also known as number of ensemble members
+    sim: A simulator which represent the initial state of all particles
+    num_drifters = 1: Number of drifters that provide us observations
+    observation_type: ObservationType enumerator object
+    observation_variance: Can be a scalar or a covariance matrix
+    observation_variance_factor: If observation_variance is not provided, the 
+        observation_variance will be (observation_variance_factor*dx)**2
+    initialization_variance_factor_drifter_position: Gives an initial perturbation of 
+        drifter positions if non-zero
+    initialization_variance_factor_ocean_field: Gives an initial perturbation of 
+        the ocean field if non-zero
+    """
     __metaclass__ = abc.ABCMeta
         
-    def __init__(self, numParticles, gpu_ctx, observation_type=dautils.ObservationType.DrifterPosition):
+    def __init__(self, gpu_ctx, numParticles, sim, 
+                 num_drifters = 1,
+                 observation_type=dautils.ObservationType.DrifterPosition,
+                 observation_variance = None, 
+                 observation_variance_factor = 5.0,
+                 initialization_variance_factor_drifter_position = 0.0,
+                 initialization_variance_factor_ocean_field = 0.0):
         
         self.gpu_ctx = gpu_ctx
         self.gpu_stream = cuda.Stream()
@@ -75,7 +98,13 @@ class BaseOceanStateEnsemble(object):
         self.rUnderDrifter_hu = []
         self.rUnderDrifter_hv = []
         self.tArray = []
-
+        
+        self._setGridInfoFromSim(sim)
+        self._setStochasticVariables(observation_variance = observation_variance, 
+                                     observation_variance_factor = observation_variance_factor,
+                                     initialization_variance_factor_drifter_position = initialization_variance_factor_drifter_position,
+                                     initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field)        
+        self._init(driftersPerOceanModel=num_drifters)
         
     def cleanUp(self):
         for oceanState in self.particles:
@@ -85,8 +114,8 @@ class BaseOceanStateEnsemble(object):
             self.observation_buffer.release()
         self.gpu_ctx = None
         
-    # IMPROVED
-    def setGridInfo(self, nx, ny, dx, dy, dt, 
+        
+    def _setGridInfo(self, nx, ny, dx, dy, dt, 
                     boundaryConditions=Common.BoundaryConditions(), 
                     eta=None, hu=None, hv=None, H=None):
         self.nx = nx
@@ -125,32 +154,37 @@ class BaseOceanStateEnsemble(object):
         if self.base_H is None:
             waterDepth = 10
             self.base_H = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C')*waterDepth
-        
-        # Ensure that parameters are initialized:
-        self.setParameters()
 
-    def setGridInfoFromSim(self, sim):
+        
+    def _setGridInfoFromSim(self, sim):
+        
         eta, hu, hv = sim.download()
         Hi = sim.downloadBathymetry()[0]
-        self.setGridInfo(sim.nx, sim.ny, sim.dx, sim.dy, sim.dt,
+        self._setGridInfo(sim.nx, sim.ny, sim.dx, sim.dy, sim.dt,
                          sim.boundary_conditions,
                          eta=eta, hu=hu, hv=hv, H=Hi)
-        self.setParameters(f=sim.f, g=sim.g, beta=sim.coriolis_beta, r=sim.r, wind=sim.wind_stress)
-    
-    def setParameters(self, f=0, g=9.81, beta=0, r=0, wind=WindStress.WindStress()):
-        self.g = g
-        self.f = f
-        self.beta = beta
-        self.r = r
-        self.wind = wind
-    
-    def setStochasticVariables(self, 
+        self.g = sim.g
+        self.f = sim.f
+        self.beta = sim.coriolis_beta
+        self.r = sim.r
+        self.wind = sim.wind_stress
+        
+        self.small_scale_perturbation = sim.small_scale_perturbation
+        self.small_scale_perturbation_amplitude = None
+        self.small_scale_perturbation_interpolation_factor = None
+        
+        if self.small_scale_perturbation:
+            self.small_scale_perturbation_amplitude = sim.small_scale_model_error.soar_q0
+            self.small_scale_perturbation_interpolation_factor = sim.small_scale_perturbation_interpolation_factor
+            
+        
+        
+    def _setStochasticVariables(self, 
                                observation_variance = None, 
                                observation_variance_factor = 5.0,
-                               small_scale_perturbation_amplitude = 0.0,
                                initialization_variance_factor_drifter_position = 0.0,
-                               initialization_variance_factor_ocean_field = 0.0 
-                              ):
+                               initialization_variance_factor_ocean_field = 0.0):
+              
 
         # Setting observation variance:
         self.observation_variance = observation_variance
@@ -176,8 +210,6 @@ class BaseOceanStateEnsemble(object):
         self.initialization_cov_drifters = np.eye(2)*self.initialization_variance_drifters
         self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
         
-        self.small_scale_perturbation_amplitude = small_scale_perturbation_amplitude
-    
         # When initializing an ensemble, each member should be perturbed so that they 
         # have slightly different starting point.
         # This factor should be multiplied to the small_scale_perturbation_amplitude for that 
@@ -226,10 +258,11 @@ class BaseOceanStateEnsemble(object):
         
         
     def _addObservation(self, observedDrifterPositions):
-        # Observations are stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
-        # where n is time step and i is drifter
-        
-        #print("Adding observation for time " + str(self.t))
+        """
+        Adds the given observed drifter positions to the observedDrifterPosition 
+        array. Observations are there stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
+        where n is time step and i is drifter
+        """
         self.observedDrifterPositions.append([self.t, observedDrifterPositions])
 
         
@@ -248,13 +281,13 @@ class BaseOceanStateEnsemble(object):
 
         Structure on the output:
         [
-        particle 1:  [u_1, v_1], ... , [u_D, v_D],
-        particle 2:  [u_1, v_1], ... , [u_D, v_D],
-        particle Ne: [u_1, v_1], ... , [u_D, v_D]
+        particle 1:  [hu_1, hv_1], ... , [hu_D, hv_D],
+        particle 2:  [hu_1, hv_1], ... , [hu_D, hv_D],
+        particle Ne: [hu_1, hv_1], ... , [hu_D, hv_D]
         ]
         numpy array with dimensions (particles, drifters, 2)
 
-        The two values per particle drifter is either velocity or position, depending on 
+        The two values per particle drifter is either volume transport or position, depending on 
         the observation type.
         """
         if self.observation_type == dautils.ObservationType.DrifterPosition:
@@ -267,7 +300,7 @@ class BaseOceanStateEnsemble(object):
                                       self.driftersPerOceanModel, 2))
 
             trueState = self.observeTrueState()
-            # trueState = [[x1, y1, u1, v1], ..., [xD, yD, uD, vD]]
+            # trueState = [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
 
             for p in range(self.numParticles):
                 if gpu:
@@ -295,16 +328,14 @@ class BaseOceanStateEnsemble(object):
                 
                 else:
                     # Downloading ocean state without ghost cells
-                    Hi = self.particles[0].downloadBathymetry()[1]
                     eta, hu, hv = self.downloadParticleOceanState(p)
 
                     for d in range(self.driftersPerOceanModel):
                         id_x = np.int(np.floor(trueState[d,0]/self.dx))
                         id_y = np.int(np.floor(trueState[d,1]/self.dy))
 
-                        depth = Hi[id_y, id_x]
-                        observedState[p,d,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
-                        observedState[p,d,1] = hv[id_y, id_x]/(depth + eta[id_y, id_x])
+                        observedState[p,d,0] = hu[id_y, id_x]
+                        observedState[p,d,1] = hv[id_y, id_x]
                         
                         
             #print "Particle positions obs index:"
@@ -323,10 +354,12 @@ class BaseOceanStateEnsemble(object):
     def observeTrueState(self):
         """
         Applying the observation operator on the syntetic true state.
+        The observation should be in state space, and therefore consists of 
+        hu and hv, and not u and v.
 
         Returns a numpy array with D drifter positions and drifter velocities
-        [[x_1, y_1, u_1, v_1], ... , [x_D, y_D, u_D, v_D]]
-        If the observation operator is drifter positions, u and v are not included.
+        [[x_1, y_1, hu_1, hv_1], ... , [x_D, y_D, hu_D, hv_D]]
+        If the observation operator is drifter positions, hu and hv are not included.
         """
         if self.observedDrifterPositions[-1][0] != self.t:
             self._addObservation(self.observeTrueDrifters())
@@ -342,9 +375,15 @@ class BaseOceanStateEnsemble(object):
                 y = self.observedDrifterPositions[-1][1][d,1]
                 dx = x - self.observedDrifterPositions[-2][1][d, 0]
                 dy = y - self.observedDrifterPositions[-2][1][d, 1]
+                 
                 u = dx/dt
                 v = dy/dt
-                trueState[d,:] = np.array([x, y , u, v])
+                
+                depth = self.particles[self.obs_index].downloadBathymetry()[1][id_y, id_x]
+                hu = u*depth
+                hv = v*depth
+                
+                trueState[d,:] = np.array([x, y , hu, hv])
             return trueState
 
         elif self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
@@ -359,10 +398,10 @@ class BaseOceanStateEnsemble(object):
 
                 # Downloading ocean state without ghost cells
                 eta, hu, hv = self.downloadParticleOceanState(self.obs_index)
-                u = hu[id_y, id_x]/(depth + eta[id_y, id_x])
-                v = hv[id_y, id_x]/(depth + eta[id_y, id_x])
-
-                trueState[d,:] = np.array([x, y, u, v])
+                true_hu = hu[id_y, id_x]
+                true_hv = hv[id_y, id_x]
+                
+                trueState[d,:] = np.array([x, y, true_hu, true_hv])
             return trueState
 
     def step(self, t, stochastic_particles=True, stochastic_truth=True):
@@ -413,8 +452,8 @@ class BaseOceanStateEnsemble(object):
         if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
            self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
             # Change structure of trueState
-            # from: [[x1, y1, u1, v1], ..., [xD, yD, uD, vD]]
-            # to:   [[u1, v1], ..., [uD, vD]]
+            # from: [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
+            # to:   [[hu1, hv1], ..., [huD, hvD]]
             trueState = trueState[:, 2:]
 
         #else, structure of trueState is already fine: [[x1, y1], ..., [xD, yD]]
@@ -693,7 +732,7 @@ class BaseOceanStateEnsemble(object):
             circ = matplotlib.patches.Circle((cell_id_x, cell_id_y), 1, fill=False)
             ax.add_patch(circ)    
     
-    def plotEnsemble(self):
+    def plotEnsemble(self, num_particles=5):
         """
         Utility function to plot:
             - the true state
@@ -704,7 +743,7 @@ class BaseOceanStateEnsemble(object):
         
         observed_drifter_positions = self.observeTrueDrifters()
 
-        numParticlePlots = min(self.getNumParticles(), 5)
+        numParticlePlots = min(self.getNumParticles(), num_particles)
         numPlots = numParticlePlots + 3
         plotCols = 4
         fig = plt.figure(figsize=(7, 2*numPlots))
@@ -954,6 +993,7 @@ class BaseOceanStateEnsemble(object):
 
 
         # PLOT POSITIONS OF PARTICLES AND OBSERVATIONS
+
         ax = plt.subplot2grid((plotRows,3), (0,0), polar=True)
         self._fillPolarPlot(ax, drifter_id=0, printInfo=printInfo)
 
