@@ -235,8 +235,21 @@ __global__ void ctcsStepKernel(
         const float h_p0 = H_p0 + eta_p0;
         const float h_00 = H_00 + eta_00;
         const float h_x = 0.5f*(h_00 + h_p0); //Could possibly use h for pressure terms instead of H
+        
+        // Different options for discretizing the pressure term:
+        
+        // Option 1: The version we have used all along:
+        //const float P_x_hat = -0.5f*g_*(eta_p0*eta_p0 - eta_00*eta_00);
+        //const float P_x = -g_*h_x*(eta_p0 - eta_00) + P_x_hat;
+        
+        // Option 2: The version that is closer (but no equal to) the summary in part II of the MET report
         const float P_x_hat = -0.5f*g_*(eta_p0*eta_p0 - eta_00*eta_00);
-        const float P_x = -g_*h_x*(eta_p0 - eta_00) + P_x_hat;
+        const float P_x = -g_*H_x*(eta_p0 - eta_00) + P_x_hat;
+        
+        // Option 3: Corresponding to Lars Petter's compendium GEF4510 2014 (if we discard varying bathymetry)
+        //const float P_x = -0.5f*g_*(h_p0*h_p0 - h_00*h_00);
+
+        // It seems that options 2 and 3 gives the same results (at least for Kelvin waves)
         
         //Calculate nonlinear effects
         const float N_a = (U_p0 + U_00)*(U_p0 + U_00) / (H_p0 + eta_p0);
@@ -327,8 +340,17 @@ __global__ void ctcsStepKernel(
         const float h_0p = H_0p + eta_0p;
         const float h_00 = H_00 + eta_00;
         const float h_y = 0.5f*(h_00 + h_0p); //Could possibly use h for pressure terms instead of H
+        
+        // The version we have used all along:
+        //const float P_y_hat = -0.5f*g_*(eta_0p*eta_0p - eta_00*eta_00);
+        //const float P_y = -g_*h_y*(eta_0p - eta_00) + P_y_hat;
+        
+        // The version that is closer (but no equal to) the summary in part II of the MET report
         const float P_y_hat = -0.5f*g_*(eta_0p*eta_0p - eta_00*eta_00);
-        const float P_y = -g_*h_y*(eta_0p - eta_00) + P_y_hat;
+        const float P_y = -g_*H_y*(eta_0p - eta_00) + P_y_hat;
+        
+        // Corresponding to Lars Petter's compendium GEF4510 2014 (if we discard varying bathymetry)
+        //const float P_y = -0.5f*g_*(h_0p*h_0p - h_00*h_00);
         
         //Calculate nonlinear effects
         const float N_a = (V_0p + V_00)*(V_0p + V_00) / (H_0p + eta_0p);
