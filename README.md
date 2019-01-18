@@ -27,5 +27,7 @@ You should now be able to start a jupyter notebook server, open one of our noteb
 Have fun!
 
 # Download all data files
-> cd <project root directory>
-> wget -r -np -nH -R "index.html*" http://gpu-ocean.met.no:9000/gpu_ocean
+```
+cd <project root directory>
+wget -r -np -nH -R "index.html*" http://gpu-ocean.met.no:9000/gpu_ocean
+```
