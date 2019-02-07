@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is a part of GPU Ocean.
+
+Copyright (C) 2018  SINTEF Digital
+
 This python class implements a Ensemble of particles, each consisting of a single drifter in its own ocean state. The perturbation parameter is the wind direction.
-
-
-Copyright (C) 2018  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

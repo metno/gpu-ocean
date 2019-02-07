@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 
 """
-This python module implements 
+This software is part of GPU Ocean. 
+
+Copyright (C) 2016 SINTEF ICT, 
+Copyright (C) 2017-2019 SINTEF Digital
+
+This python module implements the finite-volume scheme proposed by
 Alina Chertock, Michael Dudzinski, A. Kurganov & Maria Lukacova-Medvidova (2016)
 Well-Balanced Schemes for the Shallow Water Equations with Coriolis Forces
-
-Copyright (C) 2016  SINTEF ICT
+without optimizing the recursive term.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
