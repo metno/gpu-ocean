@@ -1,8 +1,11 @@
 /*
-These OpenCL kernels generates random numbers for creating model error 
-based on given covariance relations.
+This software is part of GPU Ocean
 
-Copyright (C) 2018  SINTEF ICT
+Copyright (C) 2018 SINTEF Digital
+Copyright (C) 2018 Norwegian Meteorological Institute
+
+These CUDA kernels generates random numbers for creating model error 
+based on given covariance relations.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

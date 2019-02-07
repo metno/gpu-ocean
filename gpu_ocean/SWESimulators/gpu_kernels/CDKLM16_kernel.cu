@@ -1,11 +1,14 @@
 /*
-This CUDA kernel implements the Kurganov-Petrova numerical scheme
+This software is part of GPU Ocean. 
+
+Copyright (C) 2018, 2019 SINTEF Digital
+Copyright (C) 2018, 2019 Norwegian Meteorological Institute
+
+This CUDA kernel implements the CDKLM numerical scheme
 for the shallow water equations, described in
 A. Chertock, M. Dudzinski, A. Kurganov & M. Lukacova-Medvidova
 Well-Balanced Schemes for the Shallow Water Equations with Coriolis Forces,
 Numerische Mathematik 2016
-
-Copyright (C) 2016  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
