@@ -273,6 +273,14 @@ class CDKLM16(Simulator.Simulator):
         # get last timestep (including simulation time of last timestep)
         eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
         
+        # For some reason, some old netcdf had 3-dimensional bathymetry.
+        # This fix ensures that we only use a valid H
+        if len(H.shape) == 3:
+            print("norm diff H: ", np.linalg.norm(H[0,:,:] - H[1,:,:]))
+            H = H[0,:,:]
+       
+
+        
         return cls(gpu_ctx, \
                  eta0, hu0, hv0, \
                  H, \
