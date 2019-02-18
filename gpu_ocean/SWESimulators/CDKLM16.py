@@ -443,7 +443,7 @@ class CDKLM16(Simulator.Simulator):
                            boundary_conditions)
             
     
-    def perturbState(self, q0_scale=None):
+    def perturbState(self, q0_scale=1):
         self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
     def downloadBathymetry(self):
