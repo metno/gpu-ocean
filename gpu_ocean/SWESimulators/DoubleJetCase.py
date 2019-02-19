@@ -33,6 +33,25 @@ from scipy.integrate.quadrature import AccuracyWarning
 
 from SWESimulators import CDKLM16, Common
 
+class DoubleJetPerturbationType:
+    """
+    An enum-type class for defining different types of perturbations 
+    for the double jet case.
+    """
+    SteadyState = 1
+    StandardPerturbedState = 2
+    NormalPerturbedState = 3
+    UniformPerturbedState = 4
+    ModelErrorPerturbation = 5
+    
+    @staticmethod
+    def _assert_valid(pert_type):
+        assert(pert_type == DoubleJetPerturbationType.SteadyState or \
+               pert_type == DoubleJetPerturbationType.StandardPerturbedState or \
+               pert_type == DoubleJetPerturbationType.NormalPerturbedState or \
+               pert_type == DoubleJetPerturbationType.UniformPerturbedState or \
+               pert_type == DoubleJetPerturbationType.ModelErrorPerturbation), \
+        'Provided double jet perturbation type ' + str(pert_type) + ' is invalid'    
 
 class DoubleJetCase:
     """
@@ -40,14 +59,20 @@ class DoubleJetCase:
     """
     
     
-    def __init__(self, gpu_ctx):
+    def __init__(self, gpu_ctx, 
+                 perturbation_type=DoubleJetPerturbationType.SteadyState,
+                 model_error = True):
         """
         Class that generates initial conditions for a double jet case (both perturbed and unperturbed)
         """
         # The following parameters are the standard choices we have made for our double jet case.
         # If any of them are to be altered, they should be made optional input parameters to the
         # constructor, with the values below given as default parameters.
-                
+        
+        # Check that the provided perturbation type is valid
+        DoubleJetPerturbationType._assert_valid(perturbation_type)
+        self.perturbation_type = perturbation_type
+        
         # Domain-related parameters
         self.phi_0 =  72*np.pi/180.0
         self.phi_05 = 75*np.pi/180.0
@@ -92,7 +117,6 @@ class DoubleJetCase:
         self.tan = np.tan(self.phi_05)
         
         
-        
         # Initial data
         sim_h_init, redef_hu_init = self._initSteadyState()
         sim_h_init_mean = sim_h_init.mean()
@@ -133,7 +157,10 @@ class DoubleJetCase:
             "r": 0.0,
             "H": self.base_cpu_Hi, 
             "rk_order": 2,
-            "boundary_conditions": Common.BoundaryConditions(2,2,2,2)
+            "boundary_conditions": Common.BoundaryConditions(2,2,2,2),
+            "small_scale_perturbation": model_error,
+            "small_scale_perturbation_amplitude": 0.0003
+            "small_scale_perturbation_interpolation_factor": 5,
         }
         
         self.base_init = {
@@ -153,6 +180,18 @@ class DoubleJetCase:
         self.gpu_ctx = None
         self.sim_args = None
         self.base_init = None
+        
+    def getInitConditions(self):
+        if self.perturbation_type == DoubleJetPerturbationType.SteadyState or
+            self.perturbation_type == DoubleJetPerturbationType.ModelErrorPerturbation:
+            return self.getBaseInitConditions()
+        elif self.perturbation_type == DoubleJetPerturbationType.StandardPerturbedState:
+            return self.getStandardPerturbedInitConditions()
+        elif self.perturbation_type == DoubleJetPerturbationType.NormalPerturbedState:
+            return self.getNormalPerturbedInitConditions()
+        elif self.perturbation_type == DoubleJetPerturbationType.UniformPerturbedState:
+            return self.getUniformPerturbedInitConditions()
+
     
     def getBaseInitConditions(self):
         """
@@ -168,7 +207,16 @@ class DoubleJetCase:
         mid_cell_x_neg = int(self.nx/5) + self.ghosts[3]
         return self._create_perturbed_init(mid_cell_x_pos, mid_cell_x_neg)
 
-    
+    def getNormalPerturbedInitConditions(self):
+        """
+        Provides the standard perturbed double jet initial conditions, 
+        using two eta-bumps at slightly perturbed 
+        """
+        mid_cell_x_pos = np.random.normal(self.nx/5, 50)
+        mid_cell_x_neg = np.random.normal(self.nx/5, 50)
+        print("mid_cell_x_pos, mid_cell_x_neg", mid_cell_x_pos, mid_cell_x_neg)
+        return self._create_perturbed_init(mid_cell_x_pos, mid_cell_x_neg)
+        
     def getUniformPerturbedInitConditions(self):
         """
         Provides the standard perturbed double jet initial conditions, using two eta-bumps at random x-positions
@@ -188,8 +236,8 @@ class DoubleJetCase:
         distance_between_latitudes = 111e3 # m
         radius_y_cells = distance_between_longitudes_75*180/self.dx
 
-        mid_cell_y_pos = int(1*eta_pert.shape[0]/4)
-        mid_cell_y_neg = int(3*eta_pert.shape[0]/4)
+        mid_cell_y_pos = int(1*self.ny/4)
+        mid_cell_y_neg = int(3*self.ny/4)
         #mid_cell_x_pos = int(nx/5) + ghosts[3]
         #mid_cell_x_neg = int(nx/5) + ghosts[3]
         pert_alpha = self.phi_delta #1/6 # 1/3

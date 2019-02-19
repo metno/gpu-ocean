@@ -40,7 +40,7 @@ class ObservationType:
         assert(obs_type == ObservationType.DrifterPosition or \
                obs_type == ObservationType.UnderlyingFlow or \
                obs_type == ObservationType.DirectUnderlyingFlow), \
-        'Provided observation type ' + str(ot) + ' is invalid'
+        'Provided observation type ' + str(obs_type) + ' is invalid'
 
 
     
