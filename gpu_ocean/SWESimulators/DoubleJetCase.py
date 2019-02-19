@@ -159,8 +159,8 @@ class DoubleJetCase:
             "rk_order": 2,
             "boundary_conditions": Common.BoundaryConditions(2,2,2,2),
             "small_scale_perturbation": model_error,
-            "small_scale_perturbation_amplitude": 0.0003
-            "small_scale_perturbation_interpolation_factor": 5,
+            "small_scale_perturbation_amplitude": 0.0003,
+            "small_scale_perturbation_interpolation_factor": 5
         }
         
         self.base_init = {
@@ -182,7 +182,7 @@ class DoubleJetCase:
         self.base_init = None
         
     def getInitConditions(self):
-        if self.perturbation_type == DoubleJetPerturbationType.SteadyState or
+        if self.perturbation_type == DoubleJetPerturbationType.SteadyState or \
             self.perturbation_type == DoubleJetPerturbationType.ModelErrorPerturbation:
             return self.getBaseInitConditions()
         elif self.perturbation_type == DoubleJetPerturbationType.StandardPerturbedState:
@@ -212,8 +212,8 @@ class DoubleJetCase:
         Provides the standard perturbed double jet initial conditions, 
         using two eta-bumps at slightly perturbed 
         """
-        mid_cell_x_pos = np.random.normal(self.nx/5, 50)
-        mid_cell_x_neg = np.random.normal(self.nx/5, 50)
+        mid_cell_x_pos = np.random.normal(self.nx/5, 10)
+        mid_cell_x_neg = np.random.normal(self.nx/5, 10)
         print("mid_cell_x_pos, mid_cell_x_neg", mid_cell_x_pos, mid_cell_x_neg)
         return self._create_perturbed_init(mid_cell_x_pos, mid_cell_x_neg)
         
