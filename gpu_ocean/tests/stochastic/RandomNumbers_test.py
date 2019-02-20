@@ -18,6 +18,9 @@ class RandomNumbersTest(OceanStateNoiseTestParent):
     def test_random_uniform(self):
         self.create_large_noise()
 
+        if not self.large_noise.use_lcg:
+            self.skipTest('not using LCG for RNG')
+
         self.large_noise.generateUniformDistribution()
 
         U = self.large_noise.getRandomNumbers()
@@ -137,6 +140,9 @@ class RandomNumbersTest(OceanStateNoiseTestParent):
     def test_seed_diff(self):
         self.create_noise()
         tol = 6
+
+        if not self.noise.use_lcg:
+            self.skipTest('not using LCG for RNG')
         
         init_seed = self.noise.getSeed()/self.floatMax
         self.noise.generateNormalDistribution()
