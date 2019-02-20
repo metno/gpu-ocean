@@ -98,7 +98,7 @@ class DoubleJetCase:
         self.ny = 300
         self.dy = (y_north - y_south)/self.ny
         self.dx = self.dy
-        print("(dx, dy): ", (self.dx, self.dy))
+        #print("(dx, dy): ", (self.dx, self.dy))
         self.nx = 500
         
         self.ghosts = np.array([2,2,2,2]) # north, east, south, west
@@ -120,27 +120,27 @@ class DoubleJetCase:
         # Initial data
         sim_h_init, redef_hu_init = self._initSteadyState()
         sim_h_init_mean = sim_h_init.mean()
-        print("sim_h_init_mean: ", sim_h_init_mean)
+        #print("sim_h_init_mean: ", sim_h_init_mean)
         
         self.delta_eta = np.max(sim_h_init) - np.min(sim_h_init)
         
         
         max_dt = 0.25*self.dx/(np.max(redef_hu_init/sim_h_init + np.sqrt(self.g*sim_h_init)))
         dt = 0.8*max_dt
-        print("max_dt: ", max_dt)
-        print("dt: ", dt)
-        print("max dt gravity:  ", 0.25*self.dx/(np.max(np.sqrt(self.g*sim_h_init))))
-        print("max dt momentum: ", 0.25*self.dx/(np.max(redef_hu_init/sim_h_init)))
-        print("max/min sim_h_init:", np.max(sim_h_init), np.min(sim_h_init))
+        #print("max_dt: ", max_dt)
+        #print("dt: ", dt)
+        #print("max dt gravity:  ", 0.25*self.dx/(np.max(np.sqrt(self.g*sim_h_init))))
+        #print("max dt momentum: ", 0.25*self.dx/(np.max(redef_hu_init/sim_h_init)))
+        #print("max/min sim_h_init:", np.max(sim_h_init), np.min(sim_h_init))
         
         self.base_cpu_Hi = np.ones((self.dataShape[0]+1, self.dataShape[1]+1), dtype=np.float32) * sim_h_init_mean
         self.base_cpu_eta = -np.ones(self.dataShape, dtype=np.float32) * sim_h_init_mean
         self.base_cpu_hu = np.zeros(self.dataShape, dtype=np.float32)
         self.base_cpu_hv = np.zeros(self.dataShape, dtype=np.float32)
 
-        print("sim_h_init.shape: ", sim_h_init.shape)
-        print("eta0.shape", self.base_cpu_eta.shape)
-        print("(ny, nx): ", (self.ny, self.nx))
+        #print("sim_h_init.shape: ", sim_h_init.shape)
+        #print("eta0.shape", self.base_cpu_eta.shape)
+        #print("(ny, nx): ", (self.ny, self.nx))
 
         for i in range(self.dataShape[1]):
             self.base_cpu_eta[:,i] += sim_h_init
@@ -214,7 +214,7 @@ class DoubleJetCase:
         """
         mid_cell_x_pos = np.random.normal(self.nx/5, 10)
         mid_cell_x_neg = np.random.normal(self.nx/5, 10)
-        print("mid_cell_x_pos, mid_cell_x_neg", mid_cell_x_pos, mid_cell_x_neg)
+        #print("mid_cell_x_pos, mid_cell_x_neg", mid_cell_x_pos, mid_cell_x_neg)
         return self._create_perturbed_init(mid_cell_x_pos, mid_cell_x_neg)
         
     def getUniformPerturbedInitConditions(self):
@@ -223,7 +223,7 @@ class DoubleJetCase:
         """
         mid_cell_x_pos = int(np.random.rand()*self.nx + self.ghosts[3])
         mid_cell_x_neg = int(np.random.rand()*self.nx + self.ghosts[3])
-        print("mid_cell_x_pos, mid_cell_x_neg", mid_cell_x_pos, mid_cell_x_neg)
+        #print("mid_cell_x_pos, mid_cell_x_neg", mid_cell_x_pos, mid_cell_x_neg)
         return self._create_perturbed_init(mid_cell_x_pos, mid_cell_x_neg)
         
     def _create_perturbed_init(self, mid_cell_x_pos, mid_cell_x_neg):
@@ -244,9 +244,9 @@ class DoubleJetCase:
         pert_beta = self.phi_delta/5 # 1/30 # 1/15
         h_hat = 0.12*self.delta_eta
 
-        print("phi_delta:  ", self.phi_delta)
-        print("pert_alpha: ", pert_alpha)
-        print("pert_beta:  ", pert_beta)
+        #print("phi_delta:  ", self.phi_delta)
+        #print("pert_alpha: ", pert_alpha)
+        #print("pert_beta:  ", pert_beta)
 
 
         for j in range(self.ny+self.ghosts[2]+self.ghosts[0]):
@@ -292,19 +292,19 @@ class DoubleJetCase:
 
             dy_phi = (self.phi_1 - self.phi_0)/self.ny
             sim_phi = np.linspace(self.phi_0 - 2*dy_phi, self.phi_1 + 2*dy_phi, self.ny+4)
-            print("dy_phi", dy_phi)
-            print("(dy, dx)", (self.dy, self.dx))
+            #print("dy_phi", dy_phi)
+            #print("(dy, dx)", (self.dy, self.dx))
             #print("sim_phi.shape: ", sim_phi.shape)
 
             # 1)
             sim_u_init = self._init_u(sim_phi)
-            print("sim_u_init.shape: ", sim_u_init.shape)                         
+            #print("sim_u_init.shape: ", sim_u_init.shape)                         
 
             # 2)
             sim_h_init = self._generate_h0(sim_phi, self.phi_0)
 
             sim_h_init_mean = np.mean(sim_h_init)
-            print("sim_h_init_mean: ", sim_h_init_mean)
+            #print("sim_h_init_mean: ", sim_h_init_mean)
 
             #sim_hu_init = sim_u_init*sim_h_init
 

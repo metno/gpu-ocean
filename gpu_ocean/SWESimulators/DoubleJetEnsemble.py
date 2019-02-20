@@ -3,8 +3,7 @@
 """
 This python class implements an ensemble of double jet cases
 
-
-Copyright (C) 2018  SINTEF ICT
+Copyright (C) 2019  SINTEF Digital
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -34,7 +33,9 @@ import pycuda.driver as cuda
 from SWESimulators import CDKLM16
 from SWESimulators import GPUDrifterCollection
 from SWESimulators import OceanNoiseEnsemble
+from SWESimulators import BaseOceanStateEnsemble
 from SWESimulators import Common
+from SWESimulators import DoubleJetCase
 from SWESimulators import DataAssimilationUtils as dautils
 
 
@@ -43,6 +44,9 @@ try:
     from importlib import reload
 except:
     pass
+
+reload(BaseOceanStateEnsemble)
+reload(OceanNoiseEnsemble)
 
 class DoubleJetEnsemble(OceanNoiseEnsemble.OceanNoiseEnsemble):
     """
@@ -55,58 +59,49 @@ class DoubleJetEnsemble(OceanNoiseEnsemble.OceanNoiseEnsemble):
     """
     
     def __init__(self, gpu_ctx, numParticles, doubleJetCase,
-    
+                 num_drifters = 1,
+                 observation_type=dautils.ObservationType.DrifterPosition,
+                 observation_variance = None, 
+                 observation_variance_factor = 5.0,
+                 initialization_variance_factor_drifter_position = 0.0,
+                 initialization_variance_factor_ocean_field = 0.0):
+        
+        assert(doubleJetCase.__class__.__name__=="DoubleJetCase"), \
+            'This class can only be used with a DoubleJetCase object, and not a Simulator'
+        
+        # Create a simulator from the DoubleJetCase object
+        self.doubleJetCase = doubleJetCase
+        base_init_args, base_init_cond = doubleJetCase.getBaseInitConditions()
+        tmp_sim = CDKLM16.CDKLM16(**base_init_args, **base_init_cond)
+        
+        # Call super class:
+        print('Calling parent constructor from DoubleJetEnsemble')
+        super(DoubleJetEnsemble, self).__init__(gpu_ctx, numParticles, tmp_sim,
+                                                num_drifters,
+                                                observation_type, 
+                                                observation_variance,
+                                                observation_variance_factor,
+                                                initialization_variance_factor_drifter_position,
+                                                initialization_variance_factor_ocean_field)
+                                                
+                                                
     
     def _init(self, driftersPerOceanModel=1):
-        self.driftersPerOceanModel = np.int32(driftersPerOceanModel)
-        
-        # Define mid-points for the different drifters 
-        # Decompose     the domain, so that we spread the drifters as much as possible
-        sub_domains_y = np.int(np.round(np.sqrt(self.driftersPerOceanModel)))
-        sub_domains_x = np.int(np.ceil(1.0*self.driftersPerOceanModel/sub_domains_y))
-        self.midPoints = np.empty((driftersPerOceanModel, 2))
-        for sub_y in range(sub_domains_y):
-            for sub_x in range(sub_domains_x):
-                drifter_id = sub_y*sub_domains_x + sub_x
-                if drifter_id >= self.driftersPerOceanModel:
-                    break
-                self.midPoints[drifter_id, 0]  = (sub_x + 0.5)*self.nx*self.dx/sub_domains_x
-                self.midPoints[drifter_id, 1]  = (sub_y + 0.5)*self.ny*self.dy/sub_domains_y
-              
         
         for i in range(self.numParticles+1):
-            self.particles[i] = CDKLM16.CDKLM16(self.gpu_ctx, \
-                                                self.base_eta, self.base_hu, self.base_hv, \
-                                                self.base_H, \
-                                                self.nx, self.ny, self.dx, self.dy, self.dt, \
-                                                self.g, self.f, self.r, \
-                                                boundary_conditions=self.boundaryConditions, \
-                                                write_netcdf=False, \
-                                                small_scale_perturbation=True, \
-                                                small_scale_perturbation_amplitude=self.small_scale_perturbation_amplitude,
-                                                small_scale_perturbation_interpolation_factor=self.small_scale_perturbation_interpolation_factor)
             
-            if self.initialization_variance_factor_ocean_field != 0.0:
-                self.particles[i].perturbState(q0_scale=self.initialization_variance_factor_ocean_field)
+            particle_args, particle_init = self.doubleJetCase.getInitConditions()
+            self.particles[i] = CDKLM16.CDKLM16(**particle_args, **particle_init)
             
-            drifters = GPUDrifterCollection.GPUDrifterCollection(self.gpu_ctx, driftersPerOceanModel,
-                                             observation_variance=self.observation_variance,
-                                             boundaryConditions=self.boundaryConditions,
-                                             domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
-            
-            initPos = np.empty((self.driftersPerOceanModel, 2))
-            for d in range(self.driftersPerOceanModel):
-                initPos[d,:] = np.random.multivariate_normal(self.midPoints[d,:], self.initialization_cov_drifters)
-            drifters.setDrifterPositions(initPos)
-            #print "drifter particles: ", drifter.getParticlePositions()
-            #print "drifter observations: ", drifter.getObservationPosition()
-            self.particles[i].attachDrifters(drifters)
-            
+            if self.doubleJetCase.perturbation_type == DoubleJetCase.DoubleJetPerturbationType.ModelErrorPerturbation:
+                self.particles[i].perturbState(q0_scale=20)
+
+        # Initialize and attach drifters to all particles.
+        self._initialize_drifters(driftersPerOceanModel)
         
         # Create gpu kernels and buffers:
         self._setupGPU()
         
-                
         # Put the initial positions into the observation array
         self._addObservation(self.observeTrueDrifters())
 
