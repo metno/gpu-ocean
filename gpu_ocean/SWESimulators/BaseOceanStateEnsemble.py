@@ -608,33 +608,39 @@ class BaseOceanStateEnsemble(object):
         hu_sigma = 0.0
         hv_sigma = 0.0
         
+        numNonZeros = 0
         for p in range(self.getNumParticles()):
             tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
-            eta_mean += tmp_eta[cell_id_y, cell_id_x]
-            hu_mean += tmp_hu[cell_id_y, cell_id_x]
-            hv_mean += tmp_hv[cell_id_y, cell_id_x]
-            eta_rmse += (eta_true - tmp_eta[cell_id_y, cell_id_x])**2
-            hu_rmse += (hu_true - tmp_hu[cell_id_y, cell_id_x])**2
-            hv_rmse += (hv_true - tmp_hv[cell_id_y, cell_id_x])**2
+            if not np.isnan(tmp_eta[cell_id_y, cell_id_x]):
+                eta_mean += tmp_eta[cell_id_y, cell_id_x]
+                hu_mean += tmp_hu[cell_id_y, cell_id_x]
+                hv_mean += tmp_hv[cell_id_y, cell_id_x]
+                eta_rmse += (eta_true - tmp_eta[cell_id_y, cell_id_x])**2
+                hu_rmse += (hu_true - tmp_hu[cell_id_y, cell_id_x])**2
+                hv_rmse += (hv_true - tmp_hv[cell_id_y, cell_id_x])**2
+                numNonZeros += 1
         
-        eta_mean = eta_mean/self.getNumParticles()
-        hu_mean = hu_mean/self.getNumParticles()
-        hv_mean = hv_mean/self.getNumParticles()
+        eta_mean = eta_mean/numNonZeros
+        hu_mean = hu_mean/numNonZeros
+        hv_mean = hv_mean/numNonZeros
         
         # RMSE according to the paper draft
         eta_rmse = np.sqrt((eta_true - eta_mean)**2)
         hu_rmse  = np.sqrt((hu_true  - hu_mean )**2)
         hv_rmse  = np.sqrt((hv_true  - hv_mean )**2)
         
+        numNonZeros = 0
         for p in range(self.getNumParticles()):
             tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
-            eta_sigma += (tmp_eta[cell_id_y, cell_id_x] - eta_mean)**2
-            hu_sigma  += (tmp_hu[cell_id_y, cell_id_x]  - hu_mean )**2
-            hv_sigma  += (tmp_hv[cell_id_y, cell_id_x]  - hv_mean )**2
+            if not np.isnan(tmp_eta[cell_id_y, cell_id_x]):
+                eta_sigma += (tmp_eta[cell_id_y, cell_id_x] - eta_mean)**2
+                hu_sigma  += (tmp_hu[cell_id_y, cell_id_x]  - hu_mean )**2
+                hv_sigma  += (tmp_hv[cell_id_y, cell_id_x]  - hv_mean )**2
+                numNonZeros += 1
         
-        eta_sigma = np.sqrt(eta_sigma/(self.getNumParticles() -1.0))
-        hu_sigma  = np.sqrt( hu_sigma/(self.getNumParticles() -1.0))
-        hv_sigma  = np.sqrt( hv_sigma/(self.getNumParticles() -1.0))
+        eta_sigma = np.sqrt(eta_sigma/(numNonZeros-1.0))
+        hu_sigma  = np.sqrt( hu_sigma/(numNonZeros-1.0))
+        hv_sigma  = np.sqrt( hv_sigma/(numNonZeros-1.0))
         
         eta_r = eta_sigma/eta_rmse
         hu_r  =  hu_sigma/hu_rmse
@@ -1087,3 +1093,34 @@ class BaseOceanStateEnsemble(object):
         plt.tight_layout()
         return fig
             
+    def plotRMSE(self):
+        fig = plt.figure(figsize=(10,3))
+        plt.plot(self.tArray, self.rmseUnderDrifter_eta, label='eta')
+        plt.plot(self.tArray, self.rmseUnderDrifter_hu,  label='hu')
+        plt.plot(self.tArray, self.rmseUnderDrifter_hv,  label='hv')
+        #plt.plot(observation_iterations, 0.0*np.ones_like(observation_iterations), 'o')
+        plt.title("RMSE under drifter")
+        plt.legend(loc=0)
+        plt.grid()
+        #plt.ylim([0, 1])
+        
+        fig = plt.figure(figsize=(10,3))
+        plt.plot(self.tArray, self.varianceUnderDrifter_eta, label='eta')
+        plt.plot(self.tArray, self.varianceUnderDrifter_hu,  label='hu')
+        plt.plot(self.tArray, self.varianceUnderDrifter_hv,  label='hv')
+        #plt.plot(observation_iterations, 0.0*np.ones_like(observation_iterations), 'o')
+        plt.title("Std.dev. under drifter")
+        plt.legend(loc=0)
+        plt.grid()
+        #plt.ylim([0, 1])
+        
+        fig = plt.figure(figsize=(10,3))
+        plt.plot(self.tArray, self.rUnderDrifter_eta, label='eta')
+        plt.plot(self.tArray, self.rUnderDrifter_hu,  label='hu')
+        plt.plot(self.tArray, 1.0/np.array(self.rUnderDrifter_hv),  label='hv')
+        #plt.plot(observation_iterations, 0.0*np.ones_like(observation_iterations), 'o')
+        plt.title("r = std.dev./rmse under drifter")
+        plt.legend(loc=0)
+        plt.grid()
+        #plt.ylim([0, 5])
+        

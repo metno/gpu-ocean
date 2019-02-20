@@ -43,15 +43,19 @@ class DoubleJetPerturbationType:
     NormalPerturbedState = 3
     UniformPerturbedState = 4
     ModelErrorPerturbation = 5
-    
+    SpinUp = 6
+    NormalPerturbedSpinUp = 7
+
     @staticmethod
     def _assert_valid(pert_type):
         assert(pert_type == DoubleJetPerturbationType.SteadyState or \
                pert_type == DoubleJetPerturbationType.StandardPerturbedState or \
                pert_type == DoubleJetPerturbationType.NormalPerturbedState or \
                pert_type == DoubleJetPerturbationType.UniformPerturbedState or \
-               pert_type == DoubleJetPerturbationType.ModelErrorPerturbation), \
-        'Provided double jet perturbation type ' + str(pert_type) + ' is invalid'    
+               pert_type == DoubleJetPerturbationType.ModelErrorPerturbation or \
+               pert_type == DoubleJetPerturbationType.SpinUp or \
+               pert_type == DoubleJetPerturbationType.NormalPerturbedSpinUp), \
+        'Provided double jet perturbation type ' + str(pert_type) + ' is invalid'
 
 class DoubleJetCase:
     """
@@ -112,6 +116,8 @@ class DoubleJetCase:
         self.u_max = 3 # m/s   - Gulf stream has "maximum speed typically about 2.5 m/s"
         self.h_0 = 230 # m     - It was found to be 230.03, but with a dobious calculation. 
                        #       - Better then just to set the depth to a constant :) 
+        self.commonSpinUpTime     = 200000  # s - Because it just seems like a good measure.
+        self.individualSpinUpTime = 100000  # s - Because it just seems like a good measure.
         
         self.f = 2*omega*np.sin(self.phi_05)
         self.tan = np.tan(self.phi_05)
@@ -168,8 +174,17 @@ class DoubleJetCase:
             "hu0": self.base_cpu_hu,
             "hv0": self.base_cpu_hv
         }
+        
+        if self.perturbation_type == DoubleJetPerturbationType.SpinUp:
+            tmp_sim = CDKLM16.CDKLM16(**self.sim_args, **self.base_init)
+            tmp_t = tmp_sim.step(self.commonSpinUpTime)
+            print("tmp_sim has been spun up to " + str(tmp_t))
+            tmp_eta, tmp_hu, tmp_hv = tmp_sim.download(interior_domain_only=False)
+            self.base_init['eta0'] = tmp_eta
+            self.base_init['hu0']  = tmp_hu
+            self.base_init['hv0']  = tmp_hv
+            tmp_sim.cleanUp()
     
-        #self.base_sim = CDKLM16.CDKLM16(**self.sim_args, **self.init_args)
     
     def __del__(self):
         self.cleanUp()
@@ -182,16 +197,19 @@ class DoubleJetCase:
         self.base_init = None
         
     def getInitConditions(self):
-        if self.perturbation_type == DoubleJetPerturbationType.SteadyState or \
-            self.perturbation_type == DoubleJetPerturbationType.ModelErrorPerturbation:
-            return self.getBaseInitConditions()
-        elif self.perturbation_type == DoubleJetPerturbationType.StandardPerturbedState:
+        #if self.perturbation_type == DoubleJetPerturbationType.SteadyState or \
+        #    self.perturbation_type == DoubleJetPerturbationType.ModelErrorPerturbation:
+        #    return self.getBaseInitConditions()
+        if self.perturbation_type == DoubleJetPerturbationType.StandardPerturbedState:
             return self.getStandardPerturbedInitConditions()
-        elif self.perturbation_type == DoubleJetPerturbationType.NormalPerturbedState:
+        elif self.perturbation_type == DoubleJetPerturbationType.NormalPerturbedState or \
+             self.perturbation_type == DoubleJetPerturbationType.NormalPerturbedSpinUp:
             return self.getNormalPerturbedInitConditions()
         elif self.perturbation_type == DoubleJetPerturbationType.UniformPerturbedState:
             return self.getUniformPerturbedInitConditions()
-
+        else:
+            # perturbation type is SteadyState, ModelErrorPerturbation, SpinUp
+            return self.getBaseInitConditions()
     
     def getBaseInitConditions(self):
         """

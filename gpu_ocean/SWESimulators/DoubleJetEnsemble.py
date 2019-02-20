@@ -95,7 +95,14 @@ class DoubleJetEnsemble(OceanNoiseEnsemble.OceanNoiseEnsemble):
             
             if self.doubleJetCase.perturbation_type == DoubleJetCase.DoubleJetPerturbationType.ModelErrorPerturbation:
                 self.particles[i].perturbState(q0_scale=20)
-
+            
+            if self.doubleJetCase.perturbation_type == DoubleJetCase.DoubleJetPerturbationType.SpinUp:
+                self.particles[i].step(self.doubleJetCase.individualSpinUpTime)
+                print('Individual spin up for particle ' + str(i))
+            elif self.doubleJetCase.perturbation_type == DoubleJetCase.DoubleJetPerturbationType.NormalPerturbedSpinUp:
+                self.particles[i].step(self.doubleJetCase.individualSpinUpTime + self.doubleJetCase.commonSpinUpTime)
+                print('Individual spin up for particle ' + str(i))
+                
         # Initialize and attach drifters to all particles.
         self._initialize_drifters(driftersPerOceanModel)
         
