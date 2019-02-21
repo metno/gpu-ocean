@@ -112,3 +112,4 @@ class DoubleJetEnsemble(OceanNoiseEnsemble.OceanNoiseEnsemble):
         # Put the initial positions into the observation array
         self._addObservation(self.observeTrueDrifters())
 
+ 
