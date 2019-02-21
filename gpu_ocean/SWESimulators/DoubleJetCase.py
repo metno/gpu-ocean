@@ -45,6 +45,7 @@ class DoubleJetPerturbationType:
     ModelErrorPerturbation = 5
     SpinUp = 6
     NormalPerturbedSpinUp = 7
+    LowFrequencySpinUp = 8
 
     @staticmethod
     def _assert_valid(pert_type):
@@ -54,7 +55,8 @@ class DoubleJetPerturbationType:
                pert_type == DoubleJetPerturbationType.UniformPerturbedState or \
                pert_type == DoubleJetPerturbationType.ModelErrorPerturbation or \
                pert_type == DoubleJetPerturbationType.SpinUp or \
-               pert_type == DoubleJetPerturbationType.NormalPerturbedSpinUp), \
+               pert_type == DoubleJetPerturbationType.NormalPerturbedSpinUp or \
+               pert_type == DoubleJetPerturbationType.LowFrequencySpinUp), \
         'Provided double jet perturbation type ' + str(pert_type) + ' is invalid'
 
 class DoubleJetCase:
@@ -166,7 +168,8 @@ class DoubleJetCase:
             "boundary_conditions": Common.BoundaryConditions(2,2,2,2),
             "small_scale_perturbation": model_error,
             "small_scale_perturbation_amplitude": 0.0003,
-            "small_scale_perturbation_interpolation_factor": 5
+            "small_scale_perturbation_interpolation_factor": 5,
+            "perturbation_frequency": 1
         }
         
         self.base_init = {
@@ -175,7 +178,10 @@ class DoubleJetCase:
             "hv0": self.base_cpu_hv
         }
         
-        if self.perturbation_type == DoubleJetPerturbationType.SpinUp:
+        if self.perturbation_type == DoubleJetPerturbationType.SpinUp or \
+           self.perturbation_type == DoubleJetPerturbationType.LowFrequencySpinUp:
+            if self.perturbation_type == DoubleJetPerturbationType.LowFrequencySpinUp:
+                self.sim_args['perturbation_frequency'] = 10
             tmp_sim = CDKLM16.CDKLM16(**self.sim_args, **self.base_init)
             tmp_t = tmp_sim.step(self.commonSpinUpTime)
             print("tmp_sim has been spun up to " + str(tmp_t))
@@ -184,6 +190,8 @@ class DoubleJetCase:
             self.base_init['hu0']  = tmp_hu
             self.base_init['hv0']  = tmp_hv
             tmp_sim.cleanUp()
+            
+         
     
     
     def __del__(self):
@@ -208,7 +216,7 @@ class DoubleJetCase:
         elif self.perturbation_type == DoubleJetPerturbationType.UniformPerturbedState:
             return self.getUniformPerturbedInitConditions()
         else:
-            # perturbation type is SteadyState, ModelErrorPerturbation, SpinUp
+            # perturbation type is SteadyState, ModelErrorPerturbation, SpinUp, LowFrequencySpinUp
             return self.getBaseInitConditions()
     
     def getBaseInitConditions(self):

@@ -96,7 +96,8 @@ class DoubleJetEnsemble(OceanNoiseEnsemble.OceanNoiseEnsemble):
             if self.doubleJetCase.perturbation_type == DoubleJetCase.DoubleJetPerturbationType.ModelErrorPerturbation:
                 self.particles[i].perturbState(q0_scale=20)
             
-            if self.doubleJetCase.perturbation_type == DoubleJetCase.DoubleJetPerturbationType.SpinUp:
+            if self.doubleJetCase.perturbation_type == DoubleJetCase.DoubleJetPerturbationType.SpinUp or \
+               self.doubleJetCase.perturbation_type == DoubleJetCase.DoubleJetPerturbationType.LowFrequencySpinUp:
                 self.particles[i].step(self.doubleJetCase.individualSpinUpTime)
                 print('Individual spin up for particle ' + str(i))
             elif self.doubleJetCase.perturbation_type == DoubleJetCase.DoubleJetPerturbationType.NormalPerturbedSpinUp:

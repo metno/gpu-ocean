@@ -56,6 +56,7 @@ class CDKLM16(Simulator.Simulator):
                  small_scale_perturbation=False, \
                  small_scale_perturbation_amplitude=None, \
                  small_scale_perturbation_interpolation_factor = 1, \
+                 perturbation_frequency=1, \
                  h0AsWaterElevation=False, \
                  reportGeostrophicEquilibrium=False, \
                  write_netcdf=False, \
@@ -84,6 +85,10 @@ class CDKLM16(Simulator.Simulator):
         max_wind_direction_perturbation: Large-scale model error emulation by per-time-step perturbation of wind direction by +/- max_wind_direction_perturbation (degrees)
         wind_stress: Wind stress parameters
         boundary_conditions: Boundary condition object
+        small_scale_perturbation: Boolean value for applying a stochastic model error
+        small_scale_perturbation_amplitude: Amplitude (q0 coefficient) for model error
+        small_scale_perturbation_interpolation_factor: Width factor for correlation in model error
+        perturbation_frequency: Number of timesteps between each model error sampling
         h0AsWaterElevation: True if h0 is described by the surface elevation, and false if h0 is described by water depth
         reportGeostrophicEquilibrium: Calculate the Geostrophic Equilibrium variables for each superstep
         write_netcdf: Write the results after each superstep to a netCDF file
@@ -188,6 +193,7 @@ class CDKLM16(Simulator.Simulator):
         self.small_scale_perturbation = small_scale_perturbation
         self.small_scale_model_error = None
         self.small_scale_perturbation_interpolation_factor = small_scale_perturbation_interpolation_factor
+        self.perturbation_frequency = perturbation_frequency
         if small_scale_perturbation:
             if small_scale_perturbation_amplitude is None:
                 self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self,
@@ -384,7 +390,8 @@ class CDKLM16(Simulator.Simulator):
             
             # Perturb ocean state with model error
             if self.small_scale_perturbation and apply_stochastic_term:
-                self.small_scale_model_error.perturbSim(self)
+                if self.num_iterations % self.perturbation_frequency == 0:
+                    self.small_scale_model_error.perturbSim(self)
             
             # Evolve drifters
             if self.hasDrifters:
