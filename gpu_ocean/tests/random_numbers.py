@@ -9,10 +9,12 @@ import xmlrunner
 #import testUtils
 from stochastic.OceanStateNoise_test import OceanStateNoiseTest
 from stochastic.RandomNumbers_test import RandomNumbersTest
+from stochastic.RandomNumbers_LCG_test import RandomNumbersLCGTest
 
 def printSupportedTests():
     print ("Supported tests:")
-    print ("0: All, 1: RandomNumbers, 2: OceanStateNoise")
+    print ("0: All, 1: RandomNumbers, 2: OceanStateNoise, \
+            3: RandomNumbersLCGTest")
 
 
 if (len(sys.argv) < 2):
@@ -35,11 +37,15 @@ if (jenkins):
 # Define the tests that will be part of our test suite:
 test_classes_to_run = None
 if tests == 0:
-    test_classes_to_run = [RandomNumbersTest, OceanStateNoiseTest]
+    test_classes_to_run = [RandomNumbersTest, 
+                           OceanStateNoiseTest,
+                           RandomNumbersLCGTest]
 elif tests == 1:
     test_classes_to_run = [RandomNumbersTest]
 elif tests == 2:
     test_classes_to_run = [OceanStateNoiseTest]
+elif tests == 3:
+    test_classes_to_run = [RandomNumbersLCGTest ]
 else:
     print ("Error: " + str(tests) + " is not a supported test number...")
     printSupportedTests()

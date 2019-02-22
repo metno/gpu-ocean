@@ -67,9 +67,11 @@ class OceanStateNoise(object):
         # Set numpy random state
         self.random_state = np.random.RandomState()
         
+        # Make sure that all variables initialized within ifs are defined
         self.random_numbers = None
-        if self.use_lcg:
-            self.seed = None
+        self.rng = None
+        self.seed = None
+        self.host_seed = None
         
         self.gpu_ctx = gpu_ctx
         self.gpu_stream = gpu_stream
@@ -124,9 +126,10 @@ class OceanStateNoise(object):
 
         # Generate seed:
         self.floatMax = 2147483648.0
-        self.host_seed = self.random_state.rand(self.seed_ny, self.seed_nx)*self.floatMax
-        self.host_seed = self.host_seed.astype(np.uint64, order='C')
-
+        if self.use_lcg:
+            self.host_seed = self.random_state.rand(self.seed_ny, self.seed_nx)*self.floatMax
+            self.host_seed = self.host_seed.astype(np.uint64, order='C')
+        
         if not self.use_lcg:
             self.rng = XORWOWRandomNumberGenerator()
         else:
@@ -182,6 +185,7 @@ class OceanStateNoise(object):
         self.uniformDistributionKernel = self.kernels.get_function("uniformDistribution")
         self.uniformDistributionKernel.prepare("iiiPiPi")
         
+        self.normalDistributionKernel = None
         if self.use_lcg:
             self.normalDistributionKernel = self.kernels.get_function("normalDistribution")
             self.normalDistributionKernel.prepare("iiiPiPi")
@@ -258,16 +262,18 @@ class OceanStateNoise(object):
                    block_width=block_width, block_height=block_height)
 
     def getSeed(self):
-        if self.use_lcg:
-            return self.seed.download(self.gpu_stream)
+        assert(self.use_lcg), "getSeed is only valid if LCG is used as pseudo-random generator."
+        
+        return self.seed.download(self.gpu_stream)
     
     def resetSeed(self):
-        if self.use_lcg:
-            # Generate seed:
-            self.floatMax = 2147483648.0
-            self.host_seed = self.random_state.rand(self.seed_ny, self.seed_nx)*self.floatMax
-            self.host_seed = self.host_seed.astype(np.uint64, order='C')
-            self.seed.upload(self.gpu_stream, self.host_seed)
+        assert(self.use_lcg), "resetSeed is only valid if LCG is used as pseudo-random generator."
+
+        # Generate seed:
+        self.floatMax = 2147483648.0
+        self.host_seed = self.random_state.rand(self.seed_ny, self.seed_nx)*self.floatMax
+        self.host_seed = self.host_seed.astype(np.uint64, order='C')
+        self.seed.upload(self.gpu_stream, self.host_seed)
 
     def getRandomNumbers(self):
         return self.random_numbers.download(self.gpu_stream)
@@ -303,7 +309,9 @@ class OceanStateNoise(object):
 
     def generateUniformDistribution(self):
         # Call kernel -> new random numbers
-        if self.use_lcg:
+        if not self.use_lcg:
+            self.rng.fill_uniform(self.random_numbers.data, stream=self.gpu_stream)
+        else:
             self.uniformDistributionKernel.prepared_async_call(self.global_size_random_numbers, self.local_size, self.gpu_stream,
                                                                self.seed_nx, self.seed_ny,
                                                                self.rand_nx,
@@ -497,6 +505,7 @@ class OceanStateNoise(object):
     ##### CPU versions of the above functions ####
     
     def getSeedCPU(self):
+        assert(self.use_lcg), "getSeedCPU is only valid if LCG is used as pseudo-random generator."
         return self.host_seed
     
     def generateNormalDistributionCPU(self):
@@ -589,6 +598,14 @@ class OceanStateNoise(object):
             If True, the random numbers are from N(0,1)
             If False, the random numbers are from U[0,1]
         """
+        if not self.use_lcg:
+            if normalDist:
+                self.generateNormalDistribution()
+            else:
+                self.generateUniformDistribution()
+            self.random_numbers_host = self.getRandomNumbers()
+            return
+        
         #(ny, nx) = seed.shape
         #(domain_ny, domain_nx) = random.shape
         b_dim_x = self.local_size[0]
