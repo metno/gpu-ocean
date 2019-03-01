@@ -237,7 +237,9 @@ class OceanStateNoise(object):
         self.cleanUp()
      
     def cleanUp(self):
-        if self.use_lcg and self.seed is not None:
+        if self.rng is not None:
+            self.rng = None
+        if self.seed is not None:
             self.seed.release()
         if self.random_numbers is not None:
             self.random_numbers.release()
