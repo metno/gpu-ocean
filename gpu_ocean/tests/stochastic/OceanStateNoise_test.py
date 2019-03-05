@@ -18,9 +18,6 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
     def test_init_periodic_nonstaggered(self):
         self.create_noise()
 
-        if not self.noise.use_lcg:
-            self.skipTest('not using LCG for RNG')
-
         self.assertEqual(self.noise.rand_nx, self.nx)
         self.assertEqual(self.noise.rand_ny, self.ny)
         self.assertEqual(self.noise.seed_nx, self.nx/2)
@@ -35,9 +32,6 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
     def test_init_periodic_staggered(self):
         self.staggered = True
         self.create_noise()
-
-        if not self.noise.use_lcg:
-            self.skipTest('not using LCG for RNG')
 
         self.assertEqual(self.noise.rand_nx, self.nx)
         self.assertEqual(self.noise.rand_ny, self.ny)
@@ -54,9 +48,6 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
         self.periodicNS = False
         self.create_noise()
 
-        if not self.noise.use_lcg:
-            self.skipTest('not using LCG for RNG')
-
         self.assertEqual(self.noise.rand_nx, self.nx_nonPeriodic)
         self.assertEqual(self.noise.rand_ny, self.ny_nonPeriodic)
         self.assertEqual(self.noise.seed_nx, self.nx_nonPeriodic/2)
@@ -71,9 +62,6 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
         self.periodicEW = False
         self.create_noise()
 
-        if not self.noise.use_lcg:
-            self.skipTest('not using LCG for RNG')
-
         self.assertEqual(self.noise.rand_nx, self.nx_nonPeriodic)
         self.assertEqual(self.noise.rand_ny, self.ny)
         self.assertEqual(self.noise.seed_nx, self.nx_nonPeriodic/2)
@@ -87,9 +75,6 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
     def test_init_periodicEW_nonstaggered(self):
         self.periodicNS = False
         self.create_noise()
-
-        if not self.noise.use_lcg:
-            self.skipTest('not using LCG for RNG')
 
         self.assertEqual(self.noise.rand_nx, self.nx)
         self.assertEqual(self.noise.rand_ny, self.ny_nonPeriodic)
@@ -117,7 +102,7 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
                                  ghost_cells_y=self.ghost_cells_y)
         
         etaFromGPU = self.eta.download(self.gpu_stream)
-
+        
         # Scale so that largest value becomes ~ 1
         maxVal = np.max(etaCPU)
         #print("maxVal: ", maxVal)
@@ -161,8 +146,9 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
                                         use_existing_GPU_random_numbers=True,
                                         ghost_cells_x=self.ghost_cells_x,
                                         ghost_cells_y=self.ghost_cells_y)
-        huFromGPU = self.hu.download(self.gpu_stream)
-        hvFromGPU = self.hv.download(self.gpu_stream)
+        etaFromGPU = self.eta.download(self.gpu_stream)
+        huFromGPU  = self.hu.download(self.gpu_stream)
+        hvFromGPU  = self.hv.download(self.gpu_stream)
 
         # Scale so that largest value becomes ~ 1:
         maxVal = np.max(huCPU)
@@ -171,6 +157,11 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
         huCPU = huCPU / maxVal
         hvCPU = hvCPU / maxVal
         
+        maxValEta = np.max(etaCPU)
+        etaCPU = etaCPU / maxValEta
+        etaFromGPU = etaFromGPU / maxValEta 
+        
+        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 5, msg+", eta")
         assert2DListAlmostEqual(self, huCPU.tolist(), huFromGPU.tolist(), 5, msg+", hu")
         assert2DListAlmostEqual(self, hvCPU.tolist(), hvFromGPU.tolist(), 5, msg+", hv")
         
