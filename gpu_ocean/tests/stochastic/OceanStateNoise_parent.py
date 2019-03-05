@@ -105,6 +105,9 @@ class OceanStateNoiseTestParent(unittest.TestCase):
             self.gpu_ctx = None
    
         gc.collect()
+        
+    def useLCG(self):
+        return False
             
     def create_noise(self, factor=1):
         n,e,s,w = 1,1,1,1
@@ -117,7 +120,8 @@ class OceanStateNoiseTestParent(unittest.TestCase):
                                      self.dx, self.dy,
                                      Common.BoundaryConditions(n,e,s,w),
                                      staggered=self.staggered,
-                                     interpolation_factor=factor)
+                                     interpolation_factor=factor,
+                                     use_lcg=self.useLCG())
     def create_large_noise(self):
         n,e,s,w = 1,1,1,1
         if self.periodicNS:
@@ -128,7 +132,8 @@ class OceanStateNoiseTestParent(unittest.TestCase):
                                            self.large_nx, self.large_ny,
                                            self.dx, self.dy,
                                            Common.BoundaryConditions(n,e,s,w),
-                                           staggered = self.staggered)
+                                           staggered = self.staggered,
+                                           use_lcg=self.useLCG())
 
     def allocateBuffers(self, HCPU):
         host_buffer = np.zeros((self.ny+2*self.ghost_cells_y, self.nx+2*self.ghost_cells_x))
@@ -143,13 +148,14 @@ class OceanStateNoiseTestParent(unittest.TestCase):
         # The tolerance provided to testAlmostEqual makes the comparison wrt to the
         # number of decimal places, not the number of significant digits.
         # We therefore make sure that seed is in [0, 1]
-        seed = self.noise.getSeed()
-        seedCPU = self.noise.getSeedCPU()
+        if self.noise.use_lcg:
+            seed = self.noise.getSeed()
+            seedCPU = self.noise.getSeedCPU()
 
-        msg = msg+"\ntype(seed):    " + str(type(seed)) + ", " + str(type(seed[0,0]))\
-              + "\ntype(seedCPU): " + str(type(seedCPU)) + ", " + str(type(seedCPU[0,0]))
-        
-        assert2DListAlmostEqual(self, seed.tolist(), seedCPU.tolist(), tol, msg+", seed")
+            msg = msg+"\ntype(seed):    " + str(type(seed)) + ", " + str(type(seed[0,0]))\
+                  + "\ntype(seedCPU): " + str(type(seedCPU)) + ", " + str(type(seedCPU[0,0]))
+            
+            assert2DListAlmostEqual(self, seed.tolist(), seedCPU.tolist(), tol, msg+", seed")
 
         random = self.noise.getRandomNumbers()
         randomCPU = self.noise.getRandomNumbersCPU()

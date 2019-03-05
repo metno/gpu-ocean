@@ -124,7 +124,7 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
                                  ghost_cells_y=self.ghost_cells_y)
         
         etaFromGPU = self.eta.download(self.gpu_stream)
-
+        
         # Scale so that largest value becomes ~ 1
         maxVal = np.max(etaCPU)
         #print("maxVal: ", maxVal)
@@ -168,8 +168,9 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
                                         use_existing_GPU_random_numbers=True,
                                         ghost_cells_x=self.ghost_cells_x,
                                         ghost_cells_y=self.ghost_cells_y)
-        huFromGPU = self.hu.download(self.gpu_stream)
-        hvFromGPU = self.hv.download(self.gpu_stream)
+        etaFromGPU = self.eta.download(self.gpu_stream)
+        huFromGPU  = self.hu.download(self.gpu_stream)
+        hvFromGPU  = self.hv.download(self.gpu_stream)
 
         # Scale so that largest value becomes ~ 1:
         maxVal = np.max(huCPU)
@@ -178,6 +179,11 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
         huCPU = huCPU / maxVal
         hvCPU = hvCPU / maxVal
         
+        maxValEta = np.max(etaCPU)
+        etaCPU = etaCPU / maxValEta
+        etaFromGPU = etaFromGPU / maxValEta 
+        
+        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 5, msg+", eta")
         assert2DListAlmostEqual(self, huCPU.tolist(), huFromGPU.tolist(), 5, msg+", hu")
         assert2DListAlmostEqual(self, hvCPU.tolist(), hvFromGPU.tolist(), 5, msg+", hv")
         
