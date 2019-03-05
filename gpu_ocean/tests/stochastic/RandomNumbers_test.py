@@ -135,19 +135,26 @@ class RandomNumbersTest(OceanStateNoiseTestParent):
         
 
     def test_seed_diff(self):
+        
         self.create_noise()
         tol = 6
-        
-        init_seed = self.noise.getSeed()/self.floatMax
-        self.noise.generateNormalDistribution()
-        normal_seed = self.noise.getSeed()/self.floatMax
-        assert2DListNotAlmostEqual(self, normal_seed.tolist(), init_seed.tolist(), tol, "test_seed_diff, normal vs init_seed")
-        
-        self.noise.generateUniformDistribution()
-        uniform_seed = self.noise.getSeed()/self.floatMax
-        assert2DListNotAlmostEqual(self, uniform_seed.tolist(), init_seed.tolist(), tol, "test_seed_diff, uniform vs init_seed")
-        assert2DListNotAlmostEqual(self, uniform_seed.tolist(), normal_seed.tolist(), tol, "test_seed_diff, uniform vs normal_seed")
 
+        if self.noise.use_lcg:
+            init_seed = self.noise.getSeed()/self.floatMax
+            self.noise.generateNormalDistribution()
+            normal_seed = self.noise.getSeed()/self.floatMax
+            assert2DListNotAlmostEqual(self, normal_seed.tolist(), init_seed.tolist(), tol, "test_seed_diff, normal vs init_seed")
+            
+            self.noise.generateUniformDistribution()
+            uniform_seed = self.noise.getSeed()/self.floatMax
+            assert2DListNotAlmostEqual(self, uniform_seed.tolist(), init_seed.tolist(), tol, "test_seed_diff, uniform vs init_seed")
+            assert2DListNotAlmostEqual(self, uniform_seed.tolist(), normal_seed.tolist(), tol, "test_seed_diff, uniform vs normal_seed")
+        else:
+            self.assertIsNone(self.noise.seed)
+            self.assertIsNone(self.noise.host_seed)
+            self.failUnlessRaises(AssertionError, self.noise.getSeed)
+            self.failUnlessRaises(AssertionError, self.noise.resetSeed)
+           
         
     def test_empty_reduction_buffer(self):
         self.create_large_noise()
