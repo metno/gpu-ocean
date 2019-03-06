@@ -2,15 +2,15 @@
 
 """
 This python class implements an the
-Implicit Equal-Weight Particle Filter, for use on
+Implicit Equal-Weight Particle Filter (IEWPF), for use on
 simplified ocean models.
-The following papers describe the method, though with mistakes and variations.
+The following papers describe the original iEWPF scheme, though with mistakes and variations.
      - 'Implicit equal-weights particle filter' by Zhu, van Leeuwen and Amezcua, Quarterly
             Journal of the Royal Meteorological Society, 2016
      - 'State-of-the-art stochastic data assimilation methods for high-dimensional
             non-Gaussian problems' by Vetra-Carvalho et al, Tellus, 2018
+The following paper describe the two-stage IEWPF scheme:
      - 'A revied Implicit Equal-Weights Particle Filter' by Skauvold et al, ???, 2018
-     
 
 Copyright (C) 2018  SINTEF ICT
 
@@ -181,6 +181,12 @@ class IEWPFOcean:
     def iewpf_2stage(self, ensemble, infoPlots=None, it=None):
         """
         The complete two-stage IEWPF algorithm implemented on the GPU.
+        
+        Input parameters:
+        ensemble  - the ensemble on which the particle filter is appplied
+        infoPlots (optional) - List of figures. New figure of ensemble is added
+            before and after the particle filter
+        it (optional) - The iteration number, used for logging and figure generation
         """
     
         # Step the truth and particles the final timestep:
@@ -208,7 +214,8 @@ class IEWPFOcean:
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 1)
             
-        # Create required arrays
+        # The target weight depends on the values of phi, nu and gamma for all particles,
+        # and these values are therefore required to be stored in arrays.
         phi_array     = np.zeros(ensemble.getNumParticles())
         nu_norm_array = np.zeros(ensemble.getNumParticles())
         gamma_array   = np.zeros(ensemble.getNumParticles())
@@ -423,6 +430,10 @@ class IEWPFOcean:
     # Functions needed for the GPU implementation of IEWPF
     
     def setNoiseBufferToZero(self, sim):
+        """
+        Reset the simulators random numbers buffer to zero, and thereby prepares 
+        the generation of the Kalman gain.
+        """
         self.setBufferToZeroKernel.prepared_async_call(self.noise_buffer_domain,
                                                        self.local_size_domain, 
                                                        sim.gpu_stream,
@@ -432,7 +443,10 @@ class IEWPFOcean:
                                                        sim.small_scale_model_error.random_numbers.pitch)
         
     def addKalmanGain(self, sim, all_observed_drifter_positions, innovation, drifter_id=None):
-        
+        """
+        Generates a Kalman gain type field according to the drifter positions and innovation,
+        and adds it to the ocean state held på the simulator.
+        """
         self.log("Innovations from drifter " + str(drifter_id) + ":\n" + str(innovation))
         
         # Find phi as we go: phi = d^T S d
@@ -478,7 +492,12 @@ class IEWPFOcean:
     
     
     def sampleFromP(self, sim, all_observed_drifter_positions, return_original_random_numbers=False):
-        
+        """
+        Samples random numbers N(0,I) and applies the covariance structure defined by the
+        precomputed SVD at the observation positions.
+        The result is written to the random numbers buffer of sim, so that the final step 
+        (applying SOAR + geostrophic balance, and scaling) can be done next.
+        """
         # Sample from N(0,I)
         sim.small_scale_model_error.generateNormalDistribution()
 
@@ -507,7 +526,12 @@ class IEWPFOcean:
     def applyLocalSVDOnGlobal(self, sim, 
                               drifter_coarse_cell_id_x, drifter_coarse_cell_id_y,
                               random_numbers):
-        
+        """
+        Calls the kernel that applies the covariance structure of the precomputed SVD block 
+        centered at the drifter position.
+        Since this structure can be applied to the random numbers in both buffers, the buffer
+        to use is sent as a reference through the random_numbers parameter.
+        """
         # Assuming that the random numbers buffer for the given sim is filled with N(0,I) numbers
         self.localSVDOnGlobalXiKernel.prepared_async_call(self.global_size_SVD,
                                                           self.local_size_SVD,
@@ -539,7 +563,10 @@ class IEWPFOcean:
     
     
     def samplePerpendicularSVD(self, sim, all_observed_drifter_positions, return_original_random_numbers=False):
-        
+        """
+        Samples two perpendicular random vectors from N(0,I) and applies the covariance structure
+        defined by the pre-computed SVD at the drifter positions for both of them.
+        """
         # Sample perpendicular xi and nu
         sim.small_scale_model_error.generatePerpendicularNormalDistributions()
         
@@ -590,7 +617,6 @@ class IEWPFOcean:
             for drifter in range(ensemble.driftersPerOceanModel):
                 e = np.dot(self.S_host, d[particle,drifter,:])
                 db += np.dot(e, d[particle, drifter, :])
-            #c[particle] = w_rest[particle] + 0.5*db
             c[particle] = w_rest[particle] + db
             if self.debug: print( "c[" + str(particle) + "]: ", c[particle])
             if self.debug: print ("exp(-c[" + str(particle) + "]: ", np.exp(-c[particle]))
@@ -629,12 +655,19 @@ class IEWPFOcean:
         return np.log(alpha*alpha*Nx/gamma) - (alpha*alpha*Nx/gamma) - ((target_weight - c)/Nx) + 1
         
     def _implicitEquation_no_limit(self, alpha, gamma, Nx, c_star):
+        """
+        The implicit equation that should be zero when we solve for alpha.
+        This form does not assume that N_x is large.
+        """
         lhs = gammainc(Nx/2, alpha*gamma/2)
         rhs = gammainc(Nx/2, gamma/2)
         expo = np.exp(-c_star/2)
         return lhs - expo*rhs
     
     def _implicitEquation_no_limit_derivative(self, alpha, gamma, Nx, c_star):
+        """
+        The derivative of _implicitEquation_no_limit
+        """
         return (alpha*gamma/2)**(Nx/2 - 1) *np.exp(-alpha*gamma/2)*gamma/2
         
     def solveImplicitEquation(self, phi, gamma, 

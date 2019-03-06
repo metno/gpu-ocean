@@ -146,15 +146,20 @@ class CDKLM16(Simulator.Simulator):
         #Get kernels
         self.kernel = gpu_ctx.get_kernel("CDKLM16_kernel.cu", 
                 defines={'block_width': block_width, 'block_height': block_height}, 
-                compile_args={
-                    'options': ["--use_fast_math"]
+                compile_args={                          # default, fast_math, optimal
+                    'options' : ["--ftz=true",          # false,   true,      true
+                                 "--prec-div=false",    # true,    false,     false,
+                                 "--prec-sqrt=false",   # true,    false,     false
+                                 "--fmad=false"]        # true,    true,      false
+                    
+                    #'options': ["--use_fast_math"]
                     #'options': ["--generate-line-info"], 
                     #nvcc_options=["--maxrregcount=39"],
                     #'arch': "compute_50", 
                     #'code': "sm_50"
                 },
                 jit_compile_args={
-                #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
+                    #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
                 }
                 )
         
