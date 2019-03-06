@@ -35,16 +35,34 @@ from SWESimulators import CDKLM16, Common
 
 class DoubleJetPerturbationType:
     """
-    An enum-type class for defining different types of perturbations 
-    for the double jet case.
+    An enum-type class for defining different types of initializations and 
+    perturbations for the double jet simulation case.
     """
+    
+    # Steady state solution
     SteadyState = 1
+    
+    # Bump located at the standard position x = x_0 for both jets.
     StandardPerturbedState = 2
+    
+    # Bumps located randomly according to N(x_0, sigma), independent locations for the two jets.
     NormalPerturbedState = 3
+    
+    # Bumps located at random uniformly distributed along the x-axis, independent for the two jets.
     UniformPerturbedState = 4
+    
+    # A strong (20x) model error is added to the steady-state
     ModelErrorPerturbation = 5
+    
+    # The initial state consists of the steady-state after a given spin-up time.
+    # Used in a DoubleJetEnsemble, each ensemble member is also given an individual spin up from the
+    # already spun-up initial conditions.
     SpinUp = 6
+    
+    # Same as NormalPerturbedState, but in a DoubleJetEnsemble each ensemble member is spun up individually.
     NormalPerturbedSpinUp = 7
+    
+    # Similar to SpinUp, but the model error is only applied every 10'th timestep.
     LowFrequencySpinUp = 8
 
     @staticmethod
@@ -69,7 +87,9 @@ class DoubleJetCase:
                  perturbation_type=DoubleJetPerturbationType.SteadyState,
                  model_error = True):
         """
-        Class that generates initial conditions for a double jet case (both perturbed and unperturbed)
+        Class that generates initial conditions for a double jet case (both perturbed and unperturbed).
+        The use of initial perturbations/spin up periods are given by the perturbation_type argument,
+        which should be a DoubleJetPerturbationType instance.
         """
         # The following parameters are the standard choices we have made for our double jet case.
         # If any of them are to be altered, they should be made optional input parameters to the
@@ -104,7 +124,6 @@ class DoubleJetCase:
         self.ny = 300
         self.dy = (y_north - y_south)/self.ny
         self.dx = self.dy
-        #print("(dx, dy): ", (self.dx, self.dy))
         self.nx = 500
         
         self.ghosts = np.array([2,2,2,2]) # north, east, south, west
@@ -128,27 +147,17 @@ class DoubleJetCase:
         # Initial data
         sim_h_init, redef_hu_init = self._initSteadyState()
         sim_h_init_mean = sim_h_init.mean()
-        #print("sim_h_init_mean: ", sim_h_init_mean)
         
         self.delta_eta = np.max(sim_h_init) - np.min(sim_h_init)
         
         
         max_dt = 0.25*self.dx/(np.max(redef_hu_init/sim_h_init + np.sqrt(self.g*sim_h_init)))
         dt = 0.8*max_dt
-        #print("max_dt: ", max_dt)
-        #print("dt: ", dt)
-        #print("max dt gravity:  ", 0.25*self.dx/(np.max(np.sqrt(self.g*sim_h_init))))
-        #print("max dt momentum: ", 0.25*self.dx/(np.max(redef_hu_init/sim_h_init)))
-        #print("max/min sim_h_init:", np.max(sim_h_init), np.min(sim_h_init))
         
         self.base_cpu_Hi = np.ones((self.dataShape[0]+1, self.dataShape[1]+1), dtype=np.float32) * sim_h_init_mean
         self.base_cpu_eta = -np.ones(self.dataShape, dtype=np.float32) * sim_h_init_mean
         self.base_cpu_hu = np.zeros(self.dataShape, dtype=np.float32)
         self.base_cpu_hv = np.zeros(self.dataShape, dtype=np.float32)
-
-        #print("sim_h_init.shape: ", sim_h_init.shape)
-        #print("eta0.shape", self.base_cpu_eta.shape)
-        #print("(ny, nx): ", (self.ny, self.nx))
 
         for i in range(self.dataShape[1]):
             self.base_cpu_eta[:,i] += sim_h_init
@@ -205,9 +214,9 @@ class DoubleJetCase:
         self.base_init = None
         
     def getInitConditions(self):
-        #if self.perturbation_type == DoubleJetPerturbationType.SteadyState or \
-        #    self.perturbation_type == DoubleJetPerturbationType.ModelErrorPerturbation:
-        #    return self.getBaseInitConditions()
+        """
+        Provides dicts with initial conditions and constructor arguments suitable for a CDKLM simulator.
+        """
         if self.perturbation_type == DoubleJetPerturbationType.StandardPerturbedState:
             return self.getStandardPerturbedInitConditions()
         elif self.perturbation_type == DoubleJetPerturbationType.NormalPerturbedState or \
@@ -240,7 +249,6 @@ class DoubleJetCase:
         """
         mid_cell_x_pos = np.random.normal(self.nx/5, 10)
         mid_cell_x_neg = np.random.normal(self.nx/5, 10)
-        #print("mid_cell_x_pos, mid_cell_x_neg", mid_cell_x_pos, mid_cell_x_neg)
         return self._create_perturbed_init(mid_cell_x_pos, mid_cell_x_neg)
         
     def getUniformPerturbedInitConditions(self):
@@ -249,7 +257,6 @@ class DoubleJetCase:
         """
         mid_cell_x_pos = int(np.random.rand()*self.nx + self.ghosts[3])
         mid_cell_x_neg = int(np.random.rand()*self.nx + self.ghosts[3])
-        #print("mid_cell_x_pos, mid_cell_x_neg", mid_cell_x_pos, mid_cell_x_neg)
         return self._create_perturbed_init(mid_cell_x_pos, mid_cell_x_neg)
         
     def _create_perturbed_init(self, mid_cell_x_pos, mid_cell_x_neg):
@@ -264,16 +271,9 @@ class DoubleJetCase:
 
         mid_cell_y_pos = int(1*self.ny/4)
         mid_cell_y_neg = int(3*self.ny/4)
-        #mid_cell_x_pos = int(nx/5) + ghosts[3]
-        #mid_cell_x_neg = int(nx/5) + ghosts[3]
         pert_alpha = self.phi_delta #1/6 # 1/3
         pert_beta = self.phi_delta/5 # 1/30 # 1/15
         h_hat = 0.12*self.delta_eta
-
-        #print("phi_delta:  ", self.phi_delta)
-        #print("pert_alpha: ", pert_alpha)
-        #print("pert_beta:  ", pert_beta)
-
 
         for j in range(self.ny+self.ghosts[2]+self.ghosts[0]):
             for i in range(self.nx+self.ghosts[3]+self.ghosts[1]):
@@ -318,22 +318,15 @@ class DoubleJetCase:
 
             dy_phi = (self.phi_1 - self.phi_0)/self.ny
             sim_phi = np.linspace(self.phi_0 - 2*dy_phi, self.phi_1 + 2*dy_phi, self.ny+4)
-            #print("dy_phi", dy_phi)
-            #print("(dy, dx)", (self.dy, self.dx))
-            #print("sim_phi.shape: ", sim_phi.shape)
-
+            
             # 1)
             sim_u_init = self._init_u(sim_phi)
-            #print("sim_u_init.shape: ", sim_u_init.shape)                         
-
+            
             # 2)
             sim_h_init = self._generate_h0(sim_phi, self.phi_0)
 
             sim_h_init_mean = np.mean(sim_h_init)
-            #print("sim_h_init_mean: ", sim_h_init_mean)
-
-            #sim_hu_init = sim_u_init*sim_h_init
-
+            
             # Calculate hu which is in geotrophic balance wrt sim_h_init (it's slope is equal to the slope of eta)
             redef_hu_init = np.zeros_like(sim_h_init)
             for j in range(1, len(redef_hu_init)-1):
