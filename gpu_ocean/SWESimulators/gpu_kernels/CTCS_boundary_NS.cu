@@ -137,7 +137,17 @@ __global__ void boundaryVKernel_NS(
 
         
         if ( (tj < 2 && bc_south_ == 1 ) || (tj > ny_ && bc_north_ == 1) ) {
-            v_row[ti] = 0;
+            if (tj == 0) {
+                float* v_row_inner = (float*) ((char*) V_ptr_ + V_pitch_*2);
+                v_row[ti] = -v_row_inner[ti];
+            }
+            else if (tj == ny_+2) {
+                float* v_row_inner = (float*) ((char*) V_ptr_ + V_pitch_*ny_);
+                v_row[ti] = -v_row_inner[ti];
+            }
+            else{
+                v_row[ti] = 0.0f;
+            }
         }
         else if (bc_north_ == 2) { // implicit bc_south_ == 2
             // Periodic

@@ -29,6 +29,7 @@ import pycuda.driver as cuda
 from SWESimulators import Common
 
 
+
 @magics_class
 class MyIPythonMagic(Magics): 
     @line_magic
@@ -107,6 +108,21 @@ class MyIPythonMagic(Magics):
     @magic_arguments.argument(
         '--file_level', '-f', type=int, default=10, help='The level of logging to file [0, 50]')
     def setup_logging(self, line):
+        """
+        The following logging levels are defined by the logging library:
+          50 CRITICAL
+          40 ERROR   
+          30 WARNING
+          20 INFO    
+          10 DEBUG
+          0  NOTSET
+        
+        The following logging levels are used by the GPU Ocean project, and are defined in config.GPUOceanLoggerLevels:
+          15 Implicit Equal-Weights Particle Filter
+          
+        
+          
+        """
         if (self.logger_initialized):
             logging.getLogger('').info("Global logger already initialized!")
             return;
@@ -142,11 +158,7 @@ class MyIPythonMagic(Magics):
         
         logger.info("Python version %s", sys.version)
 
-        
-        
-        
-        
-        
+
         
         
         

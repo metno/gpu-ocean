@@ -4,7 +4,7 @@
 This python class represents an ensemble of ocean models with slightly
 perturbed states. Runs on a single node.
 
-Copyright (C) 2018  SINTEF ICT
+Copyright (C) 2018  SINTEF Digital
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

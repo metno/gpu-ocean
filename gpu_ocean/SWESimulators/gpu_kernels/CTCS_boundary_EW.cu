@@ -92,7 +92,15 @@ __global__ void boundaryUKernel_EW(
         float* u_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);
 
         if ( (ti < 2 && bc_west_ == 1) || (ti > nx_ && bc_east_ == 1) ) {
-            u_row[ti] = 0;
+            if (ti==0) {
+                u_row[ti] = -u_row[2];
+            }
+            else if (ti==nx_+2) {
+                u_row[ti] = -u_row[nx_];
+            }
+            else{
+                u_row[ti] = 0;
+            }
         }
         else if (bc_west_ == 2) { // bc_east is then automatically also 2
             // Periodic
