@@ -1,7 +1,13 @@
 # -*- coding: utf-8 -*-
 
 """
-Copyright (C) 2018  SINTEF ICT
+This software is part of GPU Ocean. 
+
+Copyright (C) 2018, 2019 SINTEF Digital
+Copyright (C) 2018, 2019 Norwegian Meteorological Institute
+
+This python module implements wind forcing, which is used onto 
+shallow water models.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
