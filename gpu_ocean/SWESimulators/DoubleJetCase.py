@@ -65,6 +65,10 @@ class DoubleJetPerturbationType:
     # Similar to SpinUp, but the model error is only applied every 10'th timestep.
     LowFrequencySpinUp = 8
 
+    # Standard deterministic perturbation of the steady-state, with common and individual spin up, and 
+    # model errors only every 10th timestep.
+    LowFrequencyStandardSpinUp = 9
+    
     @staticmethod
     def _assert_valid(pert_type):
         assert(pert_type == DoubleJetPerturbationType.SteadyState or \
@@ -74,7 +78,8 @@ class DoubleJetPerturbationType:
                pert_type == DoubleJetPerturbationType.ModelErrorPerturbation or \
                pert_type == DoubleJetPerturbationType.SpinUp or \
                pert_type == DoubleJetPerturbationType.NormalPerturbedSpinUp or \
-               pert_type == DoubleJetPerturbationType.LowFrequencySpinUp), \
+               pert_type == DoubleJetPerturbationType.LowFrequencySpinUp or \
+               pert_type == DoubleJetPerturbationType.LowFrequencyStandardSpinUp), \
         'Provided double jet perturbation type ' + str(pert_type) + ' is invalid'
 
 class DoubleJetCase:
@@ -188,9 +193,19 @@ class DoubleJetCase:
         }
         
         if self.perturbation_type == DoubleJetPerturbationType.SpinUp or \
-           self.perturbation_type == DoubleJetPerturbationType.LowFrequencySpinUp:
+           self.perturbation_type == DoubleJetPerturbationType.LowFrequencySpinUp or \
+           self.perturbation_type == DoubleJetPerturbationType.LowFrequencyStandardSpinUp:
             if self.perturbation_type == DoubleJetPerturbationType.LowFrequencySpinUp:
                 self.sim_args['perturbation_frequency'] = 10
+                self.commonSpinUpTime = self.commonSpinUpTime
+                self.individualSpinUpTime = self.individualSpinUpTime*1.5
+            
+            
+            elif self.perturbation_type == DoubleJetPerturbationType.LowFrequencyStandardSpinUp:
+                self.sim_args, self.base_init = self.getStandardPerturbedInitConditions()
+                self.sim_args['perturbation_frequency'] = 10
+                self.commonSpinUpTime = self.commonSpinUpTime*2
+                
             tmp_sim = CDKLM16.CDKLM16(**self.sim_args, **self.base_init)
             tmp_t = tmp_sim.step(self.commonSpinUpTime)
             print("tmp_sim has been spun up to " + str(tmp_t))
@@ -200,7 +215,9 @@ class DoubleJetCase:
             self.base_init['hv0']  = tmp_hv
             tmp_sim.cleanUp()
             
-         
+        if self.perturbation_type == DoubleJetPerturbationType.NormalPerturbedSpinUp:
+            self.sim_args['perturbation_frequency'] = 10
+            
     
     
     def __del__(self):
