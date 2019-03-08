@@ -178,6 +178,7 @@ class DoubleJetCase:
             "coriolis_beta": 0.0,
             "r": 0.0,
             "H": self.base_cpu_Hi, 
+            "t": 0.0,
             "rk_order": 2,
             "boundary_conditions": Common.BoundaryConditions(2,2,2,2),
             "small_scale_perturbation": model_error,
@@ -213,6 +214,7 @@ class DoubleJetCase:
             self.base_init['eta0'] = tmp_eta
             self.base_init['hu0']  = tmp_hu
             self.base_init['hv0']  = tmp_hv
+            self.sim_args['t'] = tmp_sim.t
             tmp_sim.cleanUp()
             
         if self.perturbation_type == DoubleJetPerturbationType.NormalPerturbedSpinUp:
