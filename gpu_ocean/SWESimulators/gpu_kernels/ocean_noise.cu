@@ -176,17 +176,16 @@ __global__ void makePerpendicular(
         const float nu_norm = reduction_buffer[1];
         const float dot_product = reduction_buffer[2];
         
-        const float parallel_factor = dot_product/xi_norm; //nu_norm;
-        const float perpendicular_norm = xi_norm - (2*parallel_factor*dot_product) + parallel_factor*parallel_factor*nu_norm;
-        
+        const float parallel_factor = dot_product/xi_norm;
+        const float perpendicular_norm = nu_norm - parallel_factor*dot_product;
+                                              
         //Compute pointer to current row in the xi and nu arrays
         float* xi_row = (float*) ((char*) xi_ptr_ + xi_pitch_*tj);
         float* nu_row = (float*) ((char*) nu_ptr_ + nu_pitch_*tj);
         
         
         
-        
-        nu_row[ti] = sqrt(xi_norm/perpendicular_norm)*(nu_row[ti] - (parallel_factor*xi_row[ti]));
+        nu_row[ti] = sqrt(nu_norm/perpendicular_norm)*(nu_row[ti] - (parallel_factor*xi_row[ti]));
     }
 }
 } // extern "C"
