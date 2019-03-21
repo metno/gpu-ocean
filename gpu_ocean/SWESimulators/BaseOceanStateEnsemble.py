@@ -66,7 +66,6 @@ class BaseOceanStateEnsemble(object):
                  initialization_variance_factor_drifter_position = 0.0,
                  initialization_variance_factor_ocean_field = 0.0):
         
-        print('Hei from BaseOceanStateEnsemble')
         self.gpu_ctx = gpu_ctx
         self.gpu_stream = cuda.Stream()
         
@@ -129,7 +128,6 @@ class BaseOceanStateEnsemble(object):
         self.boundaryConditions = boundaryConditions
         
         assert(self.simType == 'CDKLM16'), 'CDKLM16 is currently the only supported scheme'
-        #if self.simType == 'CDKLM16':
         self.ghostCells = np.array([2,2,2,2])
         if self.boundaryConditions.isSponge():
             sponge = self.boundaryConditions.getSponge()

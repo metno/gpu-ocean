@@ -228,9 +228,9 @@ class IEWPFOcean:
             #     Also, we find phi within this function
             phi_array[p] = self.addKalmanGain(ensemble.particles[p], observed_drifter_positions, innovations[p], drifter_id=p)
             
-            # Sample perpendicular xi and nu, and apply the SVD to both fields
+            # Sample perpendicular xi and nu
             # Obtain gamma = xi^T * xi and nu^T * nu at the same time
-            gamma_array[p], nu_norm_array[p] = self.samplePerpendicularSVD(ensemble.particles[p], observed_drifter_positions)
+            gamma_array[p], nu_norm_array[p] = self.samplePerpendicular(ensemble.particles[p])
             
         self.log('--------------------------------------')
         self.log('------ Half in two-stage IEWPF -------')
@@ -249,6 +249,9 @@ class IEWPFOcean:
             # Solve implicit equation
             c_star = target_weight - (phi_array[p] + w_rest[p]) - (beta - 1)*nu_norm_array[p]
             alpha = self.solveImplicitEquation(phi_array[p], gamma_array[p], target_weight, w_rest[p], c_star, particle_id=p)
+            
+            # Apply the SVD covariance structure at the drifter positions on both xi and nu
+            self.applySVDtoPerpendicular(ensemble.particles[p], observed_drifter_positions)
             
             # Add scaled sample from P to the state vector
             ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
@@ -565,10 +568,9 @@ class IEWPFOcean:
         
     
     
-    def samplePerpendicularSVD(self, sim, all_observed_drifter_positions, return_original_random_numbers=False):
+    def samplePerpendicular(self, sim, return_original_random_numbers=False):
         """
-        Samples two perpendicular random vectors from N(0,I) and applies the covariance structure
-        defined by the pre-computed SVD at the drifter positions for both of them.
+        Samples two perpendicular random vectors from N(0,I)
         """
         # Sample perpendicular xi and nu
         sim.small_scale_model_error.generatePerpendicularNormalDistributions()
@@ -586,6 +588,19 @@ class IEWPFOcean:
         gamma = reduction_buffer_host[0,0] * self.random_numbers_ratio
         nu_norm = reduction_buffer_host[0,1] * self.random_numbers_ratio
         
+        if return_original_random_numbers:
+            return gamma, nu_norm, orig_xi_host, orig_nu_host
+        else:
+            return gamma, nu_norm
+        
+    def applySVDtoPerpendicular(self, sim, all_observed_drifter_positions):
+        """
+        Applies the covariance structure defined by the pre-computed SVD at 
+        the drifter positions for both of the perpendicular random vectors.
+        
+        This operation is performed on the same coarse grid for all drifters,
+        meaning that no offset is applied to the fine-coarse grid mapping.
+        """
         for drifter in range(self.numDrifters):
             observed_drifter_position = all_observed_drifter_positions[drifter,:]
             
@@ -595,10 +610,6 @@ class IEWPFOcean:
             self.applyLocalSVDOnGlobalXi(sim, coarse_cell_id_x, coarse_cell_id_y)
             self.applyLocalSVDOnGlobalNu(sim, coarse_cell_id_x, coarse_cell_id_y)
         
-        if return_original_random_numbers:
-            return gamma, nu_norm, orig_xi_host, orig_nu_host
-        else:
-            return gamma, nu_norm
     
     
     ###------------------------    
