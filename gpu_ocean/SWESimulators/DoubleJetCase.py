@@ -136,7 +136,7 @@ class DoubleJetCase:
         
         # Physical parameters
         self.g = 9.80616              # m/s^2 - gravitational acceleration
-        omega = 7.292e-5              # 1/s  - Angular rotation speed of the earth
+        omega = 7.2722e-5              # 1/s  - Angular rotation speed of the earth
         self.earth_radius = 6.37122e6 # m - radius of the Earth
         
         self.u_max = 3 # m/s   - Gulf stream has "maximum speed typically about 2.5 m/s"
