@@ -1,9 +1,15 @@
 # -*- coding: utf-8 -*-
 
 """
-This module implements a selection of resampling schemes used for particle filters in EPS.
+This software is a part of GPU Ocean.
 
-Copyright (C) 2018  SINTEF ICT
+Copyright (C) 2018  SINTEF Digital
+
+This module implements a selection of resampling schemes used for 
+particle filters, as described in 
+van Leeuwen, P.J., 2009: Particle Filtering in Geophysical Systems. 
+Mon. Wea. Rev., 137, 4089–4114, https://doi.org/10.1175/2009MWR2835.1 
+
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

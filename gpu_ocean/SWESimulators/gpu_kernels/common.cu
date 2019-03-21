@@ -5,9 +5,14 @@
 #define PI_OVER_180 0.01745329f
 
 /*
-This file implements different helper functions etc.
+This software is part of GPU Ocean. 
 
-Copyright (C) 2016, 2017, 2018 SINTEF ICT
+Copyright (C) 2016-2018 SINTEF Digital
+Copyright (C) 2017, 2018 Norwegian Meteorological Institute
+
+These CUDA kernels implement common functionality that is shared 
+between multiple numerical schemes for solving the shallow water 
+equations.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

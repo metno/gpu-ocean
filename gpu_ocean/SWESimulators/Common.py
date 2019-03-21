@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is part of GPU Ocean. 
+
+Copyright (C) 2017-2019 SINTEF Digital
+Copyright (C) 2017-2019 Norwegian Meteorological Institute
+
 This python module implements the different helper functions and 
-classes
-
-This software is part of GPU Ocean.
-
-Copyright (C) 2018 SINTEF Digital
-Copyright (C) 2018 Norwegian Meteorological Institute
+classes that are shared through out all elements of the code.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

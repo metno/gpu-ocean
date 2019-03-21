@@ -1,7 +1,10 @@
 /*
-This OpenCL kernel implements observation operators.
+This software is part of GPU Ocean.
 
-Copyright (C) 2018  SINTEF ICT
+Copyright (C) 2018  SINTEF Digital
+Copyright (C) 2018 Norwegian Meteorological Institute
+
+This CUDA kernel implements observation operators.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

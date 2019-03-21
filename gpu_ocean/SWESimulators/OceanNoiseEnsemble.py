@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is part of GPU Ocean. 
+
+Copyright (C) 2018  SINTEF Digital
+
 This python class implements an ensemble of particles, each consisting
 of a single drifter in its own ocean state. Each ocean model is 
 perturbed during each timestep, using small scale perturbations.
-
-
-Copyright (C) 2018  SINTEF Digital
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

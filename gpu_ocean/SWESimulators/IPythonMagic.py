@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
 """
-This python module implements helpers for IPython / Jupyter and CUDA
+This software is part of GPU Ocean. 
 
-Copyright (C) 2018  SINTEF ICT
+Copyright (C) 2018, 2019  SINTEF Digital
+
+This python module implements helpers for IPython / Jupyter and CUDA
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

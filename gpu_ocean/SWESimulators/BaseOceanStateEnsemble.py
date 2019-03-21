@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is a part of GPU Ocean.
+
+Copyright (C) 2018  SINTEF Digital
+
 This python class implements an abstract ensemble class, where each particle
 will consist of an independent ocean state and one or more drifters.
-
-
-Copyright (C) 2018  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
