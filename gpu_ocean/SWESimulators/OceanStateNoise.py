@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is part of GPU Ocean. 
+
+Copyright (C) 2018, 2019  SINTEF Digital
+Copyright (C) 2018, 2019 Norwegian Meteorological Institute
+
 This python class produces random perturbations that are to be added to 
 the ocean state fields in order to generate model error.
-
-Copyright (C) 2018  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,6 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from matplotlib import pyplot as plt
 import numpy as np
+from pycuda.curandom import XORWOWRandomNumberGenerator
 import gc
 
 from SWESimulators import Common
@@ -42,6 +46,7 @@ class OceanStateNoise(object):
                  boundaryConditions, staggered,
                  soar_q0=None, soar_L=None,
                  interpolation_factor = 1,
+                 use_lcg=False,
                  block_width=16, block_height=16):
         """
         Initiates a class that generates small scale geostrophically balanced perturbations of
@@ -53,14 +58,20 @@ class OceanStateNoise(object):
         interpolation_factor: indicates that the perturbation of eta should be generated on a coarse mesh, 
             and then interpolated down to the computational mesh. The coarse mesh will then have
             (nx/interpolation_factor, ny/interpolation_factor) grid cells.
+        use_lcg: LCG is a linear algorithm for generating a serie of pseudo-random numbers
         (block_width, block_height): The size of each GPU block
         """
+
+        self.use_lcg = use_lcg
 
         # Set numpy random state
         self.random_state = np.random.RandomState()
         
+        # Make sure that all variables initialized within ifs are defined
         self.random_numbers = None
+        self.rng = None
         self.seed = None
+        self.host_seed = None
         
         self.gpu_ctx = gpu_ctx
         self.gpu_stream = gpu_stream
@@ -78,7 +89,6 @@ class OceanStateNoise(object):
         # SOAR function. Hence, the size of the local memory in the OpenCL 
         # kernels has to be hard-coded.
         self.cutoff = np.int32(config.soar_cutoff) 
-        
         
         # Check that the interpolation factor plays well with the grid size:
         assert ( interpolation_factor > 0 and interpolation_factor % 2 == 1), 'interpolation_factor must be a positive odd integer'
@@ -108,12 +118,22 @@ class OceanStateNoise(object):
             self.rand_ghost_cells_y = np.int32(0)
         self.rand_nx = np.int32(self.coarse_nx + 2*self.rand_ghost_cells_x)
         self.rand_ny = np.int32(self.coarse_ny + 2*self.rand_ghost_cells_y)
-            
+
         # Since normal distributed numbers are generated in pairs, we need to store half the number of
         # of seed values compared to the number of random numbers.
         self.seed_ny = np.int32(self.rand_ny)
-        self.seed_nx = np.int32(np.ceil(self.rand_nx/2)) 
+        self.seed_nx = np.int32(np.ceil(self.rand_nx/2))
+
+        # Generate seed:
+        self.floatMax = 2147483648.0
+        if self.use_lcg:
+            self.host_seed = self.random_state.rand(self.seed_ny, self.seed_nx)*self.floatMax
+            self.host_seed = self.host_seed.astype(np.uint64, order='C')
         
+        if not self.use_lcg:
+            self.rng = XORWOWRandomNumberGenerator()
+        else:
+            self.seed = Common.CUDAArray2D(gpu_stream, self.seed_nx, self.seed_ny, 0, 0, self.host_seed, double_precision=True, integers=True)
         
         # Constants for the SOAR function:
         self.soar_q0 = np.float32(self.dx/100000)
@@ -123,13 +143,6 @@ class OceanStateNoise(object):
         self.soar_L = np.float32(0.75*self.coarse_dx)
         if soar_L is not None:
             self.soar_L = np.float32(soar_L)
-        
-        # Generate seed:
-        self.floatMax = 2147483648.0
-        self.host_seed = self.random_state.rand(self.seed_ny, self.seed_nx)*self.floatMax
-        self.host_seed = self.host_seed.astype(np.uint64, order='C')
-
-        self.seed = Common.CUDAArray2D(gpu_stream, self.seed_nx, self.seed_ny, 0, 0, self.host_seed, double_precision=True, integers=True)
         
         # Allocate memory for random numbers (xi)
         self.random_numbers_host = np.zeros((self.rand_ny, self.rand_nx), dtype=np.float32, order='C')
@@ -172,8 +185,10 @@ class OceanStateNoise(object):
         self.uniformDistributionKernel = self.kernels.get_function("uniformDistribution")
         self.uniformDistributionKernel.prepare("iiiPiPi")
         
-        self.normalDistributionKernel = self.kernels.get_function("normalDistribution")
-        self.normalDistributionKernel.prepare("iiiPiPi")
+        self.normalDistributionKernel = None
+        if self.use_lcg:
+            self.normalDistributionKernel = self.kernels.get_function("normalDistribution")
+            self.normalDistributionKernel.prepare("iiiPiPi")
         
         self.soarKernel = self.kernels.get_function("SOAR")
         self.soarKernel.prepare("iifffffiiPiPii")
@@ -222,6 +237,8 @@ class OceanStateNoise(object):
         self.cleanUp()
      
     def cleanUp(self):
+        if self.rng is not None:
+            self.rng = None
         if self.seed is not None:
             self.seed.release()
         if self.random_numbers is not None:
@@ -245,20 +262,21 @@ class OceanStateNoise(object):
                    soar_q0=soar_q0, soar_L=soar_L,
                    interpolation_factor=interpolation_factor,
                    block_width=block_width, block_height=block_height)
-        
-        
-        
+
     def getSeed(self):
+        assert(self.use_lcg), "getSeed is only valid if LCG is used as pseudo-random generator."
+        
         return self.seed.download(self.gpu_stream)
     
     def resetSeed(self):
+        assert(self.use_lcg), "resetSeed is only valid if LCG is used as pseudo-random generator."
+
         # Generate seed:
         self.floatMax = 2147483648.0
         self.host_seed = self.random_state.rand(self.seed_ny, self.seed_nx)*self.floatMax
         self.host_seed = self.host_seed.astype(np.uint64, order='C')
         self.seed.upload(self.gpu_stream, self.host_seed)
-        
-    
+
     def getRandomNumbers(self):
         return self.random_numbers.download(self.gpu_stream)
     
@@ -272,28 +290,36 @@ class OceanStateNoise(object):
         return self.reduction_buffer.download(self.gpu_stream)
     
     def generateNormalDistribution(self):
-        self.normalDistributionKernel.prepared_async_call(self.global_size_random_numbers, self.local_size, self.gpu_stream, 
-                                                          self.seed_nx, self.seed_ny,
-                                                          self.rand_nx,
-                                                          self.seed.data.gpudata, self.seed.pitch,
-                                                          self.random_numbers.data.gpudata, self.random_numbers.pitch)
+        if not self.use_lcg:
+            self.rng.fill_normal(self.random_numbers.data, stream=self.gpu_stream)
+        else:
+            self.normalDistributionKernel.prepared_async_call(self.global_size_random_numbers, self.local_size, self.gpu_stream,
+                                                              self.seed_nx, self.seed_ny,
+                                                              self.rand_nx,
+                                                              self.seed.data.gpudata, self.seed.pitch,
+                                                              self.random_numbers.data.gpudata, self.random_numbers.pitch)
     
     def generateNormalDistributionPerpendicular(self):
-        self.normalDistributionKernel.prepared_async_call(self.global_size_random_numbers, self.local_size, self.gpu_stream, 
-                                                          self.seed_nx, self.seed_ny,
-                                                          self.rand_nx,
-                                                          self.seed.data.gpudata, self.seed.pitch,
-                                                          self.perpendicular_random_numbers.data.gpudata, self.perpendicular_random_numbers.pitch)
-        
+        if not self.use_lcg:
+            self.rng.fill_normal(self.perpendicular_random_numbers.data, stream=self.gpu_stream)
+        else:
+            self.normalDistributionKernel.prepared_async_call(self.global_size_random_numbers, self.local_size, self.gpu_stream,
+                                                              self.seed_nx, self.seed_ny,
+                                                              self.rand_nx,
+                                                              self.seed.data.gpudata, self.seed.pitch,
+                                                              self.perpendicular_random_numbers.data.gpudata, self.perpendicular_random_numbers.pitch)
+
     def generateUniformDistribution(self):
         # Call kernel -> new random numbers
-        self.uniformDistributionKernel.prepared_async_call(self.global_size_random_numbers, self.local_size, self.gpu_stream,
-                                                           self.seed_nx, self.seed_ny,
-                                                           self.rand_nx,
-                                                           self.seed.data.gpudata, self.seed.pitch,
-                                                           self.random_numbers.data.gpudata, self.random_numbers.pitch)
-    
-    
+        if not self.use_lcg:
+            self.rng.fill_uniform(self.random_numbers.data, stream=self.gpu_stream)
+        else:
+            self.uniformDistributionKernel.prepared_async_call(self.global_size_random_numbers, self.local_size, self.gpu_stream,
+                                                               self.seed_nx, self.seed_ny,
+                                                               self.rand_nx,
+                                                               self.seed.data.gpudata, self.seed.pitch,
+                                                               self.random_numbers.data.gpudata, self.random_numbers.pitch)
+
     def perturbSim(self, sim, q0_scale=1.0, update_random_field=True, 
                    perturbation_scale=1.0, perpendicular_scale=0.0,
                    align_with_cell_i=None, align_with_cell_j=None):
@@ -481,6 +507,7 @@ class OceanStateNoise(object):
     ##### CPU versions of the above functions ####
     
     def getSeedCPU(self):
+        assert(self.use_lcg), "getSeedCPU is only valid if LCG is used as pseudo-random generator."
         return self.host_seed
     
     def generateNormalDistributionCPU(self):
@@ -573,6 +600,14 @@ class OceanStateNoise(object):
             If True, the random numbers are from N(0,1)
             If False, the random numbers are from U[0,1]
         """
+        if not self.use_lcg:
+            if normalDist:
+                self.generateNormalDistribution()
+            else:
+                self.generateUniformDistribution()
+            self.random_numbers_host = self.getRandomNumbers()
+            return
+        
         #(ny, nx) = seed.shape
         #(domain_ny, domain_nx) = random.shape
         b_dim_x = self.local_size[0]

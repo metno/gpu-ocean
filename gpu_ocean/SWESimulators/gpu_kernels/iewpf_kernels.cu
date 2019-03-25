@@ -1,4 +1,8 @@
 /*
+This software is part of GPU Ocean.
+
+Copyright (C) 2018  SINTEF ICT
+
 These CUDA kernels implements specific parts of the Implicit Equal-Weights 
 Particle Filter (IEWPF) algorithm.
 The following papers describe the method, though with mistakes and variations.
@@ -7,10 +11,6 @@ The following papers describe the method, though with mistakes and variations.
      - 'State-of-the-art stochastic data assimilation methods for high-dimensional
             non-Gaussian problems' by Vetra-Carvalho et al, Tellus, 2018
      - 'A revied Implicit Equal-Weights Particle Filter' by Skauvold et al, ???, 2018
-     
-
-
-Copyright (C) 2018  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

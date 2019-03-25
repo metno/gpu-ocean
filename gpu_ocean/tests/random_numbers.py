@@ -1,3 +1,26 @@
+# -*- coding: utf-8 -*-
+"""
+This software is part of GPU Ocean. 
+
+Copyright (C) 2017, 2018 SINTEF Digital
+
+This python program runs unit and integration tests related to the 
+stochastic components of GPU Ocean.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import unittest
 import sys
 import time
@@ -8,11 +31,14 @@ import xmlrunner
 
 #import testUtils
 from stochastic.OceanStateNoise_test import OceanStateNoiseTest
+from stochastic.OceanStateNoise_LCG_test import OceanStateNoiseLCGTest
 from stochastic.RandomNumbers_test import RandomNumbersTest
+from stochastic.RandomNumbers_LCG_test import RandomNumbersLCGTest
 
 def printSupportedTests():
     print ("Supported tests:")
-    print ("0: All, 1: RandomNumbers, 2: OceanStateNoise")
+    print ("0: All, 1: RandomNumbers, 2: OceanStateNoise, " +
+           "3: RandomNumbersLCGTest, 4: OceanStateNoiseLCGTest")
 
 
 if (len(sys.argv) < 2):
@@ -35,11 +61,18 @@ if (jenkins):
 # Define the tests that will be part of our test suite:
 test_classes_to_run = None
 if tests == 0:
-    test_classes_to_run = [RandomNumbersTest, OceanStateNoiseTest]
+    test_classes_to_run = [RandomNumbersTest, 
+                           OceanStateNoiseTest,
+                           RandomNumbersLCGTest,
+                           OceanStateNoiseLCGTest]
 elif tests == 1:
     test_classes_to_run = [RandomNumbersTest]
 elif tests == 2:
     test_classes_to_run = [OceanStateNoiseTest]
+elif tests == 3:
+    test_classes_to_run = [RandomNumbersLCGTest]
+elif tests == 4:
+    test_classes_to_run = [OceanStateNoiseLCGTest]
 else:
     print ("Error: " + str(tests) + " is not a supported test number...")
     printSupportedTests()

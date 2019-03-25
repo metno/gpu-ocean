@@ -1,3 +1,25 @@
+# -*- coding: utf-8 -*-
+"""
+This software is part of GPU Ocean. 
+
+Copyright (C) 2018 SINTEF Digital
+
+This python module implements regression tests for the OceanStateNoise class.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import unittest
 import time
 import numpy as np
@@ -102,7 +124,7 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
                                  ghost_cells_y=self.ghost_cells_y)
         
         etaFromGPU = self.eta.download(self.gpu_stream)
-
+        
         # Scale so that largest value becomes ~ 1
         maxVal = np.max(etaCPU)
         #print("maxVal: ", maxVal)
@@ -146,8 +168,9 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
                                         use_existing_GPU_random_numbers=True,
                                         ghost_cells_x=self.ghost_cells_x,
                                         ghost_cells_y=self.ghost_cells_y)
-        huFromGPU = self.hu.download(self.gpu_stream)
-        hvFromGPU = self.hv.download(self.gpu_stream)
+        etaFromGPU = self.eta.download(self.gpu_stream)
+        huFromGPU  = self.hu.download(self.gpu_stream)
+        hvFromGPU  = self.hv.download(self.gpu_stream)
 
         # Scale so that largest value becomes ~ 1:
         maxVal = np.max(huCPU)
@@ -156,6 +179,11 @@ class OceanStateNoiseTest(OceanStateNoiseTestParent):
         huCPU = huCPU / maxVal
         hvCPU = hvCPU / maxVal
         
+        maxValEta = np.max(etaCPU)
+        etaCPU = etaCPU / maxValEta
+        etaFromGPU = etaFromGPU / maxValEta 
+        
+        assert2DListAlmostEqual(self, etaCPU.tolist(), etaFromGPU.tolist(), 5, msg+", eta")
         assert2DListAlmostEqual(self, huCPU.tolist(), huFromGPU.tolist(), 5, msg+", hu")
         assert2DListAlmostEqual(self, hvCPU.tolist(), hvFromGPU.tolist(), 5, msg+", hv")
         

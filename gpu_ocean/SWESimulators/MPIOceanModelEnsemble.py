@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is part of GPU Ocean. 
+
 This python class represents an ensemble of ocean models with slightly
 perturbed states. Runs on multiple nodes using MPI
 
-Copyright (C) 2018  SINTEF ICT
+Copyright (C) 2018  SINTEF Digital
+Copyright (C) 2018 Norwegian Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
