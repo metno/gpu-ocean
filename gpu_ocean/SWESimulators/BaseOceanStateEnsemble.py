@@ -82,7 +82,7 @@ class BaseOceanStateEnsemble(object):
         self.observation_type = observation_type
         self.prev_observation = None
         
-        self.observations_buffer = None
+        self.observation_buffer = None
                 
         # Observations are stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
         # where n is time step and i is drifter
@@ -128,7 +128,6 @@ class BaseOceanStateEnsemble(object):
         self.boundaryConditions = boundaryConditions
         
         assert(self.simType == 'CDKLM16'), 'CDKLM16 is currently the only supported scheme'
-        #if self.simType == 'CDKLM16':
         self.ghostCells = np.array([2,2,2,2])
         if self.boundaryConditions.isSponge():
             sponge = self.boundaryConditions.getSponge()
@@ -608,33 +607,39 @@ class BaseOceanStateEnsemble(object):
         hu_sigma = 0.0
         hv_sigma = 0.0
         
+        numNonZeros = 0
         for p in range(self.getNumParticles()):
             tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
-            eta_mean += tmp_eta[cell_id_y, cell_id_x]
-            hu_mean += tmp_hu[cell_id_y, cell_id_x]
-            hv_mean += tmp_hv[cell_id_y, cell_id_x]
-            eta_rmse += (eta_true - tmp_eta[cell_id_y, cell_id_x])**2
-            hu_rmse += (hu_true - tmp_hu[cell_id_y, cell_id_x])**2
-            hv_rmse += (hv_true - tmp_hv[cell_id_y, cell_id_x])**2
+            if not np.isnan(tmp_eta[cell_id_y, cell_id_x]):
+                eta_mean += tmp_eta[cell_id_y, cell_id_x]
+                hu_mean += tmp_hu[cell_id_y, cell_id_x]
+                hv_mean += tmp_hv[cell_id_y, cell_id_x]
+                eta_rmse += (eta_true - tmp_eta[cell_id_y, cell_id_x])**2
+                hu_rmse += (hu_true - tmp_hu[cell_id_y, cell_id_x])**2
+                hv_rmse += (hv_true - tmp_hv[cell_id_y, cell_id_x])**2
+                numNonZeros += 1
         
-        eta_mean = eta_mean/self.getNumParticles()
-        hu_mean = hu_mean/self.getNumParticles()
-        hv_mean = hv_mean/self.getNumParticles()
+        eta_mean = eta_mean/numNonZeros
+        hu_mean = hu_mean/numNonZeros
+        hv_mean = hv_mean/numNonZeros
         
         # RMSE according to the paper draft
         eta_rmse = np.sqrt((eta_true - eta_mean)**2)
         hu_rmse  = np.sqrt((hu_true  - hu_mean )**2)
         hv_rmse  = np.sqrt((hv_true  - hv_mean )**2)
         
+        numNonZeros = 0
         for p in range(self.getNumParticles()):
             tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
-            eta_sigma += (tmp_eta[cell_id_y, cell_id_x] - eta_mean)**2
-            hu_sigma  += (tmp_hu[cell_id_y, cell_id_x]  - hu_mean )**2
-            hv_sigma  += (tmp_hv[cell_id_y, cell_id_x]  - hv_mean )**2
+            if not np.isnan(tmp_eta[cell_id_y, cell_id_x]):
+                eta_sigma += (tmp_eta[cell_id_y, cell_id_x] - eta_mean)**2
+                hu_sigma  += (tmp_hu[cell_id_y, cell_id_x]  - hu_mean )**2
+                hv_sigma  += (tmp_hv[cell_id_y, cell_id_x]  - hv_mean )**2
+                numNonZeros += 1
         
-        eta_sigma = np.sqrt(eta_sigma/(self.getNumParticles() -1.0))
-        hu_sigma  = np.sqrt( hu_sigma/(self.getNumParticles() -1.0))
-        hv_sigma  = np.sqrt( hv_sigma/(self.getNumParticles() -1.0))
+        eta_sigma = np.sqrt(eta_sigma/(numNonZeros-1.0))
+        hu_sigma  = np.sqrt( hu_sigma/(numNonZeros-1.0))
+        hv_sigma  = np.sqrt( hv_sigma/(numNonZeros-1.0))
         
         eta_r = eta_sigma/eta_rmse
         hu_r  =  hu_sigma/hu_rmse
@@ -733,7 +738,7 @@ class BaseOceanStateEnsemble(object):
             circ = matplotlib.patches.Circle((cell_id_x, cell_id_y), 1, fill=False)
             ax.add_patch(circ)    
     
-    def plotEnsemble(self, num_particles=5):
+    def plotEnsemble(self, num_particles=5, plotVelocityField=True):
         """
         Utility function to plot:
             - the true state
@@ -747,7 +752,11 @@ class BaseOceanStateEnsemble(object):
         numParticlePlots = min(self.getNumParticles(), num_particles)
         numPlots = numParticlePlots + 3
         plotCols = 4
-        fig = plt.figure(figsize=(7, 2*numPlots))
+        fig_width = 16
+        if not plotVelocityField:
+            plotCols = 3
+            fig_width = 12
+        fig = plt.figure(figsize=(fig_width, 3*numPlots))
 
         eta_true, hu_true, hv_true = self.downloadTrueOceanState()
         fieldRanges = np.zeros(6) # = [eta_min, eta_max, hu_min, hu_max, hv_min, hv_max]
@@ -765,121 +774,159 @@ class BaseOceanStateEnsemble(object):
         eta = [None]*numParticlePlots
         hu = [None]*numParticlePlots
         hv = [None]*numParticlePlots
+        numNonNans = 0
         for p in range(self.getNumParticles()):
             if p < numParticlePlots:
                 eta[p], hu[p], hv[p] = self.downloadParticleOceanState(p)
-                eta_mean += eta[p]
-                hu_mean += hu[p]
-                hv_mean += hv[p]
-                eta_mrse += (eta_true - eta[p])**2
-                hu_mrse += (hu_true - hu[p])**2
-                hv_mrse += (hv_true - hv[p])**2
-                self._updateMinMax(eta[p], hu[p], hv[p], fieldRanges)
+                if not np.isnan(eta[p].max()):
+                    eta_mean += eta[p]
+                    hu_mean += hu[p]
+                    hv_mean += hv[p]
+                    eta_mrse += (eta_true - eta[p])**2
+                    hu_mrse += (hu_true - hu[p])**2
+                    hv_mrse += (hv_true - hv[p])**2
+                    self._updateMinMax(eta[p], hu[p], hv[p], fieldRanges)
+                    numNonNans += 1
             else:
                 tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
-                eta_mean += tmp_eta
-                hu_mean += tmp_hu
-                hv_mean += tmp_hv
-                eta_mrse += (eta_true - tmp_eta)**2
-                hu_mrse += (hu_true - tmp_hu)**2
-                hv_mrse += (hv_true - tmp_hv)**2
-                self._updateMinMax(tmp_eta, tmp_hu, tmp_hv, fieldRanges)
-
+                if not np.isnan(tmp_eta.max()):
+                    eta_mean += tmp_eta
+                    hu_mean += tmp_hu
+                    hv_mean += tmp_hv
+                    eta_mrse += (eta_true - tmp_eta)**2
+                    hu_mrse += (hu_true - tmp_hu)**2
+                    hv_mrse += (hv_true - tmp_hv)**2
+                    self._updateMinMax(tmp_eta, tmp_hu, tmp_hv, fieldRanges)
+                    numNonNans += 1
+                    
         eta_mean = eta_mean/self.getNumParticles()
         hu_mean = hu_mean/self.getNumParticles()
         hv_mean = hv_mean/self.getNumParticles()
         eta_mrse = np.sqrt(eta_mrse/self.getNumParticles())
         hu_mrse = np.sqrt(hu_mrse/self.getNumParticles())
         hv_mrse = np.sqrt(hv_mrse/self.getNumParticles())
-
-        eta_levels = np.linspace(fieldRanges[0], fieldRanges[1], 10)
-        hu_levels = np.linspace(fieldRanges[2], fieldRanges[3], 10)
-        hv_levels = np.linspace(fieldRanges[4], fieldRanges[5], 10)
         
         eta_lim = np.max(np.abs(fieldRanges[:2]))
         huv_lim = np.max(np.abs(fieldRanges[2:]))
+        eta_mrse_max = eta_mrse.max()
+        huv_mrse_max = max(hu_mrse.max(), hv_mrse.max())
         
-        ax = plt.subplot(numPlots, plotCols, 1)
+        eta_levels = np.linspace(fieldRanges[0], fieldRanges[1], 10)
+        hu_levels = np.linspace(fieldRanges[2], fieldRanges[3], 10)
+        hv_levels = np.linspace(fieldRanges[4], fieldRanges[5], 10)
+        eta_mrse_levels = np.linspace(0, eta_mrse_max, 5)
+        huv_mrse_levels = np.linspace(0, huv_mrse_max, 5)
+        
+        fignum = 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
         plt.imshow(eta_true, origin='lower', vmin=-eta_lim, vmax=eta_lim)
+        plt.colorbar()
         plt.contour(eta_true, levels=eta_levels, colors='black', alpha=0.5)
         plt.title("true eta")
         self._markDriftersInImshow(ax, observed_drifter_positions)
-        ax = plt.subplot(numPlots, plotCols, 2)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
         plt.imshow(hu_true, origin='lower', vmin=-huv_lim, vmax=huv_lim)
+        plt.colorbar()
         plt.contour(hu_true, levels=hu_levels, colors='black', alpha=0.5)
         plt.title("true hu")
         self._markDriftersInImshow(ax, observed_drifter_positions)
-        ax = plt.subplot(numPlots, plotCols, 3)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
         plt.imshow(hv_true, origin='lower', vmin=-huv_lim, vmax=huv_lim)
+        plt.colorbar()
         plt.contour(hv_true, levels=hv_levels, colors='black', alpha=0.5)
         plt.title("true hv")
         self._markDriftersInImshow(ax, observed_drifter_positions)
-        ax = plt.subplot(numPlots, plotCols, 4)
-        plt.quiver(X, Y, hu_true, hv_true)
-        plt.title("velocity field")
-        self._markDriftersInImshow(ax, observed_drifter_positions)
+        if plotVelocityField:        
+            fignum += 1
+            ax = plt.subplot(numPlots, plotCols, fignum)
+            plt.quiver(X, Y, hu_true, hv_true)
+            plt.title("velocity field")
+            self._markDriftersInImshow(ax, observed_drifter_positions)
         
-        ax = plt.subplot(numPlots, plotCols, 5)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
         plt.imshow(eta_mean, origin='lower', vmin=-eta_lim, vmax=eta_lim)
+        plt.colorbar()
         plt.contour(eta_mean, levels=eta_levels, colors='black', alpha=0.5)
         plt.title("mean eta")
         self._markDriftersInImshow(ax, observed_drifter_positions)
-        ax = plt.subplot(numPlots, plotCols, 6)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
         plt.imshow(hu_mean, origin='lower', vmin=-huv_lim, vmax=huv_lim)
+        plt.colorbar()
         plt.contour(hu_mean, levels=hu_levels, colors='black', alpha=0.5)
         plt.title("mean hu")
         self._markDriftersInImshow(ax, observed_drifter_positions)
-        ax = plt.subplot(numPlots, plotCols, 7)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
         plt.imshow(hv_mean, origin='lower', vmin=-huv_lim, vmax=huv_lim)
+        plt.colorbar()
         plt.contour(hv_mean, levels=hv_levels, colors='black', alpha=0.5)
         plt.title("mean hv")
         self._markDriftersInImshow(ax, observed_drifter_positions)
-        ax = plt.subplot(numPlots, plotCols, 8)
-        plt.quiver(X, Y, hu_mean, hv_mean)
-        plt.title("velocity field")
-        self._markDriftersInImshow(ax, observed_drifter_positions)
+        if plotVelocityField:
+            fignum += 1
+            ax = plt.subplot(numPlots, plotCols, fignum)
+            plt.quiver(X, Y, hu_mean, hv_mean)
+            plt.title("velocity field")
+            self._markDriftersInImshow(ax, observed_drifter_positions)
         
-        mrse_max = max(np.max(eta_mrse), np.max(hu_mrse), np.max(hv_mrse))
-        mrse_min = min(np.min(eta_mrse), np.min(hu_mrse), np.min(hv_mrse))
-        mrse_levels = np.linspace(mrse_max, mrse_min, 10)
         
-        ax = plt.subplot(numPlots, plotCols, 9)
-        plt.imshow(eta_mrse, origin='lower', vmin=-eta_lim, vmax=eta_lim)
-        plt.contour(eta_mrse, levels=eta_levels, colors='black', alpha=0.5)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
+        plt.imshow(eta_mrse, origin='lower', vmin=0, vmax=eta_mrse_max)
+        plt.colorbar()
+        plt.contour(eta_mrse, levels=eta_mrse_levels, colors='black', alpha=0.5)
         plt.title("RMSE eta")
         self._markDriftersInImshow(ax, observed_drifter_positions)
-        ax = plt.subplot(numPlots, plotCols, 10)
-        plt.imshow(hu_mrse, origin='lower', vmin=-huv_lim, vmax=huv_lim)
-        plt.contour(hu_mrse, levels=hu_levels, colors='black', alpha=0.5)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
+        plt.imshow(hu_mrse, origin='lower', vmin=0, vmax=huv_mrse_max)
+        plt.colorbar()
+        plt.contour(hu_mrse, levels=huv_mrse_levels, colors='black', alpha=0.5)
         plt.title("RMSE hu")
         self._markDriftersInImshow(ax, observed_drifter_positions)
-        ax = plt.subplot(numPlots, plotCols, 11)
-        plt.imshow(hv_mrse, origin='lower', vmin=-huv_lim, vmax=huv_lim)
-        #plt.colorbar() # TODO: Find a nice way to include colorbar to this plot...
-        plt.contour(hv_mrse, levels=hv_levels, colors='black', alpha=0.5)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
+        plt.imshow(hv_mrse, origin='lower', vmin=0, vmax=huv_mrse_max)
         plt.title("RMSE hv")
+        plt.colorbar()
+        #plt.colorbar() # TODO: Find a nice way to include colorbar to this plot...
+        plt.contour(hv_mrse, levels=huv_mrse_levels, colors='black', alpha=0.5)
         self._markDriftersInImshow(ax, observed_drifter_positions)
-
+        if plotVelocityField:
+            fignum += 1
+            
         for p in range(numParticlePlots):
-            ax = plt.subplot(numPlots, plotCols, 13+p*plotCols)
+            fignum += 1
+            ax = plt.subplot(numPlots, plotCols, fignum)
             plt.imshow(eta[p], origin='lower', vmin=-eta_lim, vmax=eta_lim)
+            plt.colorbar()
             plt.contour(eta[p], levels=eta_levels, colors='black', alpha=0.5)
             plt.title("particle eta")
             self._markDriftersInImshow(ax, observed_drifter_positions)
-            ax = plt.subplot(numPlots, plotCols, 13+p*plotCols + 1)
+            fignum += 1
+            ax = plt.subplot(numPlots, plotCols, fignum)
             plt.imshow(hu[p], origin='lower', vmin=-huv_lim, vmax=huv_lim)
+            plt.colorbar()
             plt.contour(hu[p], levels=hu_levels, colors='black', alpha=0.5)
             plt.title("particle hu")
             self._markDriftersInImshow(ax, observed_drifter_positions)
-            ax = plt.subplot(numPlots, plotCols, 13+p*plotCols + 2)
+            fignum += 1
+            ax = plt.subplot(numPlots, plotCols, fignum)
             plt.imshow(hv[p], origin='lower', vmin=-huv_lim, vmax=huv_lim)
+            plt.colorbar()
             plt.contour(hv[p], levels=hv_levels, colors='black', alpha=0.5)
             plt.title("particle hv")
             self._markDriftersInImshow(ax, observed_drifter_positions)
-            ax = plt.subplot(numPlots, plotCols, 13+p*plotCols + 3)
-            plt.quiver(X, Y, hu[p], hv[p])
-            plt.title("velocity field")
-            self._markDriftersInImshow(ax, observed_drifter_positions)
+            if plotVelocityField:
+                fignum += 1
+                ax = plt.subplot(numPlots, plotCols, fignum)
+                plt.quiver(X, Y, hu[p], hv[p])
+                plt.title("velocity field")
+                self._markDriftersInImshow(ax, observed_drifter_positions)
             
         plt.axis('tight')
     
@@ -1045,3 +1092,34 @@ class BaseOceanStateEnsemble(object):
         plt.tight_layout()
         return fig
             
+    def plotRMSE(self):
+        fig = plt.figure(figsize=(10,3))
+        plt.plot(self.tArray, self.rmseUnderDrifter_eta, label='eta')
+        plt.plot(self.tArray, self.rmseUnderDrifter_hu,  label='hu')
+        plt.plot(self.tArray, self.rmseUnderDrifter_hv,  label='hv')
+        #plt.plot(observation_iterations, 0.0*np.ones_like(observation_iterations), 'o')
+        plt.title("RMSE under drifter")
+        plt.legend(loc=0)
+        plt.grid()
+        #plt.ylim([0, 1])
+        
+        fig = plt.figure(figsize=(10,3))
+        plt.plot(self.tArray, self.varianceUnderDrifter_eta, label='eta')
+        plt.plot(self.tArray, self.varianceUnderDrifter_hu,  label='hu')
+        plt.plot(self.tArray, self.varianceUnderDrifter_hv,  label='hv')
+        #plt.plot(observation_iterations, 0.0*np.ones_like(observation_iterations), 'o')
+        plt.title("Std.dev. under drifter")
+        plt.legend(loc=0)
+        plt.grid()
+        #plt.ylim([0, 1])
+        
+        fig = plt.figure(figsize=(10,3))
+        plt.plot(self.tArray, self.rUnderDrifter_eta, label='eta')
+        plt.plot(self.tArray, self.rUnderDrifter_hu,  label='hu')
+        plt.plot(self.tArray, 1.0/np.array(self.rUnderDrifter_hv),  label='hv')
+        #plt.plot(observation_iterations, 0.0*np.ones_like(observation_iterations), 'o')
+        plt.title("r = std.dev./rmse under drifter")
+        plt.legend(loc=0)
+        plt.grid()
+        #plt.ylim([0, 5])
+        
