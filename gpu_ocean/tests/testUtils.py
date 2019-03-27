@@ -1,14 +1,37 @@
+# -*- coding: utf-8 -*-
+"""
+This software is part of GPU Ocean. 
+
+Copyright (C) 2017, 2018 SINTEF Digital
+
+This python module provides common functionality shared between all
+tests.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import os
 import sys
 import numpy as np
 
-import pyopencl
 
 testdir = 'timestep50'
 
 def utils(a):
     return a+1
 
+#import pyopencl
 def make_cl_ctx():
     #Make sure we get compiler output from OpenCL
     os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
@@ -73,6 +96,17 @@ def makeLowerLeftBump(eta, nx, ny, dx, dy, halo):
             if (np.sqrt(x**2 + y**2) < size):
                 eta[j+halo[2], i+halo[3]] = np.exp(-(x**2/size+y**2/size))
 
+def makeBottomTopography(Hi, nx, ny, dx, dy, halo, intersections=True):
+    extra_cells = 0
+    if intersections:
+        extra_cells = 1
+    for j in range(-halo[2], ny + halo[0] + extra_cells):
+        for i in range(-halo[3], nx + halo[1] + extra_cells):
+            Hi[j+halo[2], i+halo[3]] = 6 + 2.0*np.cos(0.3*(i + i/(np.sin(0.5*j)+2.5))) + \
+                                       2.0*np.sin(2*np.pi*(j+i)/(2.0*ny))
+            
+
+                
 ## Add initial conditions on top of existing ones:
 def addCornerBump(eta, nx, ny, dx, dy, halo):
     x_center = 4*dx
@@ -132,14 +166,14 @@ def makeBathymetryCrazyness(B, nx, ny, dx, dy, halo):
             y = dy*j*1.0
             B[j+halo[2], i+halo[3]] = 25.0*(np.sin(np.pi*(x/length)*4)**2 + np.sin(np.pi*(y/height)*4)**2)            
 
-def saveResults(eta, u, v, method, BC, init):
-    fileprefix = testdir + "/" + method + "_" + BC + "_" + init + "_"
+def saveResults(eta, u, v, method, BC, init, bathymetry=""):
+    fileprefix = testdir + "/" + method + "_" + BC + "_" + init + "_" + bathymetry
     np.savetxt(fileprefix + "eta.dat", eta)
     np.savetxt(fileprefix + "u.dat", u)
     np.savetxt(fileprefix + "v.dat", v)
 
-def loadResults(method, BC, init):
-    fileprefix = testdir + "/" + method + "_" + BC + "_" + init + "_"
+def loadResults(method, BC, init, bathymetry=""):
+    fileprefix = testdir + "/" + method + "_" + BC + "_" + init + "_" + bathymetry
     eta = np.loadtxt(fileprefix + "eta.dat")
     u =   np.loadtxt(fileprefix + "u.dat")
     v =   np.loadtxt(fileprefix + "v.dat")

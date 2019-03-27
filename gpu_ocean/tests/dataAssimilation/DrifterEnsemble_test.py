@@ -1,9 +1,30 @@
+# -*- coding: utf-8 -*-
+"""
+This software is part of GPU Ocean. 
+
+Copyright (C) 2018 SINTEF Digital
+
+This python module implements unit tests for the DrifterEnsemble class.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import unittest
 import time
 import numpy as np
 import sys
 import gc
-import pyopencl
 
 import abc
 
@@ -22,7 +43,7 @@ class DrifterEnsembleTest(BaseDrifterEnsembleTest):
     def setUp(self):
         super(DrifterEnsembleTest, self).setUp()
         
-        self.cl_ctx = make_cl_ctx()                               
+        self.gpu_ctx = Common.CUDAContext()
                 
     def tearDown(self):
         super(DrifterEnsembleTest, self).tearDown()
@@ -31,7 +52,7 @@ class DrifterEnsembleTest(BaseDrifterEnsembleTest):
 
     #@abc.abstractmethod
     def create_small_particle_set(self):
-        self.smallParticleSet = DrifterEnsemble.DrifterEnsemble(self.cl_ctx,
+        self.smallParticleSet = DrifterEnsemble.DrifterEnsemble(self.gpu_ctx,
                                                                 self.numParticles,
                                                                 self.observationVariance)
         self.smallParticleSet.setGridInfo(self.nx, self.ny, self.dx, self.dy, self.dt,
@@ -42,7 +63,7 @@ class DrifterEnsembleTest(BaseDrifterEnsembleTest):
 
     #@abc.abstractmethod
     def create_resampling_particle_set(self):
-        self.resamplingParticleSet = DrifterEnsemble.DrifterEnsemble(self.cl_ctx,
+        self.resamplingParticleSet = DrifterEnsemble.DrifterEnsemble(self.gpu_ctx,
                                                                      self.resampleNumParticles,
                                                                      observation_variance=self.resamplingObservationVariance)
         self.resamplingParticleSet.setGridInfo(self.nx, self.ny, self.dx, self.dy, self.dt)
@@ -52,7 +73,7 @@ class DrifterEnsembleTest(BaseDrifterEnsembleTest):
 
     #@abc.abstractmethod
     def create_large_particle_set(self, size, domain_x, domain_y):
-        largeParticleSet = DrifterEnsemble.DrifterEnsemble(self.cl_ctx,
+        largeParticleSet = DrifterEnsemble.DrifterEnsemble(self.gpu_ctx,
                                                            size)
         largeParticleSet.setGridInfo(10, 10, domain_x/10.0, domain_y/10.0, self.dt,
                                                self.boundaryCondition)

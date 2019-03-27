@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is a part of GPU Ocean.
+
+Copyright (C) 2018  SINTEF Digital
+
 This python class implements an abstract ensemble class, where each particle
 will consist of an independent ocean state and one or more drifters.
-
-
-Copyright (C) 2018  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -27,6 +28,10 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import time
 import abc
+import warnings
+
+
+import pycuda.driver as cuda
 
 from SWESimulators import CDKLM16
 from SWESimulators import GPUDrifterCollection
@@ -35,12 +40,34 @@ from SWESimulators import Common
 from SWESimulators import DataAssimilationUtils as dautils
 
 class BaseOceanStateEnsemble(object):
-
+    """
+    Class that holds an ensemble of ocean states.
+    
+    gpu_ctx: GPU context
+    numParticles: Number of particles, also known as number of ensemble members
+    sim: A simulator which represent the initial state of all particles
+    num_drifters = 1: Number of drifters that provide us observations
+    observation_type: ObservationType enumerator object
+    observation_variance: Can be a scalar or a covariance matrix
+    observation_variance_factor: If observation_variance is not provided, the 
+        observation_variance will be (observation_variance_factor*dx)**2
+    initialization_variance_factor_drifter_position: Gives an initial perturbation of 
+        drifter positions if non-zero
+    initialization_variance_factor_ocean_field: Gives an initial perturbation of 
+        the ocean field if non-zero
+    """
     __metaclass__ = abc.ABCMeta
         
-    def __init__(self, numParticles, cl_ctx, observation_type=dautils.ObservationType.DrifterPosition):
+    def __init__(self, gpu_ctx, numParticles, sim, 
+                 num_drifters = 1,
+                 observation_type=dautils.ObservationType.DrifterPosition,
+                 observation_variance = None, 
+                 observation_variance_factor = 5.0,
+                 initialization_variance_factor_drifter_position = 0.0,
+                 initialization_variance_factor_ocean_field = 0.0):
         
-        self.cl_ctx = cl_ctx
+        self.gpu_ctx = gpu_ctx
+        self.gpu_stream = cuda.Stream()
         
         self.numParticles = numParticles
         self.particles = [None]*(self.numParticles + 1)
@@ -55,7 +82,8 @@ class BaseOceanStateEnsemble(object):
         self.observation_type = observation_type
         self.prev_observation = None
         
-        
+        self.observation_buffer = None
+                
         # Observations are stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
         # where n is time step and i is drifter
         self.observedDrifterPositions = []
@@ -71,15 +99,24 @@ class BaseOceanStateEnsemble(object):
         self.rUnderDrifter_hu = []
         self.rUnderDrifter_hv = []
         self.tArray = []
-
+        
+        self._setGridInfoFromSim(sim)
+        self._setStochasticVariables(observation_variance = observation_variance, 
+                                     observation_variance_factor = observation_variance_factor,
+                                     initialization_variance_factor_drifter_position = initialization_variance_factor_drifter_position,
+                                     initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field)        
+        self._init(driftersPerOceanModel=num_drifters)
         
     def cleanUp(self):
         for oceanState in self.particles:
             if oceanState is not None:
                 oceanState.cleanUp()
+        if self.observation_buffer is not None:
+            self.observation_buffer.release()
+        self.gpu_ctx = None
         
-    # IMPROVED
-    def setGridInfo(self, nx, ny, dx, dy, dt, 
+        
+    def _setGridInfo(self, nx, ny, dx, dy, dt, 
                     boundaryConditions=Common.BoundaryConditions(), 
                     eta=None, hu=None, hv=None, H=None):
         self.nx = nx
@@ -91,7 +128,6 @@ class BaseOceanStateEnsemble(object):
         self.boundaryConditions = boundaryConditions
         
         assert(self.simType == 'CDKLM16'), 'CDKLM16 is currently the only supported scheme'
-        #if self.simType == 'CDKLM16':
         self.ghostCells = np.array([2,2,2,2])
         if self.boundaryConditions.isSponge():
             sponge = self.boundaryConditions.getSponge()
@@ -118,32 +154,37 @@ class BaseOceanStateEnsemble(object):
         if self.base_H is None:
             waterDepth = 10
             self.base_H = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C')*waterDepth
-        
-        # Ensure that parameters are initialized:
-        self.setParameters()
 
-    def setGridInfoFromSim(self, sim):
+        
+    def _setGridInfoFromSim(self, sim):
+        
         eta, hu, hv = sim.download()
         Hi = sim.downloadBathymetry()[0]
-        self.setGridInfo(sim.nx, sim.ny, sim.dx, sim.dy, sim.dt,
+        self._setGridInfo(sim.nx, sim.ny, sim.dx, sim.dy, sim.dt,
                          sim.boundary_conditions,
                          eta=eta, hu=hu, hv=hv, H=Hi)
-        self.setParameters(f=sim.f, g=sim.g, beta=sim.coriolis_beta, r=sim.r, wind=sim.wind_stress)
-    
-    def setParameters(self, f=0, g=9.81, beta=0, r=0, wind=WindStress.NoWindStress()):
-        self.g = g
-        self.f = f
-        self.beta = beta
-        self.r = r
-        self.wind = wind
-    
-    def setStochasticVariables(self, 
+        self.g = sim.g
+        self.f = sim.f
+        self.beta = sim.coriolis_beta
+        self.r = sim.r
+        self.wind = sim.wind_stress
+        
+        self.small_scale_perturbation = sim.small_scale_perturbation
+        self.small_scale_perturbation_amplitude = None
+        self.small_scale_perturbation_interpolation_factor = None
+        
+        if self.small_scale_perturbation:
+            self.small_scale_perturbation_amplitude = sim.small_scale_model_error.soar_q0
+            self.small_scale_perturbation_interpolation_factor = sim.small_scale_perturbation_interpolation_factor
+            
+        
+        
+    def _setStochasticVariables(self, 
                                observation_variance = None, 
                                observation_variance_factor = 5.0,
-                               small_scale_perturbation_amplitude = 0.0,
                                initialization_variance_factor_drifter_position = 0.0,
-                               initialization_variance_factor_ocean_field = 0.0 
-                              ):
+                               initialization_variance_factor_ocean_field = 0.0):
+              
 
         # Setting observation variance:
         self.observation_variance = observation_variance
@@ -169,14 +210,14 @@ class BaseOceanStateEnsemble(object):
         self.initialization_cov_drifters = np.eye(2)*self.initialization_variance_drifters
         self.midPoint = 0.5*np.array([self.nx*self.dx, self.ny*self.dy])
         
-        self.small_scale_perturbation_amplitude = small_scale_perturbation_amplitude
-    
         # When initializing an ensemble, each member should be perturbed so that they 
         # have slightly different starting point.
         # This factor should be multiplied to the small_scale_perturbation_amplitude for that 
         # perturbation
         self.initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field
         
+    def __del__(self):
+        self.cleanUp()
         
     @abc.abstractmethod
     def init(self, driftersPerOceanModel=1):
@@ -192,11 +233,36 @@ class BaseOceanStateEnsemble(object):
         pass
         
         
-    def _addObservation(self, observedDrifterPositions):
-        # Observations are stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
-        # where n is time step and i is drifter
+    def _setupGPU(self):
+        # Create observation buffer!    
+        if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
+            self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
+            
+            zeros = np.zeros((self.driftersPerOceanModel, 2), dtype=np.float32, order='C')
+            self.observation_buffer = Common.CUDAArray2D(self.gpu_stream, \
+                                                         2, self.driftersPerOceanModel, 0, 0, \
+                                                         zeros)
+
+            # Generate kernels
+            self.reduction_kernels = self.gpu_ctx.get_kernel("observationKernels.cu", \
+                                                             defines={})
+
+
+            # Get CUDA functions and define data types for prepared_{async_}call()
+            self.observeUnderlyingFlowKernel = self.reduction_kernels.get_function("observeUnderlyingFlow")
+            self.observeUnderlyingFlowKernel.prepare("iiffiiPiPiPifiPiPi")
+
+            self.local_size = (int(self.driftersPerOceanModel), 1, 1)
+            self.global_size = (1, 1)
         
-        print("Adding observation for time " + str(self.t))
+        
+        
+    def _addObservation(self, observedDrifterPositions):
+        """
+        Adds the given observed drifter positions to the observedDrifterPosition 
+        array. Observations are there stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
+        where n is time step and i is drifter
+        """
         self.observedDrifterPositions.append([self.t, observedDrifterPositions])
 
         
@@ -209,19 +275,19 @@ class BaseOceanStateEnsemble(object):
             drifterPositions[p,:,:] = self.particles[p].drifters.getDrifterPositions()
         return drifterPositions
     
-    def observeParticles(self):
+    def observeParticles(self, gpu=False):
         """
         Applying the observation operator on each particle.
 
         Structure on the output:
         [
-        particle 1:  [u_1, v_1], ... , [u_D, v_D],
-        particle 2:  [u_1, v_1], ... , [u_D, v_D],
-        particle Ne: [u_1, v_1], ... , [u_D, v_D]
+        particle 1:  [hu_1, hv_1], ... , [hu_D, hv_D],
+        particle 2:  [hu_1, hv_1], ... , [hu_D, hv_D],
+        particle Ne: [hu_1, hv_1], ... , [hu_D, hv_D]
         ]
         numpy array with dimensions (particles, drifters, 2)
 
-        The two values per particle drifter is either velocity or position, depending on 
+        The two values per particle drifter is either volume transport or position, depending on 
         the observation type.
         """
         if self.observation_type == dautils.ObservationType.DrifterPosition:
@@ -234,20 +300,48 @@ class BaseOceanStateEnsemble(object):
                                       self.driftersPerOceanModel, 2))
 
             trueState = self.observeTrueState()
-            # trueState = [[x1, y1, u1, v1], ..., [xD, yD, uD, vD]]
+            # trueState = [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
 
             for p in range(self.numParticles):
-                # Downloading ocean state without ghost cells
-                Hi = self.particles[0].downloadBathymetry()[1]
-                eta, hu, hv = self.downloadParticleOceanState(p)
+                if gpu:
+                    sim = self.particles[p]
+                    self.observeUnderlyingFlowKernel.prepared_async_call(self.global_size,
+                                                                         self.local_size,
+                                                                         self.gpu_stream,
+                                                                         sim.nx, sim.ny, sim.dx, sim.dy,
+                                                                         np.int32(2), np.int32(2),
+                                                                         sim.gpu_data.h0.data.gpudata,
+                                                                         sim.gpu_data.h0.pitch,
+                                                                         sim.gpu_data.hu0.data.gpudata,
+                                                                         sim.gpu_data.hu0.pitch,
+                                                                         sim.gpu_data.hv0.data.gpudata,
+                                                                         sim.gpu_data.hv0.pitch,
+                                                                         np.max(self.base_H),
+                                                                         self.driftersPerOceanModel,
+                                                                         self.particles[self.obs_index].drifters.driftersDevice.data.gpudata,
+                                                                         self.particles[self.obs_index].drifters.driftersDevice.pitch,
+                                                                         self.observation_buffer.data.gpudata,
+                                                                         self.observation_buffer.pitch)
+                    
+                    observedState[p,:,:] = self.observation_buffer.download(self.gpu_stream)
+                                                                         
+                
+                else:
+                    # Downloading ocean state without ghost cells
+                    eta, hu, hv = self.downloadParticleOceanState(p)
 
-                for d in range(self.driftersPerOceanModel):
-                    id_x = np.int(np.floor(trueState[d,0]/self.dx))
-                    id_y = np.int(np.floor(trueState[d,1]/self.dy))
+                    for d in range(self.driftersPerOceanModel):
+                        id_x = np.int(np.floor(trueState[d,0]/self.dx))
+                        id_y = np.int(np.floor(trueState[d,1]/self.dy))
 
-                    depth = Hi[id_y, id_x]
-                    observedState[p,d,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
-                    observedState[p,d,1] = hv[id_y, id_x]/(depth + eta[id_y, id_x])
+                        observedState[p,d,0] = hu[id_y, id_x]
+                        observedState[p,d,1] = hv[id_y, id_x]
+                        
+                        
+            #print "Particle positions obs index:"
+            #print self.particles[self.obs_index].drifters.driftersDevice.download(self.gpu_stream)
+            #print "true state used by the CPU:"
+            #print trueState
             return observedState
         
     def observeTrueDrifters(self):
@@ -260,12 +354,13 @@ class BaseOceanStateEnsemble(object):
     def observeTrueState(self):
         """
         Applying the observation operator on the syntetic true state.
+        The observation should be in state space, and therefore consists of 
+        hu and hv, and not u and v.
 
         Returns a numpy array with D drifter positions and drifter velocities
-        [[x_1, y_1, u_1, v_1], ... , [x_D, y_D, u_D, v_D]]
-        If the observation operator is drifter positions, u and v are not included.
+        [[x_1, y_1, hu_1, hv_1], ... , [x_D, y_D, hu_D, hv_D]]
+        If the observation operator is drifter positions, hu and hv are not included.
         """
-        #print "(Remember to comment in this one again) CHECKIFALREADYOBSERVED"
         if self.observedDrifterPositions[-1][0] != self.t:
             self._addObservation(self.observeTrueDrifters())
 
@@ -280,9 +375,15 @@ class BaseOceanStateEnsemble(object):
                 y = self.observedDrifterPositions[-1][1][d,1]
                 dx = x - self.observedDrifterPositions[-2][1][d, 0]
                 dy = y - self.observedDrifterPositions[-2][1][d, 1]
+                 
                 u = dx/dt
                 v = dy/dt
-                trueState[d,:] = np.array([x, y , u, v])
+                
+                depth = self.particles[self.obs_index].downloadBathymetry()[1][id_y, id_x]
+                hu = u*depth
+                hv = v*depth
+                
+                trueState[d,:] = np.array([x, y , hu, hv])
             return trueState
 
         elif self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
@@ -297,10 +398,10 @@ class BaseOceanStateEnsemble(object):
 
                 # Downloading ocean state without ghost cells
                 eta, hu, hv = self.downloadParticleOceanState(self.obs_index)
-                u = hu[id_y, id_x]/(depth + eta[id_y, id_x])
-                v = hv[id_y, id_x]/(depth + eta[id_y, id_x])
-
-                trueState[d,:] = np.array([x, y, u, v])
+                true_hu = hu[id_y, id_x]
+                true_hv = hv[id_y, id_x]
+                
+                trueState[d,:] = np.array([x, y, true_hu, true_hv])
             return trueState
 
     def step(self, t, stochastic_particles=True, stochastic_truth=True):
@@ -351,8 +452,8 @@ class BaseOceanStateEnsemble(object):
         if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
            self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
             # Change structure of trueState
-            # from: [[x1, y1, u1, v1], ..., [xD, yD, uD, vD]]
-            # to:   [[u1, v1], ..., [uD, vD]]
+            # from: [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
+            # to:   [[hu1, hv1], ..., [huD, hvD]]
             trueState = trueState[:, 2:]
 
         #else, structure of trueState is already fine: [[x1, y1], ..., [xD, yD]]
@@ -449,6 +550,8 @@ class BaseOceanStateEnsemble(object):
         return self.observation_variance
     def getNumParticles(self):
         return self.numParticles
+    def getNumDrifters(self):
+        return self.driftersPerOceanModel
     
     def findLargestPossibleTimeStep(self):
         """
@@ -504,37 +607,39 @@ class BaseOceanStateEnsemble(object):
         hu_sigma = 0.0
         hv_sigma = 0.0
         
+        numNonZeros = 0
         for p in range(self.getNumParticles()):
             tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
-            eta_mean += tmp_eta[cell_id_y, cell_id_x]
-            hu_mean += tmp_hu[cell_id_y, cell_id_x]
-            hv_mean += tmp_hv[cell_id_y, cell_id_x]
-            eta_rmse += (eta_true - tmp_eta[cell_id_y, cell_id_x])**2
-            hu_rmse += (hu_true - tmp_hu[cell_id_y, cell_id_x])**2
-            hv_rmse += (hv_true - tmp_hv[cell_id_y, cell_id_x])**2
+            if not np.isnan(tmp_eta[cell_id_y, cell_id_x]):
+                eta_mean += tmp_eta[cell_id_y, cell_id_x]
+                hu_mean += tmp_hu[cell_id_y, cell_id_x]
+                hv_mean += tmp_hv[cell_id_y, cell_id_x]
+                eta_rmse += (eta_true - tmp_eta[cell_id_y, cell_id_x])**2
+                hu_rmse += (hu_true - tmp_hu[cell_id_y, cell_id_x])**2
+                hv_rmse += (hv_true - tmp_hv[cell_id_y, cell_id_x])**2
+                numNonZeros += 1
         
-        eta_rmse = np.sqrt(eta_rmse/(self.getNumParticles()+1))
-        hu_rmse  = np.sqrt(hu_rmse /(self.getNumParticles()+1))
-        hv_rmse  = np.sqrt(hv_rmse /(self.getNumParticles()+1))
-        
-        eta_mean = eta_mean/self.getNumParticles()
-        hu_mean = hu_mean/self.getNumParticles()
-        hv_mean = hv_mean/self.getNumParticles()
+        eta_mean = eta_mean/numNonZeros
+        hu_mean = hu_mean/numNonZeros
+        hv_mean = hv_mean/numNonZeros
         
         # RMSE according to the paper draft
         eta_rmse = np.sqrt((eta_true - eta_mean)**2)
         hu_rmse  = np.sqrt((hu_true  - hu_mean )**2)
         hv_rmse  = np.sqrt((hv_true  - hv_mean )**2)
         
+        numNonZeros = 0
         for p in range(self.getNumParticles()):
             tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
-            eta_sigma += (tmp_eta[cell_id_y, cell_id_x] - eta_mean)**2
-            hu_sigma  += (tmp_hu[cell_id_y, cell_id_x]  - hu_mean )**2
-            hv_sigma  += (tmp_hv[cell_id_y, cell_id_x]  - hv_mean )**2
+            if not np.isnan(tmp_eta[cell_id_y, cell_id_x]):
+                eta_sigma += (tmp_eta[cell_id_y, cell_id_x] - eta_mean)**2
+                hu_sigma  += (tmp_hu[cell_id_y, cell_id_x]  - hu_mean )**2
+                hv_sigma  += (tmp_hv[cell_id_y, cell_id_x]  - hv_mean )**2
+                numNonZeros += 1
         
-        eta_sigma = np.sqrt(eta_sigma/(1.0 + self.getNumParticles()))
-        hu_sigma  = np.sqrt( hu_sigma/(1.0 + self.getNumParticles()))
-        hv_sigma  = np.sqrt( hv_sigma/(1.0 + self.getNumParticles()))
+        eta_sigma = np.sqrt(eta_sigma/(numNonZeros-1.0))
+        hu_sigma  = np.sqrt( hu_sigma/(numNonZeros-1.0))
+        hv_sigma  = np.sqrt( hv_sigma/(numNonZeros-1.0))
         
         eta_r = eta_sigma/eta_rmse
         hu_r  =  hu_sigma/hu_rmse
@@ -623,7 +728,17 @@ class BaseOceanStateEnsemble(object):
         fieldRanges[4] = min(fieldRanges[4], np.min(hv ))
         fieldRanges[5] = max(fieldRanges[5], np.max(hv ))
 
-    def plotEnsemble(self):
+    def _markDriftersInImshow(self, ax, observed_drifter_positions):
+        """
+        Utility 
+        """
+        for d in range(self.driftersPerOceanModel):
+            cell_id_x = int(np.floor(observed_drifter_positions[d,0]/self.dx))
+            cell_id_y = int(np.floor(observed_drifter_positions[d,1]/self.dy))
+            circ = matplotlib.patches.Circle((cell_id_x, cell_id_y), 1, fill=False)
+            ax.add_patch(circ)    
+    
+    def plotEnsemble(self, num_particles=5, plotVelocityField=True):
         """
         Utility function to plot:
             - the true state
@@ -631,18 +746,23 @@ class BaseOceanStateEnsemble(object):
             - the state of up to 5 first ensemble members
         """
         matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
+        
+        observed_drifter_positions = self.observeTrueDrifters()
 
-        numParticlePlots = min(self.getNumParticles(), 5)
+        numParticlePlots = min(self.getNumParticles(), num_particles)
         numPlots = numParticlePlots + 3
         plotCols = 4
-        fig = plt.figure(figsize=(7, 2*numPlots))
+        fig_width = 16
+        if not plotVelocityField:
+            plotCols = 3
+            fig_width = 12
+        fig = plt.figure(figsize=(fig_width, 3*numPlots))
 
         eta_true, hu_true, hv_true = self.downloadTrueOceanState()
         fieldRanges = np.zeros(6) # = [eta_min, eta_max, hu_min, hu_max, hv_min, hv_max]
         
         self._updateMinMax(eta_true, hu_true, hv_true, fieldRanges)
         X,Y = np.meshgrid(np.arange(0, self.nx, 1.0), np.arange(0, self.ny, 1.0))
-
 
         eta_mean = np.zeros_like(eta_true)
         hu_mean = np.zeros_like(hu_true)
@@ -654,106 +774,159 @@ class BaseOceanStateEnsemble(object):
         eta = [None]*numParticlePlots
         hu = [None]*numParticlePlots
         hv = [None]*numParticlePlots
+        numNonNans = 0
         for p in range(self.getNumParticles()):
             if p < numParticlePlots:
                 eta[p], hu[p], hv[p] = self.downloadParticleOceanState(p)
-                eta_mean += eta[p]
-                hu_mean += hu[p]
-                hv_mean += hv[p]
-                eta_mrse += (eta_true - eta[p])**2
-                hu_mrse += (hu_true - hu[p])**2
-                hv_mrse += (hv_true - hv[p])**2
-                self._updateMinMax(eta[p], hu[p], hv[p], fieldRanges)
+                if not np.isnan(eta[p].max()):
+                    eta_mean += eta[p]
+                    hu_mean += hu[p]
+                    hv_mean += hv[p]
+                    eta_mrse += (eta_true - eta[p])**2
+                    hu_mrse += (hu_true - hu[p])**2
+                    hv_mrse += (hv_true - hv[p])**2
+                    self._updateMinMax(eta[p], hu[p], hv[p], fieldRanges)
+                    numNonNans += 1
             else:
                 tmp_eta, tmp_hu, tmp_hv = self.downloadParticleOceanState(p)
-                eta_mean += tmp_eta
-                hu_mean += tmp_hu
-                hv_mean += tmp_hv
-                eta_mrse += (eta_true - tmp_eta)**2
-                hu_mrse += (hu_true - tmp_hu)**2
-                hv_mrse += (hv_true - tmp_hv)**2
-                self._updateMinMax(tmp_eta, tmp_hu, tmp_hv, fieldRanges)
-
+                if not np.isnan(tmp_eta.max()):
+                    eta_mean += tmp_eta
+                    hu_mean += tmp_hu
+                    hv_mean += tmp_hv
+                    eta_mrse += (eta_true - tmp_eta)**2
+                    hu_mrse += (hu_true - tmp_hu)**2
+                    hv_mrse += (hv_true - tmp_hv)**2
+                    self._updateMinMax(tmp_eta, tmp_hu, tmp_hv, fieldRanges)
+                    numNonNans += 1
+                    
         eta_mean = eta_mean/self.getNumParticles()
         hu_mean = hu_mean/self.getNumParticles()
         hv_mean = hv_mean/self.getNumParticles()
         eta_mrse = np.sqrt(eta_mrse/self.getNumParticles())
         hu_mrse = np.sqrt(hu_mrse/self.getNumParticles())
         hv_mrse = np.sqrt(hv_mrse/self.getNumParticles())
-
-        eta_levels = np.linspace(fieldRanges[0], fieldRanges[1], 10)
-        hu_levels = np.linspace(fieldRanges[2], fieldRanges[3], 10)
-        hv_levels = np.linspace(fieldRanges[4], fieldRanges[5], 10)
         
         eta_lim = np.max(np.abs(fieldRanges[:2]))
         huv_lim = np.max(np.abs(fieldRanges[2:]))
+        eta_mrse_max = eta_mrse.max()
+        huv_mrse_max = max(hu_mrse.max(), hv_mrse.max())
         
-        plt.subplot(numPlots, plotCols, 1)
+        eta_levels = np.linspace(fieldRanges[0], fieldRanges[1], 10)
+        hu_levels = np.linspace(fieldRanges[2], fieldRanges[3], 10)
+        hv_levels = np.linspace(fieldRanges[4], fieldRanges[5], 10)
+        eta_mrse_levels = np.linspace(0, eta_mrse_max, 5)
+        huv_mrse_levels = np.linspace(0, huv_mrse_max, 5)
+        
+        fignum = 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
         plt.imshow(eta_true, origin='lower', vmin=-eta_lim, vmax=eta_lim)
+        plt.colorbar()
         plt.contour(eta_true, levels=eta_levels, colors='black', alpha=0.5)
         plt.title("true eta")
-        plt.subplot(numPlots, plotCols, 2)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
         plt.imshow(hu_true, origin='lower', vmin=-huv_lim, vmax=huv_lim)
+        plt.colorbar()
         plt.contour(hu_true, levels=hu_levels, colors='black', alpha=0.5)
         plt.title("true hu")
-        plt.subplot(numPlots, plotCols, 3)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
         plt.imshow(hv_true, origin='lower', vmin=-huv_lim, vmax=huv_lim)
+        plt.colorbar()
         plt.contour(hv_true, levels=hv_levels, colors='black', alpha=0.5)
         plt.title("true hv")
-        plt.subplot(numPlots, plotCols, 4)
-        plt.quiver(X, Y, hu_true, hv_true)
-        plt.title("velocity field")
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        if plotVelocityField:        
+            fignum += 1
+            ax = plt.subplot(numPlots, plotCols, fignum)
+            plt.quiver(X, Y, hu_true, hv_true)
+            plt.title("velocity field")
+            self._markDriftersInImshow(ax, observed_drifter_positions)
         
-        plt.subplot(numPlots, plotCols, 5)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
         plt.imshow(eta_mean, origin='lower', vmin=-eta_lim, vmax=eta_lim)
+        plt.colorbar()
         plt.contour(eta_mean, levels=eta_levels, colors='black', alpha=0.5)
         plt.title("mean eta")
-        plt.subplot(numPlots, plotCols, 6)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
         plt.imshow(hu_mean, origin='lower', vmin=-huv_lim, vmax=huv_lim)
+        plt.colorbar()
         plt.contour(hu_mean, levels=hu_levels, colors='black', alpha=0.5)
         plt.title("mean hu")
-        plt.subplot(numPlots, plotCols, 7)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
         plt.imshow(hv_mean, origin='lower', vmin=-huv_lim, vmax=huv_lim)
+        plt.colorbar()
         plt.contour(hv_mean, levels=hv_levels, colors='black', alpha=0.5)
         plt.title("mean hv")
-        plt.subplot(numPlots, plotCols, 8)
-        plt.quiver(X, Y, hu_mean, hv_mean)
-        plt.title("velocity field")
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        if plotVelocityField:
+            fignum += 1
+            ax = plt.subplot(numPlots, plotCols, fignum)
+            plt.quiver(X, Y, hu_mean, hv_mean)
+            plt.title("velocity field")
+            self._markDriftersInImshow(ax, observed_drifter_positions)
         
-        mrse_max = max(np.max(eta_mrse), np.max(hu_mrse), np.max(hv_mrse))
-        mrse_min = min(np.min(eta_mrse), np.min(hu_mrse), np.min(hv_mrse))
-        mrse_levels = np.linspace(mrse_max, mrse_min, 10)
         
-        plt.subplot(numPlots, plotCols, 9)
-        plt.imshow(eta_mrse, origin='lower', vmin=-eta_lim, vmax=eta_lim)
-        plt.contour(eta_mrse, levels=eta_levels, colors='black', alpha=0.5)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
+        plt.imshow(eta_mrse, origin='lower', vmin=0, vmax=eta_mrse_max)
+        plt.colorbar()
+        plt.contour(eta_mrse, levels=eta_mrse_levels, colors='black', alpha=0.5)
         plt.title("RMSE eta")
-        plt.subplot(numPlots, plotCols, 10)
-        plt.imshow(hu_mrse, origin='lower', vmin=-huv_lim, vmax=huv_lim)
-        plt.contour(hu_mrse, levels=hu_levels, colors='black', alpha=0.5)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
+        plt.imshow(hu_mrse, origin='lower', vmin=0, vmax=huv_mrse_max)
+        plt.colorbar()
+        plt.contour(hu_mrse, levels=huv_mrse_levels, colors='black', alpha=0.5)
         plt.title("RMSE hu")
-        plt.subplot(numPlots, plotCols, 11)
-        plt.imshow(hv_mrse, origin='lower', vmin=-huv_lim, vmax=huv_lim)
-        #plt.colorbar() # TODO: Find a nice way to include colorbar to this plot...
-        plt.contour(hv_mrse, levels=hv_levels, colors='black', alpha=0.5)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        fignum += 1
+        ax = plt.subplot(numPlots, plotCols, fignum)
+        plt.imshow(hv_mrse, origin='lower', vmin=0, vmax=huv_mrse_max)
         plt.title("RMSE hv")
-
+        plt.colorbar()
+        #plt.colorbar() # TODO: Find a nice way to include colorbar to this plot...
+        plt.contour(hv_mrse, levels=huv_mrse_levels, colors='black', alpha=0.5)
+        self._markDriftersInImshow(ax, observed_drifter_positions)
+        if plotVelocityField:
+            fignum += 1
+            
         for p in range(numParticlePlots):
-            plt.subplot(numPlots, plotCols, 13+p*plotCols)
+            fignum += 1
+            ax = plt.subplot(numPlots, plotCols, fignum)
             plt.imshow(eta[p], origin='lower', vmin=-eta_lim, vmax=eta_lim)
+            plt.colorbar()
             plt.contour(eta[p], levels=eta_levels, colors='black', alpha=0.5)
             plt.title("particle eta")
-            plt.subplot(numPlots, plotCols, 13+p*plotCols + 1)
+            self._markDriftersInImshow(ax, observed_drifter_positions)
+            fignum += 1
+            ax = plt.subplot(numPlots, plotCols, fignum)
             plt.imshow(hu[p], origin='lower', vmin=-huv_lim, vmax=huv_lim)
+            plt.colorbar()
             plt.contour(hu[p], levels=hu_levels, colors='black', alpha=0.5)
             plt.title("particle hu")
-            plt.subplot(numPlots, plotCols, 13+p*plotCols + 2)
+            self._markDriftersInImshow(ax, observed_drifter_positions)
+            fignum += 1
+            ax = plt.subplot(numPlots, plotCols, fignum)
             plt.imshow(hv[p], origin='lower', vmin=-huv_lim, vmax=huv_lim)
+            plt.colorbar()
             plt.contour(hv[p], levels=hv_levels, colors='black', alpha=0.5)
             plt.title("particle hv")
-            plt.subplot(numPlots, plotCols, 13+p*plotCols + 3)
-            plt.quiver(X, Y, hu[p], hv[p])
-            plt.title("velocity field")
+            self._markDriftersInImshow(ax, observed_drifter_positions)
+            if plotVelocityField:
+                fignum += 1
+                ax = plt.subplot(numPlots, plotCols, fignum)
+                plt.quiver(X, Y, hu[p], hv[p])
+                plt.title("velocity field")
+                self._markDriftersInImshow(ax, observed_drifter_positions)
             
         plt.axis('tight')
     
@@ -868,7 +1041,8 @@ class BaseOceanStateEnsemble(object):
 
 
         # PLOT POSITIONS OF PARTICLES AND OBSERVATIONS
-        ax = plt.subplot2grid((plotRows,3), (0,0), polar=True, axisbg='#ffffff')
+
+        ax = plt.subplot2grid((plotRows,3), (0,0), polar=True)
         self._fillPolarPlot(ax, drifter_id=0, printInfo=printInfo)
 
         # PLOT DISCTRIBUTION OF PARTICLE DISTANCES AND THEORETIC OBSERVATION PDF
@@ -888,7 +1062,7 @@ class BaseOceanStateEnsemble(object):
         ax1 = ax0.twinx()
         ax1.hist(innovations, bins=30, \
                  range=(0, range_x),\
-                 normed=True, label="particle innovations (norm)")
+                 density=True, label="particle innovations (norm)")
 
         # PLOT SORTED DISTANCES FROM OBSERVATION
         ax0 = plt.subplot2grid((plotRows,3), (1,0), colspan=3)
@@ -909,8 +1083,8 @@ class BaseOceanStateEnsemble(object):
         plt.title("Sorted distances from observation")
 
         if self.driftersPerOceanModel > 1:
-            for drifter_id in range(1,min(4, self.driftersPerOceanModel)):
-                ax = plt.subplot2grid((plotRows,3), (2,drifter_id-1), polar=True, axisbg='#ffffff')
+            for drifter_id in range(0,min(3, self.driftersPerOceanModel)):
+                ax = plt.subplot2grid((plotRows,3), (2,drifter_id), polar=True)
                 self._fillPolarPlot(ax, drifter_id=drifter_id, printInfo=printInfo)
 
         if title is not None:
@@ -918,3 +1092,34 @@ class BaseOceanStateEnsemble(object):
         plt.tight_layout()
         return fig
             
+    def plotRMSE(self):
+        fig = plt.figure(figsize=(10,3))
+        plt.plot(self.tArray, self.rmseUnderDrifter_eta, label='eta')
+        plt.plot(self.tArray, self.rmseUnderDrifter_hu,  label='hu')
+        plt.plot(self.tArray, self.rmseUnderDrifter_hv,  label='hv')
+        #plt.plot(observation_iterations, 0.0*np.ones_like(observation_iterations), 'o')
+        plt.title("RMSE under drifter")
+        plt.legend(loc=0)
+        plt.grid()
+        #plt.ylim([0, 1])
+        
+        fig = plt.figure(figsize=(10,3))
+        plt.plot(self.tArray, self.varianceUnderDrifter_eta, label='eta')
+        plt.plot(self.tArray, self.varianceUnderDrifter_hu,  label='hu')
+        plt.plot(self.tArray, self.varianceUnderDrifter_hv,  label='hv')
+        #plt.plot(observation_iterations, 0.0*np.ones_like(observation_iterations), 'o')
+        plt.title("Std.dev. under drifter")
+        plt.legend(loc=0)
+        plt.grid()
+        #plt.ylim([0, 1])
+        
+        fig = plt.figure(figsize=(10,3))
+        plt.plot(self.tArray, self.rUnderDrifter_eta, label='eta')
+        plt.plot(self.tArray, self.rUnderDrifter_hu,  label='hu')
+        plt.plot(self.tArray, 1.0/np.array(self.rUnderDrifter_hv),  label='hv')
+        #plt.plot(observation_iterations, 0.0*np.ones_like(observation_iterations), 'o')
+        plt.title("r = std.dev./rmse under drifter")
+        plt.legend(loc=0)
+        plt.grid()
+        #plt.ylim([0, 5])
+        

@@ -1,7 +1,14 @@
 # -*- coding: utf-8 -*-
 
 """
-Copyright (C) 2016  SINTEF ICT
+This software is part of GPU Ocean.
+
+Copyright (C) 2018, 2019  SINTEF Digital
+Copyright (C) 2018, 2019  Norwegian Meteorological Institute
+
+This python module implements common base functionalty required by all 
+the different simulators, which are the classes containing the 
+different numerical schemes.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -75,7 +82,7 @@ class Simulator(object):
         self.ghost_cells_y = np.int32(ghost_cells_y)
         self.dx = np.float32(dx)
         self.dy = np.float32(dy)
-        self.dt = np.float32(dt)
+        self.dt = dt
         self.g = np.float32(g)
         self.f = np.float32(f)
         self.r = np.float32(r)
@@ -87,7 +94,8 @@ class Simulator(object):
         self.offset_y = offset_y
         
         #Initialize time
-        self.t = np.float32(t)
+        self.t = t
+        self.num_iterations = 0
         
         #Initialize wind stress parameters
         self.wind_stress_textures = {}
@@ -254,7 +262,7 @@ class Simulator(object):
         
         self.drifters = drifters
         self.hasDrifters = True
-        self.drifters.setCLQueue(self.gpu_stream)
+        self.drifters.setGPUStream(self.gpu_stream)
     
     def download(self, interior_domain_only=False):
         """

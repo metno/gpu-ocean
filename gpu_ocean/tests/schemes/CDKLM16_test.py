@@ -1,3 +1,25 @@
+# -*- coding: utf-8 -*-
+"""
+This software is part of GPU Ocean. 
+
+Copyright (C) 2018 SINTEF Digital
+
+This python module implements regression tests for the CDKLM16 scheme.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import unittest
 import time
 import numpy as np
@@ -53,7 +75,12 @@ class CDKLM16test(unittest.TestCase):
         self.u0 = None
         self.v0 = None
         self.Hi = None
-        self.gpu_ctx = None
+        
+        if self.gpu_ctx is not None:
+            self.assertEqual(sys.getrefcount(self.gpu_ctx), 2)
+            self.gpu_ctx = None
+
+        
         gc.collect() # Force run garbage collection to free up memory
         
 
@@ -345,3 +372,61 @@ class CDKLM16test(unittest.TestCase):
         eta2, u2, v2 = loadResults("CDKLM16", "coriolis", "central")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+
+    def test_betamodel_central(self):
+        self.setBoundaryConditions()
+        self.allocData()
+        self.f = 0.01
+        beta = 1e-6
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
+                                   self.eta0, self.u0, self.v0, self.Hi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r, coriolis_beta=beta)
+    #, boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("CDKLM16", "betamodel", "central")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+    def test_betamodel_central(self):
+        self.setBoundaryConditions()
+        self.allocData()
+        self.f = 0.01
+        beta = 1e-6
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
+                                   self.eta0, self.u0, self.v0, self.Hi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r, coriolis_beta=beta)
+    #, boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("CDKLM16", "betamodel", "central")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+
+        
+    def test_bathymetry_central(self):
+        self.setBoundaryConditions()
+        self.allocData() 
+        addCentralBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        makeBottomTopography(self.Hi, self.nx, self.ny, self.dx, self.dy, self.validDomain)
+        self.sim = CDKLM16.CDKLM16(self.gpu_ctx, \
+                                   self.eta0, self.u0, self.v0, self.Hi, \
+                                   self.nx, self.ny, \
+                                   self.dx, self.dy, self.dt, \
+                                   self.g, self.f, self.r) #, boundary_conditions=self.boundaryConditions)
+
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download()
+        eta2, u2, v2 = loadResults("CDKLM16", "wallBC", "central", "bathymetry_")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
+       

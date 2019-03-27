@@ -1,0 +1,21 @@
+# Assumes that conda, pip and build-essentials are installed
+---
+name: gpuocean
+channels:
+- conda-forge
+
+dependencies:
+- python=3.6
+- numpy
+- matplotlib
+- jupyter
+- netcdf4
+- pytest
+- xmlrunner
+- scipy
+- pandas
+- nb_conda_kernels
+- pip:
+  - pycuda
+# on Windows: make sure your visual studio c++ compiler is available in PATH
+# PATH should have something like C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\

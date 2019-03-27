@@ -29,407 +29,200 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // 3: Open (Flow Relaxation Scheme)
 // 4: Open (Linear interpolation)
 
- // Fix north-south boundary before east-west (to get the corners right)
- extern "C" {
-__global__ void boundaryEtaKernel_NS(
-	// Discretization parameters
-        int nx_, int ny_,
-        int halo_x_, int halo_y_,
-	int bc_north_, int bc_south_,
-	
-        // Data
-        float* eta_ptr_, int eta_pitch_) {
-    // Index of cell within domain
-    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
-    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
-
-    int opposite_row_index = ny_;
-    //if (tj == ny_+1) {
-    if ( (tj == ny_+1 && bc_north_ == 2) || (tj == 0 && bc_south_ == 1) ) {
-	opposite_row_index = 1;
-    }
-    
-    // Set ghost cells equal to inner neighbour's value
-    if (((tj == 0     && bc_south_ < 3)  ||
-	 (tj == ny_+1 && bc_north_ < 3)) &&
-	ti > 0 && ti < nx_+1) {
-	float* ghost_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);
-	float* opposite_row = (float*) ((char*) eta_ptr_ + eta_pitch_*opposite_row_index);
-	ghost_row[ti] = opposite_row[ti];
-    }
-    // TODO: USE HALO PARAMS
-}
-} // extern "C"
-        
-// Fix north-south boundary before east-west (to get the corners right)
-extern "C" {
-__global__ void boundaryEtaKernel_EW(
-	// Discretization parameters
-        int nx_, int ny_,
-        int halo_x_, int halo_y_,
-	int bc_east_, int bc_west_,
-
-        // Data
-        float* eta_ptr_, int eta_pitch_) {
-    // Index of cell within domain
-    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
-    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
-
-    int opposite_col_index = nx_;
-    if ( (ti == nx_+1 && bc_east_ == 2) || (ti == 0 && bc_west_ == 1) ) {
-	opposite_col_index = 1;
-    }
-    
-    // Set ghost cells equal to inner neighbour's value
-    if (((ti == 0     && bc_west_ < 3)  ||
-	 (ti == nx_+1 && bc_east_ < 3)) &&
-	tj > -1 && tj < ny_+2) {
-	float* eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);
-	eta_row[ti] = eta_row[opposite_col_index];
-    }
-    // TODO: USE HALO PARAMS
-}
-} // extern "C"
-
-// NS need to be called before EW!
-extern "C" {
-__global__ void boundaryUKernel_NS(
-        // Discretization parameters
-        int nx_, int ny_,
-        int nx_halo_, int ny_halo_,
-	int bc_north_, int bc_south_,
-
-        // Data
-        float* U_ptr_, int U_pitch_) {
-
-    // Index of cell within domain
-    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
-    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
-
-    // Check if thread is in the domain:
-    if (ti <= nx_+2 && tj <= ny_+1) {
-	// The thread's row:
-	float* u_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);
-
-	 int opposite_row_index = ny_;
-	 if ( (tj == ny_+1 && bc_north_ == 2) || (tj == 0 && bc_south_ == 1) ) {
-	     opposite_row_index = 1;
-	 }
-	
-	 if ( ((tj == 0     && bc_south_ < 3)  ||
-	       (tj == ny_+1 && bc_north_ < 3)) &&
-	      ti > 0 && ti < nx_+1 ) {
-	    float* u_opposite_row = (float*) ((char*) U_ptr_ + U_pitch_*opposite_row_index);
-	    u_row[ti] = u_opposite_row[ti];
-	}
-    } 
-}
-} // extern "C"
-
-extern "C" {
-__global__ void boundaryUKernel_EW(
-        // Discretization parameters
-        int nx_, int ny_,
-        int nx_halo_, int ny_halo_,
-	int bc_east_, int bc_west_,
-	
-        // Data
-        float* U_ptr_, int U_pitch_) {
-
-    // Index of cell within domain
-    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
-    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
-
-    // Check if thread is in the domain:
-    if (ti <= nx_+2 && tj <= ny_+1) {	
-	float* u_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);
-
-	if ( (ti < 2 && bc_west_ == 1) || (ti > nx_ && bc_east_ == 1) ) {
-	    u_row[ti] = 0;
-	}
-	else if (bc_west_ == 2) { // bc_east is then automatically also 2
-	    // Periodic
-	    int opposite_col_index = nx_+1;
-	    if (ti == nx_+2) {
-		opposite_col_index = 1;
-	    }
-	    
-	    // We should have computed both u_row[1] and u_row[nx_+1],
-	    // and these two should already have the same values.
-	    if ( ti == 0 || ti == nx_+2) {
-		u_row[ti] = u_row[opposite_col_index];
-	    }
-	}
-    }
-}
-} // extern "C"
-
-
-// NS need to be called before EW!
-extern "C" {
-__global__ void boundaryVKernel_NS(
-        // Discretization parameters
-        int nx_, int ny_,
-        int nx_halo_, int ny_halo_,
-	int bc_north_, int bc_south_,
-
-        // Data
-        float* V_ptr_, int V_pitch_) {
-
-    // Index of cell within domain
-    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
-    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
-
-    // Check if thread is in the domain:
-    if (ti <= nx_+1 && tj <= ny_+2) {	
-	float* v_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
-
-	
-	if ( (tj < 2 && bc_south_ == 1 ) || (tj > ny_ && bc_north_ == 1) ) {
-	    v_row[ti] = 0;
-	}
-	else if (bc_north_ == 2) { // implicit bc_south_ == 2
-	    // Periodic
-	    int opposite_row_index = ny_;
-	    if (tj == ny_+2) {
-		opposite_row_index = 1;
-	    }
-	    
-	    if ( (tj == 0 || tj == ny_+2) && ti > 0 && ti < nx_+1 ) {
-		float* v_opposite_row = (float*) ((char*) V_ptr_ + V_pitch_*opposite_row_index);
-		v_row[ti] = v_opposite_row[ti];
-	    }
-	}
-    }
-}
-} // extern "C"
-
-extern "C" {
-__global__ void boundaryVKernel_EW(
-        // Discretization parameters
-        int nx_, int ny_,
-        int nx_halo_, int ny_halo_,
-	int bc_east_, int bc_west_,
-
-        // Data
-        float* V_ptr_, int V_pitch_) {
-
-    // Index of cell within domain
-    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
-    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
-
-    // Check if thread is in the domain:
-    if (ti <= nx_+1 && tj <= ny_+2) {	
-	float* v_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);
-
-	 int opposite_col_index = nx_;
-	 if ( (ti == nx_+1 && bc_east_ == 2) || (ti == 0 && bc_west_ == 1) ) {
-	     opposite_col_index = 1;
-	 }
-	
-	// We should have computed both u_row[1] and u_row[nx_+1],
-	// and these two should already have the same values.
-	 if ( (ti == 0 && bc_west_ < 3) || (ti == nx_+1 && bc_east_ < 3) )   {
-
-	     v_row[ti] = v_row[opposite_col_index];
-	}
-    }
-}
-} // extern "C" 
 
 extern "C" {
 __global__ void boundary_linearInterpol_NS(
-	// Discretization parameters
-        int nx_, int ny_,
-        int nx_halo_, int ny_halo_,
-	int staggered_x_, int staggered_y_, // U->(1,0), V->(0,1), eta->(0,0)
-	
-	// Boundary condition parameters
-	int sponge_cells_north_, int sponge_cells_south_,
-	int bc_north_, int bc_south_,
-		
-        // Data
-        float* data_ptr_, int data_pitch_) {
+    // Discretization parameters
+    int nx_, int ny_,
+    int nx_halo_, int ny_halo_,
+    int staggered_x_, int staggered_y_, // U->(1,0), V->(0,1), eta->(0,0)
+    
+    // Boundary condition parameters
+    int sponge_cells_north_, int sponge_cells_south_,
+    int bc_north_, int bc_south_,
+        
+    // Data
+    float* data_ptr_, int data_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (( ((bc_south_ == 4) &&
-	   (tj < sponge_cells_south_) && (tj > 0)) ||
-	  ((bc_north_ == 4) &&
-	   (tj > ny_ + 2*ny_halo_ + staggered_y_ - sponge_cells_north_ - 1) &&
-	   (tj < ny_ + 2*ny_halo_ + staggered_y_ - 1)) ) &&
-	(ti > 0) && (ti < nx_ + 2*ny_halo_ + staggered_x_ -1))
-	{
-	    // Identify inner and outer row
-	    int inner_row = sponge_cells_south_;
-	    int outer_row = 0;
-	    if (tj > sponge_cells_south_) {
-		inner_row = ny_ + 2*ny_halo_ + staggered_y_ - sponge_cells_north_ - 1;
-		outer_row = ny_ + 2*ny_halo_ + staggered_y_ - 1;
-	    }
+           (tj < sponge_cells_south_) && (tj > 0)) ||
+          ((bc_north_ == 4) &&
+           (tj > ny_ + 2*ny_halo_ + staggered_y_ - sponge_cells_north_ - 1) &&
+           (tj < ny_ + 2*ny_halo_ + staggered_y_ - 1)) ) &&
+        (ti > 0) && (ti < nx_ + 2*ny_halo_ + staggered_x_ -1))
+    {
+        // Identify inner and outer row
+        int inner_row = sponge_cells_south_;
+        int outer_row = 0;
+        if (tj > sponge_cells_south_) {
+            inner_row = ny_ + 2*ny_halo_ + staggered_y_ - sponge_cells_north_ - 1;
+            outer_row = ny_ + 2*ny_halo_ + staggered_y_ - 1;
+        }
 
-	    // Get outer value
-	    float* outer_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*outer_row);
-	    float outer_value = outer_row_ptr[ti];
+        // Get outer value
+        float* outer_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*outer_row);
+        float outer_value = outer_row_ptr[ti];
 
-	    // Get inner value
-	    float* inner_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*inner_row);
-	    float inner_value = inner_row_ptr[ti];
+        // Get inner value
+        float* inner_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*inner_row);
+        float inner_value = inner_row_ptr[ti];
 
-	    // Find target cell
-	    float* target_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*tj);
+        // Find target cell
+        float* target_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*tj);
 
-	    // Interpolate:
-	    float ratio = ((float)(tj - outer_row))/(inner_row - outer_row);
-	    target_row_ptr[ti] = outer_value + ratio*(inner_value - outer_value);
-	}
+        // Interpolate:
+        float ratio = ((float)(tj - outer_row))/(inner_row - outer_row);
+        target_row_ptr[ti] = outer_value + ratio*(inner_value - outer_value);
+    }
 }
 } // extern "C"
 
 
 extern "C" {
 __global__ void boundary_linearInterpol_EW(
-	// Discretization parameters
-        int nx_, int ny_,
-        int nx_halo_, int ny_halo_,
-	int staggered_x_, int staggered_y_, // U->(1,0), V->(0,1), eta->(0,0)
-	
-	// Boundary condition parameters
-	int sponge_cells_east_, int sponge_cells_west_,
-	int bc_east_, int bc_west_,
-		
-        // Data
-        float* data_ptr_, int data_pitch_) {
+    // Discretization parameters
+    int nx_, int ny_,
+    int nx_halo_, int ny_halo_,
+    int staggered_x_, int staggered_y_, // U->(1,0), V->(0,1), eta->(0,0)
+    
+    // Boundary condition parameters
+    int sponge_cells_east_, int sponge_cells_west_,
+    int bc_east_, int bc_west_,
+        
+    // Data
+    float* data_ptr_, int data_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (( ((bc_west_ == 4) &&
-	   (ti < sponge_cells_west_) && (ti > 0)) ||
-	  ((bc_east_ == 4) &&
-	   (ti > nx_ + 2*nx_halo_ + staggered_x_ - sponge_cells_east_ - 1) &&
-	   (ti < nx_ + 2*nx_halo_ + staggered_x_ - 1)) ) &&
-	(tj > 0) && (tj < ny_ + 2*ny_halo_ + staggered_y_-1))
-	{
+           (ti < sponge_cells_west_) && (ti > 0)) ||
+          ((bc_east_ == 4) &&
+           (ti > nx_ + 2*nx_halo_ + staggered_x_ - sponge_cells_east_ - 1) &&
+           (ti < nx_ + 2*nx_halo_ + staggered_x_ - 1)) ) &&
+        (tj > 0) && (tj < ny_ + 2*ny_halo_ + staggered_y_-1))
+    {
 
-	    // Identify inner and outer row
-	    int inner_col = sponge_cells_west_;
-	    int outer_col = 0;
-	    if (ti > sponge_cells_west_) {
-		inner_col = nx_ + 2*nx_halo_ + staggered_x_ - sponge_cells_east_ - 1;
-		outer_col = nx_ + 2*nx_halo_ + staggered_x_ - 1;
-	    }
+        // Identify inner and outer row
+        int inner_col = sponge_cells_west_;
+        int outer_col = 0;
+        if (ti > sponge_cells_west_) {
+            inner_col = nx_ + 2*nx_halo_ + staggered_x_ - sponge_cells_east_ - 1;
+            outer_col = nx_ + 2*nx_halo_ + staggered_x_ - 1;
+        }
 
-	    // Get row:
-	    float* data_row = (float*) ((char*) data_ptr_ + data_pitch_*tj);
+        // Get row:
+        float* data_row = (float*) ((char*) data_ptr_ + data_pitch_*tj);
 
-	    // Get inner value
-	    float inner_value = data_row[inner_col];
+        // Get inner value
+        float inner_value = data_row[inner_col];
 
-	    // Get outer value
-	    float outer_value = data_row[outer_col];
+        // Get outer value
+        float outer_value = data_row[outer_col];
 
-	    // Interpolate:
-	    float ratio = ((float)(ti - outer_col))/(inner_col - outer_col);
-	    data_row[ti] = outer_value + ratio*(inner_value - outer_value);
-	}
+        // Interpolate:
+        float ratio = ((float)(ti - outer_col))/(inner_col - outer_col);
+        data_row[ti] = outer_value + ratio*(inner_value - outer_value);
+    }
 }
 } // extern "C"
 
 
 extern "C" {
 __global__ void boundary_flowRelaxationScheme_NS(
-	// Discretization parameters
-        int nx_, int ny_,
-        int nx_halo_, int ny_halo_,
-	int staggered_x_, int staggered_y_, // U->(1,0), V->(0,1), eta->(0,0)
-	
-	// Boundary condition parameters
-	int sponge_cells_north_, int sponge_cells_south_,
-	int bc_north_, int bc_south_,
-		
-        // Data
-        float* data_ptr_, int data_pitch_) {
+    // Discretization parameters
+    int nx_, int ny_,
+    int nx_halo_, int ny_halo_,
+    int staggered_x_, int staggered_y_, // U->(1,0), V->(0,1), eta->(0,0)
+    
+    // Boundary condition parameters
+    int sponge_cells_north_, int sponge_cells_south_,
+    int bc_north_, int bc_south_,
+    
+    // Data
+    float* data_ptr_, int data_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (( ((bc_south_ == 3) &&
-	   (tj < sponge_cells_south_) && (tj > 0)) ||
-	  ((bc_north_ == 3) &&
-	   (tj > ny_ + 2*ny_halo_ + staggered_y_ - sponge_cells_north_ - 1) &&
-	   (tj < ny_ + 2*ny_halo_ + staggered_y_ - 1)) ) &&
-	(ti > 0) && (ti < nx_ + 2*ny_halo_ + staggered_x_-1))
-	{
-	    // Identify the exterior and current row
-	    int exterior_row = 0;
-	    int j = tj;
-	    if (tj > sponge_cells_south_) {
-		exterior_row = ny_ + 2*ny_halo_ + staggered_y_ - 1;
-		j = exterior_row - tj;
-	    }
-	    float alpha = 1.0f - tanh((j-1.0f)/2.0f);
+           (tj < sponge_cells_south_) && (tj > 0)) ||
+          ((bc_north_ == 3) &&
+           (tj > ny_ + 2*ny_halo_ + staggered_y_ - sponge_cells_north_ - 1) &&
+           (tj < ny_ + 2*ny_halo_ + staggered_y_ - 1)) ) &&
+        (ti > 0) && (ti < nx_ + 2*ny_halo_ + staggered_x_-1))
+    {
+        // Identify the exterior and current row
+        int exterior_row = 0;
+        int j = tj;
+        if (tj > sponge_cells_south_) {
+            exterior_row = ny_ + 2*ny_halo_ + staggered_y_ - 1;
+            j = exterior_row - tj;
+        }
+        float alpha = 1.0f - tanh((j-1.0f)/2.0f);
 
-	    // Get exterior value
-	    float* exterior_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*exterior_row);
-	    float exterior_value = exterior_row_ptr[ti];
+        // Get exterior value
+        float* exterior_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*exterior_row);
+        float exterior_value = exterior_row_ptr[ti];
 
-	    // Find target cell
-	    float* target_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*tj);
+        // Find target cell
+        float* target_row_ptr = (float*) ((char*) data_ptr_ + data_pitch_*tj);
 
-	    // Interpolate:
-	    target_row_ptr[ti] = (1.0f - alpha)*target_row_ptr[ti] + alpha*exterior_value;
-	}
+        // Interpolate:
+        target_row_ptr[ti] = (1.0f - alpha)*target_row_ptr[ti] + alpha*exterior_value;
+    }
 }
 } // extern "C" 
 
 
 extern "C" {
 __global__ void boundary_flowRelaxationScheme_EW(
-	// Discretization parameters
-        int nx_, int ny_,
-        int nx_halo_, int ny_halo_,
-	int staggered_x_, int staggered_y_, // U->(1,0), V->(0,1), eta->(0,0)
-	
-	// Boundary condition parameters
-	int sponge_cells_east_, int sponge_cells_west_,
-	int bc_east_, int bc_west_,
-		
-        // Data
-        float* data_ptr_, int data_pitch_) {
+    // Discretization parameters
+    int nx_, int ny_,
+    int nx_halo_, int ny_halo_,
+    int staggered_x_, int staggered_y_, // U->(1,0), V->(0,1), eta->(0,0)
+    
+    // Boundary condition parameters
+    int sponge_cells_east_, int sponge_cells_west_,
+    int bc_east_, int bc_west_,
+        
+    // Data
+    float* data_ptr_, int data_pitch_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (( ((bc_west_ == 3) &&
-	   (ti < sponge_cells_west_) && (ti > 0)) ||
-	  ((bc_east_ == 3) &&
-	   (ti > nx_ + 2*nx_halo_ + staggered_x_ - sponge_cells_east_ - 1) &&
-	   (ti < nx_ + 2*nx_halo_ + staggered_x_ - 1)) ) &&
-	(tj > 0) && (tj < ny_ + 2*ny_halo_ + staggered_y_-1))
-	{
+           (ti < sponge_cells_west_) && (ti > 0)) ||
+          ((bc_east_ == 3) &&
+           (ti > nx_ + 2*nx_halo_ + staggered_x_ - sponge_cells_east_ - 1) &&
+           (ti < nx_ + 2*nx_halo_ + staggered_x_ - 1)) ) &&
+        (tj > 0) && (tj < ny_ + 2*ny_halo_ + staggered_y_-1))
+    {
 
-	    int exterior_col = 0;
-	    int j = ti;
-	    if (ti > sponge_cells_west_) {
-		exterior_col = nx_ + 2*nx_halo_ + staggered_x_ - 1;
-		j = exterior_col - ti;
-	    }
-	    float alpha = 1.0f - tanh((j-1.0f)/2.0f);
+        int exterior_col = 0;
+        int j = ti;
+        if (ti > sponge_cells_west_) {
+            exterior_col = nx_ + 2*nx_halo_ + staggered_x_ - 1;
+            j = exterior_col - ti;
+        }
+        float alpha = 1.0f - tanh((j-1.0f)/2.0f);
 
-	    // Get row:
-	    float* data_row = (float*) ((char*) data_ptr_ + data_pitch_*tj);
+        // Get row:
+        float* data_row = (float*) ((char*) data_ptr_ + data_pitch_*tj);
 
-	    // Get exterior value
-	    float exterior_value = data_row[exterior_col];
+        // Get exterior value
+        float exterior_value = data_row[exterior_col];
 
-	    // Interpolate:
-	    data_row[ti] = (1.0f - alpha)*data_row[ti] + alpha*exterior_value;
-	}
+        // Interpolate:
+        data_row[ti] = (1.0f - alpha)*data_row[ti] + alpha*exterior_value;
+    }
 }
 } // extern "C"

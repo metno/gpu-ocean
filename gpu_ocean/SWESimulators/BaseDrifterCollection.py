@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class provides an abstract collection of Drifters. All actual drifters should inherit this class, and implement its abstract methods.
+This software is a part of GPU Ocean.
 
-Copyright (C) 2018  SINTEF ICT
+Copyright (C) 2018  SINTEF Digital
+
+This python class provides an abstract collection of Drifters. All 
+actual drifters should inherit this class, and implement its abstract methods.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -63,6 +66,8 @@ class BaseDrifterCollection(object):
         # Boundary conditions are read from a BoundaryConditions object
         self.boundaryConditions = boundaryConditions
     
+    def __del__(self):
+        self.cleanUp()
     
     def copy(self):
         """
@@ -89,6 +94,9 @@ class BaseDrifterCollection(object):
     def setObservationPosition(self, newObservationPosition):
         pass
     
+    @abc.abstractmethod
+    def cleanUp(self):
+        pass
     
     
     ### GETs

@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is part of GPU Ocean.
+
+Copyright (C) 2018 SINTEF Digital
+Copyright (C) 2018 Norwegian Meteorological Institute
+
 This python class implements an ensemble of particles, each consisting
 of a single drifter in its own ocean state. The perturbation parameter 
 is the wind direction.
-
-
-Copyright (C) 2018  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -33,6 +35,7 @@ from SWESimulators import CDKLM16
 from SWESimulators import GPUDrifterCollection
 from SWESimulators import BaseOceanStateEnsemble
 from SWESimulators import Common
+from SWESimulators import WindStress
 from SWESimulators import DataAssimilationUtils as dautils
 
 
@@ -42,16 +45,21 @@ class WindForcingEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     def init(self, driftersPerOceanModel=1):
         self.windSpeed = 2.0
         self.directions = np.random.rand(self.numParticles + 1)*360
+        self.windX, self.windY = self.XandYfromDirections(self.directions)
         #print "Directions: ", self.directions
         self.driftersPerOceanModel = driftersPerOceanModel
         
+        self.windT = np.zeros((1), dtype=np.float32)
+        
         for i in range(self.numParticles+1):
-            wind = Common.WindStressParams(type=50, 
-                                           wind_speed=self.windSpeed,
-                                           wind_direction=self.directions[i])
-
             
-            self.particles[i] = CDKLM16.CDKLM16(self.cl_ctx, \
+            wX = [self.windX[i]*np.ones((2,2), dtype=np.float32)]
+            wY = [self.windY[i]*np.ones((2,2), dtype=np.float32)]
+            
+            wind = WindStress.WindStress(self.windT, wX, wY)
+            #print ("Init with wind :", (wX, wY))
+            
+            self.particles[i] = CDKLM16.CDKLM16(self.gpu_ctx, \
                                                 self.base_eta, self.base_hu, self.base_hv, \
                                                 self.base_H, \
                                                 self.nx, self.ny, self.dx, self.dy, self.dt, \
@@ -65,7 +73,7 @@ class WindForcingEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                 # number in the other particles.
                 driftersPerOceanModel = 1
             
-            drifters = GPUDrifterCollection.GPUDrifterCollection(self.cl_ctx, driftersPerOceanModel,
+            drifters = GPUDrifterCollection.GPUDrifterCollection(self.gpu_ctx, driftersPerOceanModel,
                                              observation_variance=self.observation_variance,
                                              boundaryConditions=self.boundaryConditions,
                                              domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
@@ -78,6 +86,11 @@ class WindForcingEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         # Put the initial positions into the observation array
         self._addObservation(self.observeTrueDrifters())
         print("Added init to observation array")
+        
+    def XandYfromDirections(self, directions):
+        windX = self.windSpeed * np.sin(directions*(2*np.pi)/360.0)
+        windY = self.windSpeed * np.cos(directions*(2*np.pi)/360.0)
+        return windX, windY
 
     def resample(self, newSampleIndices, reinitialization_variance):
         obsTrueDrifter = self.observeTrueDrifters()
@@ -98,10 +111,10 @@ class WindForcingEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             #print "\t", (index, positions[index,:], windDirection[index])
             #print "\t", (index, newPos, newWindDirection[i])
             
-            #newWindInstance = Common.WindStressParams()
-            newWindInstance = Common.WindStressParams(type=50, 
-                                                      wind_speed=self.windSpeed,
-                                                      wind_direction=newWindDirection[i])
+            wX, wY = self.XandYfromDirections(newWindDirection[i])
+            wX = [wX*np.ones((2,2), dtype=np.float32)]
+            wY = [wY*np.ones((2,2), dtype=np.float32)]
+            newWindInstance = WindStress.WindStress(self.windT, wX, wY)
             
             # Download index's ocean state:
             eta0, hu0, hv0 = self.particles[index].download()

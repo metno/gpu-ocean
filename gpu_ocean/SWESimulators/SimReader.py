@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 
 """
-This python module implements saving shallow water simulations to a
-netcdf file.
+This software is part of GPU Ocean. 
 
-Copyright (C) 2017  SINTEF ICT
+Copyright (C) 2016 SINTEF ICT, 
+Copyright (C) 2017-2019 SINTEF Digital
+Copyright (C) 2017-2019 Norwegian Meteorological Institute
+
+This python module implements loading shallow water simulations from a
+netcdf file.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -90,7 +94,7 @@ class SimNetCDFReader:
         return eta, hu, hv, time[index]
     
     def getH(self):
-        H = self.ncfile.variables['H'][0, :, :]
+        H = self.ncfile.variables['H'][:, :]
         return H
 
     def getEtaAtTimeStep(self, index):
@@ -175,6 +179,6 @@ class SimNetCDFReader:
         self._addText(ax, 'BC: ' + self.get('boundary_conditions'))
         self._addText(ax, 'f:  ' + str(self.get('coriolis_force')) + ', beta: ' + str(self.get('coriolis_beta')))
         self._addText(ax, 'dt: ' + str(self.get('dt')) + ", auto_dt: " + self.get('auto_dt') + ", dx: " + str(self.get('dx')) + ", dy: " + str(self.get('dy')))
-        self._addText(ax, 'wind type: ' + str(self.get('wind_stress_type')))
+        self._addText(ax, 'wind type: ' + str(self.get('wind_stress_source')))
         
         ax.axis([0, 6, 0, 3])

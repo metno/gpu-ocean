@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is part of GPU Ocean. 
+
+Copyright (C) 2016 SINTEF ICT, 
+Copyright (C) 2017-2019 SINTEF Digital
+Copyright (C) 2017-2019 Norwegian Meteorological Institute
+
 This python class aids in plotting results from the numerical 
 simulations
-
-Copyright (C) 2016  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -134,7 +138,18 @@ class PlotHelper:
                 plt.legend()
         
         
-        
+   
+
+    @classmethod
+    def fromsim(cls, sim, fig):
+        x_center = sim.dx*(sim.nx)/2.0
+        y_center = sim.dy*(sim.ny)/2.0
+        y_coords, x_coords = np.mgrid[0:(sim.ny+20)*sim.dy:sim.dy, 0:(sim.nx+20)*sim.dx:sim.dx]
+        x_coords = np.subtract(x_coords, x_center)
+        y_coords = np.subtract(y_coords, y_center)
+        radius = np.sqrt(np.multiply(x_coords, x_coords) + np.multiply(y_coords, y_coords))
+        eta, hu, hv = sim.download(interior_domain_only=True)
+        return cls( fig, x_coords, y_coords, radius, eta, hu, hv)
         
         
     def plot(self, eta1, u1, v1, eta2=None, u2=None, v2=None):
@@ -366,6 +381,7 @@ class EnsembleAnimator:
         # Obtain the following fields:
             
         eta_true, hu_true, hv_true = ensemble.downloadTrueOceanState()
+        
         if not self.trueStateOnly:
             eta_mean, hu_mean, hv_mean, eta_rmse, hu_rmse, hv_rmse, eta_r, hu_r, hv_r = ensemble.downloadEnsembleStatisticalFields()
         
@@ -414,19 +430,25 @@ class EnsembleAnimator:
         drifterPositions = ensemble.observeDrifters()
         trueDrifterPosition = ensemble.observeTrueDrifters()
         
-        self.true_drifters.set_offsets(drifterPositions)
-        self.true_observations.set_offsets(trueDrifterPosition)
+        # TODO
+        # These lines which updates the drifter positions to the animations
+        # broke when updating from Python 2 to Python 3.
+        # This should be fixed again... 
+        
+        #self.true_drifters.set_offsets(drifterPositions)
+        #self.true_observations.set_offsets(trueDrifterPosition)
         
         if not self.trueStateOnly:
                        
-            self.mean_drifters.set_offsets(drifterPositions)
-            self.mean_observations.set_offsets(trueDrifterPosition)
+            #self.mean_drifters.set_offsets(drifterPositions)
+            #self.mean_observations.set_offsets(trueDrifterPosition)
             
-            self.rmse_drifters.set_offsets(drifterPositions)
-            self.rmse_observations.set_offsets(trueDrifterPosition)
+            #self.rmse_drifters.set_offsets(drifterPositions)
+            #self.rmse_observations.set_offsets(trueDrifterPosition)
             
-            self.r_drifters.set_offsets(drifterPositions)
-            self.r_observations.set_offsets(trueDrifterPosition)
+            #self.r_drifters.set_offsets(drifterPositions)
+            #self.r_observations.set_offsets(trueDrifterPosition)
+            pass
         
         
         plt.draw()

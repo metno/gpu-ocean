@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is a part of GPU Ocean.
+
+Copyright (C) 2018  SINTEF Digital
+
 This file defines all constants required by the GPU Ocean Python modules.
 Each module in need of one of these constants should 'import config', 
 and access constanc C as 'config.C'.
 See https://docs.python.org/2/faq/programming.html#how-do-i-share-global-variables-across-modules
-
-Copyright (C) 2018  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,4 +25,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
+from enum import Enum
+
+
 soar_cutoff = 2
+
+
+class GPUOceanLoggerLevels(Enum):
+    IEWPF_DEBUG = 15 
+        

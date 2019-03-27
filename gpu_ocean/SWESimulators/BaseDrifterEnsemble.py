@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is a part of GPU Ocean.
+
+Copyright (C) 2018  SINTEF Digital
+
 This python class implements a Ensemble of particles, each consisting of a single drifter in its own ocean state. The perturbation parameter is the wind direction.
-
-
-Copyright (C) 2018  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,6 +31,7 @@ import abc
 from SWESimulators import CDKLM16
 from SWESimulators import GPUDrifterCollection
 from SWESimulators import Common
+from SWESimulators import WindStress
 from SWESimulators import DataAssimilationUtils as dautils
 
 
@@ -37,10 +39,8 @@ class BaseDrifterEnsemble(object):
     
     __metaclass__ = abc.ABCMeta
         
-    def __init__(self, cl_ctx, numParticles, observation_variance=0.0):
-        
-        self.cl_ctx = cl_ctx
-        
+    def __init__(self, numParticles, observation_variance=0.0):
+                
         self.numParticles = numParticles
         #self.particles = [None]*(self.numParticles + 1)
         
@@ -120,7 +120,7 @@ class BaseDrifterEnsemble(object):
     
     
     # IMPROVED
-    def setParameters(self, f=0, g=9.81, beta=0, r=0, wind=Common.WindStressParams(type=99)):
+    def setParameters(self, f=0, g=9.81, beta=0, r=0, wind=WindStress.WindStress()):
         self.g = g
         self.f = f
         self.beta = beta
