@@ -1,7 +1,11 @@
 /*
-General kernels for periodic boundary conditions.
+This software is part of GPU Ocean. 
 
-Copyright (C) 2016  SINTEF ICT
+Copyright (C) 2018 SINTEF Digital
+Copyright (C) 2018 Norwegian Meteorological Institute
+
+These CUDA kernels implement boundary conditions for the shallow
+water equations.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 
 """
-This python module implements saving shallow water simulations to a
-netcdf file.
+This software is part of GPU Ocean. 
 
-Copyright (C) 2017  SINTEF ICT
+Copyright (C) 2016 SINTEF ICT, 
+Copyright (C) 2017-2019 SINTEF Digital
+Copyright (C) 2017-2019 Norwegian Meteorological Institute
+
+This python module implements loading shallow water simulations from a
+netcdf file.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

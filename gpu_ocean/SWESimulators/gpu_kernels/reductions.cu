@@ -1,7 +1,9 @@
 /*
-Implements reduction kernels needed for GPU Ocean.
+This software is part of GPU Ocean.
 
-Copyright (C) 2018  SINTEF ICT
+Copyright (C) 2018  SINTEF Digital
+
+Implements reduction kernels needed for GPU Ocean.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

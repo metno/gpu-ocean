@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 
 """
-This python module implements 
+This software is part of GPU Ocean. 
+
+Copyright (C) 2016 SINTEF ICT, 
+Copyright (C) 2017-2019 SINTEF Digital
+Copyright (C) 2017-2019 Norwegian Meteorological Institute
+
+This python module implements the finite-volume scheme proposed by
 Alina Chertock, Michael Dudzinski, A. Kurganov & Maria Lukacova-Medvidova (2016)
 Well-Balanced Schemes for the Shallow Water Equations with Coriolis Forces
-
-Copyright (C) 2016  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -56,6 +60,7 @@ class CDKLM16(Simulator.Simulator):
                  small_scale_perturbation=False, \
                  small_scale_perturbation_amplitude=None, \
                  small_scale_perturbation_interpolation_factor = 1, \
+                 perturbation_frequency=1, \
                  h0AsWaterElevation=False, \
                  reportGeostrophicEquilibrium=False, \
                  write_netcdf=False, \
@@ -84,6 +89,10 @@ class CDKLM16(Simulator.Simulator):
         max_wind_direction_perturbation: Large-scale model error emulation by per-time-step perturbation of wind direction by +/- max_wind_direction_perturbation (degrees)
         wind_stress: Wind stress parameters
         boundary_conditions: Boundary condition object
+        small_scale_perturbation: Boolean value for applying a stochastic model error
+        small_scale_perturbation_amplitude: Amplitude (q0 coefficient) for model error
+        small_scale_perturbation_interpolation_factor: Width factor for correlation in model error
+        perturbation_frequency: Number of timesteps between each model error sampling
         h0AsWaterElevation: True if h0 is described by the surface elevation, and false if h0 is described by water depth
         reportGeostrophicEquilibrium: Calculate the Geostrophic Equilibrium variables for each superstep
         write_netcdf: Write the results after each superstep to a netCDF file
@@ -193,6 +202,7 @@ class CDKLM16(Simulator.Simulator):
         self.small_scale_perturbation = small_scale_perturbation
         self.small_scale_model_error = None
         self.small_scale_perturbation_interpolation_factor = small_scale_perturbation_interpolation_factor
+        self.perturbation_frequency = perturbation_frequency
         if small_scale_perturbation:
             if small_scale_perturbation_amplitude is None:
                 self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self,
@@ -277,6 +287,14 @@ class CDKLM16(Simulator.Simulator):
         
         # get last timestep (including simulation time of last timestep)
         eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
+        
+        # For some reason, some old netcdf had 3-dimensional bathymetry.
+        # This fix ensures that we only use a valid H
+        if len(H.shape) == 3:
+            print("norm diff H: ", np.linalg.norm(H[0,:,:] - H[1,:,:]))
+            H = H[0,:,:]
+       
+
         
         return cls(gpu_ctx, \
                  eta0, hu0, hv0, \
@@ -381,7 +399,8 @@ class CDKLM16(Simulator.Simulator):
             
             # Perturb ocean state with model error
             if self.small_scale_perturbation and apply_stochastic_term:
-                self.small_scale_model_error.perturbSim(self)
+                if self.num_iterations % self.perturbation_frequency == 0:
+                    self.small_scale_model_error.perturbSim(self)
             
             # Evolve drifters
             if self.hasDrifters:
@@ -440,7 +459,7 @@ class CDKLM16(Simulator.Simulator):
                            boundary_conditions)
             
     
-    def perturbState(self, q0_scale=None):
+    def perturbState(self, q0_scale=1):
         self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
     def downloadBathymetry(self):

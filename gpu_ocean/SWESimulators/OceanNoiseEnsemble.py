@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is part of GPU Ocean. 
+
+Copyright (C) 2018  SINTEF Digital
+
 This python class implements an ensemble of particles, each consisting
 of a single drifter in its own ocean state. Each ocean model is 
 perturbed during each timestep, using small scale perturbations.
-
-
-Copyright (C) 2018  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -60,21 +61,6 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self._init(driftersPerOceanModel=driftersPerOceanModel)
     
     def _init(self, driftersPerOceanModel=1):
-        self.driftersPerOceanModel = np.int32(driftersPerOceanModel)
-        
-        # Define mid-points for the different drifters 
-        # Decompose the domain, so that we spread the drifters as much as possible
-        sub_domains_y = np.int(np.round(np.sqrt(self.driftersPerOceanModel)))
-        sub_domains_x = np.int(np.ceil(1.0*self.driftersPerOceanModel/sub_domains_y))
-        self.midPoints = np.empty((driftersPerOceanModel, 2))
-        for sub_y in range(sub_domains_y):
-            for sub_x in range(sub_domains_x):
-                drifter_id = sub_y*sub_domains_x + sub_x
-                if drifter_id >= self.driftersPerOceanModel:
-                    break
-                self.midPoints[drifter_id, 0]  = (sub_x + 0.5)*self.nx*self.dx/sub_domains_x
-                self.midPoints[drifter_id, 1]  = (sub_y + 0.5)*self.ny*self.dy/sub_domains_y
-              
         
         for i in range(self.numParticles+1):
             self.particles[i] = CDKLM16.CDKLM16(self.gpu_ctx, \
@@ -90,20 +76,9 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             
             if self.initialization_variance_factor_ocean_field != 0.0:
                 self.particles[i].perturbState(q0_scale=self.initialization_variance_factor_ocean_field)
-            
-            drifters = GPUDrifterCollection.GPUDrifterCollection(self.gpu_ctx, driftersPerOceanModel,
-                                             observation_variance=self.observation_variance,
-                                             boundaryConditions=self.boundaryConditions,
-                                             domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
-            
-            initPos = np.empty((self.driftersPerOceanModel, 2))
-            for d in range(self.driftersPerOceanModel):
-                initPos[d,:] = np.random.multivariate_normal(self.midPoints[d,:], self.initialization_cov_drifters)
-            drifters.setDrifterPositions(initPos)
-            #print "drifter particles: ", drifter.getParticlePositions()
-            #print "drifter observations: ", drifter.getObservationPosition()
-            self.particles[i].attachDrifters(drifters)
-            
+          
+        # Initialize and attach drifters to all particles.
+        self._initialize_drifters(driftersPerOceanModel)
         
         # Create gpu kernels and buffers:
         self._setupGPU()
@@ -111,6 +86,38 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                 
         # Put the initial positions into the observation array
         self._addObservation(self.observeTrueDrifters())
+        
+    def _initialize_drifters(self, driftersPerOceanModel):
+        """
+        Initialize drifters and attach them for each particle.
+        """
+        self.driftersPerOceanModel = np.int32(driftersPerOceanModel)
+        
+        # Define mid-points for the different drifters 
+        # Decompose the domain, so that we spread the drifters as much as possible
+        sub_domains_y = np.int(np.round(np.sqrt(self.driftersPerOceanModel)))
+        sub_domains_x = np.int(np.ceil(1.0*self.driftersPerOceanModel/sub_domains_y))
+        self.midPoints = np.empty((driftersPerOceanModel, 2))
+        for sub_y in range(sub_domains_y):
+            for sub_x in range(sub_domains_x):
+                drifter_id = sub_y*sub_domains_x + sub_x
+                if drifter_id >= self.driftersPerOceanModel:
+                    break
+                self.midPoints[drifter_id, 0]  = (sub_x + 0.5)*self.nx*self.dx/sub_domains_x
+                self.midPoints[drifter_id, 1]  = (sub_y + 0.5)*self.ny*self.dy/sub_domains_y
+              
+        # Loop over particles, sample drifters, and attach them
+        for i in range(self.numParticles+1):
+            drifters = GPUDrifterCollection.GPUDrifterCollection(self.gpu_ctx, self.driftersPerOceanModel,
+                                                 observation_variance=self.observation_variance,
+                                                 boundaryConditions=self.boundaryConditions,
+                                                 domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
+
+            initPos = np.empty((self.driftersPerOceanModel, 2))
+            for d in range(self.driftersPerOceanModel):
+                initPos[d,:] = np.random.multivariate_normal(self.midPoints[d,:], self.initialization_cov_drifters)
+            drifters.setDrifterPositions(initPos)
+            self.particles[i].attachDrifters(drifters)
 
     
 

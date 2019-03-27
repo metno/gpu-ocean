@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is a part of GPU Ocean.
+
+Copyright (C) 2018  SINTEF Digital
+
 This python class implements an the
 Implicit Equal-Weight Particle Filter (IEWPF), for use on
 simplified ocean models.
@@ -12,7 +16,6 @@ The following papers describe the original iEWPF scheme, though with mistakes an
 The following paper describe the two-stage IEWPF scheme:
      - 'A revied Implicit Equal-Weights Particle Filter' by Skauvold et al, ???, 2018
 
-Copyright (C) 2018  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -93,7 +96,7 @@ class IEWPFOcean:
         self.geoBalanceConst = np.float32(self.g*self.const_H/(2.0*self.f))
 
         self.Nx = np.int32(self.nx*self.ny*3)  # state dimension
-        self.Nx = np.int32(self.coarse_nx*self.coarse_ny) # The size of the random vector
+        self.random_numbers_ratio = self.Nx/(self.coarse_nx*self.coarse_ny)
         
         self.numParticles = np.int32(ensemble.getNumParticles())
         self.numDrifters  = np.int32(ensemble.getNumDrifters())
@@ -193,10 +196,22 @@ class IEWPFOcean:
         t = ensemble.step_truth(self.dt, stochastic=True)
         t = ensemble.step_particles(self.dt, stochastic=False)
         
+        self.log('------------------------------------------------------')
+        self.log('------ Two-stage IEWPF at t = ' + str(t) + '   -------')
+        self.log('------------------------------------------------------')
+        
+        mem_free, mem_available = cuda.mem_get_info()
+        self.log("\n(free mem, avail mem, percentage free): " + str((mem_free, mem_available, 
+                                                                100*mem_free/mem_available)))
+        
         # Obtain observations, innovations and the weight from previous timestep
         observed_drifter_positions = ensemble.observeTrueDrifters()
         innovations = ensemble.getInnovations()
         w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
+        
+        self.log('observed drifter positions:\n' + str(observed_drifter_positions))
+        self.log('observed true state:\n' + str(ensemble.observeTrueState()))
+        self.log('observed particle states:\n' + str(ensemble.observeParticles()))
         
         # save plot before
         if infoPlots is not None:
@@ -211,15 +226,15 @@ class IEWPFOcean:
         for p in range(ensemble.getNumParticles()):
             # Pull particles towards observation by adding a Kalman gain term
             #     Also, we find phi within this function
-            phi_array[p] = self.addKalmanGain(ensemble.particles[p], observed_drifter_positions, innovations[p])
+            phi_array[p] = self.addKalmanGain(ensemble.particles[p], observed_drifter_positions, innovations[p], drifter_id=p)
             
-            # Sample perpendicular xi and nu, and apply the SVD to both fields
+            # Sample perpendicular xi and nu
             # Obtain gamma = xi^T * xi and nu^T * nu at the same time
-            gamma_array[p], nu_norm_array[p] = self.samplePerpendicularSVD(ensemble.particles[p], observed_drifter_positions)
+            gamma_array[p], nu_norm_array[p] = self.samplePerpendicular(ensemble.particles[p])
             
-        self.log('------------------------------------')
-        self.log('------ Half in 2-stage IEWPF -------')
-        self.log('------------------------------------')
+        self.log('--------------------------------------')
+        self.log('------ Half in two-stage IEWPF -------')
+        self.log('--------------------------------------')
         self.log('phi_array:\n ' + str(phi_array))
         self.log("nu_norm_array:\n" + str(nu_norm_array))
         self.log("gamma_array:\n" + str(gamma_array))
@@ -234,6 +249,9 @@ class IEWPFOcean:
             # Solve implicit equation
             c_star = target_weight - (phi_array[p] + w_rest[p]) - (beta - 1)*nu_norm_array[p]
             alpha = self.solveImplicitEquation(phi_array[p], gamma_array[p], target_weight, w_rest[p], c_star, particle_id=p)
+            
+            # Apply the SVD covariance structure at the drifter positions on both xi and nu
+            self.applySVDtoPerpendicular(ensemble.particles[p], observed_drifter_positions)
             
             # Add scaled sample from P to the state vector
             ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
@@ -282,7 +300,7 @@ class IEWPFOcean:
                         
             # Loop step 1: Pull particles towards observation by adding a Kalman gain term
             #     Also, we find phi within this function
-            phi = self.addKalmanGain(ensemble.particles[p], observed_drifter_positions, innovations[p])
+            phi = self.addKalmanGain(ensemble.particles[p], observed_drifter_positions, innovations[p], drifter_id=p)
             
             # Loop step 2: Sample xi \sim N(0, P), and get gamma in the process
             gamma = self.sampleFromP(ensemble.particles[p], observed_drifter_positions)
@@ -373,7 +391,7 @@ class IEWPFOcean:
             
             # Loop step 1: Pull particles towards observation by adding a Kalman gain term
             #     Also, we find phi within this function
-            phi = self.addKalmanGain(ensemble.particles[p], observed_drifter_positions, innovations[p])
+            phi = self.addKalmanGain(ensemble.particles[p], observed_drifter_positions, innovations[p], drifter_id=p)
             
             kalman_event.record(self.master_stream)
             kalman_event.synchronize()
@@ -430,11 +448,13 @@ class IEWPFOcean:
                                                        sim.small_scale_model_error.random_numbers.data.gpudata,
                                                        sim.small_scale_model_error.random_numbers.pitch)
         
-    def addKalmanGain(self, sim, all_observed_drifter_positions, innovation):
+    def addKalmanGain(self, sim, all_observed_drifter_positions, innovation, drifter_id=None):
         """
         Generates a Kalman gain type field according to the drifter positions and innovation,
         and adds it to the ocean state held på the simulator.
         """
+        self.log("Innovations from drifter " + str(drifter_id) + ":\n" + str(innovation))
+        
         # Find phi as we go: phi = d^T S d
         phi = 0.0
         
@@ -493,7 +513,7 @@ class IEWPFOcean:
         
         # Obtain gamma
         sim.gpu_stream.synchronize()
-        gamma = sim.small_scale_model_error.getRandomNorm()
+        gamma = sim.small_scale_model_error.getRandomNorm() * self.random_numbers_ratio
         sim.gpu_stream.synchronize()
             
         for drifter in range(self.numDrifters):
@@ -548,10 +568,9 @@ class IEWPFOcean:
         
     
     
-    def samplePerpendicularSVD(self, sim, all_observed_drifter_positions, return_original_random_numbers=False):
+    def samplePerpendicular(self, sim, return_original_random_numbers=False):
         """
-        Samples two perpendicular random vectors from N(0,I) and applies the covariance structure
-        defined by the pre-computed SVD at the drifter positions for both of them.
+        Samples two perpendicular random vectors from N(0,I)
         """
         # Sample perpendicular xi and nu
         sim.small_scale_model_error.generatePerpendicularNormalDistributions()
@@ -566,9 +585,22 @@ class IEWPFOcean:
         reduction_buffer_host = sim.small_scale_model_error.getReductionBuffer()
         sim.gpu_stream.synchronize()
         
-        gamma = reduction_buffer_host[0,0]
-        nu_norm = reduction_buffer_host[0,1]
+        gamma = reduction_buffer_host[0,0] * self.random_numbers_ratio
+        nu_norm = reduction_buffer_host[0,1] * self.random_numbers_ratio
         
+        if return_original_random_numbers:
+            return gamma, nu_norm, orig_xi_host, orig_nu_host
+        else:
+            return gamma, nu_norm
+        
+    def applySVDtoPerpendicular(self, sim, all_observed_drifter_positions):
+        """
+        Applies the covariance structure defined by the pre-computed SVD at 
+        the drifter positions for both of the perpendicular random vectors.
+        
+        This operation is performed on the same coarse grid for all drifters,
+        meaning that no offset is applied to the fine-coarse grid mapping.
+        """
         for drifter in range(self.numDrifters):
             observed_drifter_position = all_observed_drifter_positions[drifter,:]
             
@@ -578,10 +610,6 @@ class IEWPFOcean:
             self.applyLocalSVDOnGlobalXi(sim, coarse_cell_id_x, coarse_cell_id_y)
             self.applyLocalSVDOnGlobalNu(sim, coarse_cell_id_x, coarse_cell_id_y)
         
-        if return_original_random_numbers:
-            return gamma, nu_norm, orig_xi_host, orig_nu_host
-        else:
-            return gamma, nu_norm
     
     
     ###------------------------    
@@ -678,78 +706,29 @@ class IEWPFOcean:
         self.log("Input params:")
         self.log(params)
         
-        
-        # 7) Solving the Lambert W function
-        lambert_W_arg = -np.exp((c_star/self.Nx) - 1.0)
-        alpha_min1 = np.sqrt(-(gamma/self.Nx)*np.real(lambertw(lambert_W_arg, k=-1)))
-        alpha_zero = np.sqrt(-(gamma/self.Nx)*np.real(lambertw(lambert_W_arg)))
-        
-        solutions = {
-            'alpha_min1': alpha_min1,            
-            'alpha_zero': alpha_zero
-        }
-        self.log('Solutions for alpha: ' + str(solutions))
-        self.log('Requirement for Lambert W sol: ' + str(-1.0/np.exp(1)) + " < " + str(lambert_W_arg) + " < 0 = " + str((-1.0/np.exp(1) < lambert_W_arg, lambert_W_arg < 0)))
-        self.log('Lambert W results:')
-        self.log({'for alpha_min1': lambertw(lambert_W_arg, k=-1),
-                  'for alpha_zero': lambertw(lambert_W_arg      )})
-        
-        self.log("Discrepancy when inserting the alphas into the implicit equation:")
-        self.log({'from alpha_min1': self._implicitEquation_no_limit(alpha_min1, gamma, self.Nx, c_star),
-                  'from alpha_zero': self._implicitEquation_no_limit(alpha_zero, gamma, self.Nx, c_star)})
-        
-        
-        alpha_newton = newton(lambda x: self._implicitEquation_no_limit(x, gamma, self.Nx, c_star), 0.5, maxiter=2000)
+        alpha_newton = newton(lambda x: self._implicitEquation_no_limit(x, gamma, self.Nx, c_star),
+                              0.5, maxiter=2000, tol=1e-6)
                               #fprime=lambda x: self._implicitEquation_no_limit_derivative(x, gamma, self.Nx, c_star))
         self.log("alpha_newton from Newton's method: " + str(alpha_newton))
         self.log("Discrepancy with alpha_newton: "+ str(self._implicitEquation_no_limit(alpha_newton, gamma, self.Nx, c_star)))
-        alpha = alpha_newton
         
-        if self.debug: 
-            print ("Check a against the Lambert W requirement: ")
-            print ("-e^-1 < z < 0 : ", -1.0/np.exp(1), " < ", lambert_W_arg, " < ", 0, " = ", \
-                    (-1.0/np.exp(1) < lambert_W_arg, lambert_W_arg < 0))
-            print ("Obtained (alpha k=-1, alpha k=0): ", (alpha_min1, alpha_zero))
-            print ("The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
-            print ("The two reals from Lambert W: ", (np.real(lambertw(lambert_W_arg)), np.real(lambertw(lambert_W_arg, k=-1))))
-
+        self.log("")
+        self.log("Using the Lambert W:")
+        lambert_arg = -(gamma/self.Nx)*np.exp(-gamma/self.Nx)*np.exp(-c_star/self.Nx)
+        self.log("\tLambert W arg: " + str(lambert_arg))
+        lambert_min1 = lambertw(lambert_arg, k=-1)
+        lambert_zero = lambertw(lambert_arg, k=0)
+        
+        alpha_scale = -(self.Nx/gamma)
+        alpha_min1 = alpha_scale*np.real(lambert_min1)
+        alpha_zero = alpha_scale*np.real(lambert_zero)
+        
+        self.log("\tlambert_min1 = " + str(lambert_min1) + " --> alpha = " + str(alpha_min1))
+        self.log("\tlambert_zero = " + str(lambert_zero) + " --> alpha = " + str(alpha_zero))
+        self.log("Discrepancy with alpha_zero: "+ str(self._implicitEquation_no_limit(alpha_zero, gamma, self.Nx, c_star)))
+        
+        
         alpha = alpha_zero
-        
-        self.show_errors=self.debug
-        if lambert_W_arg > (-1.0/np.exp(1)) :
-            alpha_u = np.random.rand()
-            if alpha_u < 0.5:
-                alpha = alpha_min1
-                if self.debug: print ("Drew alpha from -1-branch")
-        elif self.show_errors:
-            print ("!!!!!!!!!!!!")
-            print ("BAD BAD ARGUMENT TO LAMBERT W")
-            print ("Particle ID: ", particle_id)
-            print( "Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1))
-            print ("The requirement is lamber_W_arg > (-1.0/exp(1)): " + str(lambert_W_arg) + " > " + str(-1.0/np.exp(1.0)))
-            print ("gamma: ", gamma)
-            print ("Nx: ", self.Nx)
-            print ("w_rest: ", w_rest)
-            print ("target_weight: ", target_weight)
-            print ("phi: ", phi)
-            print ("The two branches from Lambert W: ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
-            print ("Checking implicit equation with alpha (k=0, k=-1): ", \
-            (self._old_implicitEquation(alpha_zero, gamma, self.Nx, target_weight, c_star), \
-             self._old_implicitEquation(alpha_min1, gamma, self.Nx, target_weight, c_star)))
-            print( "!!!!!!!!!!!!")
-        
-        
-        if self.debug: 
-            print ("--------------------------------------")
-            print ("Obtained (lambert_ans k=0, lambert_ans k=-1): ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
-            print ("Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1))
-            print ("Checking implicit equation with alpha (k=0, k=-1): ", \
-            (self._old_implicitEquation(alpha_zero, gamma, self.Nx, target_weight, c_star), \
-             self._old_implicitEquation(alpha_min1, gamma, self.Nx, target_weight, c_star)))
-            print ("Selected alpha: ", alpha)
-            print ("\n")
-            
-        alpha = alpha_newton
         self.log("returning alpha = " + str(alpha))
         return alpha
         

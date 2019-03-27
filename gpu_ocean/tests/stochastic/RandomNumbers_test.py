@@ -1,3 +1,25 @@
+# -*- coding: utf-8 -*-
+"""
+This software is part of GPU Ocean. 
+
+Copyright (C) 2018 SINTEF Digital
+
+This python module implements regression tests for generation of random numbers.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import unittest
 import time
 import numpy as np
@@ -135,19 +157,26 @@ class RandomNumbersTest(OceanStateNoiseTestParent):
         
 
     def test_seed_diff(self):
+        
         self.create_noise()
         tol = 6
-        
-        init_seed = self.noise.getSeed()/self.floatMax
-        self.noise.generateNormalDistribution()
-        normal_seed = self.noise.getSeed()/self.floatMax
-        assert2DListNotAlmostEqual(self, normal_seed.tolist(), init_seed.tolist(), tol, "test_seed_diff, normal vs init_seed")
-        
-        self.noise.generateUniformDistribution()
-        uniform_seed = self.noise.getSeed()/self.floatMax
-        assert2DListNotAlmostEqual(self, uniform_seed.tolist(), init_seed.tolist(), tol, "test_seed_diff, uniform vs init_seed")
-        assert2DListNotAlmostEqual(self, uniform_seed.tolist(), normal_seed.tolist(), tol, "test_seed_diff, uniform vs normal_seed")
 
+        if self.noise.use_lcg:
+            init_seed = self.noise.getSeed()/self.floatMax
+            self.noise.generateNormalDistribution()
+            normal_seed = self.noise.getSeed()/self.floatMax
+            assert2DListNotAlmostEqual(self, normal_seed.tolist(), init_seed.tolist(), tol, "test_seed_diff, normal vs init_seed")
+            
+            self.noise.generateUniformDistribution()
+            uniform_seed = self.noise.getSeed()/self.floatMax
+            assert2DListNotAlmostEqual(self, uniform_seed.tolist(), init_seed.tolist(), tol, "test_seed_diff, uniform vs init_seed")
+            assert2DListNotAlmostEqual(self, uniform_seed.tolist(), normal_seed.tolist(), tol, "test_seed_diff, uniform vs normal_seed")
+        else:
+            self.assertIsNone(self.noise.seed)
+            self.assertIsNone(self.noise.host_seed)
+            self.failUnlessRaises(AssertionError, self.noise.getSeed)
+            self.failUnlessRaises(AssertionError, self.noise.resetSeed)
+           
         
     def test_empty_reduction_buffer(self):
         self.create_large_noise()

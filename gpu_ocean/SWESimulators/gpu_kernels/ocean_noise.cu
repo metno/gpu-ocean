@@ -1,8 +1,11 @@
 /*
-These OpenCL kernels generates random numbers for creating model error 
-based on given covariance relations.
+This software is part of GPU Ocean
 
-Copyright (C) 2018  SINTEF ICT
+Copyright (C) 2018 SINTEF Digital
+Copyright (C) 2018 Norwegian Meteorological Institute
+
+These CUDA kernels generates random numbers for creating model error 
+based on given covariance relations.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -50,9 +53,7 @@ __device__ float2 ansic_lcg(unsigned long long* seed_ptr) {
   *  Generates two random numbers, drawn from a normal distribtion with mean 0 and
   *  variance 1. Based on the Box Muller transform.
   */
-__device__ float2 boxMuller(unsigned long long* seed) {
-    float2 u = ansic_lcg(seed);
-    
+__device__ float2 boxMuller(float2 u) {
     float r = sqrt(-2.0f*log(u.x));
     float n1 = r*cospi(2*u.y);
     float n2 = r*sinpi(2*u.y);
@@ -61,8 +62,6 @@ __device__ float2 boxMuller(unsigned long long* seed) {
     out.x = n1;
     out.y = n2;
     return out;
-    
-    //return make_float2(n1, n2);
 }
 
 /**
@@ -134,7 +133,8 @@ __global__ void normalDistribution(
         float* const random_row = (float*) ((char*) random_ptr_ + random_pitch_*tj);
         
         unsigned long long seed = seed_row[ti];
-        float2 u = boxMuller(&seed);
+        float2 r = ansic_lcg(&seed);
+        float2 u = boxMuller(r);
 
         seed_row[ti] = seed;
 
@@ -176,17 +176,16 @@ __global__ void makePerpendicular(
         const float nu_norm = reduction_buffer[1];
         const float dot_product = reduction_buffer[2];
         
-        const float parallel_factor = dot_product/xi_norm; //nu_norm;
-        const float perpendicular_norm = xi_norm - (2*parallel_factor*dot_product) + parallel_factor*parallel_factor*nu_norm;
-        
+        const float parallel_factor = dot_product/xi_norm;
+        const float perpendicular_norm = nu_norm - parallel_factor*dot_product;
+                                              
         //Compute pointer to current row in the xi and nu arrays
         float* xi_row = (float*) ((char*) xi_ptr_ + xi_pitch_*tj);
         float* nu_row = (float*) ((char*) nu_ptr_ + nu_pitch_*tj);
         
         
         
-        
-        nu_row[ti] = sqrt(xi_norm/perpendicular_norm)*(nu_row[ti] - (parallel_factor*xi_row[ti]));
+        nu_row[ti] = sqrt(nu_norm/perpendicular_norm)*(nu_row[ti] - (parallel_factor*xi_row[ti]));
     }
 }
 } // extern "C"

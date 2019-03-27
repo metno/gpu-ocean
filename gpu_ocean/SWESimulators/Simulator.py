@@ -1,7 +1,14 @@
 # -*- coding: utf-8 -*-
 
 """
-Copyright (C) 2016  SINTEF ICT
+This software is part of GPU Ocean.
+
+Copyright (C) 2018, 2019  SINTEF Digital
+Copyright (C) 2018, 2019  Norwegian Meteorological Institute
+
+This python module implements common base functionalty required by all 
+the different simulators, which are the classes containing the 
+different numerical schemes.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

@@ -1,14 +1,18 @@
 # -*- coding: utf-8 -*-
 
 """
+This software is part of GPU Ocean. 
+
+Copyright (C) 2016 SINTEF ICT, 
+Copyright (C) 2017-2019 SINTEF Digital
+Copyright (C) 2017-2019 Norwegian Meteorological Institute
+
 This python module implements the Kurganov-Petrova numerical scheme 
 for the shallow water equations, described in 
 A. Kurganov & Guergana Petrova
 A Second-Order Well-Balanced Positivity Preserving Central-Upwind
 Scheme for the Saint-Venant System Communications in Mathematical
 Sciences, 5 (2007), 133-160. 
-
-Copyright (C) 2016  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

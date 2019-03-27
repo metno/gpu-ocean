@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
 """
-This python class implements a DrifterCollection living on the GPU.
+This software is a part of GPU Ocean.
 
-Copyright (C) 2018  SINTEF ICT
+Copyright (C) 2018  SINTEF Digital
+
+This python class implements a DrifterCollection living on the GPU.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
