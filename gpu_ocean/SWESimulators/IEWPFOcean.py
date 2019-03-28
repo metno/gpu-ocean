@@ -232,23 +232,25 @@ class IEWPFOcean:
             # Obtain gamma = xi^T * xi and nu^T * nu at the same time
             gamma_array[p], nu_norm_array[p] = self.samplePerpendicular(ensemble.particles[p])
             
+        c_array = phi_array + w_rest
         self.log('--------------------------------------')
         self.log('------ Half in two-stage IEWPF -------')
         self.log('--------------------------------------')
         self.log('phi_array:\n ' + str(phi_array))
         self.log("nu_norm_array:\n" + str(nu_norm_array))
         self.log("gamma_array:\n" + str(gamma_array))
+        self.log("c_array:\n" + str(c_array))
         
         # Synchronize all particles in order to find the target weight and beta
-        target_weight, beta = self.obtainTargetWeightTwoStage(phi_array, w_rest, nu_norm_array)
+        target_weight, beta = self.obtainTargetWeightTwoStage(c_array, nu_norm_array)
         
         self.log('target_weight: ' + str(target_weight))
         self.log('beta         : ' + str(beta))
         
         for p in range(ensemble.getNumParticles()):
             # Solve implicit equation
-            c_star = target_weight - (phi_array[p] + w_rest[p]) - (beta - 1)*nu_norm_array[p]
-            alpha = self.solveImplicitEquation(phi_array[p], gamma_array[p], target_weight, w_rest[p], c_star, particle_id=p)
+            c_star = target_weight - c_array[p] - (beta - 1)*nu_norm_array[p]
+            alpha = self.solveImplicitEquation(gamma_array[p], target_weight, w_rest[p], c_star, particle_id=p)
             
             # Apply the SVD covariance structure at the drifter positions on both xi and nu
             self.applySVDtoPerpendicular(ensemble.particles[p], observed_drifter_positions)
@@ -307,7 +309,7 @@ class IEWPFOcean:
             
             # Loop step 3: Solve implicit equation
             c_star = target_weight - (phi + w_rest[p])
-            alpha = self.solveImplicitEquation(phi, gamma, target_weight, w_rest[p], c_star, particle_id=p)
+            alpha = self.solveImplicitEquation(gamma, target_weight, w_rest[p], c_star, particle_id=p)
             
             # Loop steps 4:Add scaled sample from P to the state vector
             ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
@@ -409,7 +411,7 @@ class IEWPFOcean:
             
             # Loop step 3: Solve implicit equation
             c_star = target_weight - (phi + w_rest)
-            alpha = self.solveImplicitEquation(phi, gamma, target_weight, w_rest[p], c_star, particle_id=p)
+            alpha = self.solveImplicitEquation(gamma, target_weight, w_rest[p], c_star, particle_id=p)
             
             
             
@@ -641,19 +643,16 @@ class IEWPFOcean:
         self.log("w_target --> " + str(target_weight))
         return target_weight
     
-    def obtainTargetWeightTwoStage(self, phi_array, w_rest, nu_norms):
+    def obtainTargetWeightTwoStage(self, c_array, nu_norms):
         """
         Calculates the target weight and the beta parameter for the 
         two-stage IEWPF scheme.
         Returns w_target, beta
         """
-        assert(len(phi_array) == len(w_rest))
-        assert(len(phi_array) == len(nu_norms))
+        assert(len(c_array) == len(nu_norms))
         
-        w_target = np.mean(phi_array + w_rest)
-        
-        beta = np.min( (w_target - (phi_array + w_rest))/nu_norms) + 1.0
-        
+        w_target = np.mean(c_array)
+        beta = np.min( (w_target - c_array)/nu_norms) + 1.0
         return w_target, beta
         
     
@@ -684,7 +683,7 @@ class IEWPFOcean:
         """
         return (alpha*gamma/2)**(Nx/2 - 1) *np.exp(-alpha*gamma/2)*gamma/2
         
-    def solveImplicitEquation(self, phi, gamma, 
+    def solveImplicitEquation(self, gamma, 
                               target_weight, w_rest, c_star,
                               particle_id=None):
         """
@@ -700,7 +699,6 @@ class IEWPFOcean:
             'Nx': self.Nx,
             'w_rest': w_rest,
             'target_weight': target_weight,
-            'phi': phi,
             'c_star': c_star
         }
         self.log("Input params:")
