@@ -137,6 +137,9 @@ class IEWPFOcean:
         self.setBufferToZeroKernel = self.iewpf_kernels.get_function("setBufferToZero")
         self.setBufferToZeroKernel.prepare("iiPi")
         
+        self.blas_xaxpbyKernel = self.iewpf_kernels.get_function("blas_xaxpby")
+        self.blas_xaxpbyKernel.prepare("iiPiPiff")
+        
         self.halfTheKalmanGainKernel = self.iewpf_kernels.get_function("halfTheKalmanGain")
         self.halfTheKalmanGainKernel.prepare("iiffffiifffPi")
         
@@ -450,6 +453,32 @@ class IEWPFOcean:
                                                        sim.small_scale_model_error.random_numbers.data.gpudata,
                                                        sim.small_scale_model_error.random_numbers.pitch)
         
+    def addBetaNuIntoAlphaXi(self, sim, alpha, beta):
+        """
+        The expression
+        alpha^{1/2} P^{1/2} xi + beta^{1/2} P^{1/2} nu
+        is simplified to
+        P^{1/2} (alpha^{1/2} xi + beta^{1/2} nu),
+        and this function is therefore used to obtain
+        xi = alpha^{1/2} xi + beta^{1/2} nu
+        """
+        
+        # x = a*x + b*y
+        # x = xi, a = alpha, y = nu, b = beta
+        self.blas_xaxpbyKernel.prepared_async_call(self.noise_buffer_domain,
+                                                  self.local_size_domain, 
+                                                  sim.gpu_stream,
+                                                  sim.small_scale_model_error.rand_nx, 
+                                                  sim.small_scale_model_error.rand_ny,
+                                                  sim.small_scale_model_error.random_numbers.data.gpudata,
+                                                  sim.small_scale_model_error.random_numbers.pitch,
+                                                  sim.small_scale_model_error.perpendicular_random_numbers.data.gpudata,
+                                                  sim.small_scale_model_error.perpendicular_random_numbers.pitch,
+                                                  np.float32(np.sqrt(alpha)),
+                                                  np.float32(np.sqrt(beta)))
+        
+        
+        
     def addKalmanGain(self, sim, all_observed_drifter_positions, innovation, drifter_id=None):
         """
         Generates a Kalman gain type field according to the drifter positions and innovation,
@@ -603,6 +632,30 @@ class IEWPFOcean:
         This operation is performed on the same coarse grid for all drifters,
         meaning that no offset is applied to the fine-coarse grid mapping.
         """
+        
+        # Update xi = \alpha^{1/2}*xi + \beta^{1/2}*\nu
+        # Common.blas_axpby(sim.
+        
+        for drifter in range(self.numDrifters):
+            observed_drifter_position = all_observed_drifter_positions[drifter,:]
+            
+            coarse_cell_id_x = int(np.floor(observed_drifter_position[0]/self.coarse_dx))
+            coarse_cell_id_y = int(np.floor(observed_drifter_position[1]/self.coarse_dy))
+        
+            self.applyLocalSVDOnGlobalXi(sim, coarse_cell_id_x, coarse_cell_id_y)
+            self.applyLocalSVDOnGlobalNu(sim, coarse_cell_id_x, coarse_cell_id_y)
+        
+    def applySVDtoPerpendicular_slow(self, sim, all_observed_drifter_positions):
+        """
+        Applies the covariance structure defined by the pre-computed SVD at 
+        the drifter positions for both of the perpendicular random vectors.
+        
+        This operation is performed on the same coarse grid for all drifters,
+        meaning that no offset is applied to the fine-coarse grid mapping.
+        
+        This slow version is kept for testing purposes.
+        """
+        
         for drifter in range(self.numDrifters):
             observed_drifter_position = all_observed_drifter_positions[drifter,:]
             

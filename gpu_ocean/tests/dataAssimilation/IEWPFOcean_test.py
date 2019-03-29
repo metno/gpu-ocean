@@ -256,7 +256,24 @@ class IEWPFOceanTest(unittest.TestCase):
         for j in range(self.iewpf.coarse_ny):
             for i in range(self.iewpf.coarse_nx):
                 self.assertEqual(obtained_random_numbers[j,i], 0.0)
-
+    
+    def test_blas_xaxpby(self):
+        self.iewpf.samplePerpendicular(self.ensemble.particles[0])
+        x = self.ensemble.particles[0].small_scale_model_error.getRandomNumbers()
+        y = self.ensemble.particles[0].small_scale_model_error.getPerpendicularRandomNumbers()
+        alpha = 2.12
+        beta  = 5.1
+        
+        self.iewpf.addBetaNuIntoAlphaXi(self.ensemble.particles[0], alpha, beta)
+        x_res_gpu = self.ensemble.particles[0].small_scale_model_error.getRandomNumbers()
+        x_res_cpu = np.sqrt(alpha)*x + np.sqrt(beta)*y
+        
+        assert2DListAlmostEqual(self, x_res_gpu.tolist(), x_res_gpu.tolist(), 10, "test_blas_xaxpby")
+        
+        print(x)
+        print(y)
+        print(x_res_cpu)
+                
     def test_kalman_gain(self):
         self.run_ensemble()
         innovation = self.ensemble.getInnovations()[0]
