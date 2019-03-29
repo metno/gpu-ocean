@@ -255,14 +255,14 @@ class IEWPFOcean:
             c_star = target_weight - c_array[p] - (beta - 1)*nu_norm_array[p]
             alpha = self.solveImplicitEquation(gamma_array[p], target_weight, w_rest[p], c_star, particle_id=p)
             
-            # Apply the SVD covariance structure at the drifter positions on both xi and nu
-            self.applySVDtoPerpendicular(ensemble.particles[p], observed_drifter_positions)
+            # Apply the SVD covariance structure at the drifter positions on scaled xi and nu
+            self.applySVDtoPerpendicular(ensemble.particles[p], observed_drifter_positions,
+                                         alpha, beta)
             
             # Add scaled sample from P to the state vector
             ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
-                                                                     update_random_field=False, \
-                                                                     perturbation_scale=np.sqrt(alpha),
-                                                                     perpendicular_scale=np.sqrt(beta))  
+                                                                     update_random_field=False)
+        
         # save plot after
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 3)
@@ -624,7 +624,7 @@ class IEWPFOcean:
         else:
             return gamma, nu_norm
         
-    def applySVDtoPerpendicular(self, sim, all_observed_drifter_positions):
+    def applySVDtoPerpendicular(self, sim, all_observed_drifter_positions, alpha, beta):
         """
         Applies the covariance structure defined by the pre-computed SVD at 
         the drifter positions for both of the perpendicular random vectors.
@@ -634,7 +634,7 @@ class IEWPFOcean:
         """
         
         # Update xi = \alpha^{1/2}*xi + \beta^{1/2}*\nu
-        # Common.blas_axpby(sim.
+        self.addBetaNuIntoAlphaXi(sim, alpha, beta)
         
         for drifter in range(self.numDrifters):
             observed_drifter_position = all_observed_drifter_positions[drifter,:]
@@ -643,7 +643,6 @@ class IEWPFOcean:
             coarse_cell_id_y = int(np.floor(observed_drifter_position[1]/self.coarse_dy))
         
             self.applyLocalSVDOnGlobalXi(sim, coarse_cell_id_x, coarse_cell_id_y)
-            self.applyLocalSVDOnGlobalNu(sim, coarse_cell_id_x, coarse_cell_id_y)
         
     def applySVDtoPerpendicular_slow(self, sim, all_observed_drifter_positions):
         """
