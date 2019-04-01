@@ -45,6 +45,29 @@ extern "C" {
 } // extern "C"
 
 
+/**
+  * Kernel that implements x = a*x + b*y on a 2D buffer.
+  * Buffers x and y is required to be of the same size.
+  */
+extern "C" {
+    __global__ void blas_xaxpby(const int nx_, const int ny_,
+                                float* x_ptr_, const int x_pitch_,
+                                float* y_ptr_, const int y_pitch_,
+                                const float a, const float b)
+    {
+        const int ti = blockDim.x*blockIdx.x + threadIdx.x;
+        const int tj = blockDim.y*blockIdx.y + threadIdx.y;
+
+        if ((ti < nx_) && (tj < ny_)) {
+            float* x_row = (float*) ((char*) x_ptr_ + x_pitch_*tj);
+            float* y_row = (float*) ((char*) y_ptr_ + y_pitch_*tj);
+            x_row[ti] = a*x_row[ti] + b*y_row[ti];
+        }            
+    }
+} // extern "C"
+
+
+
 
 
 /**
