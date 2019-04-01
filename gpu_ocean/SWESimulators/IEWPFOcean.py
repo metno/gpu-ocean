@@ -137,6 +137,9 @@ class IEWPFOcean:
         self.setBufferToZeroKernel = self.iewpf_kernels.get_function("setBufferToZero")
         self.setBufferToZeroKernel.prepare("iiPi")
         
+        self.blas_xaxpbyKernel = self.iewpf_kernels.get_function("blas_xaxpby")
+        self.blas_xaxpbyKernel.prepare("iiPiPiff")
+        
         self.halfTheKalmanGainKernel = self.iewpf_kernels.get_function("halfTheKalmanGain")
         self.halfTheKalmanGainKernel.prepare("iiffffiifffPi")
         
@@ -232,32 +235,34 @@ class IEWPFOcean:
             # Obtain gamma = xi^T * xi and nu^T * nu at the same time
             gamma_array[p], nu_norm_array[p] = self.samplePerpendicular(ensemble.particles[p])
             
+        c_array = phi_array + w_rest
         self.log('--------------------------------------')
         self.log('------ Half in two-stage IEWPF -------')
         self.log('--------------------------------------')
         self.log('phi_array:\n ' + str(phi_array))
         self.log("nu_norm_array:\n" + str(nu_norm_array))
         self.log("gamma_array:\n" + str(gamma_array))
+        self.log("c_array:\n" + str(c_array))
         
         # Synchronize all particles in order to find the target weight and beta
-        target_weight, beta = self.obtainTargetWeightTwoStage(phi_array, w_rest, nu_norm_array)
+        target_weight, beta = self.obtainTargetWeightTwoStage(c_array, nu_norm_array)
         
         self.log('target_weight: ' + str(target_weight))
         self.log('beta         : ' + str(beta))
         
         for p in range(ensemble.getNumParticles()):
             # Solve implicit equation
-            c_star = target_weight - (phi_array[p] + w_rest[p]) - (beta - 1)*nu_norm_array[p]
-            alpha = self.solveImplicitEquation(phi_array[p], gamma_array[p], target_weight, w_rest[p], c_star, particle_id=p)
+            c_star = target_weight - c_array[p] - (beta - 1)*nu_norm_array[p]
+            alpha = self.solveImplicitEquation(gamma_array[p], target_weight, w_rest[p], c_star, particle_id=p)
             
-            # Apply the SVD covariance structure at the drifter positions on both xi and nu
-            self.applySVDtoPerpendicular(ensemble.particles[p], observed_drifter_positions)
+            # Apply the SVD covariance structure at the drifter positions on scaled xi and nu
+            self.applySVDtoPerpendicular(ensemble.particles[p], observed_drifter_positions,
+                                         alpha, beta)
             
             # Add scaled sample from P to the state vector
             ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
-                                                                     update_random_field=False, \
-                                                                     perturbation_scale=np.sqrt(alpha),
-                                                                     perpendicular_scale=np.sqrt(beta))  
+                                                                     update_random_field=False)
+        
         # save plot after
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 3)
@@ -307,7 +312,7 @@ class IEWPFOcean:
             
             # Loop step 3: Solve implicit equation
             c_star = target_weight - (phi + w_rest[p])
-            alpha = self.solveImplicitEquation(phi, gamma, target_weight, w_rest[p], c_star, particle_id=p)
+            alpha = self.solveImplicitEquation(gamma, target_weight, w_rest[p], c_star, particle_id=p)
             
             # Loop steps 4:Add scaled sample from P to the state vector
             ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
@@ -409,7 +414,7 @@ class IEWPFOcean:
             
             # Loop step 3: Solve implicit equation
             c_star = target_weight - (phi + w_rest)
-            alpha = self.solveImplicitEquation(phi, gamma, target_weight, w_rest[p], c_star, particle_id=p)
+            alpha = self.solveImplicitEquation(gamma, target_weight, w_rest[p], c_star, particle_id=p)
             
             
             
@@ -447,6 +452,32 @@ class IEWPFOcean:
                                                        sim.small_scale_model_error.rand_ny,
                                                        sim.small_scale_model_error.random_numbers.data.gpudata,
                                                        sim.small_scale_model_error.random_numbers.pitch)
+        
+    def addBetaNuIntoAlphaXi(self, sim, alpha, beta):
+        """
+        The expression
+        alpha^{1/2} P^{1/2} xi + beta^{1/2} P^{1/2} nu
+        is simplified to
+        P^{1/2} (alpha^{1/2} xi + beta^{1/2} nu),
+        and this function is therefore used to obtain
+        xi = alpha^{1/2} xi + beta^{1/2} nu
+        """
+        
+        # x = a*x + b*y
+        # x = xi, a = alpha, y = nu, b = beta
+        self.blas_xaxpbyKernel.prepared_async_call(self.noise_buffer_domain,
+                                                  self.local_size_domain, 
+                                                  sim.gpu_stream,
+                                                  sim.small_scale_model_error.rand_nx, 
+                                                  sim.small_scale_model_error.rand_ny,
+                                                  sim.small_scale_model_error.random_numbers.data.gpudata,
+                                                  sim.small_scale_model_error.random_numbers.pitch,
+                                                  sim.small_scale_model_error.perpendicular_random_numbers.data.gpudata,
+                                                  sim.small_scale_model_error.perpendicular_random_numbers.pitch,
+                                                  np.float32(np.sqrt(alpha)),
+                                                  np.float32(np.sqrt(beta)))
+        
+        
         
     def addKalmanGain(self, sim, all_observed_drifter_positions, innovation, drifter_id=None):
         """
@@ -593,7 +624,7 @@ class IEWPFOcean:
         else:
             return gamma, nu_norm
         
-    def applySVDtoPerpendicular(self, sim, all_observed_drifter_positions):
+    def applySVDtoPerpendicular(self, sim, all_observed_drifter_positions, alpha, beta):
         """
         Applies the covariance structure defined by the pre-computed SVD at 
         the drifter positions for both of the perpendicular random vectors.
@@ -601,6 +632,29 @@ class IEWPFOcean:
         This operation is performed on the same coarse grid for all drifters,
         meaning that no offset is applied to the fine-coarse grid mapping.
         """
+        
+        # Update xi = \alpha^{1/2}*xi + \beta^{1/2}*\nu
+        self.addBetaNuIntoAlphaXi(sim, alpha, beta)
+        
+        for drifter in range(self.numDrifters):
+            observed_drifter_position = all_observed_drifter_positions[drifter,:]
+            
+            coarse_cell_id_x = int(np.floor(observed_drifter_position[0]/self.coarse_dx))
+            coarse_cell_id_y = int(np.floor(observed_drifter_position[1]/self.coarse_dy))
+        
+            self.applyLocalSVDOnGlobalXi(sim, coarse_cell_id_x, coarse_cell_id_y)
+        
+    def applySVDtoPerpendicular_slow(self, sim, all_observed_drifter_positions):
+        """
+        Applies the covariance structure defined by the pre-computed SVD at 
+        the drifter positions for both of the perpendicular random vectors.
+        
+        This operation is performed on the same coarse grid for all drifters,
+        meaning that no offset is applied to the fine-coarse grid mapping.
+        
+        This slow version is kept for testing purposes.
+        """
+        
         for drifter in range(self.numDrifters):
             observed_drifter_position = all_observed_drifter_positions[drifter,:]
             
@@ -641,19 +695,16 @@ class IEWPFOcean:
         self.log("w_target --> " + str(target_weight))
         return target_weight
     
-    def obtainTargetWeightTwoStage(self, phi_array, w_rest, nu_norms):
+    def obtainTargetWeightTwoStage(self, c_array, nu_norms):
         """
         Calculates the target weight and the beta parameter for the 
         two-stage IEWPF scheme.
         Returns w_target, beta
         """
-        assert(len(phi_array) == len(w_rest))
-        assert(len(phi_array) == len(nu_norms))
+        assert(len(c_array) == len(nu_norms))
         
-        w_target = np.mean(phi_array + w_rest)
-        
-        beta = np.min( (w_target - (phi_array + w_rest))/nu_norms) + 1.0
-        
+        w_target = np.mean(c_array)
+        beta = np.min( (w_target - c_array)/nu_norms) + 1.0
         return w_target, beta
         
     
@@ -684,7 +735,7 @@ class IEWPFOcean:
         """
         return (alpha*gamma/2)**(Nx/2 - 1) *np.exp(-alpha*gamma/2)*gamma/2
         
-    def solveImplicitEquation(self, phi, gamma, 
+    def solveImplicitEquation(self, gamma, 
                               target_weight, w_rest, c_star,
                               particle_id=None):
         """
@@ -700,7 +751,6 @@ class IEWPFOcean:
             'Nx': self.Nx,
             'w_rest': w_rest,
             'target_weight': target_weight,
-            'phi': phi,
             'c_star': c_star
         }
         self.log("Input params:")

@@ -256,7 +256,83 @@ class IEWPFOceanTest(unittest.TestCase):
         for j in range(self.iewpf.coarse_ny):
             for i in range(self.iewpf.coarse_nx):
                 self.assertEqual(obtained_random_numbers[j,i], 0.0)
+    
+    def test_blas_xaxpby(self):
+        self.iewpf.samplePerpendicular(self.ensemble.particles[0])
+        x = self.ensemble.particles[0].small_scale_model_error.getRandomNumbers()
+        y = self.ensemble.particles[0].small_scale_model_error.getPerpendicularRandomNumbers()
+        alpha = 2.12
+        beta  = 5.1
+        
+        self.iewpf.addBetaNuIntoAlphaXi(self.ensemble.particles[0], alpha, beta)
+        x_res_gpu = self.ensemble.particles[0].small_scale_model_error.getRandomNumbers()
+        x_res_cpu = np.sqrt(alpha)*x + np.sqrt(beta)*y
+        
+        assert2DListAlmostEqual(self, x_res_gpu.tolist(), x_res_gpu.tolist(), 10, "test_blas_xaxpby")
+        
+        
+    def test_apply_SVD_to_Perpendicular(self):
+        # Set sim variables to zero, so that only the Kalman gain ends up in those fields
+        zeros = np.zeros((self.iewpf.ny+4, self.iewpf.nx+4), dtype=np.float32)
+        self.ensemble.particles[0].gpu_data.h0.upload(self.iewpf.master_stream, zeros)
+        self.ensemble.particles[0].gpu_data.hu0.upload(self.iewpf.master_stream, zeros)
+        self.ensemble.particles[0].gpu_data.hv0.upload(self.iewpf.master_stream, zeros)
+        
+        self.iewpf.samplePerpendicular(self.ensemble.particles[0])
+        xi = self.ensemble.particles[0].small_scale_model_error.getRandomNumbers()
+        nu = self.ensemble.particles[0].small_scale_model_error.getPerpendicularRandomNumbers()
+        alpha = np.float32(9.0)
+        beta = np.float32(4.0)
+        drifter_positions = np.array([[120, 120], [40, 120], [80, 40]], dtype=np.float32)
+        
+        # Sample from N(0,P) the old way
+        
+        # Set sim variables to zero, so that only the Kalman gain ends up in those fields
+        zeros = np.zeros((self.iewpf.ny+4, self.iewpf.nx+4), dtype=np.float32)
+        self.ensemble.particles[0].gpu_data.h0.upload(self.iewpf.master_stream, zeros)
+        self.ensemble.particles[0].gpu_data.hu0.upload(self.iewpf.master_stream, zeros)
+        self.ensemble.particles[0].gpu_data.hv0.upload(self.iewpf.master_stream, zeros)
+       
+        # Old SVD
+        self.iewpf.applySVDtoPerpendicular_slow(self.ensemble.particles[0], drifter_positions)
+        Pxi = self.ensemble.particles[0].small_scale_model_error.getRandomNumbers()
+        Pnu = self.ensemble.particles[0].small_scale_model_error.getPerpendicularRandomNumbers()
+        aPxibPnu = np.sqrt(alpha)*Pxi + np.sqrt(beta)*Pnu
 
+        # Old Q
+        self.ensemble.particles[0].small_scale_model_error.perturbSim(self.ensemble.particles[0],\
+                                                                      update_random_field=False, \
+                                                                      perturbation_scale=np.sqrt(alpha),
+                                                                      perpendicular_scale=np.sqrt(beta))
+        old_eta, old_hu, old_hv = self.ensemble.particles[0].download(interior_domain_only=True)
+
+        # Sample from N(0,P) the new way
+       
+        # Set sim variables to zero, so that only the Kalman gain ends up in those fields
+        zeros = np.zeros((self.iewpf.ny+4, self.iewpf.nx+4), dtype=np.float32)
+        self.ensemble.particles[0].gpu_data.h0.upload(self.iewpf.master_stream, zeros)
+        self.ensemble.particles[0].gpu_data.hu0.upload(self.iewpf.master_stream, zeros)
+        self.ensemble.particles[0].gpu_data.hv0.upload(self.iewpf.master_stream, zeros)
+       
+        # New SVD
+        self.ensemble.particles[0].small_scale_model_error.random_numbers.upload(self.iewpf.master_stream, xi)
+        self.ensemble.particles[0].small_scale_model_error.perpendicular_random_numbers.upload(self.iewpf.master_stream, nu)
+        self.iewpf.applySVDtoPerpendicular(self.ensemble.particles[0], drifter_positions, alpha, beta)
+        Paxibnu = self.ensemble.particles[0].small_scale_model_error.getRandomNumbers()
+        
+        # New Q
+        self.ensemble.particles[0].small_scale_model_error.perturbSim(self.ensemble.particles[0],\
+                                                                      update_random_field=False)
+        new_eta, new_hu, new_hv = self.ensemble.particles[0].download(interior_domain_only=True)
+
+        # Compare results
+        assert2DListAlmostEqual(self, Paxibnu.tolist(), aPxibPnu.tolist(), 4, "test_apply_SVD_to_Perpendicular SVD")
+        assert2DListAlmostEqual(self, new_eta.tolist(), old_eta.tolist(),  4, "test_apply_SVD_to_Perpendicular eta")
+        assert2DListAlmostEqual(self, new_hu.tolist(),  old_hu.tolist(),   4, "test_apply_SVD_to_Perpendicular hu")
+        assert2DListAlmostEqual(self, new_hv.tolist(),  old_hv.tolist(),   4, "test_apply_SVD_to_Perpendicular hv")
+      
+        
+        
     def test_kalman_gain(self):
         self.run_ensemble()
         innovation = self.ensemble.getInnovations()[0]
