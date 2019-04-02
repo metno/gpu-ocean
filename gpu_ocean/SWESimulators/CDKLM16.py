@@ -168,9 +168,9 @@ class CDKLM16(Simulator.Simulator):
                 )
         
         # Get CUDA functions and define data types for prepared_{async_}call()
-        self.swe_2D = self.kernel.get_function("swe_2D")
-        self.swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPifi")
-        self.update_wind_stress(self.kernel, self.swe_2D)
+        self.cdklm_swe_2D = self.kernel.get_function("cdklm_swe_2D")
+        self.cdklm_swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPifi")
+        self.update_wind_stress(self.kernel, self.cdklm_swe_2D)
         
         #Create data by uploading to device
         self.gpu_data = Common.SWEDataArakawaA(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
@@ -341,7 +341,7 @@ class CDKLM16(Simulator.Simulator):
             if (local_dt <= 0.0):
                 break
             
-            wind_stress_t = np.float32(self.update_wind_stress(self.kernel, self.swe_2D))
+            wind_stress_t = np.float32(self.update_wind_stress(self.kernel, self.cdklm_swe_2D))
 
             #self.bc_kernel.boundaryCondition(self.cl_queue, \
             #            self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1)
@@ -436,7 +436,7 @@ class CDKLM16(Simulator.Simulator):
         if (self.boundary_conditions.west == 1):
             boundary_conditions = boundary_conditions | 0x08
             
-        self.swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+        self.cdklm_swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                            self.nx, self.ny, \
                            self.dx, self.dy, local_dt, \
                            self.g, \
