@@ -27,14 +27,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // block_width
 
 
-#define FLT_MAX 10000.0
+#define FLT_MAX 100000.0f
 
 extern "C" {
 /*
  * Find the maximum dt allowed within each block based on the current ocean state.
  */
 __global__ void per_block_max_dt(
-        //Discretization parameters
         const int nx_, const int ny_,
         const float dx_, const float dy_,
         const float g_,
@@ -58,6 +57,9 @@ __global__ void per_block_max_dt(
     const int tj = blockIdx.y * blockDim.y + threadIdx.y + 2;
     
     __shared__ float shared_dt[block_height][block_width];
+    volatile float* shared_dt_volatile = shared_dt[0];
+
+
 
     if ((ti < nx_+2) && (tj < ny_+2)) {
         float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);
@@ -84,21 +86,99 @@ __global__ void per_block_max_dt(
     }
     
     __syncthreads();
-  
     
-    if ( (tx == 0) && (ty == 0)) {
-        
-        float min_dt = shared_dt[0][0];
-        for (int j=0; j < blockDim.y; j++) {
-            for (int i=0; i < blockDim.x; i++) {
-                min_dt = min(min_dt, shared_dt[j][i]);
-            }
+    
+    // Now, apply min across the shared memory according to a reduction tree pattern
+    const int elements_in_shared = block_height*block_width;
+    const int tid = tx + blockDim.x*ty;
+    
+    // Now, apply minimization all elements into a single element
+    
+    if (elements_in_shared >= 512) {
+        // Assume that we never use more than 32x32=1024 threads per block.
+        if (tid < 256) shared_dt[0][tid] = min(shared_dt[0][tid], shared_dt[0][tid + 256]);
+        __syncthreads();
+    }
+    if (elements_in_shared >= 256) {
+        if (tid < 128) shared_dt[0][tid] = min(shared_dt[0][tid], shared_dt[0][tid + 128]);
+        __syncthreads();
+    }
+    if (elements_in_shared >= 128) {
+        if (tid < 64) shared_dt[0][tid] = min(shared_dt[0][tid], shared_dt[0][tid + 64]);
+        __syncthreads();
+    }
+    if (tid < 32) {
+        if (elements_in_shared >= 64) shared_dt_volatile[tid] = min(shared_dt_volatile[tid], shared_dt_volatile[tid + 32]);
+        if (tid < 16) {
+            if (elements_in_shared >= 32) shared_dt_volatile[tid] = min(shared_dt_volatile[tid], shared_dt_volatile[tid + 16]);
+            if (elements_in_shared >= 16) shared_dt_volatile[tid] = min(shared_dt_volatile[tid], shared_dt_volatile[tid +  8]);
+            if (elements_in_shared >=  8) shared_dt_volatile[tid] = min(shared_dt_volatile[tid], shared_dt_volatile[tid +  4]);
+            if (elements_in_shared >=  4) shared_dt_volatile[tid] = min(shared_dt_volatile[tid], shared_dt_volatile[tid +  2]);
+            if (elements_in_shared >=  2) shared_dt_volatile[tid] = min(shared_dt_volatile[tid], shared_dt_volatile[tid +  1]);
         }
         
-        float* const dt_row = (float*) ((char*) dt_ptr_ + dt_pitch_*block_id_y);
-        dt_row[block_id_x] = min_dt;
+        if (tid == 0) {
+            float* const dt_row = (float*) ((char*) dt_ptr_ + dt_pitch_*block_id_y);
+            dt_row[block_id_x] = shared_dt_volatile[tid];
+        }
     }
-    
 }
 } // extern "C"
    
+
+
+extern "C" {
+__global__ void max_dt_reduction(
+        //Discretization parameters
+        const int num_elements,         
+        float* dt_buffer,               // per block max dt, with num_elements elements
+        float* max_dt_buffer)           // a buffer of size 1 to put the result in.
+{
+    
+    __shared__ float sdata[NUM_THREADS];
+    volatile float* sdata_volatile = sdata;
+    
+    unsigned int tid = threadIdx.x;
+
+    // Square each elements and reduce to "NUM_THREADS" elements
+    float thread_dt = FLT_MAX;
+    for (unsigned int i = tid; i < num_elements; i += NUM_THREADS) {
+        thread_dt = min(thread_dt, dt_buffer[i]);
+    }
+    sdata[tid] = thread_dt;
+    __syncthreads();
+
+    //Now, sum all elements into a single element
+    if (NUM_THREADS >= 512) {
+        if (tid < 256) sdata[tid] = min(sdata[tid], sdata[tid + 256]);
+        __syncthreads();
+    }
+    if (NUM_THREADS >= 256) {
+        if (tid < 128) sdata[tid] = min(sdata[tid], sdata[tid + 128]);
+        __syncthreads();
+    }
+    if (NUM_THREADS >= 128) {
+        if (tid < 64) sdata[tid] = min(sdata[tid], sdata[tid + 64]);
+        __syncthreads();
+    }
+    if (tid < 32) {
+        if (NUM_THREADS >= 64) sdata_volatile[tid] = min(sdata_volatile[tid], sdata_volatile[tid + 32]);
+        if (tid < 16) {
+            if (NUM_THREADS >= 32) sdata_volatile[tid] = min(sdata_volatile[tid], sdata_volatile[tid + 16]);
+            if (NUM_THREADS >= 16) sdata_volatile[tid] = min(sdata_volatile[tid], sdata_volatile[tid +  8]);
+            if (NUM_THREADS >=  8) sdata_volatile[tid] = min(sdata_volatile[tid], sdata_volatile[tid +  4]);
+            if (NUM_THREADS >=  4) sdata_volatile[tid] = min(sdata_volatile[tid], sdata_volatile[tid +  2]);
+            if (NUM_THREADS >=  2) sdata_volatile[tid] = min(sdata_volatile[tid], sdata_volatile[tid +  1]);
+        }
+        
+        if (tid == 0) {
+            max_dt_buffer[tid] = sdata_volatile[tid];
+        }
+    }
+}
+} // extern "C"
+
+
+
+
+

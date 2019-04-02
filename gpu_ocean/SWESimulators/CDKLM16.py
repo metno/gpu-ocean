@@ -66,7 +66,7 @@ class CDKLM16(Simulator.Simulator):
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0, \
-                 block_width=32, block_height=8):
+                 block_width=32, block_height=8, num_threads_dt=256):
         """
         Initialization routine
         eta0: Initial deviation from mean sea level incl ghost cells, (nx+2)*(ny+2) cells
@@ -172,23 +172,28 @@ class CDKLM16(Simulator.Simulator):
         self.cdklm_swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPifi")
         self.update_wind_stress(self.kernel, self.cdklm_swe_2D)
         
+        # CUDA functions for finding max time step size:
+        self.num_threads_dt = num_threads_dt
+        self.num_blocks_dt  = np.int32(self.global_size[0]*self.global_size[1])
         self.update_dt_kernels = gpu_ctx.get_kernel("max_dt.cu",
                 defines={'block_width': block_width, 
                          'block_height': block_height,
-                         'NUM_THREADS': 128})
+                         'NUM_THREADS': self.num_threads_dt})
         self.per_block_max_dt_kernel = self.update_dt_kernels.get_function("per_block_max_dt")
         self.per_block_max_dt_kernel.prepare("iifffPiPiPiPiPi")
+        self.max_dt_reduction_kernel = self.update_dt_kernels.get_function("max_dt_reduction")
+        self.max_dt_reduction_kernel.prepare("iPP")
         
         #Create data by uploading to device
         self.gpu_data = Common.SWEDataArakawaA(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
 
         # Allocate memory for calculating maximum timestep
         host_dt = np.zeros((self.global_size[1], self.global_size[0]), dtype=np.float32)
-        for j in range(self.global_size[1]):
-            for i in range(self.global_size[0]):
-                host_dt[j,i] = i + j*self.global_size[0]
         self.device_dt = Common.CUDAArray2D(self.gpu_stream, self.global_size[0], self.global_size[1],
                                             0, 0, host_dt)
+        host_max_dt_buffer = np.zeros((1,1), dtype=np.float32)
+        self.max_dt_buffer = Common.CUDAArray2D(self.gpu_stream, 1, 1, 0, 0, host_max_dt_buffer)
+        
         
         ## Allocating memory for geostrophical equilibrium variables
         self.reportGeostrophicEquilibrium = np.int32(reportGeostrophicEquilibrium)
@@ -256,7 +261,9 @@ class CDKLM16(Simulator.Simulator):
             self.geoEq_Ly.release()
         self.bathymetry.release()
         self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
+        
         self.device_dt.release()
+        self.max_dt_buffer.release()
         
         self.gpu_ctx = None
         gc.collect()
@@ -486,7 +493,7 @@ class CDKLM16(Simulator.Simulator):
     def perturbState(self, q0_scale=1):
         self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
-    def updateDt(self):
+    def updateDt(self, courant_number=0.8):
         self.per_block_max_dt_kernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                    self.nx, self.ny, \
                    self.dx, self.dy, \
@@ -497,9 +504,15 @@ class CDKLM16(Simulator.Simulator):
                    self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
                    self.device_dt.data.gpudata, self.device_dt.pitch)
     
-    
-    
-    
+        self.max_dt_reduction_kernel.prepared_async_call((1,1),
+                                                         (self.num_threads_dt,1,1),
+                                                         self.gpu_stream,
+                                                         self.num_blocks_dt,
+                                                         self.device_dt.data.gpudata,
+                                                         self.max_dt_buffer.data.gpudata)
+
+        dt_host = self.max_dt_buffer.download(self.gpu_stream)
+        self.dt = courant_number*dt_host[0,0]
     
     def downloadBathymetry(self):
         return self.bathymetry.download(self.gpu_stream)
