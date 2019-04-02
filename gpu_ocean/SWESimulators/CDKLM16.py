@@ -172,9 +172,24 @@ class CDKLM16(Simulator.Simulator):
         self.cdklm_swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPifi")
         self.update_wind_stress(self.kernel, self.cdklm_swe_2D)
         
+        self.update_dt_kernels = gpu_ctx.get_kernel("max_dt.cu",
+                defines={'block_width': block_width, 
+                         'block_height': block_height,
+                         'NUM_THREADS': 128})
+        self.per_block_max_dt_kernel = self.update_dt_kernels.get_function("per_block_max_dt")
+        self.per_block_max_dt_kernel.prepare("iifffPiPiPiPiPi")
+        
         #Create data by uploading to device
         self.gpu_data = Common.SWEDataArakawaA(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
 
+        # Allocate memory for calculating maximum timestep
+        host_dt = np.zeros((self.global_size[1], self.global_size[0]), dtype=np.float32)
+        for j in range(self.global_size[1]):
+            for i in range(self.global_size[0]):
+                host_dt[j,i] = i + j*self.global_size[0]
+        self.device_dt = Common.CUDAArray2D(self.gpu_stream, self.global_size[0], self.global_size[1],
+                                            0, 0, host_dt)
+        
         ## Allocating memory for geostrophical equilibrium variables
         self.reportGeostrophicEquilibrium = np.int32(reportGeostrophicEquilibrium)
         self.geoEq_uxpvy = None
@@ -241,6 +256,7 @@ class CDKLM16(Simulator.Simulator):
             self.geoEq_Ly.release()
         self.bathymetry.release()
         self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
+        self.device_dt.release()
         
         self.gpu_ctx = None
         gc.collect()
@@ -470,8 +486,26 @@ class CDKLM16(Simulator.Simulator):
     def perturbState(self, q0_scale=1):
         self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
+    def updateDt(self):
+        self.per_block_max_dt_kernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+                   self.nx, self.ny, \
+                   self.dx, self.dy, \
+                   self.g, \
+                   self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch, \
+                   self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
+                   self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
+                   self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
+                   self.device_dt.data.gpudata, self.device_dt.pitch)
+    
+    
+    
+    
+    
     def downloadBathymetry(self):
         return self.bathymetry.download(self.gpu_stream)
+    
+    def downloadDt(self):
+        return self.device_dt.download(self.gpu_stream)
 
     def downloadGeoEqNorm(self):
         
