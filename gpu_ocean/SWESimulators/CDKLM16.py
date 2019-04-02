@@ -177,10 +177,14 @@ class CDKLM16(Simulator.Simulator):
 
         ## Allocating memory for geostrophical equilibrium variables
         self.reportGeostrophicEquilibrium = np.int32(reportGeostrophicEquilibrium)
-        dummy_zero_array = np.zeros((ny+2*ghost_cells_y, nx+2*ghost_cells_x), dtype=np.float32, order='C') 
-        self.geoEq_uxpvy = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
-        self.geoEq_Kx = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
-        self.geoEq_Ly = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+        self.geoEq_uxpvy = None
+        self.geoEq_Kx = None
+        self.geoEq_Ly = None
+        if self.reportGeostrophicEquilibrium:
+            dummy_zero_array = np.zeros((ny+2*ghost_cells_y, nx+2*ghost_cells_x), dtype=np.float32, order='C') 
+            self.geoEq_uxpvy = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+            self.geoEq_Kx = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+            self.geoEq_Ly = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
 
         #Bathymetry
         self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
@@ -228,9 +232,13 @@ class CDKLM16(Simulator.Simulator):
         if self.small_scale_model_error is not None:
             self.small_scale_model_error.cleanUp()
         
-        self.geoEq_uxpvy.release()
-        self.geoEq_Kx.release()
-        self.geoEq_Ly.release()
+        
+        if self.geoEq_uxpvy is not None:
+            self.geoEq_uxpvy.release()
+        if self.geoEq_Kx is not None:
+            self.geoEq_Kx.release()
+        if self.geoEq_Ly is not None:
+            self.geoEq_Ly.release()
         self.bathymetry.release()
         self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
         
