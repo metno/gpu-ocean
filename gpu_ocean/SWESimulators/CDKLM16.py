@@ -494,6 +494,10 @@ class CDKLM16(Simulator.Simulator):
         self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
     def updateDt(self, courant_number=0.8):
+        """
+        Updates the time step self.dt by finding the maximum size of dt according to the 
+        CFL conditions, and scale it with the provided courant number (0.8 on default).
+        """
         self.per_block_max_dt_kernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                    self.nx, self.ny, \
                    self.dx, self.dy, \
@@ -513,6 +517,26 @@ class CDKLM16(Simulator.Simulator):
 
         dt_host = self.max_dt_buffer.download(self.gpu_stream)
         self.dt = courant_number*dt_host[0,0]
+    
+    def _getMaxTimestepHost(self, courant_number=0.8):
+        """
+        Calculates the maximum allowed time step according to the CFL conditions and scales the
+        result with the provided courant number (0.8 on default).
+        This function is for reference only, and suboptimally implemented on the host.
+        """
+        eta, hu, hv = self.download(interior_domain_only=True)
+        Hm = self.downloadBathymetry()[1][2:-2, 2:-2]
+        #print(eta.shape, Hm.shape)
+        
+        h = eta + Hm
+        gravityWaves = np.sqrt(self.g*h)
+        u = hu/h
+        v = hv/h
+        
+        max_dt = 0.25*min(self.dx/np.max(np.abs(u)+gravityWaves), 
+                          self.dy/np.max(np.abs(v)+gravityWaves) )
+        
+        return courant_number*max_dt
     
     def downloadBathymetry(self):
         return self.bathymetry.download(self.gpu_stream)
