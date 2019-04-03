@@ -61,6 +61,7 @@ class CDKLM16(Simulator.Simulator):
                  small_scale_perturbation_amplitude=None, \
                  small_scale_perturbation_interpolation_factor = 1, \
                  perturbation_frequency=1, \
+                 model_time_step=None,
                  h0AsWaterElevation=False, \
                  reportGeostrophicEquilibrium=False, \
                  write_netcdf=False, \
@@ -93,6 +94,7 @@ class CDKLM16(Simulator.Simulator):
         small_scale_perturbation_amplitude: Amplitude (q0 coefficient) for model error
         small_scale_perturbation_interpolation_factor: Width factor for correlation in model error
         perturbation_frequency: Number of timesteps between each model error sampling
+        model_time_step: The size of a data assimilation model step (default same as dt)
         h0AsWaterElevation: True if h0 is described by the surface elevation, and false if h0 is described by water depth
         reportGeostrophicEquilibrium: Calculate the Geostrophic Equilibrium variables for each superstep
         write_netcdf: Write the results after each superstep to a netCDF file
@@ -226,6 +228,7 @@ class CDKLM16(Simulator.Simulator):
         self.small_scale_perturbation = small_scale_perturbation
         self.small_scale_model_error = None
         self.small_scale_perturbation_interpolation_factor = small_scale_perturbation_interpolation_factor
+        #print("TODO: Remove CDKLM16.perturbation_frequency")
         self.perturbation_frequency = perturbation_frequency
         if small_scale_perturbation:
             if small_scale_perturbation_amplitude is None:
@@ -235,6 +238,13 @@ class CDKLM16(Simulator.Simulator):
                 self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, 
                                                                                        soar_q0=small_scale_perturbation_amplitude,
                                                                                        interpolation_factor=small_scale_perturbation_interpolation_factor)
+        
+        # Data assimilation model step size
+        self.model_time_step = model_time_step
+        if model_time_step is None:
+            self.model_time_step = self.dt
+        self.total_time_steps = 0
+        
         
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
@@ -493,6 +503,57 @@ class CDKLM16(Simulator.Simulator):
     def perturbState(self, q0_scale=1):
         self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
+    def dataAssimilationStep(self, observation_time, model_error_final_step=True):
+        """
+        The model runs until self.t = observation_time - self.model_time_step with model error.
+        If model_error_final_step is true, another stochastic model_time_step is performed, 
+        otherwise a deterministic model_time_step.
+        """
+        # For the IEWPF scheme, it is important that the final timestep before the
+        # observation time is a full time step (fully deterministic). 
+        # We therefore make sure to take the (potential) small timestep first in this function,
+        # followed by appropriately many full time steps.
+        
+        full_model_time_steps = int((observation_time - self.t)/self.model_time_step) 
+        leftover_step_size = observation_time - self.t - full_model_time_steps*self.model_time_step
+        
+        assert(full_model_time_steps > 0), "There is less than CDKLM16.model_time_step until the observation"
+        
+        # Avoid a too small extra timestep
+        if leftover_step_size/self.model_time_step < 0.1 and full_model_time_steps > 1:
+            leftover_step_size += self.model_time_step
+            full_model_time_steps -= 1
+        
+        # Perform one non-standard time step, and add a scaled perturbation:
+        self.step(leftover_step_size, apply_stochastic_term=False)
+        self.perturbState(q0_scale=np.sqrt(self.model_time_step/leftover_step_size))
+        self.total_time_steps += 1
+        
+        # Loop standard steps:
+        for i in range(full_model_time_steps+1):
+            
+            if i == 0:
+                # Take the leftover step
+                self.step(leftover_step_size, apply_stochastic_term=False)
+                self.perturbState(q0_scale=np.sqrt(self.model_time_step/leftover_step_size))
+
+            else:
+                # Take standard steps
+                self.step(self.model_time_step, apply_stochastic_term=False)
+                if (i < full_model_time_steps) or model_error_final_step:
+                    self.perturbState()
+                    
+            self.total_time_steps += 1
+            
+            # Update dt now and then
+            if self.total_time_steps % 5 == 0:
+                self.updateDt()
+            
+        
+        
+        
+    
+    
     def updateDt(self, courant_number=0.8):
         """
         Updates the time step self.dt by finding the maximum size of dt according to the 
@@ -536,7 +597,7 @@ class CDKLM16(Simulator.Simulator):
         max_dt = 0.25*min(self.dx/np.max(np.abs(u)+gravityWaves), 
                           self.dy/np.max(np.abs(v)+gravityWaves) )
         
-        return courant_number*max_dt
+        return courant_number*max_dt    
     
     def downloadBathymetry(self):
         return self.bathymetry.download(self.gpu_stream)
