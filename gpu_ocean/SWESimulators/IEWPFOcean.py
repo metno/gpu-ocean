@@ -1544,7 +1544,8 @@ class IEWPFOcean:
         if self.debug: print ("Obtained (lambert_ans k=0, lambert_ans k=-1): ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
         if self.debug: print ("Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1))
         if self.debug: print ("Checking implicit equation with alpha (k=0, k=-1): ", \
-            (self._implicitEquation(alpha_zero, gamma, self.Nx, a, c), self._implicitEquation(alpha_min1, gamma, self.Nx, a, c)))
+            (self._old_implicitEquation(alpha_zero, gamma, self.Nx, a, c), 
+             self._old_implicitEquation(alpha_min1, gamma, self.Nx, a, c)))
         
         alpha = np.sqrt(alpha)
         if self.debug: print ("alpha = np.sqrt(alpha) ->  ", alpha)
@@ -1554,8 +1555,9 @@ class IEWPFOcean:
         # 7.2) alpha*xi
         if self.debug: self.showMatrices(alpha*xi[0], alpha*xi[1], "alpha * xi", alpha*xi[2])
 
+            
         # 8) Final nudge!
-        eta_a += alpha*xi[0]
+        eta_a += alpha*xi[0][1:-1,1:-1]
         hu_a  += alpha*xi[1]
         hv_a  += alpha*xi[2]
         if self.debug: self.showMatrices(eta_a, hu_a, "final x = x_a + alpha*xi", hv_a)
