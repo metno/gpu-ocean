@@ -350,6 +350,8 @@ class BaseOceanStateEnsemble(object):
         """
         return self.particles[self.obs_index].drifters.getDrifterPositions()
         
+    def setTrueDrifterPositions(self, newPositions):
+        self.particles[self.obs_index].drifters.setDrifterPositions(newPositions)
         
     def observeTrueState(self):
         """
