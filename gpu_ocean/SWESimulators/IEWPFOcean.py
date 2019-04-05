@@ -1371,7 +1371,7 @@ class IEWPFOcean:
             self.showMatrices(q_eta[1:-1, 1:-1], q_hu, "Equivalent sample from Q", q_hv)
             self.showMatrices(p_eta[1:-1, 1:-1] - q_eta[1:-1, 1:-1], p_hu - q_hu, "diff sample from P and sample from Q", p_hv - q_hv)
 
-        return p_eta[1:-1, 1:-1], p_hu, p_hv, gamma
+        return p_eta[2:-2, 2:-2], p_hu, p_hv, gamma
     
     
     
