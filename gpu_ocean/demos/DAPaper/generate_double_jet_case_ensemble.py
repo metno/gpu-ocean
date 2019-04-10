@@ -23,7 +23,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import sys, os
+import sys, os, json
 current_dir = os.path.dirname(os.path.realpath(__file__))
 
 if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../SWESimulators'))):
@@ -55,7 +55,7 @@ if(args.steps_per_observation % args.steps_per_download):
 # TODO: Write command/arguments + seed + git commit hash to netCDF-file(s) -> enables recreation of data?
 # TODO: Adapt to var dt
 # TODO: Convienency function: allow time given in days
-# TODO: Write observations to file
+# TODO: Improve json output (add labels)
 
 print("=== Domain size [{:02d} x {:02d}], block size [{:s} x {:s}] ===".format(args.nx, args.ny, str(args.block_width), str(args.block_height)))
 
@@ -167,14 +167,15 @@ for d in range(args.drifters):
 drifters.setDrifterPositions(initPos)
 sim.attachDrifters(drifters)
 
+drifter_obs_formatted_all = {}
+
 # initial observation here!
 drifter_obs = drifters.getDrifterPositions()
 drifter_obs_formatted = {}
-for i in drifter_obs:
-    drifter_obs_formatted[i[0]]=i[1]
+for i,d in enumerate(drifter_obs):
+    drifter_obs_formatted[i] = d.tolist()
 
-with open('drifter_obs.json', 'w') as f:
-    json.dump(drifter_obs_formatted, f, sort_keys=True, indent=4, ensure_ascii=False, separators=(',',':'))
+drifter_obs_formatted_all[sim.t] = drifter_obs_formatted
 
 total_iterations = int((args.initialization_time+args.forecast_length) / sim.dt + 1)
 max_mcells = 0;
@@ -208,9 +209,16 @@ for i in range(downloads):
     
     if(not ((i*args.steps_per_download) % args.steps_per_observation)):
         # observe here!
-        print("OBSERVE!")
+        drifter_obs = drifters.getDrifterPositions()
+        drifter_obs_formatted = {}
+        for i,d in enumerate(drifter_obs):
+            drifter_obs_formatted[i] = d.tolist()
+
+        drifter_obs_formatted_all[sim.t] = drifter_obs_formatted
 
 print(" === Maximum megacells: {:02.8f} ===".format(max_mcells))
 
-print("AFTER")
-print(drifters.getDrifterPositions()[0])
+# TODO: add meaningful id to filename or content
+with open('drifter_obs.json', 'w') as f:
+    json.dump(drifter_obs_formatted_all, f, sort_keys=True, indent=4, ensure_ascii=False, separators=(',',':'))
+    f.write("\n\n")
