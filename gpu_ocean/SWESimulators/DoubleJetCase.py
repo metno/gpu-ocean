@@ -69,6 +69,11 @@ class DoubleJetPerturbationType:
     # model errors only every 10th timestep.
     LowFrequencyStandardSpinUp = 9
     
+    # IEWPF paper case!
+    # Using the dataAssimilationStep with 1 min model time steps with model error and dynamic dt.
+    # Initialize with 3 days spin up
+    IEWPFPaperCase = 10
+    
     @staticmethod
     def _assert_valid(pert_type):
         assert(pert_type == DoubleJetPerturbationType.SteadyState or \
@@ -79,7 +84,8 @@ class DoubleJetPerturbationType:
                pert_type == DoubleJetPerturbationType.SpinUp or \
                pert_type == DoubleJetPerturbationType.NormalPerturbedSpinUp or \
                pert_type == DoubleJetPerturbationType.LowFrequencySpinUp or \
-               pert_type == DoubleJetPerturbationType.LowFrequencyStandardSpinUp), \
+               pert_type == DoubleJetPerturbationType.LowFrequencyStandardSpinUp or \
+               pert_type == DoubleJetPerturbationType.IEWPFPaperCase), \
         'Provided double jet perturbation type ' + str(pert_type) + ' is invalid'
 
 class DoubleJetCase:
@@ -220,7 +226,21 @@ class DoubleJetCase:
         if self.perturbation_type == DoubleJetPerturbationType.NormalPerturbedSpinUp:
             self.sim_args['perturbation_frequency'] = 10
             
-    
+        # The IEWPFPaperCase - isolated to give a better overview
+        if self.perturbation_type == DoubleJetPerturbationType.IEWPFPaperCase:
+            self.sim_args["small_scale_perturbation_amplitude"] = 0.00025
+            self.sim_args["model_time_step"] = 60 # sec
+            
+            three_days = 3*24*60*60
+            tmp_sim = CDKLM16.CDKLM16(**self.sim_args, **self.base_init)
+            tmp_sim.updateDt()
+            tmp_t = tmp_sim.dataAssimilationStep(three_days)
+            tmp_eta, tmp_hu, tmp_hv = tmp_sim.download(interior_domain_only=False)
+            self.base_init['eta0'] = tmp_eta
+            self.base_init['hu0']  = tmp_hu
+            self.base_init['hv0']  = tmp_hv
+            self.sim_args['t'] = tmp_sim.t
+            tmp_sim.cleanUp()
     
     def __del__(self):
         self.cleanUp()
