@@ -355,7 +355,7 @@ class CDKLM16(Simulator.Simulator):
     
     
     
-    def step(self, t_end=0.0, apply_stochastic_term=True):
+    def step(self, t_end=0.0, apply_stochastic_term=True, write_now=True):
         """
         Function which steps n timesteps.
         apply_stochastic_term: Boolean value for whether the stochastic
@@ -456,7 +456,7 @@ class CDKLM16(Simulator.Simulator):
             self.t += np.float64(local_dt)
             self.num_iterations += 1
             
-        if self.write_netcdf:
+        if self.write_netcdf and write_now:
             self.sim_writer.writeTimestep(self)
             
         return self.t
@@ -527,7 +527,7 @@ class CDKLM16(Simulator.Simulator):
             full_model_time_steps -= 1
         
         # Perform one non-standard time step, and add a scaled perturbation:
-        self.step(leftover_step_size, apply_stochastic_term=False)
+        self.step(leftover_step_size, apply_stochastic_term=False, write_now=False)
         self.perturbState(q0_scale=np.sqrt(self.model_time_step/leftover_step_size))
         self.total_time_steps += 1
         
@@ -536,12 +536,12 @@ class CDKLM16(Simulator.Simulator):
             
             if i == 0:
                 # Take the leftover step
-                self.step(leftover_step_size, apply_stochastic_term=False)
+                self.step(leftover_step_size, apply_stochastic_term=False, write_now=False)
                 self.perturbState(q0_scale=np.sqrt(self.model_time_step/leftover_step_size))
 
             else:
                 # Take standard steps
-                self.step(self.model_time_step, apply_stochastic_term=False)
+                self.step(self.model_time_step, apply_stochastic_term=False, write_now=False)
                 if (i < full_model_time_steps) or model_error_final_step:
                     self.perturbState()
                     
@@ -551,10 +551,8 @@ class CDKLM16(Simulator.Simulator):
             if self.total_time_steps % 5 == 0:
                 self.updateDt()
             
-        
-        
-        
-    
+        if self.write_netcdf:
+            self.sim_writer.writeTimestep(self)
     
     def updateDt(self, courant_number=0.8):
         """

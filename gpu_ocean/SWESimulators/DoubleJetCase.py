@@ -231,10 +231,10 @@ class DoubleJetCase:
             self.sim_args["small_scale_perturbation_amplitude"] = 0.00025
             self.sim_args["model_time_step"] = 60 # sec
             
-            three_days = 3*24*60*60
             tmp_sim = CDKLM16.CDKLM16(**self.sim_args, **self.base_init)
             tmp_sim.updateDt()
-            tmp_t = tmp_sim.dataAssimilationStep(three_days)
+            if self.commonSpinUpTime > 0:
+                tmp_t = tmp_sim.dataAssimilationStep(self.commonSpinUpTime)
             tmp_eta, tmp_hu, tmp_hv = tmp_sim.download(interior_domain_only=False)
             self.base_init['eta0'] = tmp_eta
             self.base_init['hu0']  = tmp_hu

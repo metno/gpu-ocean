@@ -42,15 +42,12 @@ parser.add_argument('--ny', type=int, default=512)
 parser.add_argument('--block_width', type=int)
 parser.add_argument('--block_height', type=int)
 parser.add_argument('--drifters', type=int, default=10)
-parser.add_argument('--steps_per_download', type=int, default=100)
-parser.add_argument('--steps_per_observation', type=int, default=100)
+parser.add_argument('--observe_every', type=int, default=900) # default: every 15 minutes
 parser.add_argument('--simulator', type=str, default="CDKLM")
 
 args = parser.parse_args()
 
-if(args.steps_per_observation % args.steps_per_download):
-    print(" `-> ERROR: Choose steps_per_observation as a multiple of steps_per_download, aborting!")
-    sys.exit(-1)
+end_time = args.initialization_time + args.forecast_length
 
 # TODO: Write command/arguments + seed + git commit hash to netCDF-file(s) -> enables recreation of data?
 # TODO: Adapt to var dt
@@ -106,7 +103,7 @@ for n in range(args.members-1,-1,-1):
     tic = time.time()
     # Get parameters and initial conditions
     doubleJetCase = DoubleJetCase.DoubleJetCase(gpu_ctx,
-                                            DoubleJetCase.DoubleJetPerturbationType.LowFrequencySpinUp, 
+                                            DoubleJetCase.DoubleJetPerturbationType.IEWPFPaperCase, 
                                             model_error=True, commonSpinUpTime = 0)
     doubleJetCase_args, doubleJetCase_init = doubleJetCase.getInitConditions()
     toc = time.time()
@@ -177,24 +174,17 @@ for i,d in enumerate(drifter_obs):
 
 drifter_obs_formatted_all[sim.t] = drifter_obs_formatted
 
-total_iterations = int((args.initialization_time+args.forecast_length) / sim.dt + 1)
-max_mcells = 0;
-
-downloads = int(total_iterations / args.steps_per_download)
-for i in range(downloads):
-    print("{:03.0f} %".format(100*(i+1) / downloads))
-
+t = sim.t
+while t < end_time:
     gpu_ctx.synchronize()
     tic = time.time()
 
-    t = sim.step(args.steps_per_download*sim.dt)
+    sim.dataAssimilationStep(t + args.observe_every)
+    t += sim.t
 
     gpu_ctx.synchronize()
     toc = time.time()
 
-    mcells = args.nx*args.ny*args.steps_per_download/(1e6*(toc-tic))
-    max_mcells = max(mcells, max_mcells);
-    print(" `-> {:02.4f} s: ".format(toc-tic) + "Step, " + "{:02.4f} mcells/sec".format(mcells))
     tic = time.time()
     eta1, u1, v1 = sim.download()
     toc = time.time()
@@ -207,16 +197,13 @@ for i in range(downloads):
 
     print(" `-> t_sim={:02.4f}".format(t) + ", u_max={:02.4f}".format(np.max(u1)))
     
-    if(not ((i*args.steps_per_download) % args.steps_per_observation)):
-        # observe here!
-        drifter_obs = drifters.getDrifterPositions()
-        drifter_obs_formatted = {}
-        for i,d in enumerate(drifter_obs):
-            drifter_obs_formatted[i] = d.tolist()
+    # observe here!
+    drifter_obs = drifters.getDrifterPositions()
+    drifter_obs_formatted = {}
+    for i,d in enumerate(drifter_obs):
+        drifter_obs_formatted[i] = d.tolist()
 
-        drifter_obs_formatted_all[sim.t] = drifter_obs_formatted
-
-print(" === Maximum megacells: {:02.8f} ===".format(max_mcells))
+    drifter_obs_formatted_all[sim.t] = drifter_obs_formatted
 
 # TODO: add meaningful id to filename or content
 with open('drifter_obs.json', 'w') as f:
