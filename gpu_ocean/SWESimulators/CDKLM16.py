@@ -61,12 +61,13 @@ class CDKLM16(Simulator.Simulator):
                  small_scale_perturbation_amplitude=None, \
                  small_scale_perturbation_interpolation_factor = 1, \
                  perturbation_frequency=1, \
+                 model_time_step=None,
                  h0AsWaterElevation=False, \
                  reportGeostrophicEquilibrium=False, \
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0, \
-                 block_width=32, block_height=8):
+                 block_width=32, block_height=8, num_threads_dt=256):
         """
         Initialization routine
         eta0: Initial deviation from mean sea level incl ghost cells, (nx+2)*(ny+2) cells
@@ -93,6 +94,7 @@ class CDKLM16(Simulator.Simulator):
         small_scale_perturbation_amplitude: Amplitude (q0 coefficient) for model error
         small_scale_perturbation_interpolation_factor: Width factor for correlation in model error
         perturbation_frequency: Number of timesteps between each model error sampling
+        model_time_step: The size of a data assimilation model step (default same as dt)
         h0AsWaterElevation: True if h0 is described by the surface elevation, and false if h0 is described by water depth
         reportGeostrophicEquilibrium: Calculate the Geostrophic Equilibrium variables for each superstep
         write_netcdf: Write the results after each superstep to a netCDF file
@@ -168,19 +170,43 @@ class CDKLM16(Simulator.Simulator):
                 )
         
         # Get CUDA functions and define data types for prepared_{async_}call()
-        self.swe_2D = self.kernel.get_function("swe_2D")
-        self.swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPifi")
-        self.update_wind_stress(self.kernel, self.swe_2D)
+        self.cdklm_swe_2D = self.kernel.get_function("cdklm_swe_2D")
+        self.cdklm_swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPifi")
+        self.update_wind_stress(self.kernel, self.cdklm_swe_2D)
+        
+        # CUDA functions for finding max time step size:
+        self.num_threads_dt = num_threads_dt
+        self.num_blocks_dt  = np.int32(self.global_size[0]*self.global_size[1])
+        self.update_dt_kernels = gpu_ctx.get_kernel("max_dt.cu",
+                defines={'block_width': block_width, 
+                         'block_height': block_height,
+                         'NUM_THREADS': self.num_threads_dt})
+        self.per_block_max_dt_kernel = self.update_dt_kernels.get_function("per_block_max_dt")
+        self.per_block_max_dt_kernel.prepare("iifffPiPiPiPiPi")
+        self.max_dt_reduction_kernel = self.update_dt_kernels.get_function("max_dt_reduction")
+        self.max_dt_reduction_kernel.prepare("iPP")
         
         #Create data by uploading to device
         self.gpu_data = Common.SWEDataArakawaA(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
 
+        # Allocate memory for calculating maximum timestep
+        host_dt = np.zeros((self.global_size[1], self.global_size[0]), dtype=np.float32)
+        self.device_dt = Common.CUDAArray2D(self.gpu_stream, self.global_size[0], self.global_size[1],
+                                            0, 0, host_dt)
+        host_max_dt_buffer = np.zeros((1,1), dtype=np.float32)
+        self.max_dt_buffer = Common.CUDAArray2D(self.gpu_stream, 1, 1, 0, 0, host_max_dt_buffer)
+        
+        
         ## Allocating memory for geostrophical equilibrium variables
         self.reportGeostrophicEquilibrium = np.int32(reportGeostrophicEquilibrium)
-        dummy_zero_array = np.zeros((ny+2*ghost_cells_y, nx+2*ghost_cells_x), dtype=np.float32, order='C') 
-        self.geoEq_uxpvy = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
-        self.geoEq_Kx = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
-        self.geoEq_Ly = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+        self.geoEq_uxpvy = None
+        self.geoEq_Kx = None
+        self.geoEq_Ly = None
+        if self.reportGeostrophicEquilibrium:
+            dummy_zero_array = np.zeros((ny+2*ghost_cells_y, nx+2*ghost_cells_x), dtype=np.float32, order='C') 
+            self.geoEq_uxpvy = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+            self.geoEq_Kx = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
+            self.geoEq_Ly = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
 
         #Bathymetry
         self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
@@ -202,6 +228,7 @@ class CDKLM16(Simulator.Simulator):
         self.small_scale_perturbation = small_scale_perturbation
         self.small_scale_model_error = None
         self.small_scale_perturbation_interpolation_factor = small_scale_perturbation_interpolation_factor
+        #print("TODO: Remove CDKLM16.perturbation_frequency")
         self.perturbation_frequency = perturbation_frequency
         if small_scale_perturbation:
             if small_scale_perturbation_amplitude is None:
@@ -211,6 +238,13 @@ class CDKLM16(Simulator.Simulator):
                 self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, 
                                                                                        soar_q0=small_scale_perturbation_amplitude,
                                                                                        interpolation_factor=small_scale_perturbation_interpolation_factor)
+        
+        # Data assimilation model step size
+        self.model_time_step = model_time_step
+        if model_time_step is None:
+            self.model_time_step = self.dt
+        self.total_time_steps = 0
+        
         
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, ignore_ghostcells=self.ignore_ghostcells, \
@@ -228,11 +262,18 @@ class CDKLM16(Simulator.Simulator):
         if self.small_scale_model_error is not None:
             self.small_scale_model_error.cleanUp()
         
-        self.geoEq_uxpvy.release()
-        self.geoEq_Kx.release()
-        self.geoEq_Ly.release()
+        
+        if self.geoEq_uxpvy is not None:
+            self.geoEq_uxpvy.release()
+        if self.geoEq_Kx is not None:
+            self.geoEq_Kx.release()
+        if self.geoEq_Ly is not None:
+            self.geoEq_Ly.release()
         self.bathymetry.release()
         self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
+        
+        self.device_dt.release()
+        self.max_dt_buffer.release()
         
         self.gpu_ctx = None
         gc.collect()
@@ -341,7 +382,7 @@ class CDKLM16(Simulator.Simulator):
             if (local_dt <= 0.0):
                 break
             
-            wind_stress_t = np.float32(self.update_wind_stress(self.kernel, self.swe_2D))
+            wind_stress_t = np.float32(self.update_wind_stress(self.kernel, self.cdklm_swe_2D))
 
             #self.bc_kernel.boundaryCondition(self.cl_queue, \
             #            self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1)
@@ -436,7 +477,7 @@ class CDKLM16(Simulator.Simulator):
         if (self.boundary_conditions.west == 1):
             boundary_conditions = boundary_conditions | 0x08
             
-        self.swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+        self.cdklm_swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                            self.nx, self.ny, \
                            self.dx, self.dy, local_dt, \
                            self.g, \
@@ -462,8 +503,107 @@ class CDKLM16(Simulator.Simulator):
     def perturbState(self, q0_scale=1):
         self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
+    def dataAssimilationStep(self, observation_time, model_error_final_step=True):
+        """
+        The model runs until self.t = observation_time - self.model_time_step with model error.
+        If model_error_final_step is true, another stochastic model_time_step is performed, 
+        otherwise a deterministic model_time_step.
+        """
+        # For the IEWPF scheme, it is important that the final timestep before the
+        # observation time is a full time step (fully deterministic). 
+        # We therefore make sure to take the (potential) small timestep first in this function,
+        # followed by appropriately many full time steps.
+        
+        full_model_time_steps = int((observation_time - self.t)/self.model_time_step) 
+        leftover_step_size = observation_time - self.t - full_model_time_steps*self.model_time_step
+        
+        assert(full_model_time_steps > 0), "There is less than CDKLM16.model_time_step until the observation"
+        
+        # Avoid a too small extra timestep
+        if leftover_step_size/self.model_time_step < 0.1 and full_model_time_steps > 1:
+            leftover_step_size += self.model_time_step
+            full_model_time_steps -= 1
+        
+        # Perform one non-standard time step, and add a scaled perturbation:
+        self.step(leftover_step_size, apply_stochastic_term=False)
+        self.perturbState(q0_scale=np.sqrt(self.model_time_step/leftover_step_size))
+        self.total_time_steps += 1
+        
+        # Loop standard steps:
+        for i in range(full_model_time_steps+1):
+            
+            if i == 0:
+                # Take the leftover step
+                self.step(leftover_step_size, apply_stochastic_term=False)
+                self.perturbState(q0_scale=np.sqrt(self.model_time_step/leftover_step_size))
+
+            else:
+                # Take standard steps
+                self.step(self.model_time_step, apply_stochastic_term=False)
+                if (i < full_model_time_steps) or model_error_final_step:
+                    self.perturbState()
+                    
+            self.total_time_steps += 1
+            
+            # Update dt now and then
+            if self.total_time_steps % 5 == 0:
+                self.updateDt()
+            
+        
+        
+        
+    
+    
+    def updateDt(self, courant_number=0.8):
+        """
+        Updates the time step self.dt by finding the maximum size of dt according to the 
+        CFL conditions, and scale it with the provided courant number (0.8 on default).
+        """
+        self.per_block_max_dt_kernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
+                   self.nx, self.ny, \
+                   self.dx, self.dy, \
+                   self.g, \
+                   self.gpu_data.h0.data.gpudata, self.gpu_data.h0.pitch, \
+                   self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
+                   self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
+                   self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
+                   self.device_dt.data.gpudata, self.device_dt.pitch)
+    
+        self.max_dt_reduction_kernel.prepared_async_call((1,1),
+                                                         (self.num_threads_dt,1,1),
+                                                         self.gpu_stream,
+                                                         self.num_blocks_dt,
+                                                         self.device_dt.data.gpudata,
+                                                         self.max_dt_buffer.data.gpudata)
+
+        dt_host = self.max_dt_buffer.download(self.gpu_stream)
+        self.dt = courant_number*dt_host[0,0]
+    
+    def _getMaxTimestepHost(self, courant_number=0.8):
+        """
+        Calculates the maximum allowed time step according to the CFL conditions and scales the
+        result with the provided courant number (0.8 on default).
+        This function is for reference only, and suboptimally implemented on the host.
+        """
+        eta, hu, hv = self.download(interior_domain_only=True)
+        Hm = self.downloadBathymetry()[1][2:-2, 2:-2]
+        #print(eta.shape, Hm.shape)
+        
+        h = eta + Hm
+        gravityWaves = np.sqrt(self.g*h)
+        u = hu/h
+        v = hv/h
+        
+        max_dt = 0.25*min(self.dx/np.max(np.abs(u)+gravityWaves), 
+                          self.dy/np.max(np.abs(v)+gravityWaves) )
+        
+        return courant_number*max_dt    
+    
     def downloadBathymetry(self):
         return self.bathymetry.download(self.gpu_stream)
+    
+    def downloadDt(self):
+        return self.device_dt.download(self.gpu_stream)
 
     def downloadGeoEqNorm(self):
         

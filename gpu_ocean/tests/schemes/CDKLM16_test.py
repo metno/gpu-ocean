@@ -143,6 +143,12 @@ class CDKLM16test(unittest.TestCase):
                                msg='Unexpected U relative difference: ' + str(maxDiffU) + ', L2 rel diff: ' + str(diffU))
         self.assertAlmostEqual(maxDiffV, 0.0, places=3,
                                msg='Unexpected V relative difference: ' + str(maxDiffV) + ', L2 rel diff: ' + str(diffV))
+    
+        # Test maximal time step:
+        self.sim.updateDt()
+        dt_host = self.sim._getMaxTimestepHost()
+        self.assertEqual(self.sim.dt, dt_host, msg="maximum time step")
+    
     ## Wall boundary conditions
     
     def test_wall_central(self):
