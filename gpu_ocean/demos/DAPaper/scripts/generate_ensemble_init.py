@@ -60,7 +60,7 @@ tic = time.time();
 
 # Import packages we need
 import numpy as np
-from SWESimulators import CDKLM16, Common, DoubleJetCase, GPUDrifterCollection
+from SWESimulators import CDKLM16, Common, DoubleJetCase
 
 toc = time.time()
 print("{:02.4f} s: ".format(toc-tic) + "Imported packages")
