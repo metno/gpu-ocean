@@ -65,12 +65,21 @@ class SimNetCDFWriter:
 
         self.simulator_short = str(sim.__class__.__name__)
 
+        
         self.dir_name = "netcdf_" + self.timestamp_short + "/"
+        
         if not filename:
             self.output_file_name = self.dir_name + self.simulator_short + "_" + self.timestamp + ".nc"
-        else:
+        elif str.find(filename, '/') == -1:
             self.output_file_name = self.dir_name + self.simulator_short + "_" + filename + ".nc"
-
+        else:
+            # Input file name is given as 'folder/file' 
+            self.output_file_name = filename + ".nc"
+            self.dir_name = filename.rsplit('/', 1)[0]
+            
+        # Avoid filenames such as "file.nc.nc"
+        self.output_file_name = self.output_file_name.replace('.nc.nc', '.nc')
+            
         self.current_directory =os.getcwd()
         self.textPos = -1
         

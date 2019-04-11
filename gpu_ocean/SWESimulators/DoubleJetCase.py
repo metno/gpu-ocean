@@ -233,8 +233,10 @@ class DoubleJetCase:
             
             tmp_sim = CDKLM16.CDKLM16(**self.sim_args, **self.base_init)
             tmp_sim.updateDt()
-            if self.commonSpinUpTime > 0:
-                tmp_t = tmp_sim.dataAssimilationStep(self.commonSpinUpTime)
+            
+            three_days = 3*24*60*60
+            tmp_t = tmp_sim.dataAssimilationStep(three_days)
+            
             tmp_eta, tmp_hu, tmp_hv = tmp_sim.download(interior_domain_only=False)
             self.base_init['eta0'] = tmp_eta
             self.base_init['hu0']  = tmp_hu
