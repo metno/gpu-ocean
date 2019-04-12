@@ -505,7 +505,7 @@ class CDKLM16(Simulator.Simulator):
     def perturbState(self, q0_scale=1):
         self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
-    def dataAssimilationStep(self, observation_time, model_error_final_step=True):
+    def dataAssimilationStep(self, observation_time, model_error_final_step=True, write_now=True):
         """
         The model runs until self.t = observation_time - self.model_time_step with model error.
         If model_error_final_step is true, another stochastic model_time_step is performed, 
@@ -520,16 +520,11 @@ class CDKLM16(Simulator.Simulator):
         leftover_step_size = observation_time - self.t - full_model_time_steps*self.model_time_step
         
         assert(full_model_time_steps > 0), "There is less than CDKLM16.model_time_step until the observation"
-        
+            
         # Avoid a too small extra timestep
         if leftover_step_size/self.model_time_step < 0.1 and full_model_time_steps > 1:
             leftover_step_size += self.model_time_step
             full_model_time_steps -= 1
-        
-        # Perform one non-standard time step, and add a scaled perturbation:
-        self.step(leftover_step_size, apply_stochastic_term=False, write_now=False)
-        self.perturbState(q0_scale=np.sqrt(self.model_time_step/leftover_step_size))
-        self.total_time_steps += 1
         
         # Loop standard steps:
         for i in range(full_model_time_steps+1):
@@ -551,8 +546,14 @@ class CDKLM16(Simulator.Simulator):
             if self.total_time_steps % 5 == 0:
                 self.updateDt()
             
+        if self.write_netcdf and write_now:
+            self.sim_writer.writeTimestep(self)
+    
+    def writeState(self):        
         if self.write_netcdf:
             self.sim_writer.writeTimestep(self)
+        
+    
     
     def updateDt(self, courant_number=0.8):
         """

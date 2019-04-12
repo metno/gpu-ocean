@@ -70,7 +70,6 @@ class Observation:
 
         pos = sim.drifters.getDrifterPositions()
         self.obs_df.loc[index] = {self.columns[0]: rounded_sim_t, self.columns[1]: pos}
-        print("Added obs")
         
     def to_pickle(self, path):
         """
