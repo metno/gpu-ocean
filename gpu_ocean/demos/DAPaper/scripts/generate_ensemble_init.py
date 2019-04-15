@@ -39,7 +39,7 @@ args = parser.parse_args()
 # Checking input args
 if args.ensemble_size > 100:
     print("Are you really sure that you want to generate more than 100 ensemble members?")
-    print("They will nonethereless look similar to each other, and two identical members " + \
+    print("They will look similar to each other, and two identical members " + \
           "will still diverge due to model errors soon enough.")
     sys.exit(-1)
 elif args.ensemble_size < 1:
@@ -49,7 +49,7 @@ elif args.ensemble_size < 1:
 # Define suitable folder for creating the ensemble in
 folder_name = "ensemble_init_" + datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S") + "/"
 print("------ Generating initial ensemble ---------------")
-print("Writing ensemble to director: " + folder_name)
+print("Writing ensemble to directory: " + folder_name)
 print("Making " + str(args.ensemble_size) + " ensemble members")
 
 

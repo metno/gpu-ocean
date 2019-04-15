@@ -65,7 +65,7 @@ drifter_filename = folder + "drifter_observations.pickle"
 if not os.path.isdir(folder):
     os.makedirs(folder)
 else:
-    print(" `-> ERROR: The folder " + folder + " already exists!")
+    print(" `-> ERROR: The directory " + folder + " already exists!")
     sys.exit(-1)    
 
 
