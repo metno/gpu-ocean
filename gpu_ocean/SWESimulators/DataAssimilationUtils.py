@@ -68,7 +68,7 @@ def probabilisticResampling(particles, reinitialization_variance=0):
     #                          particles.getObservationVariance())
     
     # Create array of possible indices to resample:
-    allIndices = range(particles.getNumParticles())
+    allIndices = np.arange(particles.getNumParticles())
     
     # Draw new indices based from discrete distribution based on weights
     newSampleIndices = np.random.choice(allIndices, particles.getNumParticles(), p=weights)
@@ -93,9 +93,9 @@ def residualSampling(particles, reinitialization_variance=0, onlyDeterministic=F
     #weights = getCauchyWeight(particles.getDistances(), \
     #                          particles.getObservationVariance())
     weights = particles.getGaussianWeight()
-
+    
     # Create array of possible indices to resample:
-    allIndices = range(particles.getNumParticles())
+    allIndices = np.arange(particles.getNumParticles())
 
     # Deterministic resampling based on the integer part of N*weights:
     weightsTimesN = weights*particles.getNumParticles()

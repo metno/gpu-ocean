@@ -62,6 +62,9 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     
     def _init(self, driftersPerOceanModel=1):
         
+        self.driftersPerOceanModel = np.int32(driftersPerOceanModel)
+        
+        
         for i in range(self.numParticles+1):
             self.particles[i] = CDKLM16.CDKLM16(self.gpu_ctx, \
                                                 self.base_eta, self.base_hu, self.base_hv, \
@@ -76,9 +79,17 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             
             if self.initialization_variance_factor_ocean_field != 0.0:
                 self.particles[i].perturbState(q0_scale=self.initialization_variance_factor_ocean_field)
+                
+            # Add drifters
+            drifters = GPUDrifterCollection.GPUDrifterCollection(self.gpu_ctx, self.driftersPerOceanModel,
+                                                 observation_variance=self.observation_variance,
+                                                 boundaryConditions=self.boundaryConditions,
+                                                 initialization_cov_drifters=self.initialization_cov_drifters,
+                                                 domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
+            self.particles[i].attachDrifters(drifters)
           
         # Initialize and attach drifters to all particles.
-        self._initialize_drifters(driftersPerOceanModel)
+        #self._initialize_drifters(driftersPerOceanModel)
         
         # Create gpu kernels and buffers:
         self._setupGPU()
@@ -87,7 +98,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         # Put the initial positions into the observation array
         self._addObservation(self.observeTrueDrifters())
         
-    def _initialize_drifters(self, driftersPerOceanModel):
+    def _TO_DELETE_initialize_drifters(self, driftersPerOceanModel):
         """
         Initialize drifters and attach them for each particle.
         """
