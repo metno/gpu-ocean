@@ -96,7 +96,7 @@ class DoubleJetCase:
     
     def __init__(self, gpu_ctx, 
                  perturbation_type=DoubleJetPerturbationType.SteadyState,
-                 model_error = True):
+                 model_error = True, commonSpinUpTime = 200000):
         """
         Class that generates initial conditions for a double jet case (both perturbed and unperturbed).
         The use of initial perturbations/spin up periods are given by the perturbation_type argument,
@@ -148,7 +148,7 @@ class DoubleJetCase:
         self.u_max = 3 # m/s   - Gulf stream has "maximum speed typically about 2.5 m/s"
         self.h_0 = 230 # m     - It was found to be 230.03, but with a dobious calculation. 
                        #       - Better then just to set the depth to a constant :) 
-        self.commonSpinUpTime     = 200000  # s - Because it just seems like a good measure.
+        self.commonSpinUpTime     = commonSpinUpTime  # s - Because it just seems like a good measure.
         self.individualSpinUpTime = 100000  # s - Because it just seems like a good measure.
         
         self.f = 2*omega*np.sin(self.phi_05)
@@ -231,10 +231,12 @@ class DoubleJetCase:
             self.sim_args["small_scale_perturbation_amplitude"] = 0.00025
             self.sim_args["model_time_step"] = 60 # sec
             
-            three_days = 3*24*60*60
             tmp_sim = CDKLM16.CDKLM16(**self.sim_args, **self.base_init)
             tmp_sim.updateDt()
+            
+            three_days = 3*24*60*60
             tmp_t = tmp_sim.dataAssimilationStep(three_days)
+            
             tmp_eta, tmp_hu, tmp_hv = tmp_sim.download(interior_domain_only=False)
             self.base_init['eta0'] = tmp_eta
             self.base_init['hu0']  = tmp_hu

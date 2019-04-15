@@ -36,14 +36,14 @@ class SimNetCDFWriter:
 
     Args:
         sim: Simulator that will be generating netCDF output.
+        filename: Use this filename. (If not defined, a filename will be generated.)
         num_layers: Number of layers in sim.
         staggerede_grid: Is simulator grid staggered.
         ignore_ghostcells: Ghost cells will not be written to file if set to True.
         offset_x: Offset simulator origo with offset_x*dx in x-dimension, before writing to netCDF. 
         offset_y: Offset simulator origo with offset_y*dy in y-dimension, before writing to netCDF.
-
     """
-    def __init__(self, sim, num_layers=1, staggered_grid=False, \
+    def __init__(self, sim, filename=None, num_layers=1, staggered_grid=False, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0):
 
@@ -52,8 +52,8 @@ class SimNetCDFWriter:
 
         # Write options:
         self.ignore_ghostcells = ignore_ghostcells
-        self.num_layers = num_layers
         self.staggered_grid = staggered_grid
+        self.num_layers = num_layers
 
         # Identification of solution
         self.timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
@@ -65,9 +65,21 @@ class SimNetCDFWriter:
 
         self.simulator_short = str(sim.__class__.__name__)
 
+        
         self.dir_name = "netcdf_" + self.timestamp_short + "/"
-        self.output_file_name = self.dir_name + self.simulator_short + "_" + self.timestamp + ".nc"
-
+        
+        if not filename:
+            self.output_file_name = self.dir_name + self.simulator_short + "_" + self.timestamp + ".nc"
+        elif str.find(filename, '/') == -1:
+            self.output_file_name = self.dir_name + self.simulator_short + "_" + filename + ".nc"
+        else:
+            # Input file name is given as 'folder/file' 
+            self.output_file_name = filename + ".nc"
+            self.dir_name = filename.rsplit('/', 1)[0]
+            
+        # Avoid filenames such as "file.nc.nc"
+        self.output_file_name = self.output_file_name.replace('.nc.nc', '.nc')
+            
         self.current_directory =os.getcwd()
         self.textPos = -1
         

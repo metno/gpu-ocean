@@ -123,10 +123,15 @@ class BaseDrifterTest(unittest.TestCase):
         self.assertEqual(defaultDrifterSet.getObservationVariance(), 0.01)
 
         positions = defaultDrifterSet.getDrifterPositions()
-        defaultPosition = [0.0, 0.0]
+        defaultPosition = [0,0]
+        defaultPositionWithSixDrifters = [[1/6, 1/4], [3/6, 1/4], [5/6, 1/4],
+                                          [1/6, 3/4], [3/6, 3/4], [5/6, 3/4]]
+                                          
+        
         self.assertEqual(positions.shape, ((self.resampleNumDrifters, 2)))
         for i in range(self.resampleNumDrifters):
-            self.assertEqual(positions[i,:].tolist(), defaultPosition)
+            self.assertAlmostEqual(positions[i,0], defaultPositionWithSixDrifters[i][0], 6)
+            self.assertEqual(      positions[i,1], defaultPositionWithSixDrifters[i][1])
                          
         observation = defaultDrifterSet.getObservationPosition()
         self.assertEqual(observation.shape, ((2,)))
@@ -135,13 +140,6 @@ class BaseDrifterTest(unittest.TestCase):
         self.assertEqual(defaultDrifterSet.getDomainSizeX(), 1.0)
         self.assertEqual(defaultDrifterSet.getDomainSizeY(), 1.0)
 
-        weight = 1.0/self.resampleNumDrifters
-        weights = [weight]*self.resampleNumDrifters
-        assertListAlmostEqual(self, defaultDrifterSet.getGaussianWeight(), weights, 6,
-                              'default constructor, Gaussian weights')
-        assertListAlmostEqual(self, defaultDrifterSet.getCauchyWeight(), weights, 6,
-                              'default constructor, Cauchy weights')
-        
         # Check boundary condition
         self.assertEqual(defaultDrifterSet.getBoundaryConditions().get(), [1,1,1,1])
         
