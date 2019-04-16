@@ -59,7 +59,7 @@ class SimNetCDFWriter:
         self.timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
         self.timestamp_short = datetime.datetime.now().strftime("%Y_%m_%d")
         try:
-            self.git_hash = str.strip(subprocess.check_output(['git', 'rev-parse', 'HEAD']))
+            self.git_hash = str.strip(str(subprocess.check_output(['git', 'rev-parse', 'HEAD'])))
         except:
             self.git_hash = "git info missing..."
 
@@ -106,7 +106,7 @@ class SimNetCDFWriter:
         self.minmod_theta = sim.theta
         self.coriolis_force = sim.f
         self.coriolis_beta = sim.coriolis_beta
-        self.y_zero_reference_cell = sim.y_zero_reference_cell
+        self.y_zero_reference_cell = sim.y_zero_reference_cell-2
         self.wind_stress = sim.wind_stress.source_filename
         self.eddy_viscosity_coefficient = sim.A
         g = sim.g
@@ -172,6 +172,28 @@ class SimNetCDFWriter:
         self.ncfile.ghost_cells_east  = self.ghost_cells_east
         self.ncfile.ghost_cells_south = self.ghost_cells_south
         self.ncfile.ghost_cells_west  = self.ghost_cells_west
+        
+        
+        # Write parameters related to stochastic model error and data assimilation
+        # At the time of writing, such parameters are only available in the CDKLM simulator.
+        if (sim.__class__.__name__ == "CDKLM16"):
+            self.model_time_step = sim.model_time_step
+            self.ncfile.model_time_step = self.model_time_step 
+            
+            self.small_scale_perturbation = sim.small_scale_perturbation
+            self.ncfile.small_scale_perturbation = str(self.small_scale_perturbation)
+            
+            if self.small_scale_perturbation:
+
+                self.small_scale_perturbation_amplitude = sim.small_scale_model_error.soar_q0
+                self.ncfile.small_scale_perturbation_amplitude = self.small_scale_perturbation_amplitude
+
+                self.small_scale_perturbation_interpolation_factor = sim.small_scale_model_error.interpolation_factor
+                self.ncfile.small_scale_perturbation_interpolation_factor = self.small_scale_perturbation_interpolation_factor
+            
+            #y_zero_reference_cell
+            
+
         
         #Create dimensions 
         self.ncfile.createDimension('time', None) #Unlimited time dimension

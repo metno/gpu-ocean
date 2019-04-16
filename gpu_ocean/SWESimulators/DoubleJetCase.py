@@ -190,7 +190,6 @@ class DoubleJetCase:
             "small_scale_perturbation": model_error,
             "small_scale_perturbation_amplitude": 0.0003,
             "small_scale_perturbation_interpolation_factor": 5,
-            "perturbation_frequency": 1
         }
         
         self.base_init = {
@@ -203,14 +202,12 @@ class DoubleJetCase:
            self.perturbation_type == DoubleJetPerturbationType.LowFrequencySpinUp or \
            self.perturbation_type == DoubleJetPerturbationType.LowFrequencyStandardSpinUp:
             if self.perturbation_type == DoubleJetPerturbationType.LowFrequencySpinUp:
-                self.sim_args['perturbation_frequency'] = 10
                 self.commonSpinUpTime = self.commonSpinUpTime
                 self.individualSpinUpTime = self.individualSpinUpTime*1.5
             
             
             elif self.perturbation_type == DoubleJetPerturbationType.LowFrequencyStandardSpinUp:
                 self.sim_args, self.base_init = self.getStandardPerturbedInitConditions()
-                self.sim_args['perturbation_frequency'] = 10
                 self.commonSpinUpTime = self.commonSpinUpTime*2
                 
             tmp_sim = CDKLM16.CDKLM16(**self.sim_args, **self.base_init)
@@ -223,8 +220,6 @@ class DoubleJetCase:
             self.sim_args['t'] = tmp_sim.t
             tmp_sim.cleanUp()
             
-        if self.perturbation_type == DoubleJetPerturbationType.NormalPerturbedSpinUp:
-            self.sim_args['perturbation_frequency'] = 10
             
         # The IEWPFPaperCase - isolated to give a better overview
         if self.perturbation_type == DoubleJetPerturbationType.IEWPFPaperCase:
