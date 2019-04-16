@@ -90,14 +90,6 @@ class Observation:
         assert(self.observation_type == dautils.ObservationType.UnderlyingFlow), \
             "UnderlyingFlow is the only supported ObservationType at the moment."
         
-    def _check_df_at_given_time(self, rounded_t):
-        # Sanity check the DataFrame
-        assert(self.obs_df[self.obs_df[self.columns[0]]==rounded_t].time.count() > 0), \
-                "Observation for time " + str(rounded_t) + " does not exists in DataFrame"
-        assert(self.obs_df[self.obs_df[self.columns[0]]==rounded_t].time.count() < 2), \
-                "Observation for time " + str(rounded_t) + " has multiple entries in DataFrame"
-        
-        
     def get_observation_times(self):
         """
         Returns an array with the timestamps for which there exists observations of
@@ -141,7 +133,10 @@ class Observation:
         rounded_t = round(t)
         
         # Sanity check the DataFrame
-        self._check_df_at_given_time(rounded_t)
+        assert(self.obs_df[self.obs_df[self.columns[0]]==rounded_t].time.count() > 0), \
+                "Observation for time " + str(rounded_t) + " does not exists in DataFrame"
+        assert(self.obs_df[self.obs_df[self.columns[0]]==rounded_t].time.count() < 2), \
+                "Observation for time " + str(rounded_t) + " has multiple entries in DataFrame"
         
         # Check that we are not trying to use unsupported observation types
         self._check_observation_type()
@@ -151,6 +146,7 @@ class Observation:
         assert(index > 0), "Observation can not be made from the first entry in the DataFrame."
         
         dt = self.obs_df.iloc[index][self.columns[0]] - self.obs_df.iloc[index-1][self.columns[0]]
+        print(dt)
 
         current_pos = self.obs_df.iloc[index  ][self.columns[1]]
         prev_pos    = self.obs_df.iloc[index-1][self.columns[1]]
