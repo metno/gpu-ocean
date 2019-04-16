@@ -60,7 +60,6 @@ class CDKLM16(Simulator.Simulator):
                  small_scale_perturbation=False, \
                  small_scale_perturbation_amplitude=None, \
                  small_scale_perturbation_interpolation_factor = 1, \
-                 perturbation_frequency=1, \
                  model_time_step=None,
                  h0AsWaterElevation=False, \
                  reportGeostrophicEquilibrium=False, \
@@ -94,7 +93,6 @@ class CDKLM16(Simulator.Simulator):
         small_scale_perturbation: Boolean value for applying a stochastic model error
         small_scale_perturbation_amplitude: Amplitude (q0 coefficient) for model error
         small_scale_perturbation_interpolation_factor: Width factor for correlation in model error
-        perturbation_frequency: Number of timesteps between each model error sampling
         model_time_step: The size of a data assimilation model step (default same as dt)
         h0AsWaterElevation: True if h0 is described by the surface elevation, and false if h0 is described by water depth
         reportGeostrophicEquilibrium: Calculate the Geostrophic Equilibrium variables for each superstep
@@ -230,8 +228,6 @@ class CDKLM16(Simulator.Simulator):
         self.small_scale_perturbation = small_scale_perturbation
         self.small_scale_model_error = None
         self.small_scale_perturbation_interpolation_factor = small_scale_perturbation_interpolation_factor
-        #print("TODO: Remove CDKLM16.perturbation_frequency")
-        self.perturbation_frequency = perturbation_frequency
         if small_scale_perturbation:
             if small_scale_perturbation_amplitude is None:
                 self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self,
@@ -295,37 +291,7 @@ class CDKLM16(Simulator.Simulator):
                cls.__name__ + " simulator with netCDF file based on " \
                + sim_name + " results."
         
-        # read parameters
-        nx = sim_reader.get("nx")
-        ny = sim_reader.get("ny")
-
-        dx = sim_reader.get("dx")
-        dy = sim_reader.get("dy")
-
-        width = nx * dx
-        height = ny * dy
-
-        dt = sim_reader.get("dt")
-        g = sim_reader.get("g")
-        r = sim_reader.get("bottom_friction_r")
-        f = sim_reader.get("coriolis_force")
-        beta = sim_reader.get("coriolis_beta")
-        
-        minmodTheta = sim_reader.get("minmod_theta")
-        timeIntegrator = sim_reader.get("time_integrator")
-        y_zero_reference_cell = sim_reader.get("y_zero_reference_cell")        
-        
-        try:
-            wind_stress_type = sim_reader.get("wind_stress_type")
-            wind = Common.WindStressParams(type=wind_stress_type)
-        except:
-            wind = WindStress.WindStress()
-            
-        boundaryConditions = Common.BoundaryConditions( \
-            sim_reader.getBC()[0], sim_reader.getBC()[1], \
-            sim_reader.getBC()[2], sim_reader.getBC()[3], \
-            sim_reader.getBCSpongeCells())
-
+        # read the most recent state 
         H = sim_reader.getH();
         
         # get last timestep (including simulation time of last timestep)
@@ -337,21 +303,60 @@ class CDKLM16(Simulator.Simulator):
             print("norm diff H: ", np.linalg.norm(H[0,:,:] - H[1,:,:]))
             H = H[0,:,:]
        
-
+        # Set simulation parameters
+        sim_params = {
+            'gpu_ctx': gpu_ctx,
+            'eta0': eta0,
+            'hu0': hu0,
+            'hv0': hv0,
+            'H': H,
+            'nx': sim_reader.get("nx"), 
+            'ny': sim_reader.get("ny"),
+            'dx': sim_reader.get("dx"),
+            'dy': sim_reader.get("dy"),
+            'dt': sim_reader.get("dt"),
+            'g': sim_reader.get("g"),
+            'f': sim_reader.get("coriolis_force"),
+            'r': sim_reader.get("bottom_friction_r"),
+            't': time0,
+            'theta': sim_reader.get("minmod_theta"),
+            'rk_order': sim_reader.get("time_integrator"),
+            'coriolis_beta': sim_reader.get("coriolis_beta"),
+            'y_zero_reference_cell': sim_reader.get("y_zero_reference_cell"),
+            'write_netcdf': cont_write_netcdf
+        }    
         
-        return cls(gpu_ctx, \
-                 eta0, hu0, hv0, \
-                 H, \
-                 nx, ny, \
-                 dx, dy, dt, \
-                 g, f, r, \
-                 t=time0, \
-                 theta=minmodTheta, rk_order=timeIntegrator, \
-                 coriolis_beta=beta, \
-                 y_zero_reference_cell = y_zero_reference_cell, \
-                 wind_stress=wind, \
-                 boundary_conditions=boundaryConditions, \
-                 write_netcdf=cont_write_netcdf)
+        # Wind stress
+        try:
+            wind_stress_type = sim_reader.get("wind_stress_type")
+            wind = Common.WindStressParams(type=wind_stress_type)
+        except:
+            wind = WindStress.WindStress()
+        sim_params['wind_stress'] = wind
+            
+        # Boundary conditions
+        sim_params['boundary_conditions'] = Common.BoundaryConditions( \
+            sim_reader.getBC()[0], sim_reader.getBC()[1], \
+            sim_reader.getBC()[2], sim_reader.getBC()[3], \
+            sim_reader.getBCSpongeCells())
+    
+        # Model errors
+        print('looking for small_scale_perturbation')
+        if sim_reader.has('small_scale_perturbation'):
+            print('found ' + sim_reader.get('small_scale_perturbation') )
+            sim_params['small_scale_perturbation'] = sim_reader.get('small_scale_perturbation') == 'True'
+            if sim_params['small_scale_perturbation']:
+                sim_params['small_scale_perturbation_amplitude'] = sim_reader.get('small_scale_perturbation_amplitude')
+                sim_params['small_scale_perturbation_interpolation_factor'] = sim_reader.get('small_scale_perturbation_interpolation_factor')
+        else:
+            print('found nada :(')
+            
+            
+        # Data assimilation parameters:
+        if sim_reader.has('model_time_step'):
+            sim_params['model_time_step'] = sim_reader.get('model_time_step')
+    
+        return cls(**sim_params)
     
     
     
@@ -442,8 +447,7 @@ class CDKLM16(Simulator.Simulator):
             
             # Perturb ocean state with model error
             if self.small_scale_perturbation and apply_stochastic_term:
-                if self.num_iterations % self.perturbation_frequency == 0:
-                    self.small_scale_model_error.perturbSim(self)
+                self.small_scale_model_error.perturbSim(self)
             
             # Evolve drifters
             if self.hasDrifters:
@@ -529,7 +533,7 @@ class CDKLM16(Simulator.Simulator):
         # Loop standard steps:
         for i in range(full_model_time_steps+1):
             
-            if i == 0:
+            if i == 0 and not leftover_step_size == 0:
                 # Take the leftover step
                 self.step(leftover_step_size, apply_stochastic_term=False, write_now=False)
                 self.perturbState(q0_scale=np.sqrt(self.model_time_step/leftover_step_size))
