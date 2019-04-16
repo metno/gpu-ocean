@@ -341,15 +341,11 @@ class CDKLM16(Simulator.Simulator):
             sim_reader.getBCSpongeCells())
     
         # Model errors
-        print('looking for small_scale_perturbation')
         if sim_reader.has('small_scale_perturbation'):
-            print('found ' + sim_reader.get('small_scale_perturbation') )
             sim_params['small_scale_perturbation'] = sim_reader.get('small_scale_perturbation') == 'True'
             if sim_params['small_scale_perturbation']:
                 sim_params['small_scale_perturbation_amplitude'] = sim_reader.get('small_scale_perturbation_amplitude')
                 sim_params['small_scale_perturbation_interpolation_factor'] = sim_reader.get('small_scale_perturbation_interpolation_factor')
-        else:
-            print('found nada :(')
             
             
         # Data assimilation parameters:
