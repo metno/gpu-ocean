@@ -121,7 +121,6 @@ class Observation:
         
         # Get index in data frame
         index = self.obs_df[self.obs_df[self.columns[0]]==rounded_t].index.values[0]
-        assert(index > 0), "Observation can not be made from the first entry in the DataFrame."
         
         current_pos = self.obs_df.iloc[index  ][self.columns[1]]
         
