@@ -231,11 +231,13 @@ class CDKLM16(Simulator.Simulator):
         if small_scale_perturbation:
             if small_scale_perturbation_amplitude is None:
                 self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self,
-                                                                                       interpolation_factor=small_scale_perturbation_interpolation_factor)
+                                                                                       interpolation_factor=small_scale_perturbation_interpolation_factor,
+                                                                                       use_lcg=True)
             else:
                 self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, 
                                                                                        soar_q0=small_scale_perturbation_amplitude,
-                                                                                       interpolation_factor=small_scale_perturbation_interpolation_factor)
+                                                                                       interpolation_factor=small_scale_perturbation_interpolation_factor,
+                                                                                       use_lcg=True)
         
         # Data assimilation model step size
         self.model_time_step = model_time_step
