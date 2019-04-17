@@ -90,6 +90,14 @@ class Observation:
         assert(self.observation_type == dautils.ObservationType.UnderlyingFlow), \
             "UnderlyingFlow is the only supported ObservationType at the moment."
         
+    def _check_df_at_given_time(self, rounded_t):
+        # Sanity check the DataFrame
+        assert(self.obs_df[self.obs_df[self.columns[0]]==rounded_t].time.count() > 0), \
+                "Observation for time " + str(rounded_t) + " does not exists in DataFrame"
+        assert(self.obs_df[self.obs_df[self.columns[0]]==rounded_t].time.count() < 2), \
+                "Observation for time " + str(rounded_t) + " has multiple entries in DataFrame"
+        
+        
     def get_observation_times(self):
         """
         Returns an array with the timestamps for which there exists observations of
@@ -133,10 +141,7 @@ class Observation:
         rounded_t = round(t)
         
         # Sanity check the DataFrame
-        assert(self.obs_df[self.obs_df[self.columns[0]]==rounded_t].time.count() > 0), \
-                "Observation for time " + str(rounded_t) + " does not exists in DataFrame"
-        assert(self.obs_df[self.obs_df[self.columns[0]]==rounded_t].time.count() < 2), \
-                "Observation for time " + str(rounded_t) + " has multiple entries in DataFrame"
+        self._check_df_at_given_time(rounded_t)
         
         # Check that we are not trying to use unsupported observation types
         self._check_observation_type()
@@ -146,7 +151,6 @@ class Observation:
         assert(index > 0), "Observation can not be made from the first entry in the DataFrame."
         
         dt = self.obs_df.iloc[index][self.columns[0]] - self.obs_df.iloc[index-1][self.columns[0]]
-        print(dt)
 
         current_pos = self.obs_df.iloc[index  ][self.columns[1]]
         prev_pos    = self.obs_df.iloc[index-1][self.columns[1]]
@@ -160,3 +164,37 @@ class Observation:
         
         return observation
         
+        
+    def _jump(self, pos0, pos1, jump_limit=100000):
+        ds = np.sqrt((pos1[0] - pos0[0])**2 + \
+                     (pos1[1] - pos0[1])**2)
+        if ds > jump_limit:
+            return True
+        return False
+
+    def get_drifter_path(self, drifter_id, start_t, end_t):
+        """
+        Creates a list of paths for the given drifter in the given time interval,
+        so that the drift trajectory can be plotted.
+        We create a list of paths rather than a single path, as the path is disconnected 
+        when the drifter passes through the boundary.
+        """
+        paths = []
+        observation_times = self.get_observation_times()
+        total_num_observations = self.get_num_observations()
+        path = np.zeros((total_num_observations, 2))
+        path_index = 0
+        for obs_t in observation_times:
+            if obs_t < start_t or obs_t > end_t:
+                continue
+            current_pos = self.get_drifter_position(obs_t)[drifter_id,:]
+            if path_index > 0:
+                if self._jump(path[path_index-1,:], current_pos):
+                    paths.append(path[:path_index,:])
+                    
+                    path_index = 0
+                    path = np.zeros((total_num_observations, 2))
+            path[path_index,:] = current_pos
+            path_index += 1
+        paths.append(path[:path_index, :])
+        return paths
