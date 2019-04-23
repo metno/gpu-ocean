@@ -56,6 +56,13 @@ class SimNetCDFReader:
         except:
             return "not found"
         
+    def has(self, attr):
+        try:
+            tmp = self.ncfile.getncattr(attr)
+            return True
+        except:
+            return False
+        
     def printVariables(self):
         for var in self.ncfile.variables:
             print(var)
@@ -91,7 +98,7 @@ class SimNetCDFReader:
                   self.ghostCells[3]:-self.ghostCells[1]]
             hv = hv[self.ghostCells[2]:-self.ghostCells[0], \
                   self.ghostCells[3]:-self.ghostCells[1]]
-        return eta, hu, hv, time[index]
+        return eta, hu, hv, np.float32(time[index])
     
     def getH(self):
         H = self.ncfile.variables['H'][:, :]

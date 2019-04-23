@@ -379,7 +379,10 @@ class BaseOceanStateEnsemble(object):
                 u = dx/dt
                 v = dy/dt
                 
+                id_x = np.int(np.floor(x/self.dx))
+                id_y = np.int(np.floor(y/self.dy))
                 depth = self.particles[self.obs_index].downloadBathymetry()[1][id_y, id_x]
+                
                 hu = u*depth
                 hv = v*depth
                 

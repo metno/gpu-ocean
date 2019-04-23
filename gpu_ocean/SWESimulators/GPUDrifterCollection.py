@@ -35,6 +35,7 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
     def __init__(self, gpu_ctx, numDrifters, \
                  observation_variance=0.01, \
                  boundaryConditions=Common.BoundaryConditions(), \
+                 initialization_cov_drifters=None, \
                  domain_size_x=1.0, domain_size_y=1.0, \
                  gpu_stream=None, \
                  block_width = 64):
@@ -78,11 +79,17 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
                             int(np.ceil((self.getNumDrifters() + 2)/float(self.block_width))), \
                             1)
         
+        # Initialize drifters:
+        self.uniformly_distribute_drifters(initialization_cov_drifters=initialization_cov_drifters)
+       
         #print "local_size: ", self.local_size
         #print "global_size: ", self.global_size
         #print "numDrifters + obs: ", self.numDrifters + 1
         # remember: shape = (y, x)
          
+   
+        
+            
     def copy(self):
         """
         Makes an independent indentical copy of the current object
