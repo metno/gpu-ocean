@@ -64,11 +64,12 @@ class BaseOceanStateEnsemble(object):
                  observation_variance = None, 
                  observation_variance_factor = 5.0,
                  initialization_variance_factor_drifter_position = 0.0,
-                 initialization_variance_factor_ocean_field = 0.0,
-                 simulate_true_state = True):
+                 initialization_variance_factor_ocean_field = 0.0):
         
         self.gpu_ctx = gpu_ctx
         self.gpu_stream = cuda.Stream()
+        
+        self.simulate_true_state = True
         
         self.numParticles = numParticles
         particle_array_size = self.numParticles
@@ -83,7 +84,7 @@ class BaseOceanStateEnsemble(object):
         # Flag that indicates whether the true state is simulated along with
         # all the ensemble members. 
         # False typically indicates that the true state is read from file.
-        self.simulate_true_state = True
+        
         
         self.t = 0.0
         
@@ -257,12 +258,12 @@ class BaseOceanStateEnsemble(object):
                                                          zeros)
 
             # Generate kernels
-            self.reduction_kernels = self.gpu_ctx.get_kernel("observationKernels.cu", \
+            self.observation_kernels = self.gpu_ctx.get_kernel("observationKernels.cu", \
                                                              defines={})
 
 
             # Get CUDA functions and define data types for prepared_{async_}call()
-            self.observeUnderlyingFlowKernel = self.reduction_kernels.get_function("observeUnderlyingFlow")
+            self.observeUnderlyingFlowKernel = self.observation_kernels.get_function("observeUnderlyingFlow")
             self.observeUnderlyingFlowKernel.prepare("iiffiiPiPiPifiPiPi")
 
             self.local_size = (int(self.driftersPerOceanModel), 1, 1)
