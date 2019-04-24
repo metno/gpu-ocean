@@ -58,7 +58,7 @@ class BaseOceanStateEnsemble(object):
     """
     __metaclass__ = abc.ABCMeta
         
-    def __init__(self, gpu_ctx, numParticles, sim=None, 
+    def __init__(self, gpu_ctx, numParticles, sim, 
                  num_drifters = 1,
                  observation_type=dautils.ObservationType.DrifterPosition,
                  observation_variance = None, 
@@ -69,22 +69,12 @@ class BaseOceanStateEnsemble(object):
         self.gpu_ctx = gpu_ctx
         self.gpu_stream = cuda.Stream()
         
-        self.simulate_true_state = True
-        
         self.numParticles = numParticles
-        particle_array_size = self.numParticles
-        if simulate_true_state:
-            particle_array_size = self.numParticles + 1
-        self.particles = [None]*particle_array_size
+        self.particles = [None]*(self.numParticles + 1)
         
         self.obs_index = self.numParticles
         
         self.simType = 'CDKLM16'
-        
-        # Flag that indicates whether the true state is simulated along with
-        # all the ensemble members. 
-        # False typically indicates that the true state is read from file.
-        
         
         self.t = 0.0
         
@@ -92,13 +82,23 @@ class BaseOceanStateEnsemble(object):
         self.observation_type = observation_type
         self.prev_observation = None
         
-        # GPU Buffer where observations are stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
-        # where n is time step and i is drifter
         self.observation_buffer = None
-        
+                
+        # Observations are stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
+        # where n is time step and i is drifter
         self.observedDrifterPositions = []
         
-        self._delcareStatisticalInfoArrays()
+        # Arrays to store statistical info for selected grid cells:
+        self.varianceUnderDrifter_eta = []
+        self.varianceUnderDrifter_hu = []
+        self.varianceUnderDrifter_hv = []
+        self.rmseUnderDrifter_eta = []
+        self.rmseUnderDrifter_hu = []
+        self.rmseUnderDrifter_hv = []
+        self.rUnderDrifter_eta = []
+        self.rUnderDrifter_hu = []
+        self.rUnderDrifter_hv = []
+        self.tArray = []
         
         self._setGridInfoFromSim(sim)
         self._setStochasticVariables(observation_variance = observation_variance, 
@@ -114,20 +114,6 @@ class BaseOceanStateEnsemble(object):
         if self.observation_buffer is not None:
             self.observation_buffer.release()
         self.gpu_ctx = None
-        
-    def _delcareStatisticalInfoArrays(self):
-    
-        # Arrays to store statistical info for selected grid cells:
-        self.varianceUnderDrifter_eta = []
-        self.varianceUnderDrifter_hu = []
-        self.varianceUnderDrifter_hv = []
-        self.rmseUnderDrifter_eta = []
-        self.rmseUnderDrifter_hu = []
-        self.rmseUnderDrifter_hv = []
-        self.rUnderDrifter_eta = []
-        self.rUnderDrifter_hu = []
-        self.rUnderDrifter_hv = []
-        self.tArray = []
         
         
     def _setGridInfo(self, nx, ny, dx, dy, dt, 
@@ -559,13 +545,10 @@ class BaseOceanStateEnsemble(object):
             
     def getEnsembleMean(self):
         return None
-    
-    # Are these two necessary?
     def getDomainSizeX(self):
         return self.nx*self.dx
     def getDomainSizeY(self):
         return self.ny*self.dy
-        
     def getObservationVariance(self):
         return self.observation_variance
     def getNumParticles(self):
