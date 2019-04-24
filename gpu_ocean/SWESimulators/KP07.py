@@ -54,6 +54,8 @@ class KP07(Simulator.Simulator):
                  wind_stress=WindStress.WindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
+                 ensemble_size=0, \
+                 ensemble_member=0, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0, \
                  block_width=32, block_height=16):
@@ -79,6 +81,8 @@ class KP07(Simulator.Simulator):
         wind_stress: Wind stress parameters
         boundary_conditions: Boundary condition object
         write_netcdf: Write the results after each superstep to a netCDF file
+        ensemble_size: Size (total number of member) of ensemble prediction system (EPS)
+        ensemble_member: Rank in ensemble prediction system (EPS)
         """
        
         ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
@@ -121,6 +125,8 @@ class KP07(Simulator.Simulator):
                                    write_netcdf, \
                                    ignore_ghostcells, \
                                    offset_x, offset_y, \
+                                   ensemble_size, \
+                                   ensemble_member, \
                                    block_width, block_height)
             
         # Index range for interior domain (north, east, south, west)
