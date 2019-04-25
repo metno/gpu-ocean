@@ -281,11 +281,12 @@ class CDKLM16(Simulator.Simulator):
         gc.collect()
            
     @classmethod
-    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True, use_lcg=False):
+    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True, use_lcg=False, new_netcdf_filename=None):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
         filename: Continue simulation based on parameters and last timestep in this file
+        new_netcdf_filename: If we want to continue to write netcdf, we should use this filename. Automatically generated if None.
         """
         # open nc-file
         sim_reader = SimReader.SimNetCDFReader(filename, ignore_ghostcells=False)
@@ -328,7 +329,8 @@ class CDKLM16(Simulator.Simulator):
             'coriolis_beta': sim_reader.get("coriolis_beta"),
             'y_zero_reference_cell': sim_reader.get("y_zero_reference_cell"),
             'write_netcdf': cont_write_netcdf,
-            'use_lcg': use_lcg
+            'use_lcg': use_lcg,
+            'netcdf_filename': new_netcdf_filename
         }    
         
         # Wind stress

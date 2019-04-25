@@ -208,13 +208,13 @@ class BaseOceanStateEnsemble(object):
     # Some get functions that assume some private variables.
     # If assumptions are wrong, they should be overloaded.
     def getNx(self):
-        return self.nx
+        return np.int32(self.nx)
     def getNy(self):
-        return self.ny
+        return np.int32(self.ny)
     def getDx(self):
-        return self.dx
+        return np.float32(self.dx)
     def getDy(self):
-        return self.dy
+        return np.float32(self.dy)
     def getDt(self):
         return np.float32(self.dt)
 
@@ -225,9 +225,9 @@ class BaseOceanStateEnsemble(object):
     def getObservationVariance(self):
         return self.observation_variance
     def getNumParticles(self):
-        return self.numParticles
+        return np.int32(self.numParticles)
     def getNumDrifters(self):
-        return self.driftersPerOceanModel
+        return np.int32(self.driftersPerOceanModel)
     
     def getObservationCov(self):
         return self.observation_cov

@@ -54,6 +54,13 @@ class Observation:
         """
         return self.obs_df[self.columns[0]].count()
     
+    def get_num_drifters(self):
+        """
+        Returns the number of drifters in the observation set.
+        """
+        first_position = self.obs_df.iloc[0][self.columns[1]]
+        return first_position.shape[0]
+    
     def add_observation_from_sim(self, sim):
         """
         Adds the current drifter positions to the observation DataFrame.

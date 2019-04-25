@@ -30,7 +30,7 @@ import numpy as np
 import time
 import abc
 import warnings 
-import os, sys
+import os, sys, datetime
 
 import pycuda.driver as cuda
 
@@ -39,7 +39,7 @@ from SWESimulators import Common
 from SWESimulators import CDKLM16
 from SWESimulators import Observation
 from SWESimulators import DataAssimilationUtils as dautils
-
+from SWESimulators import Observation
 
 
 try:
@@ -58,14 +58,28 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     def __init__(self, gpu_ctx, numParticles,
                  ensemble_directory,
                  true_state_directory,
-                 observation_variance=None,
+                 observation_variance,
                  drifters="all",
-                 cont_write_netcdf=False
-                ):
+                 cont_write_netcdf=False):
+        """
+        Initalizing ensemble from files.
         
-        # We avoid calling the parent constructor by re-implementing the 
-        # few parts of the parent constructor that still is relevant.
-        # We therefore accept some double coding here, as the end justifies the means.
+        Arguments:
+            gpu_ctx: CUDA context
+            numParticles: Number of particles/ensemble members
+            ensemble_directory: Directory in which NetCDF files defines the ensemble initial conditions.
+                If the ensemble size is larger than the number of files with extension ".nc" in the given
+                directory, initial states will be duplicated, and we assume that the model error ensures 
+                that all particles are different soon enough.
+            true_state_directory: Directory which should contain one and only one ".nc" file, which is expected 
+                to describe the truth, and one and exactly one ".pickle" file, which should contain observations
+                compatible with the Observation class.
+            observation_variance: The R matrix. Acceptable forms are a scalar (assuming diagonal R), or 2x2 matrix 
+                (assuming block diagonal R, each drifter independent).
+            drifters: can contain the keyword "all" (default), which means that all drifters in the Observation file
+                is considered. Otherwise it should be a list of drifter indices.
+            cont_write_netcdf: Flag to write the ensemble to netcdf files in a new directory.
+        """
         
         print('Welcome to the EnsembleFromFile')
         print('Ensemble directory: ', ensemble_directory)
@@ -73,8 +87,6 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
         self.gpu_ctx = gpu_ctx
         self.gpu_stream = cuda.Stream()
-        
-        self.simulate_true_state = False
         
         # Control that the ensemble and true state directories exist
         assert os.path.isdir(ensemble_directory), "Ensemble init folder does not exists: " + str(ensemble_directory)
@@ -89,6 +101,11 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         assert len(self.true_state_nc_files) == 1, "There should only be one single NetCDF file in the true state directory " + str(true_state_directory)
         assert len(self.observation_files) == 1,   "There should only be one single pickle file in the true state directory " + str(true_state_directory)
         
+        write_netcdf_folder_name = "ensemble_result_" + datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S") + "/"
+        self.write_netcdf_directory = os.path.join(os.getcwd(), write_netcdf_folder_name)
+        print("self.write_netcdf_directory: ", self.write_netcdf_directory)
+        
+        # Create the particle array
         self.numParticles = numParticles
         self.particles = [None]*(self.numParticles)
         
@@ -96,11 +113,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.true_state = None
         self.observations = None
         
-        # Intentionally not declared to check that we don't use this variable.
-        #self.obs_index = None
-        
-        
-        self.simType = 'CDKLM16'
+        # Flag to writing ensemble simulation result to file:
         self.cont_write_netcdf = cont_write_netcdf
         
         # We will not simulate the true state, but read it from file:
@@ -108,29 +121,41 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
         self.observation_type = dautils.ObservationType.DrifterPosition
         
-        # Required GPU buffer:
-        self.observation_buffer = None
-        
-        
-        ### Then, call appropriate functions for initialization
+        ### Then, call appropriate helper functions for initialization
         self._initializeEnsembleFromFile()
         self._readObservationsFromFile() 
         self._readTruthFromFile() 
         
-        self._delcareStatisticalInfoArrays()
-                
-        self._setGridInfoFromSim(self.particles[0])
-        self._setStochasticVariables(observation_variance = observation_variance)     
-        #self._init(driftersPerOceanModel=num_drifters)
+        #### Set some variables that are used by the super class:
+        self.nx, self.ny = self.particles[0].nx, self.particles[0].ny
+        self.dx, self.dy = self.particles[0].dx, self.particles[0].dy
+        self.dt = self.particles[0].model_time_step
+        
+        self.driftersPerOceanModel = self.observations.get_num_drifters()
+        
+        assert(observation_cov.shape == (2,2) or np.isscalar(observation_cov), 'observation_cov must be scalar or 2x2 matrix'
+        if np.isscalar(observation_variance):
+            observation_cov = np.diag([observation_variance, observation_variance])
+        self.observation_cov = observation_cov.astype(np.float32)
+        self.observation_cov_inverse = np.linalg.inv(self.observation_cov).astype(np.float32)
+        
+        
+               
+        
         
         
     def _initializeEnsembleFromFile(self):
         num_files = len(self.ensemble_init_nc_files)
         for particle_id in range(self.numParticles):
             file_id = particle_id % num_files
+            new_netcdf_filename = None
+            if self.cont_write_netcdf or True:
+                filename_only = "ensemble_member_" + str(particle_id).zfill(4) + ".nc"
+                new_netcdf_filename = os.path.join(self.write_netcdf_directory, filename_only)
             self.particles[particle_id] = CDKLM16.CDKLM16.fromfilename(self.gpu_ctx, 
                                                                        self.ensemble_init_nc_files[file_id],
-                                                                       cont_write_netcdf=self.cont_write_netcdf)
+                                                                       cont_write_netcdf=self.cont_write_netcdf,
+                                                                       new_netcdf_filename=new_netcdf_filename)
     
     def _readObservationsFromFile(self):
         self.true_state = CDKLM16.CDKLM16.fromfilename(self.gpu_ctx,
@@ -144,12 +169,15 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
 
     def cleanUp(self):
+        for particle in self.particles:
+            if particle is not None:
+                particle.cleanUp()
         if self.true_state is not None:
             self.true_state.cleanUp()
             self.true_state = None
-        super(EnsembleFromFiles, self).cleanUp()
         
 
+        
     def resample(self, newSampleIndices, reinitialization_variance):
         """
         Resampling the particles given by the newSampleIndicies input array.
@@ -158,27 +186,14 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         """
         obsTrueDrifter = self.observeTrueDrifters()
         positions = self.observeParticles()
-        newPos = np.empty((self.driftersPerOceanModel, 2))
         newOceanStates = [None]*self.getNumParticles()
         for i in range(self.getNumParticles()):
             index = newSampleIndices[i]
-            #print "(particle no, position, old direction, new direction): "
-            if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
-               self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
-                newPos[:,:] = obsTrueDrifter
-            else:
-                # Copy the drifter position from the particle that is resampled
-                newPos[:,:] = positions[index,:]
-            
-            #print "\t", (index, positions[index,:], newPos)
-
             
             # Download index's ocean state:
             eta0, hu0, hv0 = self.particles[index].download()
             eta1, hu1, hv1 = self.particles[index].downloadPrevTimestep()
             newOceanStates[i] = (eta0, hu0, hv0, eta1, hu1, hv1)
-
-            self.particles[i].drifters.setDrifterPositions(newPos)
 
         # New loop for transferring the correct ocean states back up to the GPU:
         for i in range(self.getNumParticles()):
