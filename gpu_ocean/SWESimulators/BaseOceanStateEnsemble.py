@@ -49,39 +49,32 @@ class BaseOceanStateEnsemble(object):
     def __init__(self):
         # Constructor. Needs to be specified for each child class
         # Not an abstract 
-        pass
+        raise NotImplementedError("Constructor must be implemented in child class")
         
     def __del__(self):
-        # 
+        # Destructor. Calls cleanUp only.
         self.cleanUp()
 
         
     @abc.abstractmethod
     def cleanUp(self):
         # Clean up all allocated device memory
-        pass
+        raise NotImplementedError("This function must be implemented in child class")
         
-        
-    @abc.abstractmethod
-    def _init(self, driftersPerOceanModel=1):
-        # Initialize ocean models
-        # add drifters
-        # add noise
-        # etc
-        pass
     
     @abc.abstractmethod
     def resample(self, newSampleIndices, reinitialization_variance):
         # Resample and possibly perturb
-        pass
+        raise NotImplementedError("This function must be implemented in child class")
 
     @abc.abstractmethod
     def step_truth(self, t, stochastic=True):
-        pass
+        raise NotImplementedError("This function must be implemented in child class")
         
     @abc.abstractmethod
     def step_particles(self, t, stochastic=True):
-        pass
+        raise NotImplementedError("This function must be implemented in child class")
+
     
     
     def observeParticles(self, gpu=False):
@@ -158,7 +151,7 @@ class BaseOceanStateEnsemble(object):
         """
         Observing the drifters in the syntetic true state.
         """
-        pass
+        raise NotImplementedError("This function must be implemented in child class")
     
         
                              
@@ -173,7 +166,7 @@ class BaseOceanStateEnsemble(object):
         [[x_1, y_1, hu_1, hv_1], ... , [x_D, y_D, hu_D, hv_D]]
         If the observation operator is drifter positions, hu and hv are not included.
         """
-        pass
+        raise NotImplementedError("This function must be implemented in child class")
 
     
     @abc.abstractmethod
@@ -184,7 +177,7 @@ class BaseOceanStateEnsemble(object):
         Returns a numpy array with dimensions (particles, drifters, 2)
 
         """
-        pass
+        raise NotImplementedError("This function must be implemented in child class")
     
     
     @abc.abstractmethod
@@ -196,12 +189,12 @@ class BaseOceanStateEnsemble(object):
         # [ particle: [drifter: [x, y] ] ], or
         # [ particle: [drifter: [u, v] ] ]
         # We simply gather find the norm for each particle:
-        pass
+        raise NotImplementedError("This function must be implemented in child class")
     
             
     @abc.abstractmethod
     def getGaussianWeight(self, innovations=None, normalize=True):
-        pass
+        raise NotImplementedError("This function must be implemented in child class")
 
 
     
@@ -244,7 +237,7 @@ class BaseOceanStateEnsemble(object):
      
     @abc.abstractmethod
     def downloadTrueOceanState(self):
-        pass
+        raise NotImplementedError("This function must be implemented in child class")
         
 
         
