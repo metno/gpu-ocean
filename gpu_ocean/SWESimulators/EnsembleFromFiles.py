@@ -59,8 +59,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                  ensemble_directory,
                  true_state_directory,
                  observation_variance,
-                 drifters="all",
-                 cont_write_netcdf=False):
+                 cont_write_netcdf=False,
+                 use_lcg = False):
         """
         Initalizing ensemble from files.
         
@@ -76,9 +76,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                 compatible with the Observation class.
             observation_variance: The R matrix. Acceptable forms are a scalar (assuming diagonal R), or 2x2 matrix 
                 (assuming block diagonal R, each drifter independent).
-            drifters: can contain the keyword "all" (default), which means that all drifters in the Observation file
-                is considered. Otherwise it should be a list of drifter indices.
             cont_write_netcdf: Flag to write the ensemble to netcdf files in a new directory.
+            use_lcg: Flag for using LCG or curand as random number generators for the ensemble members' model errors.
         """
         
         print('Welcome to the EnsembleFromFile')
@@ -115,6 +114,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
         # Flag to writing ensemble simulation result to file:
         self.cont_write_netcdf = cont_write_netcdf
+        self.use_lcg = use_lcg
         
         # We will not simulate the true state, but read it from file:
         self.simulate_true_state = False
@@ -130,18 +130,20 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.nx, self.ny = self.particles[0].nx, self.particles[0].ny
         self.dx, self.dy = self.particles[0].dx, self.particles[0].dy
         self.dt = self.particles[0].model_time_step
+        self.t  = self.particles[0].t
         
         self.driftersPerOceanModel = self.observations.get_num_drifters()
         
-        assert(observation_cov.shape == (2,2) or np.isscalar(observation_cov), 'observation_cov must be scalar or 2x2 matrix'
+        assert(np.isscalar(observation_variance) or observation_variance.shape == (2,2)), 'observation_variance must be scalar or 2x2 matrix'
         if np.isscalar(observation_variance):
             observation_cov = np.diag([observation_variance, observation_variance])
         self.observation_cov = observation_cov.astype(np.float32)
         self.observation_cov_inverse = np.linalg.inv(self.observation_cov).astype(np.float32)
         
-        
-               
-        
+        # Store mean water_depth, and whether the equilibrium depth is constant across the domain
+        H = self.particles[0].downloadBathymetry()[1][2:-2, 2:-2] # H in cell centers
+        self.mean_depth = np.mean(H)
+        self.constant_depth = np.max(H) == np.min(H)
         
         
     def _initializeEnsembleFromFile(self):
@@ -155,7 +157,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             self.particles[particle_id] = CDKLM16.CDKLM16.fromfilename(self.gpu_ctx, 
                                                                        self.ensemble_init_nc_files[file_id],
                                                                        cont_write_netcdf=self.cont_write_netcdf,
-                                                                       new_netcdf_filename=new_netcdf_filename)
+                                                                       new_netcdf_filename=new_netcdf_filename,
+                                                                       use_lcg=self.use_lcg)
     
     def _readObservationsFromFile(self):
         self.true_state = CDKLM16.CDKLM16.fromfilename(self.gpu_ctx,
@@ -165,6 +168,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     def _readTruthFromFile(self):
         self.observations = Observation.Observation()
         self.observations.read_pickle(self.observation_files[0])
+
     
         
 
@@ -175,8 +179,19 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         if self.true_state is not None:
             self.true_state.cleanUp()
             self.true_state = None
+               
+    def configureObservations(self, drifterSet="all", observationInterval=1):
+        """
+        Configuring which drifters we will observe and how often we will observe them.
         
-
+        Arguments:
+            drifterSet: can contain the keyword "all" (default), which means that all drifters in the Observation file
+                is considered. Otherwise it should be a set of drifter indices represented by a list.
+            observationInterval: We choose to consider only every n'th observation.
+        """
+        if drifterSet != "all":
+            self.observations.setDrifterSet(drifterSet)
+        self.observations.setObservationInterval(observationInterval)
         
     def resample(self, newSampleIndices, reinitialization_variance):
         """
@@ -204,4 +219,50 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                      newOceanStates[i][4],
                                      newOceanStates[i][5])
                     
-   
+    def step_truth(self):
+        raise NotImplementedError("This function should not be used, as the truth is expected to file.")
+
+    def step_particles(self):
+        raise NotImplementedError("This class should only use the function stepToObservation, and not step_particles")
+               
+    def stepToObservation(self, observation_time, model_error_final_step=True, write_now=False):
+        """
+        Advance the ensemble to the given observation time, and mimics CDKLM16.dataAssimilationStep function
+        
+        Arguments:
+            observation_time: The end time for the simulation
+            model_error_final_step: In IEWPF, the model error should not be applied to the final time step.
+            write_now: Write result to NetCDF if an writer is active.
+            
+        """
+        for particle in self.particles:
+            particle.dataAssimilationStep(observation_time, model_error_final_step=model_error_final_step, write_now=write_now)
+        self.t = observation_time
+        
+        
+    def observeTrueDrifters(self):
+        return self.observeTrueState()[:, :2]
+    
+    def observeTrueState(self):
+        if not self.constant_depth:
+            raise NotImplementedError("observations are not implemented for non-constant equilibrium depths")
+        return self.observations.get_observation(self.t, self.mean_depth)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+        

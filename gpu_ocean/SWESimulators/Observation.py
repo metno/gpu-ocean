@@ -47,6 +47,10 @@ class Observation:
         self.columns = ('time', 'drifter_positions')
         self.obs_df = pd.DataFrame(columns=self.columns)
         
+        # Configuration parameters:
+        self.drifterSet = None
+        self.observationInterval = 1
+        
         
     def get_num_observations(self):
         """
@@ -58,6 +62,9 @@ class Observation:
         """
         Returns the number of drifters in the observation set.
         """
+        if self.drifterSet is not None:
+            return len(self.drifterSet)
+        
         first_position = self.obs_df.iloc[0][self.columns[1]]
         return first_position.shape[0]
     
@@ -78,6 +85,30 @@ class Observation:
         pos = sim.drifters.getDrifterPositions()
         self.obs_df.loc[index] = {self.columns[0]: rounded_sim_t, self.columns[1]: pos}
         
+        
+    #########################
+    ### CONFIGURATIONS
+    ########################
+    def setDrifterSet(self, drifterSet):
+        """
+        Specify a subset of drifters that should be considered.
+        The argument drifterSet should be a list of indices between 0 and the number of drifters - 1.
+        
+        The drifterSet is only considered while reading drifter positions that are already stored, not for
+        adding new ones from simulators.
+        """
+        assert(type(drifterSet) is list), 'drifterSet is required to be a list, but is ' + str(type(drifterSet))
+        assert(min(drifterSet) >= 0), 'drifterSet contains at least one negative drifter id'
+        assert(max(drifterSet) < self.get_num_drifters()), 'drifterSet contains indices that are out-of-range'
+        
+        self.drifterSet = drifterSet
+        
+    def setObservationInterval(self, interval):
+        self.observationInterval = interval
+    
+    ############################
+    ### FILE INTERFACE
+    ############################        
     def to_pickle(self, path):
         """
         Write the observation DataFrame to file (pickle)
@@ -89,6 +120,9 @@ class Observation:
         Read observations from file
         """
         self.obs_df = pd.read_pickle(path)
+        
+    
+        
         
     def _check_observation_type(self):
         """
@@ -113,7 +147,7 @@ class Observation:
         if self.get_num_observations() < 2:
             return np.array([])
                 
-        return self.obs_df.time.values[1:]
+        return self.obs_df.time.values[::self.observationInterval][1:]
     
     def get_drifter_position(self, t):
         """
@@ -131,7 +165,12 @@ class Observation:
         
         current_pos = self.obs_df.iloc[index  ][self.columns[1]]
         
+        if self.drifterSet is not None:
+            return current_pos[self.drifterSet, :]
+        
         return current_pos
+    
+    
 
         
     def get_observation(self, t, waterDepth):
@@ -155,12 +194,14 @@ class Observation:
 
         index = self.obs_df[self.obs_df[self.columns[0]]==rounded_t].index.values[0]
         
-        assert(index > 0), "Observation can not be made from the first entry in the DataFrame."
+        assert(index > self.observationInterval-1), "Observation can not be made this early in the DataFrame."
         
-        dt = self.obs_df.iloc[index][self.columns[0]] - self.obs_df.iloc[index-1][self.columns[0]]
+        prev_index = index - self.observationInterval
+        dt = self.obs_df.iloc[index     ][self.columns[0]] - \
+             self.obs_df.iloc[prev_index][self.columns[0]]
 
-        current_pos = self.obs_df.iloc[index  ][self.columns[1]]
-        prev_pos    = self.obs_df.iloc[index-1][self.columns[1]]
+        current_pos = self.obs_df.iloc[index     ][self.columns[1]]
+        prev_pos    = self.obs_df.iloc[prev_index][self.columns[1]]
         num_drifters = prev_pos.shape[0]
         
         hu_hv = (current_pos - prev_pos)*waterDepth/dt
@@ -168,6 +209,9 @@ class Observation:
         observation = np.zeros((num_drifters, 4))
         observation[:,:2] = current_pos
         observation[:,2:] = hu_hv
+        
+        if self.drifterSet is not None:
+            return observation[self.drifterSet, :]
         
         return observation
         
