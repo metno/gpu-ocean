@@ -209,26 +209,32 @@ class BaseOceanStateEnsemble(object):
         if innovations is None:
             innovations = self.getInnovations()
         
-        numParticles = self.getNumParticles()
-        numDrifters = innovations.shape[1] # number of drifters per particle
-        observationDim = Ny = innovations.shape[2]
-
         Rinv = self.getObservationCovInverse()
         R = self.getObservationCov()
         
-        assert(R.shape    == (2,2)), 'Observation covariance matrix must be 2x2'
-        assert(Rinv.shape == (2,2)), 'Inverse of the observation covariance matrix must be 2x2'
+        weights = np.zeros(innovations.shape[0])
+        if len(innovations.shape) == 1:
+            observationVariance = R[0,0]
+            weights = (1.0/np.sqrt(2*np.pi*observationVariance))* \
+                    np.exp(- (innovations**2/(2*observationVariance)))
 
-        weights = np.zeros(numParticles)
-        for i in range(numParticles):
-            w = 0.0
-            for d in range(numDrifters):
-                inn = innovations[i,d,:]
-                w += np.dot(inn, np.dot(Rinv, inn.transpose()))
+        else:
+            numParticles = self.getNumParticles()
+            numDrifters = innovations.shape[1] # number of drifters per particle
 
-            ## TODO: Restructure to do the normalization before applying
-            # the exponential function. The current version is sensitive to overflows.
-            weights[i] = (1.0/((2*np.pi)**numDrifters*np.linalg.det(R)**(numDrifters/2.0)))*np.exp(-0.5*w)
+            assert(R.shape    == (2,2)), 'Observation covariance matrix must be 2x2'
+            assert(Rinv.shape == (2,2)), 'Inverse of the observation covariance matrix must be 2x2'
+
+            weights = np.zeros(numParticles)
+            for i in range(numParticles):
+                w = 0.0
+                for d in range(numDrifters):
+                    inn = innovations[i,d,:]
+                    w += np.dot(inn, np.dot(Rinv, inn.transpose()))
+
+                ## TODO: Restructure to do the normalization before applying
+                # the exponential function. The current version is sensitive to overflows.
+                weights[i] = (1.0/((2*np.pi)**numDrifters*np.linalg.det(R)**(numDrifters/2.0)))*np.exp(-0.5*w)
         if normalize:
             return weights/np.sum(weights)
         return weights
