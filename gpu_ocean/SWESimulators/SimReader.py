@@ -83,6 +83,8 @@ class SimNetCDFReader:
     def getBCSpongeCells(self):
         return np.fromstring(self.get("boundary_conditions_sponge_mr")[1:-1], dtype=int, sep=' ')
 
+    
+    
     def getLastTimeStep(self):
         return self.getTimeStep(-1)
         
@@ -103,14 +105,42 @@ class SimNetCDFReader:
     def getH(self):
         H = self.ncfile.variables['H'][:, :]
         return H
-
-    def getEtaAtTimeStep(self, index):
+        
+    
+    def getStateAtTime(self, time):
+        time = np.round(time)
+        nc_times = self.ncfile.variables['time']
+        index = None
+        for i in range(nc_times.size):
+            if time == nc_times[i]:
+                index = i
+                break
+        if index is None:
+            raise RuntimeError('Time ' + str(time) + ' not in NetCDF file ' + self.filename)
+        print("Found time " + str(time) + " at index " + str(i))
+        return self.getStateAtTimeStep(i)
+    
+    
+        
+    def getStateAtTimeStep(self, index, etaOnly=False):
         time = self.ncfile.variables['time']
         eta = self.ncfile.variables['eta'][index, :, :]
         if self.ignore_ghostcells:
             eta = eta[self.ghostCells[2]:-self.ghostCells[0], \
                       self.ghostCells[3]:-self.ghostCells[1]]
-        return eta, time[index]
+        if etaOnly:
+            return eta, time[index]
+        hu = self.ncfile.variables['hu'][index, :, :]
+        hv = self.ncfile.variables['hv'][index, :, :]
+        if self.ignore_ghostcells:
+            hu = hu[self.ghostCells[2]:-self.ghostCells[0], \
+                    self.ghostCells[3]:-self.ghostCells[1]]
+            hv = hv[self.ghostCells[2]:-self.ghostCells[0], \
+                    self.ghostCells[3]:-self.ghostCells[1]]
+        return eta, hu, hv, time[index]
+
+    def getEtaAtTimeStep(self, index):
+        return getStateAtTimeStep(index, etaOnly=True)
 
     def getAxis(self):
         x = self.ncfile.variables['x']
@@ -157,7 +187,7 @@ class SimNetCDFReader:
         anim = animation.FuncAnimation(fig, self._animate, range(self.getNumTimeSteps()), interval=100)
         plt.close(anim._fig)
         return anim
-
+        
 
     def _addText(self, ax, msg):
         bp = 70 # breakpoint

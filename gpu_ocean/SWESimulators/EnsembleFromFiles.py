@@ -40,6 +40,8 @@ from SWESimulators import CDKLM16
 from SWESimulators import Observation
 from SWESimulators import DataAssimilationUtils as dautils
 from SWESimulators import Observation
+from SWESimulators import SimReader 
+
 
 
 try:
@@ -109,7 +111,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.particles = [None]*(self.numParticles)
         
         # Declare variables for true state and observations
-        self.true_state = None
+        self.true_state_reader = None
         self.observations = None
         
         # Flag to writing ensemble simulation result to file:
@@ -119,7 +121,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         # We will not simulate the true state, but read it from file:
         self.simulate_true_state = False
         
-        self.observation_type = dautils.ObservationType.DrifterPosition
+        self.observation_type = dautils.ObservationType.UnderlyingFlow
         
         ### Then, call appropriate helper functions for initialization
         self._initializeEnsembleFromFile()
@@ -161,9 +163,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                                                        use_lcg=self.use_lcg)
     
     def _readObservationsFromFile(self):
-        self.true_state = CDKLM16.CDKLM16.fromfilename(self.gpu_ctx,
-                                                       self.true_state_nc_files[0],
-                                                       cont_write_netcdf = False)
+        self.true_state_reader = SimReader.SimNetCDFReader(self.true_state_nc_files[0])
     
     def _readTruthFromFile(self):
         self.observations = Observation.Observation()
@@ -176,9 +176,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         for particle in self.particles:
             if particle is not None:
                 particle.cleanUp()
-        if self.true_state is not None:
-            self.true_state.cleanUp()
-            self.true_state = None
+        
                
     def configureObservations(self, drifterSet="all", observationInterval=1):
         """
@@ -192,6 +190,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         if drifterSet != "all":
             self.observations.setDrifterSet(drifterSet)
         self.observations.setObservationInterval(observationInterval)
+        self.driftersPerOceanModel = self.observations.get_num_drifters()
         
     def resample(self, newSampleIndices, reinitialization_variance):
         """
@@ -249,13 +248,9 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         return self.observations.get_observation(self.t, self.mean_depth)
     
     
-    
-    
-    
-    
-    
-    
-    
+    def downloadTrueOceanState(self):
+        eta, hu, hv, t = self.true_state_reader.getStateAtTime(self.t)
+        return eta, hu, hv
     
     
     

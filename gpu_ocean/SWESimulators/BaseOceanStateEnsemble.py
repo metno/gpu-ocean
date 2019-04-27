@@ -99,12 +99,12 @@ class BaseOceanStateEnsemble(object):
              self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
 
             observedState = np.empty((self.getNumParticles(), \
-                                      self.driftersPerOceanModel, 2))
+                                      self.getNumDrifters(), 2))
 
             trueState = self.observeTrueState()
             # trueState = [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
 
-            for p in range(self.numParticles):
+            for p in range(self.getNumParticles()):
                 if gpu:
                     sim = self.particles[p]
                     self.observeUnderlyingFlowKernel.prepared_async_call(self.global_size,
@@ -132,7 +132,7 @@ class BaseOceanStateEnsemble(object):
                     # Downloading ocean state without ghost cells
                     eta, hu, hv = self.downloadParticleOceanState(p)
 
-                    for d in range(self.driftersPerOceanModel):
+                    for d in range(self.getNumDrifters()):
                         id_x = np.int(np.floor(trueState[d,0]/self.dx))
                         id_y = np.int(np.floor(trueState[d,1]/self.dy))
 
@@ -169,7 +169,6 @@ class BaseOceanStateEnsemble(object):
         raise NotImplementedError("This function must be implemented in child class")
 
     
-    @abc.abstractmethod
     def getInnovations(self, obs=None):
         """
         Obtaining the innovation vectors, y^m - H(\psi_i^m)
@@ -177,25 +176,62 @@ class BaseOceanStateEnsemble(object):
         Returns a numpy array with dimensions (particles, drifters, 2)
 
         """
-        raise NotImplementedError("This function must be implemented in child class")
-    
-    
-    @abc.abstractmethod
+        if obs is None:
+            trueState = self.observeTrueState()
+
+        if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
+           self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
+            # Change structure of trueState
+            # from: [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
+            # to:   [[hu1, hv1], ..., [huD, hvD]]
+            trueState = trueState[:, 2:]
+
+        #else, structure of trueState is already fine: [[x1, y1], ..., [xD, yD]]
+
+        innovations = trueState - self.observeParticles()
+        return innovations
+            
     def getInnovationNorms(self, obs=None):
-        """
-        Obtain the norm of the innovation vectors
-        """
+        
         # Innovations have the structure 
         # [ particle: [drifter: [x, y] ] ], or
         # [ particle: [drifter: [u, v] ] ]
         # We simply gather find the norm for each particle:
-        raise NotImplementedError("This function must be implemented in child class")
-    
+        innovations = self.getInnovations(obs=obs)
+        return np.linalg.norm(np.linalg.norm(innovations, axis=2), axis=1)
             
-    @abc.abstractmethod
     def getGaussianWeight(self, innovations=None, normalize=True):
-        raise NotImplementedError("This function must be implemented in child class")
+        """
+        Calculates a weight associated to every particle, based on its innovation vector, using 
+        Gaussian uncertainty for the observation.
+        """
 
+        if innovations is None:
+            innovations = self.getInnovations()
+        
+        numParticles = self.getNumParticles()
+        numDrifters = innovations.shape[1] # number of drifters per particle
+        observationDim = Ny = innovations.shape[2]
+
+        Rinv = self.getObservationCovInverse()
+        R = self.getObservationCov()
+        
+        assert(R.shape    == (2,2)), 'Observation covariance matrix must be 2x2'
+        assert(Rinv.shape == (2,2)), 'Inverse of the observation covariance matrix must be 2x2'
+
+        weights = np.zeros(numParticles)
+        for i in range(numParticles):
+            w = 0.0
+            for d in range(numDrifters):
+                inn = innovations[i,d,:]
+                w += np.dot(inn, np.dot(Rinv, inn.transpose()))
+
+            ## TODO: Restructure to do the normalization before applying
+            # the exponential function. The current version is sensitive to overflows.
+            weights[i] = (1.0/((2*np.pi)**numDrifters*np.linalg.det(R)**(numDrifters/2.0)))*np.exp(-0.5*w)
+        if normalize:
+            return weights/np.sum(weights)
+        return weights
 
     
     # Some get functions that assume some private variables.

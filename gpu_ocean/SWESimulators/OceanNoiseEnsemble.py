@@ -537,37 +537,6 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         ]
         """
         return np.linalg.norm(self.observeTrueDrifters() - self.observeDrifters(),  axis=2)
-    
-    def getInnovations(self, obs=None):
-        """
-        Obtaining the innovation vectors, y^m - H(\psi_i^m)
-
-        Returns a numpy array with dimensions (particles, drifters, 2)
-
-        """
-        if obs is None:
-            trueState = self.observeTrueState()
-
-        if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
-           self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
-            # Change structure of trueState
-            # from: [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
-            # to:   [[hu1, hv1], ..., [huD, hvD]]
-            trueState = trueState[:, 2:]
-
-        #else, structure of trueState is already fine: [[x1, y1], ..., [xD, yD]]
-
-        innovations = trueState - self.observeParticles()
-        return innovations
-            
-    def getInnovationNorms(self, obs=None):
-        
-        # Innovations have the structure 
-        # [ particle: [drifter: [x, y] ] ], or
-        # [ particle: [drifter: [u, v] ] ]
-        # We simply gather find the norm for each particle:
-        innovations = self.getInnovations(obs=obs)
-        return np.linalg.norm(np.linalg.norm(innovations, axis=2), axis=1)
             
     def printMaxOceanStates(self):
         simNo = 0
@@ -583,43 +552,6 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             print("Max hv:  ", np.max(hv))
             simNo = simNo + 1
     
-
-    def getGaussianWeight(self, innovations=None, normalize=True):
-        """
-        Calculates a weight associated to every particle, based on its innovation vector, using 
-        Gaussian uncertainty for the observation.
-        """
-
-        if innovations is None:
-            innovations = self.getInnovations()
-        observationVariance = self.getObservationVariance()
-        Rinv = None
-
-        weights = np.zeros(innovations.shape[0])
-        if len(innovations.shape) == 1:
-            weights = (1.0/np.sqrt(2*np.pi*observationVariance))* \
-                    np.exp(- (innovations**2/(2*observationVariance)))
-
-        else:
-            Ne = self.getNumParticles()
-            Nd = innovations.shape[1] # number of drifters per particle
-            Ny = innovations.shape[2]
-
-            Rinv = self.getObservationCovInverse()
-            R = self.getObservationCov()
-
-            for i in range(Ne):
-                w = 0.0
-                for d in range(Nd):
-                    inn = innovations[i,d,:]
-                    w += np.dot(inn, np.dot(Rinv, inn.transpose()))
-
-                ## TODO: Restructure to do the normalization before applying
-                # the exponential function. The current version is sensitive to overflows.
-                weights[i] = (1.0/((2*np.pi)**Nd*np.linalg.det(R)**(Nd/2.0)))*np.exp(-0.5*w)
-        if normalize:
-            return weights/np.sum(weights)
-        return weights
     
     def getCauchyWeight(self, distances=None, normalize=True):
         """
