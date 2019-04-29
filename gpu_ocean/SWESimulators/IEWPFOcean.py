@@ -93,7 +93,7 @@ class IEWPFOcean:
         H = ensemble.particles[0].downloadBathymetry()[1][2:-2, 2:-2] # H in cell centers
         self.const_H = np.float32(H[0,0])
 
-        self.boundaryConditions = ensemble.boundaryConditions
+        self.boundaryConditions = ensemble.particles[0].boundary_conditions
         
         self.geoBalanceConst = np.float32(self.g*self.const_H/(2.0*self.f))
 
@@ -111,7 +111,7 @@ class IEWPFOcean:
         assert(self.boundaryConditions.isPeriodicNorthSouth()), 'IEWPF requires periodic boundary conditions in north-south'
         assert(self.boundaryConditions.isPeriodicEastWest()),  'IEWPF requires periodic boundary conditions in east-west'
         # 3) that the Coriolis force is constant for the entire domain:
-        assert (ensemble.beta == 0), 'IEWPF requires constant Coriolis forcing, but got beta = ' + str(ensemble.beta)
+        assert (ensemble.particles[0].coriolis_beta == 0), 'IEWPF requires constant Coriolis forcing, but got beta = ' + str(ensemble.beta)
         # 4) that dx and dy are the same
         assert (self.dx == self.dy), 'IEWPF requires square grid cells, but got (dx, dy) = ' + str((self.dx, self.dy))
         
@@ -205,7 +205,7 @@ class IEWPFOcean:
             t = ensemble.step_particles(ensemble.getDt(), stochastic=False)
         
         self.log('------------------------------------------------------')
-        self.log('------ Two-stage IEWPF at t = ' + str(t) + '   -------')
+        self.log('------ Two-stage IEWPF at t = ' + str(ensemble.t) + '   -------')
         self.log('------------------------------------------------------')
         
         mem_free, mem_available = cuda.mem_get_info()

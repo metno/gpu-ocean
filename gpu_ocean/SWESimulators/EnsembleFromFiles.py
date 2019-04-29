@@ -224,7 +224,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     def step_particles(self):
         raise NotImplementedError("This class should only use the function stepToObservation, and not step_particles")
                
-    def stepToObservation(self, observation_time, model_error_final_step=True, write_now=False):
+    def stepToObservation(self, observation_time, model_error_final_step=True, write_now=False, progress_info = False):
         """
         Advance the ensemble to the given observation time, and mimics CDKLM16.dataAssimilationStep function
         
@@ -234,8 +234,15 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             write_now: Write result to NetCDF if an writer is active.
             
         """
+        id = 0
         for particle in self.particles:
             particle.dataAssimilationStep(observation_time, model_error_final_step=model_error_final_step, write_now=write_now)
+            
+            if progress_info:
+                if id % 10 == 0:
+                    print('Step done for particle ' + str(id))
+                id += 1
+                
         self.t = observation_time
         
         
@@ -252,8 +259,9 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         eta, hu, hv, t = self.true_state_reader.getStateAtTime(self.t)
         return eta, hu, hv
     
-    
-    
+    def getObservationVariance(self):
+        return self.observation_cov[0,0]
+
     
     
     

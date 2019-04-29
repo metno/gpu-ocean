@@ -523,20 +523,27 @@ class CDKLM16(Simulator.Simulator):
         # We therefore make sure to take the (potential) small timestep first in this function,
         # followed by appropriately many full time steps.
         
-        full_model_time_steps = int((observation_time - self.t)/self.model_time_step) 
+        full_model_time_steps = int(round(observation_time - self.t)/self.model_time_step)
         leftover_step_size = observation_time - self.t - full_model_time_steps*self.model_time_step
-        
-        assert(full_model_time_steps > 0), "There is less than CDKLM16.model_time_step until the observation"
-            
+
         # Avoid a too small extra timestep
         if leftover_step_size/self.model_time_step < 0.1 and full_model_time_steps > 1:
             leftover_step_size += self.model_time_step
             full_model_time_steps -= 1
         
+        # Avoid extra timestep that is too similar to a full timestep as well:
+        if leftover_step_size/self.model_time_step < 0.00001:
+            leftover_step_size = 0
+
+        assert(full_model_time_steps > 0), "There is less than CDKLM16.model_time_step until the observation"
+
+            
         # Loop standard steps:
         for i in range(full_model_time_steps+1):
             
-            if i == 0 and not leftover_step_size == 0:
+            if i == 0 and leftover_step_size == 0:
+                continue
+            elif i == 0:
                 # Take the leftover step
                 self.step(leftover_step_size, apply_stochastic_term=False, write_now=False)
                 self.perturbState(q0_scale=np.sqrt(self.model_time_step/leftover_step_size))
@@ -555,6 +562,9 @@ class CDKLM16(Simulator.Simulator):
             
         if self.write_netcdf and write_now:
             self.sim_writer.writeTimestep(self)
+    
+        assert(round(observation_time) == round(self.t)), 'The simulation time is not the same as observation time after dataAssimilationStep! \n' + \
+            '(self.t, observation_time, diff): ' + str((self.t, observation_time, self.t - observation_time))
     
     def writeState(self):        
         if self.write_netcdf:
