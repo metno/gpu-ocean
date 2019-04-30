@@ -247,8 +247,15 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
         
     def observeTrueDrifters(self):
-        return self.observeTrueState()[:, :2]
+        return self.observations.get_drifter_position(self.t)
     
+    def getDrifterCells(self):
+        drifter_positions = self.observations.get_drifter_position(self.t, applyDrifterSet=False)
+        drifter_positions[:,0] = np.floor(drifter_positions[:,0]/self.getDx())
+        drifter_positions[:,1] = np.floor(drifter_positions[:,1]/self.getDy())
+        return drifter_positions.astype(np.int32)
+
+        
     def observeTrueState(self):
         if not self.constant_depth:
             raise NotImplementedError("observations are not implemented for non-constant equilibrium depths")

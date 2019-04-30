@@ -1,7 +1,12 @@
 # -*- coding: utf-8 -*-
 
 """
- 
+This software is part of GPU Ocean. 
+
+Copyright (C) 2019 SINTEF Digital
+
+This python module implements a class that read and writes drifter
+observation to and from file.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -147,9 +152,9 @@ class Observation:
         if self.get_num_observations() < 2:
             return np.array([])
                 
-        return self.obs_df.time.values[::self.observationInterval][1:]
+        return self.obs_df.time.values[::self.observationInterval][1:].copy()
     
-    def get_drifter_position(self, t):
+    def get_drifter_position(self, t, applyDrifterSet=True):
         """
         Returns an array of drifter positions at time t.
         """
@@ -159,16 +164,17 @@ class Observation:
         
         # Sanity check the DataFrame
         self._check_df_at_given_time(rounded_t)
-        
+
         # Get index in data frame
         index = self.obs_df[self.obs_df[self.columns[0]]==rounded_t].index.values[0]
         
         current_pos = self.obs_df.iloc[index  ][self.columns[1]]
         
-        if self.drifterSet is not None:
-            return current_pos[self.drifterSet, :]
-        
-        return current_pos
+        # Need to return a copy of the data frame data, elsewise we risk modifying the data frame!
+        if applyDrifterSet and self.drifterSet is not None:
+            return current_pos[self.drifterSet, :].copy()
+
+        return current_pos.copy()
     
     
 
