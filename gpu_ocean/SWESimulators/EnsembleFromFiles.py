@@ -41,6 +41,7 @@ from SWESimulators import Observation
 from SWESimulators import DataAssimilationUtils as dautils
 from SWESimulators import Observation
 from SWESimulators import SimReader 
+from SWESimulators import ParticleInfo
 
 
 
@@ -62,7 +63,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                  true_state_directory,
                  observation_variance,
                  cont_write_netcdf=False,
-                 use_lcg = False):
+                 use_lcg = False,
+                 write_netcdf_directory = None):
         """
         Initalizing ensemble from files.
         
@@ -82,9 +84,9 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             use_lcg: Flag for using LCG or curand as random number generators for the ensemble members' model errors.
         """
         
-        print('Welcome to the EnsembleFromFile')
-        print('Ensemble directory: ', ensemble_directory)
-        print('True state directory: ', true_state_directory)
+        #print('Welcome to the EnsembleFromFile')
+        #print('Ensemble directory: ', ensemble_directory)
+        #print('True state directory: ', true_state_directory)
         
         self.gpu_ctx = gpu_ctx
         self.gpu_stream = cuda.Stream()
@@ -102,9 +104,11 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         assert len(self.true_state_nc_files) == 1, "There should only be one single NetCDF file in the true state directory " + str(true_state_directory)
         assert len(self.observation_files) == 1,   "There should only be one single pickle file in the true state directory " + str(true_state_directory)
         
-        write_netcdf_folder_name = "ensemble_result_" + datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S") + "/"
-        self.write_netcdf_directory = os.path.join(os.getcwd(), write_netcdf_folder_name)
-        print("self.write_netcdf_directory: ", self.write_netcdf_directory)
+        self.write_netcdf_directory = write_netcdf_directory
+        if self.write_netcdf_directory is None:
+            write_netcdf_folder_name = "ensemble_result_" + datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S") + "/"
+            self.write_netcdf_directory = os.path.join(os.getcwd(), write_netcdf_folder_name)
+            #print("self.write_netcdf_directory: ", self.write_netcdf_directory)
         
         # Create the particle array
         self.numParticles = numParticles
@@ -147,13 +151,18 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.mean_depth = np.mean(H)
         self.constant_depth = np.max(H) == np.min(H)
         
+        # ParticleInfo
+        self._initializeParticleInfo()
+        self._particleInfoFileDumpCounter = 0
+        self._particleInfoExtraCells = None
+        
         
     def _initializeEnsembleFromFile(self):
         num_files = len(self.ensemble_init_nc_files)
         for particle_id in range(self.numParticles):
             file_id = particle_id % num_files
             new_netcdf_filename = None
-            if self.cont_write_netcdf or True:
+            if self.cont_write_netcdf:
                 filename_only = "ensemble_member_" + str(particle_id).zfill(4) + ".nc"
                 new_netcdf_filename = os.path.join(self.write_netcdf_directory, filename_only)
             self.particles[particle_id] = CDKLM16.CDKLM16.fromfilename(self.gpu_ctx, 
@@ -161,6 +170,13 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                                                        cont_write_netcdf=self.cont_write_netcdf,
                                                                        new_netcdf_filename=new_netcdf_filename,
                                                                        use_lcg=self.use_lcg)
+    
+    def _initializeParticleInfo(self):
+        self.particleInfos = [None]*self.numParticles
+        for p in range(self.numParticles):
+            self.particleInfos[p] = ParticleInfo.ParticleInfo()
+        
+    
     
     def _readObservationsFromFile(self):
         self.true_state_reader = SimReader.SimNetCDFReader(self.true_state_nc_files[0])
@@ -191,7 +207,20 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             self.observations.setDrifterSet(drifterSet)
         self.observations.setObservationInterval(observationInterval)
         self.driftersPerOceanModel = self.observations.get_num_drifters()
-        
+                
+    def configureParticleInfos(self, extraCells):
+        """
+        Configuring which data to store from the ensemble.
+        """
+        self._particleInfoExtraCells = extraCells
+        self._configureParticleInfos()
+   
+    def _configureParticleInfos(self):
+        if self._particleInfoExtraCells is not None:
+            for p in range(self.numParticles):
+                self.particleInfos[p].setExtraCells(self._particleInfoExtraCells)
+                
+            
     def resample(self, newSampleIndices, reinitialization_variance):
         """
         Resampling the particles given by the newSampleIndicies input array.
@@ -270,8 +299,27 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         return self.observation_cov[0,0]
 
     
-    
-    
+    def registerStateSample(self, drifter_cells):
+        assert(self.particleInfos is not None), 'particle info is None, and registerStateSample was called... This should not happend.'
+        
+        for p in range(self.numParticles):
+            self.particleInfos[p].add_state_sample_from_sim(self.particles[p], drifter_cells)
+            
+    def dumpParticleInfosToFile(self, path_prefix):
+        """
+        File name of dump will be {path_prefix}{particle_id}_{dumpCounter}.bz2
+        """
+        assert(self.particleInfos is not None), 'particle info is None, and dumpParticleInfosToFile was called... This should not happend.'
+        
+        for p in range(self.numParticles):
+            filename = path_prefix + str(p).zfill(4) + "_" + str(self._particleInfoFileDumpCounter).zfill(2) + ".bz2"
+            self.particleInfos[p].to_pickle(filename)
+        
+        self._particleInfoFileDumpCounter += 1
+        
+        # Reset particleInfos
+        self._initializeParticleInfo()
+        self._configureParticleInfos()
     
     
     

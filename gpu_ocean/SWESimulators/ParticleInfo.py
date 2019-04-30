@@ -50,8 +50,8 @@ class ParticleInfo:
         self.state_df = pd.DataFrame(columns=self.columns)
         
         # Configuration parameters:
-        self.drifterSet = None
         self.extraCells = None
+        
         
         
     def get_num_samples(self):
@@ -62,13 +62,16 @@ class ParticleInfo:
     
     def get_num_drifters(self):
         """
-        Returns the number of drifters in the state samples set.
+        Returns the number of drifters used in the state samples set.
         """
-        if self.drifterSet is not None:
-            return len(self.drifterSet)
         
         first_position = self.state_df.iloc[0][self.columns[1]]
         return first_position.shape[0]
+    
+    def get_num_extra_cells(self):
+        if self.extraCells is None:
+            return 0
+        return self.extraCells.shape[0]
     
     def add_state_sample_from_sim(self, sim, drifter_cells):
         """
@@ -108,20 +111,7 @@ class ParticleInfo:
     #########################
     ### CONFIGURATIONS
     ########################
-    def setDrifterSet(self, drifterSet):
-        """
-        Specify a subset of drifters that should be considered.
-        The argument drifterSet should be a list of indices between 0 and the number of drifters - 1.
-        
-        The drifterSet is only considered while reading drifter positions that are already stored, not for
-        adding new ones from simulators.
-        """
-        assert(type(drifterSet) is list), 'drifterSet is required to be a list, but is ' + str(type(drifterSet))
-        assert(min(drifterSet) >= 0), 'drifterSet contains at least one negative drifter id'
-        assert(max(drifterSet) < self.get_num_drifters()), 'drifterSet contains indices that are out-of-range'
-        
-        self.drifterSet = drifterSet
-        
+
     def setExtraCells(self, extraCells):
         """
         Secifying a constant subset of cells, which will be used for sampling the ocean state from in 
@@ -208,10 +198,6 @@ class ParticleInfo:
         index = self.state_df[self.state_df[self.columns[0]]==rounded_t].index.values[0]
         
         sample = self.state_df.iloc[index  ][self.columns[1]]
-        
-        if self.drifterSet is not None:
-            return sample[self.drifterSet, :].copy()
-        
         return sample.copy()
         
     def get_extra_sample(self, t):

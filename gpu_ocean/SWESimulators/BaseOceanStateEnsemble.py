@@ -264,6 +264,9 @@ class BaseOceanStateEnsemble(object):
     def getNumDrifters(self):
         return np.int32(self.driftersPerOceanModel)
     
+    def getBoundaryConditions(self):
+        return self.particles[0].boundary_conditions
+    
     def getObservationCov(self):
         return self.observation_cov
     def getObservationCovInverse(self):

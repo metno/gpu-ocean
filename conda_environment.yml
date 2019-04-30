@@ -14,6 +14,7 @@ dependencies:
 - xmlrunner
 - scipy
 - pandas
+- pytables
 - nb_conda_kernels
 - pip:
   - pycuda
