@@ -47,12 +47,26 @@ class Observation:
         self.columns = ('time', 'drifter_positions')
         self.obs_df = pd.DataFrame(columns=self.columns)
         
+        # Configuration parameters:
+        self.drifterSet = None
+        self.observationInterval = 1
+        
         
     def get_num_observations(self):
         """
         Returns the number of rows (drifter observations) stored in the DataFrame.
         """
         return self.obs_df[self.columns[0]].count()
+    
+    def get_num_drifters(self):
+        """
+        Returns the number of drifters in the observation set.
+        """
+        if self.drifterSet is not None:
+            return len(self.drifterSet)
+        
+        first_position = self.obs_df.iloc[0][self.columns[1]]
+        return first_position.shape[0]
     
     def add_observation_from_sim(self, sim):
         """
@@ -71,6 +85,30 @@ class Observation:
         pos = sim.drifters.getDrifterPositions()
         self.obs_df.loc[index] = {self.columns[0]: rounded_sim_t, self.columns[1]: pos}
         
+        
+    #########################
+    ### CONFIGURATIONS
+    ########################
+    def setDrifterSet(self, drifterSet):
+        """
+        Specify a subset of drifters that should be considered.
+        The argument drifterSet should be a list of indices between 0 and the number of drifters - 1.
+        
+        The drifterSet is only considered while reading drifter positions that are already stored, not for
+        adding new ones from simulators.
+        """
+        assert(type(drifterSet) is list), 'drifterSet is required to be a list, but is ' + str(type(drifterSet))
+        assert(min(drifterSet) >= 0), 'drifterSet contains at least one negative drifter id'
+        assert(max(drifterSet) < self.get_num_drifters()), 'drifterSet contains indices that are out-of-range'
+        
+        self.drifterSet = drifterSet
+        
+    def setObservationInterval(self, interval):
+        self.observationInterval = interval
+    
+    ############################
+    ### FILE INTERFACE
+    ############################        
     def to_pickle(self, path):
         """
         Write the observation DataFrame to file (pickle)
@@ -82,6 +120,9 @@ class Observation:
         Read observations from file
         """
         self.obs_df = pd.read_pickle(path)
+        
+    
+        
         
     def _check_observation_type(self):
         """
@@ -106,7 +147,7 @@ class Observation:
         if self.get_num_observations() < 2:
             return np.array([])
                 
-        return self.obs_df.time.values[1:]
+        return self.obs_df.time.values[::self.observationInterval][1:]
     
     def get_drifter_position(self, t):
         """
@@ -121,11 +162,15 @@ class Observation:
         
         # Get index in data frame
         index = self.obs_df[self.obs_df[self.columns[0]]==rounded_t].index.values[0]
-        assert(index > 0), "Observation can not be made from the first entry in the DataFrame."
         
         current_pos = self.obs_df.iloc[index  ][self.columns[1]]
         
+        if self.drifterSet is not None:
+            return current_pos[self.drifterSet, :]
+        
         return current_pos
+    
+    
 
         
     def get_observation(self, t, waterDepth):
@@ -149,12 +194,14 @@ class Observation:
 
         index = self.obs_df[self.obs_df[self.columns[0]]==rounded_t].index.values[0]
         
-        assert(index > 0), "Observation can not be made from the first entry in the DataFrame."
+        assert(index > self.observationInterval-1), "Observation can not be made this early in the DataFrame."
         
-        dt = self.obs_df.iloc[index][self.columns[0]] - self.obs_df.iloc[index-1][self.columns[0]]
+        prev_index = index - self.observationInterval
+        dt = self.obs_df.iloc[index     ][self.columns[0]] - \
+             self.obs_df.iloc[prev_index][self.columns[0]]
 
-        current_pos = self.obs_df.iloc[index  ][self.columns[1]]
-        prev_pos    = self.obs_df.iloc[index-1][self.columns[1]]
+        current_pos = self.obs_df.iloc[index     ][self.columns[1]]
+        prev_pos    = self.obs_df.iloc[prev_index][self.columns[1]]
         num_drifters = prev_pos.shape[0]
         
         hu_hv = (current_pos - prev_pos)*waterDepth/dt
@@ -163,5 +210,42 @@ class Observation:
         observation[:,:2] = current_pos
         observation[:,2:] = hu_hv
         
+        if self.drifterSet is not None:
+            return observation[self.drifterSet, :]
+        
         return observation
         
+        
+    def _jump(self, pos0, pos1, jump_limit=100000):
+        ds = np.sqrt((pos1[0] - pos0[0])**2 + \
+                     (pos1[1] - pos0[1])**2)
+        if ds > jump_limit:
+            return True
+        return False
+
+    def get_drifter_path(self, drifter_id, start_t, end_t):
+        """
+        Creates a list of paths for the given drifter in the given time interval,
+        so that the drift trajectory can be plotted.
+        We create a list of paths rather than a single path, as the path is disconnected 
+        when the drifter passes through the boundary.
+        """
+        paths = []
+        observation_times = self.get_observation_times()
+        total_num_observations = self.get_num_observations()
+        path = np.zeros((total_num_observations, 2))
+        path_index = 0
+        for obs_t in observation_times:
+            if obs_t < start_t or obs_t > end_t:
+                continue
+            current_pos = self.get_drifter_position(obs_t)[drifter_id,:]
+            if path_index > 0:
+                if self._jump(path[path_index-1,:], current_pos):
+                    paths.append(path[:path_index,:])
+                    
+                    path_index = 0
+                    path = np.zeros((total_num_observations, 2))
+            path[path_index,:] = current_pos
+            path_index += 1
+        paths.append(path[:path_index, :])
+        return paths

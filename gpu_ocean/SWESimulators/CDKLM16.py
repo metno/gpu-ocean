@@ -63,6 +63,7 @@ class CDKLM16(Simulator.Simulator):
                  model_time_step=None,
                  h0AsWaterElevation=False, \
                  reportGeostrophicEquilibrium=False, \
+                 use_lcg=False, \
                  write_netcdf=False, \
                  ensemble_size=0, \
                  ensemble_member=0, \
@@ -98,6 +99,7 @@ class CDKLM16(Simulator.Simulator):
         model_time_step: The size of a data assimilation model step (default same as dt)
         h0AsWaterElevation: True if h0 is described by the surface elevation, and false if h0 is described by water depth
         reportGeostrophicEquilibrium: Calculate the Geostrophic Equilibrium variables for each superstep
+        use_lcg: Use LCG as the random number generator. Default is False, which means using curand.
         write_netcdf: Write the results after each superstep to a netCDF file
         ensemble_size: Size (total number of member) of ensemble prediction system (EPS)
         ensemble_member: Rank in ensemble prediction system (EPS)
@@ -237,11 +239,13 @@ class CDKLM16(Simulator.Simulator):
         if small_scale_perturbation:
             if small_scale_perturbation_amplitude is None:
                 self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self,
-                                                                                       interpolation_factor=small_scale_perturbation_interpolation_factor)
+                                                                                       interpolation_factor=small_scale_perturbation_interpolation_factor,
+                                                                                       use_lcg=use_lcg)
             else:
                 self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, 
                                                                                        soar_q0=small_scale_perturbation_amplitude,
-                                                                                       interpolation_factor=small_scale_perturbation_interpolation_factor)
+                                                                                       interpolation_factor=small_scale_perturbation_interpolation_factor,
+                                                                                       use_lcg=use_lcg)
         
         # Data assimilation model step size
         self.model_time_step = model_time_step
@@ -283,11 +287,12 @@ class CDKLM16(Simulator.Simulator):
         gc.collect()
            
     @classmethod
-    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True):
+    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True, use_lcg=False, new_netcdf_filename=None):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
         filename: Continue simulation based on parameters and last timestep in this file
+        new_netcdf_filename: If we want to continue to write netcdf, we should use this filename. Automatically generated if None.
         """
         # open nc-file
         sim_reader = SimReader.SimNetCDFReader(filename, ignore_ghostcells=False)
@@ -329,7 +334,9 @@ class CDKLM16(Simulator.Simulator):
             'rk_order': sim_reader.get("time_integrator"),
             'coriolis_beta': sim_reader.get("coriolis_beta"),
             'y_zero_reference_cell': sim_reader.get("y_zero_reference_cell"),
-            'write_netcdf': cont_write_netcdf
+            'write_netcdf': cont_write_netcdf,
+            'use_lcg': use_lcg,
+            'netcdf_filename': new_netcdf_filename
         }    
         
         # Wind stress

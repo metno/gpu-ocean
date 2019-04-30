@@ -42,7 +42,7 @@ from scipy.special import lambertw, gammainc
 from scipy.optimize import newton
 import logging
 
-from SWESimulators import Common, OceanStateNoise, config
+from SWESimulators import Common, OceanStateNoise, config, EnsemblePlot
 
 class IEWPFOcean:
     """
@@ -66,13 +66,12 @@ class IEWPFOcean:
         self.show_errors = show_errors
         
         # Store information needed internally in the class
-        self.dx = np.float32(ensemble.dx) 
-        self.dy = np.float32(ensemble.dy)
-        self.dt = np.float32(ensemble.dt)
-        self.nx = np.int32(ensemble.nx)
-        self.ny = np.int32(ensemble.ny)
+        self.dx = np.float32(ensemble.getDx()) 
+        self.dy = np.float32(ensemble.getDy())
+        self.nx = np.int32(ensemble.getNx())
+        self.ny = np.int32(ensemble.getNy())
         
-        self.interpolation_factor = np.int32(ensemble.small_scale_perturbation_interpolation_factor)
+        self.interpolation_factor = np.int32(ensemble.particles[0].small_scale_model_error.interpolation_factor)
         
         # Check that the interpolation factor plays well with the grid size:
         assert ( self.interpolation_factor > 0 and self.interpolation_factor % 2 == 1), 'interpolation_factor must be a positive odd integer'
@@ -85,11 +84,14 @@ class IEWPFOcean:
         self.coarse_dx = np.float32(self.dx*self.interpolation_factor)
         self.coarse_dy = np.float32(self.dy*self.interpolation_factor)
         
-        self.soar_q0 = np.float32(ensemble.small_scale_perturbation_amplitude)
+        self.soar_q0 = np.float32(ensemble.particles[0].small_scale_model_error.soar_q0)
         self.soar_L  = np.float32(ensemble.particles[0].small_scale_model_error.soar_L)
-        self.f = np.float32(ensemble.f)
-        self.g = np.float32(ensemble.g)
-        self.const_H = np.float32(np.max(ensemble.base_H))
+        self.f = np.float32(ensemble.particles[0].f)
+        self.g = np.float32(ensemble.particles[0].g)
+        
+        # Water depth is assumed constant, assumption is checked below.
+        H = ensemble.particles[0].downloadBathymetry()[1][2:-2, 2:-2] # H in cell centers
+        self.const_H = np.float32(H[0,0])
 
         self.boundaryConditions = ensemble.boundaryConditions
         
@@ -104,14 +106,14 @@ class IEWPFOcean:
         
         # The underlying assumptions are:
         # 1) that the equilibrium depth is constant:
-        assert(np.max(ensemble.base_H) == np.min(ensemble.base_H))
+        assert(np.max(H) == np.min(H)), 'IEWPF can not be used with a non-constant ocean depth'
         # 2) that both boundaries are periodic:
-        assert(self.boundaryConditions.isPeriodicNorthSouth() and \
-               self.boundaryConditions.isPeriodicEastWest())
+        assert(self.boundaryConditions.isPeriodicNorthSouth()), 'IEWPF requires periodic boundary conditions in north-south'
+        assert(self.boundaryConditions.isPeriodicEastWest()),  'IEWPF requires periodic boundary conditions in east-west'
         # 3) that the Coriolis force is constant for the entire domain:
-        assert (ensemble.beta == 0)
+        assert (ensemble.beta == 0), 'IEWPF requires constant Coriolis forcing, but got beta = ' + str(ensemble.beta)
         # 4) that dx and dy are the same
-        assert (self.dx == self.dy)
+        assert (self.dx == self.dy), 'IEWPF requires square grid cells, but got (dx, dy) = ' + str((self.dx, self.dy))
         
         
         # Note the we intentionally do not add the ensemble as a member variable.
@@ -184,20 +186,23 @@ class IEWPFOcean:
     
     
     ### Main two-stage IEWPF METHOD
-    def iewpf_2stage(self, ensemble, infoPlots=None, it=None):
+    def iewpf_2stage(self, ensemble, infoPlots=None, it=None, perform_step=True):
         """
         The complete two-stage IEWPF algorithm implemented on the GPU.
         
         Input parameters:
-        ensemble  - the ensemble on which the particle filter is appplied
-        infoPlots (optional) - List of figures. New figure of ensemble is added
-            before and after the particle filter
-        it (optional) - The iteration number, used for logging and figure generation
+            ensemble  - the ensemble on which the particle filter is appplied
+            infoPlots (optional) - List of figures. New figure of ensemble is added
+                before and after the particle filter
+            it (optional) - The iteration number, used for logging and figure generation
+            perform_step - Flag that indicates whether the ensemble and truth should perform the 
+                final timestep to the observation, or if this has already been done.
         """
     
         # Step the truth and particles the final timestep:
-        t = ensemble.step_truth(self.dt, stochastic=True)
-        t = ensemble.step_particles(self.dt, stochastic=False)
+        if perform_step:
+            t = ensemble.step_truth(ensemble.getDt(), stochastic=True)
+            t = ensemble.step_particles(ensemble.getDt(), stochastic=False)
         
         self.log('------------------------------------------------------')
         self.log('------ Two-stage IEWPF at t = ' + str(t) + '   -------')
@@ -270,7 +275,7 @@ class IEWPFOcean:
             
     
     ### MAIN one-stage IEWPF METHOD
-    def iewpf(self, ensemble, infoPlots=None, it=None):
+    def iewpf(self, ensemble, infoPlots=None, it=None, perform_step=True):
         """
         The complete IEWPF algorithm implemented on the GPU.
         
@@ -286,8 +291,9 @@ class IEWPFOcean:
         #
         
         # Step -1: Deterministic step
-        t = ensemble.step_truth(self.dt, stochastic=True)
-        t = ensemble.step_particles(self.dt, stochastic=False)
+        if perform_step:
+            t = ensemble.step_truth(ensemble.getDt(), stochastic=True)
+            t = ensemble.step_particles(ensemble.getDt(), stochastic=False)
         
         # Step 0: Obtain innovations
         observed_drifter_positions = ensemble.observeTrueDrifters()
@@ -331,7 +337,7 @@ class IEWPFOcean:
     
     
     
-    def iewpf_timer(self, ensemble, infoPlots=None, it=None):
+    def iewpf_timer(self, ensemble, infoPlots=None, it=None,  perform_step=True):
         """
         Same as the function iewpf(self, ...) but with lots of events so that
         various parts of the IEWPF algorithm can be timed.
@@ -345,9 +351,10 @@ class IEWPFOcean:
         print ("----------")
         start_pre_loop = cuda.Event()
         start_pre_loop.record(self.master_stream)
-                
-        t = ensemble.step_truth(self.dt, stochastic=True)
-        t = ensemble.step_particles(self.dt, stochastic=False)
+        
+        if perform_step:
+            t = ensemble.step_truth(ensemble.getDt(), stochastic=True)
+            t = ensemble.step_particles(ensemble.getDt(), stochastic=False)
 
         deterministic_step_event = cuda.Event()
         deterministic_step_event.record(self.master_stream)
@@ -682,7 +689,7 @@ class IEWPFOcean:
         for particle in range(Ne):
             # Obtain db = d^T S d
             db = 0.0
-            for drifter in range(ensemble.driftersPerOceanModel):
+            for drifter in range(ensemble.getNumDrifters()):
                 e = np.dot(self.S_host, d[particle,drifter,:])
                 db += np.dot(e, d[particle, drifter, :])
             c[particle] = w_rest[particle] + db
@@ -892,8 +899,8 @@ class IEWPFOcean:
         # Structure the information as a  
         HQHT = np.matrix([[x_hu, y_hu],[x_hv, y_hv]])    
         if self.debug: print ("HQHT\n", HQHT)
-        if self.debug: print ("ensemble.observation_cov\n", ensemble.observation_cov)
-        S_inv = HQHT + ensemble.observation_cov
+        if self.debug: print ("ensemble.observation_cov\n", ensemble.getObservationCov())
+        S_inv = HQHT + ensemble.getObservationCov()
         if self.debug: print ("S_inv\n", S_inv)
         S = np.linalg.inv(S_inv)
         if self.debug: print( "S\n", S)
@@ -1122,7 +1129,7 @@ class IEWPFOcean:
   
     
     
-    def iewpf_CPU(self, ensemble, infoPlots=None, it=None):
+    def iewpf_CPU(self, ensemble, infoPlots=None, it=None, perform_step=True):
         """
         The complete IEWPF algorithm implemented on the CPU.
         
@@ -1130,8 +1137,9 @@ class IEWPFOcean:
         each particle according to the IEWPF method.
         """
         # Step -1: Deterministic step
-        t = ensemble.step_truth(self.dt, stochastic=True)
-        t = ensemble.step_particles(self.dt, stochastic=False)
+        if perform_step:
+            t = ensemble.step_truth(ensemble.getDt(), stochastic=True)
+            t = ensemble.step_particles(ensemble.getDt(), stochastic=False)
 
 
         # Step 0: Obtain innovations
@@ -1180,7 +1188,7 @@ class IEWPFOcean:
             self._keepPlot(ensemble, infoPlots, it, 3)
     
     
-    def iewpf_original_operation_order_CPU(self, ensemble, infoPlots=None, it=None):
+    def iewpf_original_operation_order_CPU(self, ensemble, infoPlots=None, it=None, perform_step=True):
         """
         The complete IEWPF algorithm (as described by the SotA-18 paper) implemented on the CPU.
         
@@ -1188,8 +1196,9 @@ class IEWPFOcean:
         each particle according to the IEWPF method.
         """
         # Step -1: Deterministic step
-        t = ensemble.step_truth(self.dt, stochastic=True)
-        t = ensemble.step_particles(self.dt, stochastic=False)
+        if perform_step:
+            t = ensemble.step_truth(ensemble.getDt(), stochastic=True)
+            t = ensemble.step_particles(ensemble.getDt(), stochastic=False)
 
 
         # Step 0: Obtain innovations
@@ -1261,7 +1270,7 @@ class IEWPFOcean:
             title = "it=" + str(it) + " during IEWPF (with deterministic step)"
         elif stage == 3:
             title = "it=" + str(it) + " after IEWPF"
-        infoFig = ensemble.plotDistanceInfo(title=title, printInfo=False)
+        infoFig = EnsemblePlot.plotDistanceInfo(ensemble, title=title, printInfo=False)
         plt.close(infoFig)
         infoPlots.append(infoFig)
 
