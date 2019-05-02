@@ -195,7 +195,7 @@ obstime = 3*24*60*60
 master_tic = time.time()
 
 numDays = 7
-numHours = 4
+numHours = 24
 
 log('---------- Starting simulation --------------') 
 log('--- numDays: ' + str(numDays))
@@ -257,7 +257,7 @@ netcdf_iterations = int((forecast_end_time - forecast_start_time)/netcdf_interva
 observations_iterations = int(netcdf_intervals/observation_intervals)
 
 
-for particle_id in range(ensemble.numParticles()):
+for particle_id in range(ensemble.getNumParticles()):
 
     sim = ensemble.particles[particle_id]
     
