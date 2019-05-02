@@ -512,7 +512,7 @@ class CDKLM16(Simulator.Simulator):
     def perturbState(self, q0_scale=1):
         self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
-    def dataAssimilationStep(self, observation_time, model_error_final_step=True, write_now=True):
+    def dataAssimilationStep(self, observation_time, model_error_final_step=True, write_now=True, courant_number=0.8):
         """
         The model runs until self.t = observation_time - self.model_time_step with model error.
         If model_error_final_step is true, another stochastic model_time_step is performed, 
@@ -558,7 +558,7 @@ class CDKLM16(Simulator.Simulator):
             
             # Update dt now and then
             if self.total_time_steps % 5 == 0:
-                self.updateDt()
+                self.updateDt(courant_number=courant_number)
             
         if self.write_netcdf and write_now:
             self.sim_writer.writeTimestep(self)

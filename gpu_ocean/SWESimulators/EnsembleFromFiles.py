@@ -265,7 +265,9 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         """
         id = 0
         for particle in self.particles:
-            particle.dataAssimilationStep(observation_time, model_error_final_step=model_error_final_step, write_now=write_now)
+            particle.dataAssimilationStep(observation_time, 
+                                          model_error_final_step=model_error_final_step, write_now=write_now,
+                                          courant_number=0.5)
             
             if progress_info:
                 if id % 10 == 0:
@@ -321,6 +323,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self._initializeParticleInfo()
         self._configureParticleInfos()
     
-    
-    
+    def writeEnsembleToNetCDF(self):
+        for sim in self.particles:
+            sim.writeState()
         

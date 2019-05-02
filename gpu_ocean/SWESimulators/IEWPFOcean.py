@@ -250,7 +250,14 @@ class IEWPFOcean:
         self.log("c_array:\n" + str(c_array))
         
         # Synchronize all particles in order to find the target weight and beta
-        target_weight, beta = self.obtainTargetWeightTwoStage(c_array, nu_norm_array)
+        try:
+            target_weight, beta = self.obtainTargetWeightTwoStage(c_array, nu_norm_array)
+        except RuntimeError as re:
+            print("Exception in target_weight, beta = self.obtainTargetWeightTwoStage(c_array, nu_norm_array)")
+            print("c_array: ", c_array)
+            print("nu_norm_array: ", nu_norm_array)
+            raise
+        
         
         self.log('target_weight: ' + str(target_weight))
         self.log('beta         : ' + str(beta))
