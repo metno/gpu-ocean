@@ -82,19 +82,21 @@ forecastFileBase = os.path.join(destination_dir, 'forecast_member_')
 with open(log_file, 'w') as f:
     f.write('Data Assimilation experiment ' + timestamp + '\n')
     f.write('----------------------------------------------' + '\n')
-    f.write('Input arguments:' + '\n')
+
+def logParams():
+    log('Input arguments:')
     for arg in vars(args):
-        f.write('\t' + str((arg, getattr(args, arg))) + '\n')
-    f.write('\nPath to initial conditions for ensemble: \n')
-    f.write('\t' + ensemble_init_path + '\n')
-    f.write('Path to true state:\n')
-    f.write('\t' + truth_path + '\n')
-    f.write('destination folder:\n')
-    f.write('\t' + destination_dir + '\n')
-    f.write('Path to particle info:\n')
-    f.write('\t' + particleInfoPrefix + '\n')
-    f.write('Path to forecast members:\n')
-    f.write('\t' + forecastFileBase + '\n')
+        log('\t' + str((arg, getattr(args, arg))))
+    log('\nPath to initial conditions for ensemble:')
+    log('\t' + ensemble_init_path)
+    log('Path to true state:')
+    log('\t' + truth_path)
+    log('destination folder:')
+    log('\t' + destination_dir)
+    log('Path to particle info:')
+    log('\t' + particleInfoPrefix)
+    log('Path to forecast members:')
+    log('\t' + forecastFileBase)
 
 def log(msg, screen=True):
     with open(log_file, 'a') as f:
@@ -102,6 +104,7 @@ def log(msg, screen=True):
     if screen:
         print(msg)
         
+logParams()
         
 # Time parameters
 start_time      =  3*24*60*60 #  3 days
@@ -186,14 +189,18 @@ else:
 ### ----------------------------------------------
 #   DATA ASSIMILATION
 #
-log('---------- Starting simulation --------------') 
 
 obstime = 3*24*60*60
 
 master_tic = time.time()
 
 numDays = 7
-numHours = 24
+numHours = 4
+
+log('---------- Starting simulation --------------') 
+log('--- numDays: ' + str(numDays))
+log('--- numHours: ' + str(numHours))
+log('---------------------------------------------') 
 
 
 for day in range(numDays):
@@ -235,7 +242,7 @@ for day in range(numDays):
 
 
 log('-----------------------------------------------------------')
-log('------   STARTING FORECAST                   --------------')
+log('-----------   STARTING FORECAST              --------------')
 log('-----------------------------------------------------------')
 
 forecast_start_time = obstime
@@ -249,11 +256,10 @@ netcdf_intervals = 24*60*60
 netcdf_iterations = int((forecast_end_time - forecast_start_time)/netcdf_intervals)
 observations_iterations = int(netcdf_intervals/observation_intervals)
 
-particle_id = 0
 
-next_obs_time = ensemble.t
+for particle_id in range(ensemble.numParticles()):
 
-for sim in ensemble.particles:
+    sim = ensemble.particles[particle_id]
     
     tic = time.time()
     next_obs_time = sim.t
@@ -291,7 +297,7 @@ for sim in ensemble.particles:
     log("{:04.1f} s: ".format(toc-tic) + " Forecast for particle " + str(particle_id) + " done")
     log("      Forecast written to " + forecast_file_name)
 
-    particle_id += 1
+
 
             
 # Clean up simulation and close netcdf file
