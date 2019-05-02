@@ -155,9 +155,10 @@ log("{:02.4f} s: ".format(toc-tic) + "Created context on " + device_name, True)
 tic = time.time()
 ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx, args.ensemble_size, \
                                                ensemble_init_path, truth_path, \
-                                               args.observation_variance)#,
-                                               #cont_write_netcdf = True,
-                                               #write_netcdf_directory = destination_dir)
+                                               args.observation_variance,
+                                               cont_write_netcdf = True,
+                                               write_netcdf_directory = destination_dir,
+                                               use_lcg = True)
 
 # Configure observations according to the selected drifters:
 ensemble.configureObservations(drifterSet=drifterSet, observationInterval = args.observation_interval)
@@ -187,14 +188,15 @@ else:
 #
 log('---------- Starting simulation --------------') 
 
-endtime = 3*24*60*60
+obstime = 3*24*60*60
 
 master_tic = time.time()
 
-numDays = 1
-numHours = 4
+numDays = 7
+numHours = 24
 
-for day in days(numDays):
+
+for day in range(numDays):
     log('-------- Starting day ' + str(day))
     
     for hour in range(numHours):
@@ -203,11 +205,11 @@ for day in days(numDays):
             
             drifter_cells = ensemble.getDrifterCells()
             
-            for min in range(5):
-                endtime += 60
-                ensemble.stepToObservation(endtime, model_error_final_step=(m<4))
+            for minute in range(5):
+                obstime += 60
+                ensemble.stepToObservation(obstime, model_error_final_step=(minute<4))
                 
-                if m == 4:
+                if minute == 4:
                     iewpf.iewpf_2stage(ensemble, perform_step=False)
                 
                 ensemble.registerStateSample(drifter_cells)
@@ -216,12 +218,12 @@ for day in days(numDays):
         # Done five minutes
     
         toc = time.time()
-        log("{:04.1f} s: ".format(toc-master_tic) + " Done simulating hour " + str(hour + 1) + " of day " + (day + 3))
+        log("{:04.1f} s: ".format(toc-master_tic) + " Done simulating hour " + str(hour + 1) + " of day " + str(day + 3))
     # Done hours
 
     ensemble.dumpParticleInfosToFile(particleInfoPrefix)
     
-    # TODO: Write netcdf
+    ensemble.writeEnsembleToNetCDF()
     
 # Done days
 
@@ -236,24 +238,28 @@ log('-----------------------------------------------------------')
 log('------   STARTING FORECAST                   --------------')
 log('-----------------------------------------------------------')
 
-forecast_start_time = endtime
+forecast_start_time = obstime
 drifter_start_positions = ensemble.observeTrueDrifters()
 
-forecast_end_time = forecast_start_time + 1*24*60*60
+forecast_end_time = forecast_start_time + 3*24*60*60
 
 observation_intervals = 5*60
-observations_iterations = int((forecast_end_time - forecast_start_time)/observation_intervals)
+netcdf_intervals = 24*60*60
+
+netcdf_iterations = int((forecast_end_time - forecast_start_time)/netcdf_intervals)
+observations_iterations = int(netcdf_intervals/observation_intervals)
 
 particle_id = 0
 
-t = sim.t
+next_obs_time = ensemble.t
 
 for sim in ensemble.particles:
     
     tic = time.time()
+    next_obs_time = sim.t
 
 
-    drifters = GPUDrifterCollection.GPUDrifterCollection(gpu_ctx, num_drifters,
+    drifters = GPUDrifterCollection.GPUDrifterCollection(gpu_ctx, ensemble.getNumDrifters(),
                                                          boundaryConditions=ensemble.getBoundaryConditions(), 
                                                          domain_size_x=ensemble.getDomainSizeX(), domain_size_y=ensemble.getDomainSizeY())
     drifters.setDrifterPositions(drifter_start_positions)
@@ -264,18 +270,19 @@ for sim in ensemble.particles:
     observations = Observation.Observation()
     observations.add_observation_from_sim(sim)
 
+    for netcdf_it in range(netcdf_iterations):
+    
+        for obs_it in range(observations_iterations):
+            next_obs_time += observation_intervals
 
-    for obs_it in range(observations_iterations):
-        next_obs_time = t + observation_frequency
+            # Step until next observation 
+            sim.dataAssimilationStep(next_obs_time, write_now=False)
 
-        # Step until next observation 
-        sim.dataAssimilationStep(next_obs_time, write_now=False)
-
-        # Store observation
-        observations.add_observation_from_sim(sim)
+            # Store observation
+            observations.add_observation_from_sim(sim)
 
 
-    # TODO! Write to netcdf also!
+        sim.writeState()
         
     # Write forecast to file    
     observations.to_pickle(forecast_file_name)
