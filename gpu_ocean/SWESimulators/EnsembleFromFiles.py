@@ -349,4 +349,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.particlesActive[particle_id] = False
 
     
-        
+    def writeEnsembleToNetCDF(self):
+        for sim in self.particles:
+            sim.writeState()
+       
