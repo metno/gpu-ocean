@@ -105,6 +105,10 @@ class BaseOceanStateEnsemble(object):
             # trueState = [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
 
             for p in range(self.getNumParticles()):
+                if not self.particlesActive[p]:
+                    observedState[p,:,:] = np.nan
+                    continue
+            
                 if gpu:
                     sim = self.particles[p]
                     self.observeUnderlyingFlowKernel.prepared_async_call(self.global_size,
@@ -228,13 +232,16 @@ class BaseOceanStateEnsemble(object):
             weights = np.zeros(numParticles)
             for i in range(numParticles):
                 w = 0.0
-                for d in range(numDrifters):
-                    inn = innovations[i,d,:]
-                    w += np.dot(inn, np.dot(Rinv, inn.transpose()))
+                if self.particlesActive[i]:
+                    for d in range(numDrifters):
+                        inn = innovations[i,d,:]
+                        w += np.dot(inn, np.dot(Rinv, inn.transpose()))
 
-                ## TODO: Restructure to do the normalization before applying
-                # the exponential function. The current version is sensitive to overflows.
-                weights[i] = (1.0/((2*np.pi)**numDrifters*np.linalg.det(R)**(numDrifters/2.0)))*np.exp(-0.5*w)
+                    ## TODO: Restructure to do the normalization before applying
+                    # the exponential function. The current version is sensitive to overflows.
+                    weights[i] = (1.0/((2*np.pi)**numDrifters*np.linalg.det(R)**(numDrifters/2.0)))*np.exp(-0.5*w)
+                else:
+                    weights[i] = 0.0
         if normalize:
             return weights/np.sum(weights)
         return weights
@@ -259,10 +266,14 @@ class BaseOceanStateEnsemble(object):
         return self.getNy()*self.getDy()
     def getObservationVariance(self):
         return self.observation_variance
+    
     def getNumParticles(self):
         return np.int32(self.numParticles)
     def getNumDrifters(self):
         return np.int32(self.driftersPerOceanModel)
+    def getNumActiveParticles(self):
+        return sum(self.particlesActive)   
+     
     
     def getBoundaryConditions(self):
         return self.particles[0].boundary_conditions
@@ -278,6 +289,7 @@ class BaseOceanStateEnsemble(object):
         Downloads ocean state without ghost cells.
         """
         assert(particleNo < self.getNumParticles() and particleNo > -1), "particle out of range"
+        assert(self.particlesActive[particleNo]), "Trying to download state of deactivated particle"
         return self.particles[particleNo].download(interior_domain_only=True)
      
     @abc.abstractmethod

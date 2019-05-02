@@ -114,6 +114,12 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.numParticles = numParticles
         self.particles = [None]*(self.numParticles)
         
+        # Create an array representing active particles
+        # If one particle turns bad (e.g., becomes unstable), it is deactivated
+        # and not used further in the ensemble.
+        self.particlesActive = [True]*(self.numParticles)
+        
+        
         # Declare variables for true state and observations
         self.true_state_reader = None
         self.observations = None
@@ -129,8 +135,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
         ### Then, call appropriate helper functions for initialization
         self._initializeEnsembleFromFile()
-        self._readObservationsFromFile() 
-        self._readTruthFromFile() 
+        self._initializeObservationsFromFile() 
+        self._initializeTruthFromFile() 
         
         #### Set some variables that are used by the super class:
         self.nx, self.ny = self.particles[0].nx, self.particles[0].ny
@@ -178,10 +184,10 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
     
     
-    def _readObservationsFromFile(self):
+    def _initializeObservationsFromFile(self):
         self.true_state_reader = SimReader.SimNetCDFReader(self.true_state_nc_files[0])
     
-    def _readTruthFromFile(self):
+    def _initializeTruthFromFile(self):
         self.observations = Observation.Observation()
         self.observations.read_pickle(self.observation_files[0])
 
@@ -246,7 +252,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                      newOceanStates[i][3],
                                      newOceanStates[i][4],
                                      newOceanStates[i][5])
-                    
+                      
     def step_truth(self):
         raise NotImplementedError("This function should not be used, as the truth is expected to file.")
 
@@ -263,15 +269,18 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             write_now: Write result to NetCDF if an writer is active.
             
         """
-        id = 0
-        for particle in self.particles:
-            particle.dataAssimilationStep(observation_time, model_error_final_step=model_error_final_step, write_now=write_now)
-            
-            if progress_info:
-                if id % 10 == 0:
-                    print('Step done for particle ' + str(id))
-                id += 1
+        for p in range(self.getNumParticles()):
+        
+            # Only active particles are evolved
+            if self.particlesActive[p]:
+                self.particles[p].dataAssimilationStep(observation_time, model_error_final_step=model_error_final_step, write_now=write_now)
                 
+                if progress_info:
+                    if p % 10 == 0:
+                        print('Step done for particle ' + str(p))
+            else:
+                if progress_info:
+                    print('skipping dead particle ' + str(p))
         self.t = observation_time
         
         
@@ -302,8 +311,10 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     def registerStateSample(self, drifter_cells):
         assert(self.particleInfos is not None), 'particle info is None, and registerStateSample was called... This should not happend.'
         
-        for p in range(self.numParticles):
-            self.particleInfos[p].add_state_sample_from_sim(self.particles[p], drifter_cells)
+        for p in range(self.getNumParticles()):
+            # Only active particles are considered
+            if self.particlesActive[p]:
+                self.particleInfos[p].add_state_sample_from_sim(self.particles[p], drifter_cells)
             
     def dumpParticleInfosToFile(self, path_prefix):
         """
@@ -311,7 +322,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         """
         assert(self.particleInfos is not None), 'particle info is None, and dumpParticleInfosToFile was called... This should not happend.'
         
-        for p in range(self.numParticles):
+        for p in range(self.getNumParticles()):
             filename = path_prefix + str(p).zfill(4) + "_" + str(self._particleInfoFileDumpCounter).zfill(2) + ".bz2"
             self.particleInfos[p].to_pickle(filename)
         
@@ -321,6 +332,21 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self._initializeParticleInfo()
         self._configureParticleInfos()
     
+    def deactivateParticle(self, particle_id, msg=''):
+        '''
+        Deactivating the particle with the given particle id. 
+        This particle will no longer be considered in the ensemble
+        '''
+        print('Deactivating particle ' + str(particle_id) + ' with the following message: ')
+        print(msg)
+        
+        assert(self.particlesActive[particle_id]), 'Particle was already deactivated!'
     
+        if self.cont_write_netcdf:
+            self.particles[particle_id].writeState()
+        self.particles[particle_id].cleanUp()
+        
+        self.particlesActive[particle_id] = False
+
     
         
