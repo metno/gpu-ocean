@@ -254,6 +254,7 @@ class IEWPFOcean:
             target_weight, beta = self.obtainTargetWeightTwoStage(c_array, nu_norm_array)
         except RuntimeError as re:
             print("Exception in target_weight, beta = self.obtainTargetWeightTwoStage(c_array, nu_norm_array)")
+            print(str(re))
             print("c_array: ", c_array)
             print("nu_norm_array: ", nu_norm_array)
             raise
@@ -757,45 +758,52 @@ class IEWPFOcean:
         updating the buffers eta_a, hu_a, hv_a as:
         x_a = x_a + alpha*xi
         """
-        self.log("")
-        self.log("---- Implicit equation particle " + str(particle_id) + " ---------")
-        
-        params = {
-            'gamma': gamma,
-            'Nx': self.Nx,
-            'w_rest': w_rest,
-            'target_weight': target_weight,
-            'c_star': c_star
-        }
-        self.log("Input params:")
-        self.log(params)
-        
-        alpha_newton = newton(lambda x: self._implicitEquation_no_limit(x, gamma, self.Nx, c_star),
-                              0.5, maxiter=2000, tol=1e-6)
-                              #fprime=lambda x: self._implicitEquation_no_limit_derivative(x, gamma, self.Nx, c_star))
-        self.log("alpha_newton from Newton's method: " + str(alpha_newton))
-        self.log("Discrepancy with alpha_newton: "+ str(self._implicitEquation_no_limit(alpha_newton, gamma, self.Nx, c_star)))
-        
-        self.log("")
-        self.log("Using the Lambert W:")
-        lambert_arg = -(gamma/self.Nx)*np.exp(-gamma/self.Nx)*np.exp(-c_star/self.Nx)
-        self.log("\tLambert W arg: " + str(lambert_arg))
-        lambert_min1 = lambertw(lambert_arg, k=-1)
-        lambert_zero = lambertw(lambert_arg, k=0)
-        
-        alpha_scale = -(self.Nx/gamma)
-        alpha_min1 = alpha_scale*np.real(lambert_min1)
-        alpha_zero = alpha_scale*np.real(lambert_zero)
-        
-        self.log("\tlambert_min1 = " + str(lambert_min1) + " --> alpha = " + str(alpha_min1))
-        self.log("\tlambert_zero = " + str(lambert_zero) + " --> alpha = " + str(alpha_zero))
-        self.log("Discrepancy with alpha_zero: "+ str(self._implicitEquation_no_limit(alpha_zero, gamma, self.Nx, c_star)))
-        
-        
-        alpha = alpha_zero
-        self.log("returning alpha = " + str(alpha))
-        return alpha
-        
+        try:
+            self.log("")
+            self.log("---- Implicit equation particle " + str(particle_id) + " ---------")
+
+            params = {
+                'gamma': gamma,
+                'Nx': self.Nx,
+                'w_rest': w_rest,
+                'target_weight': target_weight,
+                'c_star': c_star,
+                'particle_id': particle_id
+            }
+            self.log("Input params:")
+            self.log(params)
+
+            alpha_newton = newton(lambda x: self._implicitEquation_no_limit(x, gamma, self.Nx, c_star),
+                                  0.5, maxiter=2000, tol=1e-6)
+                                  #fprime=lambda x: self._implicitEquation_no_limit_derivative(x, gamma, self.Nx, c_star))
+            self.log("alpha_newton from Newton's method: " + str(alpha_newton))
+            self.log("Discrepancy with alpha_newton: "+ str(self._implicitEquation_no_limit(alpha_newton, gamma, self.Nx, c_star)))
+
+            self.log("")
+            self.log("Using the Lambert W:")
+            lambert_arg = -(gamma/self.Nx)*np.exp(-gamma/self.Nx)*np.exp(-c_star/self.Nx)
+            self.log("\tLambert W arg: " + str(lambert_arg))
+            lambert_min1 = lambertw(lambert_arg, k=-1)
+            lambert_zero = lambertw(lambert_arg, k=0)
+
+            alpha_scale = -(self.Nx/gamma)
+            alpha_min1 = alpha_scale*np.real(lambert_min1)
+            alpha_zero = alpha_scale*np.real(lambert_zero)
+
+            self.log("\tlambert_min1 = " + str(lambert_min1) + " --> alpha = " + str(alpha_min1))
+            self.log("\tlambert_zero = " + str(lambert_zero) + " --> alpha = " + str(alpha_zero))
+            self.log("Discrepancy with alpha_zero: "+ str(self._implicitEquation_no_limit(alpha_zero, gamma, self.Nx, c_star)))
+
+
+            alpha = alpha_zero
+            self.log("returning alpha = " + str(alpha))
+            return alpha
+        except RuntimeError as re:
+            print('Got exception during solveImplicitEquation')
+            print(str(re))
+            print("Input params:")
+            print(params)
+            raise
         
     def _createS(self, ensemble):
         """
