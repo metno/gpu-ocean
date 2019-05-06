@@ -221,10 +221,7 @@ class Observation:
             prev_pos = prev_pos[self.drifterSet, :]
         
         num_drifters = prev_pos.shape[0]
-        hu_hv = (current_pos - prev_pos)*waterDepth/dt
-        
-        print('hu_hv.shape: ', hu_hv.shape)
-        
+        hu_hv = (current_pos - prev_pos)*waterDepth/dt        
         
         observation = np.zeros((num_drifters, 4))
         observation[:,:2] = current_pos
