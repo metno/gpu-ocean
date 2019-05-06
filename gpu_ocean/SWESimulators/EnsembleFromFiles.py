@@ -315,6 +315,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             # Only active particles are considered
             if self.particlesActive[p]:
                 self.particleInfos[p].add_state_sample_from_sim(self.particles[p], drifter_cells)
+                
             
     def dumpParticleInfosToFile(self, path_prefix):
         """
@@ -350,6 +351,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
 
     
     def writeEnsembleToNetCDF(self):
-        for sim in self.particles:
-            sim.writeState()
-       
+        for p in range(self.getNumParticles()):
+            # Only active particles are considered
+            if self.particlesActive[p]:
+                self.particles[p].writeState()
+                

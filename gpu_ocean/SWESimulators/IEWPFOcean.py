@@ -247,7 +247,7 @@ class IEWPFOcean:
                 
                 if np.isnan(phi_array[p]) or np.isnan(nu_norm_array[p]) or np.isnan(gamma_array[p]):
                     ensemble.deactivateParticle(p, msg='Failed with the Kalman gain, ' + \
-                            '(phi, gamma, nu_norm): ' + str(phi_array[p], gamma_array[p], nu_norm_array[p]))
+                            '(phi, gamma, nu_norm): ' + str((phi_array[p], gamma_array[p], nu_norm_array[p])))
                 
             else:
                 phi_array[p], gamma_array[p], nu_norm_array[p] = np.nan, np.nan, np.nan
@@ -272,6 +272,8 @@ class IEWPFOcean:
         self.log('target_weight: ' + str(target_weight))
         self.log('beta         : ' + str(beta))
         
+
+        
         for p in range(ensemble.getNumParticles()):
             if ensemble.particlesActive[p]:
                 # Solve implicit equation
@@ -286,6 +288,10 @@ class IEWPFOcean:
                     # Add scaled sample from P to the state vector
                     ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
                                                                              update_random_field=False)
+                    
+                    # Update ghost cells to ensure that periodic boundary conditions are satisfied
+                    ensemble.particles[p].applyBoundaryConditions()
+                    
                 except RuntimeError as re:
                     ensemble.deactivateParticle(p, msg='Failed solving implicit equation: ' + str(re))
                 
@@ -345,6 +351,9 @@ class IEWPFOcean:
             ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
                                                                      update_random_field=False, \
                                                                      perturbation_scale=np.sqrt(alpha))   
+            
+            # Update ghost cells to ensure that periodic boundary conditions are satisfied
+            ensemble.particles[p].applyBoundaryConditions()
             
             # TODO
             # Reset the drifter positions in each particle.
@@ -450,6 +459,9 @@ class IEWPFOcean:
             ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
                                                                      update_random_field=False, \
                                                                      perturbation_scale=np.sqrt(alpha))
+            
+            # Update ghost cells to ensure that periodic boundary conditions are satisfied
+            ensemble.particles[p].applyBoundaryConditions()
             
             add_scaled_event.record(self.master_stream)
             add_scaled_event.synchronize()

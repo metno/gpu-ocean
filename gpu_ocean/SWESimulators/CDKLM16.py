@@ -411,8 +411,7 @@ class CDKLM16(Simulator.Simulator):
                                 self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
                                 local_dt, wind_stress_t, 1)
 
-                self.bc_kernel.boundaryCondition(self.gpu_stream, \
-                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
+                # Applying final boundary conditions after perturbation (if applicable)
                 
             elif (self.rk_order == 1):
                 self.callKernel(self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
@@ -421,9 +420,8 @@ class CDKLM16(Simulator.Simulator):
                                 
                 self.gpu_data.swap()
 
-                self.bc_kernel.boundaryCondition(self.gpu_stream, \
-                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
-
+                # Applying boundary conditions after perturbation (if applicable)
+                
             # 3rd order RK method:
             elif (self.rk_order == 3):
 
@@ -445,12 +443,15 @@ class CDKLM16(Simulator.Simulator):
                                 self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
                                 local_dt, wind_stress_t, 2)
                 
-                self.bc_kernel.boundaryCondition(self.gpu_stream, \
-                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
+                # Applying final boundary conditions after perturbation (if applicable)
             
             # Perturb ocean state with model error
             if self.small_scale_perturbation and apply_stochastic_term:
                 self.small_scale_model_error.perturbSim(self)
+                
+            # Apply boundary conditions
+            self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
             
             # Evolve drifters
             if self.hasDrifters:
@@ -512,6 +513,10 @@ class CDKLM16(Simulator.Simulator):
     def perturbState(self, q0_scale=1):
         self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
+    def applyBoundaryConditions(self):
+        self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
+    
     def dataAssimilationStep(self, observation_time, model_error_final_step=True, write_now=True, courant_number=0.8):
         """
         The model runs until self.t = observation_time - self.model_time_step with model error.
@@ -537,6 +542,8 @@ class CDKLM16(Simulator.Simulator):
 
         assert(full_model_time_steps > 0), "There is less than CDKLM16.model_time_step until the observation"
 
+        # Start by updating the timestep size.
+        self.updateDt(courant_number=courant_number)
             
         # Loop standard steps:
         for i in range(full_model_time_steps+1):
