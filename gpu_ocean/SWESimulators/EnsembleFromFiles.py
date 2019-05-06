@@ -133,17 +133,18 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
         self.observation_type = dautils.ObservationType.UnderlyingFlow
         
-        ### Then, call appropriate helper functions for initialization
+        ### Then, call appropriate helper functions for initialization of ensemble and true states
         self._initializeEnsembleFromFile()
-        self._initializeObservationsFromFile() 
         self._initializeTruthFromFile() 
         
-        #### Set some variables that are used by the super class:
+        ### Set some variables that are used by the super class:
         self.nx, self.ny = self.particles[0].nx, self.particles[0].ny
         self.dx, self.dy = self.particles[0].dx, self.particles[0].dy
         self.dt = self.particles[0].model_time_step
         self.t  = self.particles[0].t
-        
+
+        ### Initialize observations
+        self._initializeObservationsFromFile() 
         self.driftersPerOceanModel = self.observations.get_num_drifters()
         
         assert(np.isscalar(observation_variance) or observation_variance.shape == (2,2)), 'observation_variance must be scalar or 2x2 matrix'
@@ -183,12 +184,12 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             self.particleInfos[p] = ParticleInfo.ParticleInfo()
         
     
-    
-    def _initializeObservationsFromFile(self):
-        self.true_state_reader = SimReader.SimNetCDFReader(self.true_state_nc_files[0])
-    
     def _initializeTruthFromFile(self):
-        self.observations = Observation.Observation()
+        self.true_state_reader = SimReader.SimNetCDFReader(self.true_state_nc_files[0])
+
+    def _initializeObservationsFromFile(self):    
+        self.observations = Observation.Observation(domain_size_x=self.getDomainSizeX(), 
+                                                    domain_size_y=self.getDomainSizeY())
         self.observations.read_pickle(self.observation_files[0])
 
     

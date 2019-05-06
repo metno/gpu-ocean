@@ -39,11 +39,16 @@ class Observation:
     Class for creating and reading observations.
     """
     
-    def __init__(self, observation_type=dautils.ObservationType.UnderlyingFlow):
+    def __init__(self, observation_type=dautils.ObservationType.UnderlyingFlow,
+                 domain_size_x=None, domain_size_y=None):
         """
         Class for facilitating drifter observations in files.
         The pandas DataFrame contains drifter positions only for 
         each observation time. 
+        
+        If the domain is considered to have periodic boundary conditions, the
+        size of the domain should be provided to ensure correct estimated 
+        velocities.
         """
         
         self.observation_type = observation_type
@@ -55,6 +60,9 @@ class Observation:
         # Configuration parameters:
         self.drifterSet = None
         self.observationInterval = 1
+        
+        self.domain_size_x = domain_size_x
+        self.domain_size_y = domain_size_y
         
         
     def get_num_observations(self):
@@ -208,17 +216,40 @@ class Observation:
 
         current_pos = self.obs_df.iloc[index     ][self.columns[1]]
         prev_pos    = self.obs_df.iloc[prev_index][self.columns[1]]
-        num_drifters = prev_pos.shape[0]
+        if self.drifterSet is not None:
+            current_pos = current_pos[self.drifterSet, :]
+            prev_pos = prev_pos[self.drifterSet, :]
         
+        num_drifters = prev_pos.shape[0]
         hu_hv = (current_pos - prev_pos)*waterDepth/dt
+        
+        print('hu_hv.shape: ', hu_hv.shape)
+        
         
         observation = np.zeros((num_drifters, 4))
         observation[:,:2] = current_pos
         observation[:,2:] = hu_hv
-        
-        if self.drifterSet is not None:
-            return observation[self.drifterSet, :]
-        
+            
+        # Correct velocities for drifters that travel through the domain boundary
+        if self.domain_size_x or self.domain_size_y:
+            for d in range(observation.shape[0]):
+                
+                if self.domain_size_x:
+                    velocity_x_p = (current_pos[d,0] - prev_pos[d,0] + self.domain_size_x)*waterDepth/dt
+                    velocity_x_m = (current_pos[d,0] - prev_pos[d,0] - self.domain_size_x)*waterDepth/dt
+                    if abs(velocity_x_p) < abs(observation[d,2]):
+                        observation[d,2] = velocity_x_p
+                    if abs(velocity_x_m) < abs(observation[d,2]):
+                        observation[d,2] = velocity_x_m
+                
+                if self.domain_size_y:
+                    velocity_y_p = (current_pos[d,1] - prev_pos[d,1] + self.domain_size_y)*waterDepth/dt
+                    velocity_y_m = (current_pos[d,1] - prev_pos[d,1] - self.domain_size_y)*waterDepth/dt
+                    if abs(velocity_y_p) < abs(observation[d,3]):
+                        observation[d,3] = velocity_y_p
+                    if abs(velocity_y_m) < abs(observation[d,3]):
+                        observation[d,3] = velocity_y_m
+                
         return observation
         
         
