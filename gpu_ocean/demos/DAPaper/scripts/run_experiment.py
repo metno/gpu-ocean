@@ -55,9 +55,7 @@ elif args.ensemble_size < 1:
     parser.error("Illegal ensemble size " + str(args.ensemble_size))
 
 
-    
-    
-    
+
 ###-----------------------------------------
 ## Define files for ensemble and truth.
 ##
@@ -106,6 +104,18 @@ def log(msg, screen=True):
         
 logParams()
         
+    
+# Reading and checking method
+method = str(args.method).lower()
+if method == 'iewpf2':
+    log(' ----> Using IEWPF 2 stage method')
+elif method == 'none':
+    log(' ----> No data assimilation')
+else:
+    log('Illegal method: ' + str(method))
+    sys.exit(-1)
+    
+    
 # Time parameters
 start_time      =  3*24*60*60 #  3 days
 simulation_time = 10*24*60*60 # 10 days (three days spin up is prior to this)fa
@@ -174,7 +184,7 @@ log("{:02.4f} s: ".format(toc-tic) + "Ensemble is loaded and created", True)
 #
 tic = time.time()
 iewpf = None
-if str(args.method).lower().startswith('iewpf'):
+if method.startswith('iewpf'):
     iewpf = IEWPFOcean.IEWPFOcean(ensemble)
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class initiated", True)
@@ -212,16 +222,23 @@ for day in range(numDays):
             
             drifter_cells = ensemble.getDrifterCells()
             
-            for minute in range(5):
-                obstime += 60
-                ensemble.stepToObservation(obstime, model_error_final_step=(minute<4))
+            if method == "iewpf2":
+                for minute in range(5):
+                    obstime += 60
+                    ensemble.stepToObservation(obstime, model_error_final_step=(minute<4))
+
+                    if minute == 4:
+                        iewpf.iewpf_2stage(ensemble, perform_step=False)
+
+                    ensemble.registerStateSample(drifter_cells)
+                # Done minutes
+            elif method == "none":
+                for minute in range(5):
+                    obstime += 60
+                    ensemble.stepToObservation(obstime, model_error_final_step=True)
+                    ensemble.registerStateSample(drifter_cells)
+                # Done minutes
                 
-                if minute == 4:
-                    iewpf.iewpf_2stage(ensemble, perform_step=False)
-                
-                ensemble.registerStateSample(drifter_cells)
-            # Done minutes
-            
         # Done five minutes
     
         toc = time.time()
@@ -258,45 +275,49 @@ observations_iterations = int(netcdf_intervals/observation_intervals)
 
 
 for particle_id in range(ensemble.getNumParticles()):
-
-    sim = ensemble.particles[particle_id]
     
-    tic = time.time()
-    next_obs_time = sim.t
+    if ensemble.particlesActive[particle_id]:
+
+        sim = ensemble.particles[particle_id]
+
+        tic = time.time()
+        next_obs_time = sim.t
 
 
-    drifters = GPUDrifterCollection.GPUDrifterCollection(gpu_ctx, ensemble.getNumDrifters(),
-                                                         boundaryConditions=ensemble.getBoundaryConditions(), 
-                                                         domain_size_x=ensemble.getDomainSizeX(), domain_size_y=ensemble.getDomainSizeY())
-    drifters.setDrifterPositions(drifter_start_positions)
-    sim.attachDrifters(drifters)
+        drifters = GPUDrifterCollection.GPUDrifterCollection(gpu_ctx, ensemble.getNumDrifters(),
+                                                             boundaryConditions=ensemble.getBoundaryConditions(), 
+                                                             domain_size_x=ensemble.getDomainSizeX(), domain_size_y=ensemble.getDomainSizeY())
+        drifters.setDrifterPositions(drifter_start_positions)
+        sim.attachDrifters(drifters)
 
-    forecast_file_name = forecastFileBase + str(particle_id).zfill(4) + ".bz2"
+        forecast_file_name = forecastFileBase + str(particle_id).zfill(4) + ".bz2"
 
-    observations = Observation.Observation()
-    observations.add_observation_from_sim(sim)
+        observations = Observation.Observation()
+        observations.add_observation_from_sim(sim)
 
-    for netcdf_it in range(netcdf_iterations):
+        for netcdf_it in range(netcdf_iterations):
+
+            for obs_it in range(observations_iterations):
+                next_obs_time += observation_intervals
+
+                # Step until next observation 
+                sim.dataAssimilationStep(next_obs_time, write_now=False)
+
+                # Store observation
+                observations.add_observation_from_sim(sim)
+
+
+            sim.writeState()
+
+        # Write forecast to file    
+        observations.to_pickle(forecast_file_name)
+
+        toc = time.time()
+        log("{:04.1f} s: ".format(toc-tic) + " Forecast for particle " + str(particle_id) + " done")
+        log("      Forecast written to " + forecast_file_name)
     
-        for obs_it in range(observations_iterations):
-            next_obs_time += observation_intervals
-
-            # Step until next observation 
-            sim.dataAssimilationStep(next_obs_time, write_now=False)
-
-            # Store observation
-            observations.add_observation_from_sim(sim)
-
-
-        sim.writeState()
-        
-    # Write forecast to file    
-    observations.to_pickle(forecast_file_name)
-
-    toc = time.time()
-    log("{:04.1f} s: ".format(toc-tic) + " Forecast for particle " + str(particle_id) + " done")
-    log("      Forecast written to " + forecast_file_name)
-
+    else:
+        log("Skipping forecast for particle " + str(particle_id) + ", as this particle is dead")
 
 
             
