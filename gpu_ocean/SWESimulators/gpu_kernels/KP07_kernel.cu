@@ -305,7 +305,6 @@ __global__ void swe_2D(
     //funcitons in common.opencl
     __shared__ float Qx[3][block_height+2][block_width+2];
     __shared__ float F[3][block_height+1][block_width+1];
-    __shared__ float G[3][block_height+1][block_width+1];
 
     // Shared memory for bathymetry
     __shared__ float  Hi[block_height+4][block_width+4];
@@ -349,9 +348,23 @@ __global__ void swe_2D(
     computeFluxF(Q, Qx, F, Hi, g_);
     __syncthreads();
     
-    const float ST2 = (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) ? 
-                        bottomSourceTerm2_kp(Q, Qx, Hi, g_, tx + 2, ty + 2) : 0.0f;
+    float R1 = 0.0f;
+    float R2 = 0.0f;
+    float R3 = 0.0f;
+    
+    if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
+        const int i = tx + 2; //Skip local ghost cells, i.e., +2
+        const int j = ty + 2; 
+        
+        // Find bottom topography source terms: S3
+        const float ST2 = bottomSourceTerm2_kp(Q, Qx, Hi, g_, i, j);
 
+        R1 = - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_;
+        R2 = - (F[1][ty  ][tx+1] - F[1][ty][tx]) / dx_
+             + ( - ST2/dx_);
+        R3 = - (F[2][ty  ][tx+1] - F[2][ty][tx]) / dx_;
+    }
+    __syncthreads();
     
     // Find flux in y-direction and write to G
     
@@ -365,7 +378,7 @@ __global__ void swe_2D(
     __syncthreads();
     
     //Compute fluxes along the x and y axis
-    computeFluxG(Q, Qx, G, Hi, g_);
+    computeFluxG(Q, Qx, F, Hi, g_);
     __syncthreads();
     
     
@@ -375,7 +388,7 @@ __global__ void swe_2D(
         const int i = tx + 2; //Skip local ghost cells, i.e., +2
         const int j = ty + 2;
 
-        // Find bottom topography source terms: S2, S3
+        // Find bottom topography source terms: S3
         const float ST3 = bottomSourceTerm3_kp(Q, Qx, Hi, g_, i, j);
         
         const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
@@ -387,16 +400,10 @@ __global__ void swe_2D(
         float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
                             dy_, y_zero_reference_cell_);
         
-        const float R1 =
-            - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_
-            - (G[0][ty+1][tx  ] - G[0][ty][tx]) / dy_;
-        const float R2 =
-            - (F[1][ty  ][tx+1] - F[1][ty][tx]) / dx_ 
-            - (G[1][ty+1][tx  ] - G[1][ty][tx]) / dy_
-            + (X + coriolis_f*Q[2][j][i] - ST2/dx_);
-        const float R3 =
-            - (F[2][ty  ][tx+1] - F[2][ty][tx]) / dx_
-            - (G[2][ty+1][tx  ] - G[2][ty][tx]) / dy_
+        R1 += - (F[0][ty+1][tx  ] - F[0][ty][tx]) / dy_;
+        R2 += - (F[1][ty+1][tx  ] - F[1][ty][tx]) / dy_
+            + (X + coriolis_f*Q[2][j][i]);
+        R3 += - (F[2][ty+1][tx  ] - F[2][ty][tx]) / dy_
             + (Y - coriolis_f*Q[1][j][i] - ST3/dy_);
                                    
         
