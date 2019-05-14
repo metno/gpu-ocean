@@ -119,7 +119,31 @@ __device__ void adjustSlopes_y(float Qy[3][block_height+2][block_width+2],
 
 
 
+__device__ float3 computeSingleFluxF(float Q[3][block_height+4][block_width+4],
+                float Qx[3][block_height+2][block_width+2],
+                float Hi[block_height+4][block_width+4],
+                const float g_,
+                const int i,
+                const int j) {
+                    
+    const int l = j + 2; //Skip ghost cells
+    const int k = i + 1;
 
+    // Q at interface from the right and left
+    // In CentralUpwindFlux we need [eta, hu, hv]
+    // Subtract the bottom elevation on the relevant face in Q[0]
+    float3 Qp = make_float3(Q[0][l][k+1] - Qx[0][j][i+1],
+                         Q[1][l][k+1] - Qx[1][j][i+1],
+                         Q[2][l][k+1] - Qx[2][j][i+1]);
+    float3 Qm = make_float3(Q[0][l][k  ] + Qx[0][j][i  ],
+                         Q[1][l][k  ] + Qx[1][j][i  ],
+                         Q[2][l][k  ] + Qx[2][j][i  ]);
+                               
+    // Computed flux
+    const float RHx = reconstructHx(Hi, k+1, l);
+    const float3 flux = CentralUpwindFluxBottom(Qm, Qp, RHx, g_);
+    return flux;
+}
 
 __device__ void computeFluxF(float Q[3][block_height+4][block_width+4],
                 float Qx[3][block_height+2][block_width+2],
@@ -154,7 +178,34 @@ __device__ void computeFluxF(float Q[3][block_height+4][block_width+4],
     }    
 }
 
-
+__device__ float3 computeSingleFluxG(float Q[3][block_height+4][block_width+4],
+                float Qy[3][block_height+2][block_width+2],
+                float Hi[block_height+4][block_width+4],
+                const float g_,
+                const int i,
+                const int j) {
+     
+    const int l = j + 1;
+    const int k = i + 2; //Skip ghost cells
+    
+    // Q at interface from the right and left
+    // Note that we swap hu and hv
+    float3 Qp = make_float3(Q[0][l+1][k] - Qy[0][j+1][i],
+                         Q[2][l+1][k] - Qy[2][j+1][i],
+                         Q[1][l+1][k] - Qy[1][j+1][i]);
+    float3 Qm = make_float3(Q[0][l  ][k] + Qy[0][j  ][i],
+                         Q[2][l  ][k] + Qy[2][j  ][i],
+                         Q[1][l  ][k] + Qy[1][j  ][i]);
+                               
+    // Computed flux
+    // Note that we swap back
+    const float RHy = reconstructHy(Hi, k , l+1);
+    const float3 flux = CentralUpwindFluxBottom(Qm, Qp, RHy, g_);
+    
+    // Return reordered fluxes 
+    return make_float3(flux.x, flux.z, flux.y);
+}
+  
 __device__ void computeFluxG(float Q[3][block_height+4][block_width+4],
                 float Qy[3][block_height+2][block_width+2],
                 float G[3][block_height+1][block_width+1],
@@ -163,7 +214,7 @@ __device__ void computeFluxG(float Q[3][block_height+4][block_width+4],
     //Index of thread within block
     const int tx = threadIdx.x;
     const int ty = threadIdx.y;
-    
+
     for (int j=ty; j<block_height+1; j+=blockDim.y) {
         const int l = j + 1;
         for (int i=tx; i<block_width; i+=blockDim.x) {            
@@ -302,9 +353,8 @@ __global__ void swe_2D(
     __shared__ float Q[3][block_height+4][block_width+4];
     
     //The following slightly wastes memory, but enables us to reuse the 
-    //funcitons in common.opencl
+    //funcitons in common.cu
     __shared__ float Qx[3][block_height+2][block_width+2];
-    __shared__ float F[3][block_height+1][block_width+1];
 
     // Shared memory for bathymetry
     __shared__ float  Hi[block_height+4][block_width+4];
@@ -333,7 +383,7 @@ __global__ void swe_2D(
 	// Looks scary to have fence within if, but the bc parameters are static between threads.
     }
     
-    // Find flux in x-direction and write to F
+    // Reconstruct Q in x-direction into Qx
     
     //Reconstruct slopes along x and axis
     // The Qx is here dQ/dx*0.5*dx
@@ -342,10 +392,6 @@ __global__ void swe_2D(
 
     // Adjust the slopes to avoid negative values at integration points
     adjustSlopes_x(Qx, Hi, Q);
-    __syncthreads();
-    
-    //Compute fluxes along the x and y axis
-    computeFluxF(Q, Qx, F, Hi, g_);
     __syncthreads();
     
     float R1 = 0.0f;
@@ -359,14 +405,19 @@ __global__ void swe_2D(
         // Find bottom topography source terms: S3
         const float ST2 = bottomSourceTerm2_kp(Q, Qx, Hi, g_, i, j);
 
-        R1 = - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_;
-        R2 = - (F[1][ty  ][tx+1] - F[1][ty][tx]) / dx_
+        // Flux along x-direction
+        const float3 F_flux_p = computeSingleFluxF(Q, Qx, Hi, g_, tx+1, ty);
+        const float3 F_flux_m = computeSingleFluxF(Q, Qx, Hi, g_, tx  , ty);
+        
+
+        R1 = - (F_flux_p.x - F_flux_m.x) / dx_;
+        R2 = - (F_flux_p.y - F_flux_m.y) / dx_
              + ( - ST2/dx_);
-        R3 = - (F[2][ty  ][tx+1] - F[2][ty][tx]) / dx_;
+        R3 = - (F_flux_p.z - F_flux_m.z) / dx_;
     }
     __syncthreads();
     
-    // Find flux in y-direction and write to G
+    // Reconstruct Q in y-direction while reusing Qx shmem buffer
     
     //Reconstruct slopes along x and axis
     // The Qx is here dQ/dx*0.5*dx
@@ -376,11 +427,7 @@ __global__ void swe_2D(
     // Adjust the slopes to avoid negative values at integration points
     adjustSlopes_y(Qx, Hi, Q);
     __syncthreads();
-    
-    //Compute fluxes along the x and y axis
-    computeFluxG(Q, Qx, F, Hi, g_);
-    __syncthreads();
-    
+      
     
     //Sum fluxes and advance in time for all internal cells
     //Check global indices against global domain
@@ -388,25 +435,28 @@ __global__ void swe_2D(
         const int i = tx + 2; //Skip local ghost cells, i.e., +2
         const int j = ty + 2;
 
+        // Flux along y-direction
+        const float3 G_flux_p = computeSingleFluxG(Q, Qx, Hi, g_, tx, ty+1);
+        const float3 G_flux_m = computeSingleFluxG(Q, Qx, Hi, g_, tx, ty  );
+
+
         // Find bottom topography source terms: S3
         const float ST3 = bottomSourceTerm3_kp(Q, Qx, Hi, g_, i, j);
         
         const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
         const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
 
-        
         // Coriolis parameter
         float global_thread_y = tj-2; // Global id including ghost cells
         float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
                             dy_, y_zero_reference_cell_);
         
-        R1 += - (F[0][ty+1][tx  ] - F[0][ty][tx]) / dy_;
-        R2 += - (F[1][ty+1][tx  ] - F[1][ty][tx]) / dy_
+        R1 += - (G_flux_p.x - G_flux_m.x) / dy_;
+        R2 += - (G_flux_p.y - G_flux_m.y) / dy_
             + (X + coriolis_f*Q[2][j][i]);
-        R3 += - (F[2][ty+1][tx  ] - F[2][ty][tx]) / dy_
+        R3 += - (G_flux_p.z - G_flux_m.z) / dy_
             + (Y - coriolis_f*Q[1][j][i] - ST3/dy_);
-                                   
-        
+
         float* const eta_row  = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
         float* const hu_row = (float*) ((char*) hu1_ptr_ + hu1_pitch_*tj);
         float* const hv_row = (float*) ((char*) hv1_ptr_ + hv1_pitch_*tj);
