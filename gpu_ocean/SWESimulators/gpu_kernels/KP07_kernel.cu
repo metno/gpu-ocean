@@ -304,7 +304,6 @@ __global__ void swe_2D(
     //The following slightly wastes memory, but enables us to reuse the 
     //funcitons in common.opencl
     __shared__ float Qx[3][block_height+2][block_width+2];
-    __shared__ float Qy[3][block_height+2][block_width+2];
     __shared__ float F[3][block_height+1][block_width+1];
     __shared__ float G[3][block_height+1][block_width+1];
 
@@ -335,20 +334,38 @@ __global__ void swe_2D(
 	// Looks scary to have fence within if, but the bc parameters are static between threads.
     }
     
+    // Find flux in x-direction and write to F
+    
     //Reconstruct slopes along x and axis
     // The Qx is here dQ/dx*0.5*dx
     minmodSlopeX(Q, Qx, theta_);
-    minmodSlopeY(Q, Qy, theta_);
     __syncthreads();
 
     // Adjust the slopes to avoid negative values at integration points
     adjustSlopes_x(Qx, Hi, Q);
-    adjustSlopes_y(Qy, Hi, Q);
     __syncthreads();
     
     //Compute fluxes along the x and y axis
     computeFluxF(Q, Qx, F, Hi, g_);
-    computeFluxG(Q, Qy, G, Hi, g_);
+    __syncthreads();
+    
+    const float ST2 = (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) ? 
+                        bottomSourceTerm2_kp(Q, Qx, Hi, g_, tx + 2, ty + 2) : 0.0f;
+
+    
+    // Find flux in y-direction and write to G
+    
+    //Reconstruct slopes along x and axis
+    // The Qx is here dQ/dx*0.5*dx
+    minmodSlopeY(Q, Qx, theta_);
+    __syncthreads();
+
+    // Adjust the slopes to avoid negative values at integration points
+    adjustSlopes_y(Qx, Hi, Q);
+    __syncthreads();
+    
+    //Compute fluxes along the x and y axis
+    computeFluxG(Q, Qx, G, Hi, g_);
     __syncthreads();
     
     
@@ -358,37 +375,36 @@ __global__ void swe_2D(
         const int i = tx + 2; //Skip local ghost cells, i.e., +2
         const int j = ty + 2;
 
-	// Find bottom topography source terms: S2, S3
-	const float ST2 = bottomSourceTerm2_kp(Q, Qx, Hi, g_, i, j);
-	const float ST3 = bottomSourceTerm3_kp(Q, Qy, Hi, g_, i, j);
-	
-    const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
-    const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
+        // Find bottom topography source terms: S2, S3
+        const float ST3 = bottomSourceTerm3_kp(Q, Qx, Hi, g_, i, j);
+        
+        const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
+        const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
 
-	
-	// Coriolis parameter
-	float global_thread_y = tj-2; // Global id including ghost cells
-	float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
-						dy_, y_zero_reference_cell_);
-	
-	const float R1 =
-	    - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_
-	    - (G[0][ty+1][tx  ] - G[0][ty][tx]) / dy_;
-	const float R2 =
-	    - (F[1][ty  ][tx+1] - F[1][ty][tx]) / dx_ 
-	    - (G[1][ty+1][tx  ] - G[1][ty][tx]) / dy_
-	    + (X + coriolis_f*Q[2][j][i] - ST2/dx_);
-	const float R3 =
-	    - (F[2][ty  ][tx+1] - F[2][ty][tx]) / dx_
-	    - (G[2][ty+1][tx  ] - G[2][ty][tx]) / dy_
-	    + (Y - coriolis_f*Q[1][j][i] - ST3/dy_);
-						       
-	
-	float* const eta_row  = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
+        
+        // Coriolis parameter
+        float global_thread_y = tj-2; // Global id including ghost cells
+        float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+                            dy_, y_zero_reference_cell_);
+        
+        const float R1 =
+            - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_
+            - (G[0][ty+1][tx  ] - G[0][ty][tx]) / dy_;
+        const float R2 =
+            - (F[1][ty  ][tx+1] - F[1][ty][tx]) / dx_ 
+            - (G[1][ty+1][tx  ] - G[1][ty][tx]) / dy_
+            + (X + coriolis_f*Q[2][j][i] - ST2/dx_);
+        const float R3 =
+            - (F[2][ty  ][tx+1] - F[2][ty][tx]) / dx_
+            - (G[2][ty+1][tx  ] - G[2][ty][tx]) / dy_
+            + (Y - coriolis_f*Q[1][j][i] - ST3/dy_);
+                                   
+        
+        float* const eta_row  = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
         float* const hu_row = (float*) ((char*) hu1_ptr_ + hu1_pitch_*tj);
         float* const hv_row = (float*) ((char*) hv1_ptr_ + hv1_pitch_*tj);
 
-	const float C = 2.0f*r_*dt_/(Q[0][j][i]+Hm);
+        const float C = 2.0f*r_*dt_/(Q[0][j][i]+Hm);
                     
         if  (step_ == 0) {
             //First step of RK2 ODE integrator
