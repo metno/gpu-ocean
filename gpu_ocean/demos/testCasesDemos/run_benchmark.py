@@ -89,7 +89,7 @@ size = 0.4*min(args.nx*dx, args.ny*dy)
 def my_exp(i, j):
         x = dx*i - x_center
         y = dy*j - y_center
-        return np.exp(-10*(x*x/(size*size)+y*y/(size*size))) * (np.sqrt(x**2 + y**2) < size)
+        return np.exp(-10*(x*x/(size*size)+y*y/(size*size))) #* (np.sqrt(x*x + y*y) < size)
         
 """
 Initializes the KP simulator
