@@ -81,34 +81,43 @@ __device__ void adjustSlopeUy(float Qy[3][block_height+2][block_width+2],
     const float RHy_p = reconstructHy(Hi, p, q+1);
 
     Qy[0][qQy][pQy] = (Q[0][q][p]-Qy[0][qQy][pQy] < -RHy_m) ?
-	(Q[0][q][p] + RHy_m) : Qy[0][qQy][pQy];
+        (Q[0][q][p] + RHy_m) : Qy[0][qQy][pQy];
     Qy[0][qQy][pQy] = (Q[0][q][p]+Qy[0][qQy][pQy] < -RHy_p) ?
-	(-RHy_p - Q[0][q][p]) : Qy[0][qQy][pQy];
+        (-RHy_p - Q[0][q][p]) : Qy[0][qQy][pQy];
     
 }
 
-__device__ void adjustSlopes(float Qx[3][block_height+2][block_width+2],
-            float Qy[3][block_height+2][block_width+2],
+__device__ void adjustSlopes_x(float Qx[3][block_height+2][block_width+2],
             float Hi[block_height+4][block_width+4],
             float Q[3][block_height+4][block_width+4] ) {
     const int p = threadIdx.x + 2;
     const int q = threadIdx.y + 2;
 
     adjustSlopeUx(Qx, Hi, Q, p, q);
+
+    // Use one warp to perform the extra adjustments
+    if (threadIdx.x == 0) {
+        adjustSlopeUx(Qx, Hi, Q, 1, q);
+        adjustSlopeUx(Qx, Hi, Q, block_width+2, q);
+    }
+}
+
+__device__ void adjustSlopes_y(float Qy[3][block_height+2][block_width+2],
+            float Hi[block_height+4][block_width+4],
+            float Q[3][block_height+4][block_width+4] ) {
+    const int p = threadIdx.x + 2;
+    const int q = threadIdx.y + 2;
+
     adjustSlopeUy(Qy, Hi, Q, p, q);
 
     // Use one warp to perform the extra adjustments
     if (threadIdx.y == 0) {
         adjustSlopeUy(Qy, Hi, Q, p, 1);
         adjustSlopeUy(Qy, Hi, Q, p, block_height+2);
-
-        if (threadIdx.x < block_height) {
-            adjustSlopeUx(Qx, Hi, Q, 1, p);
-            adjustSlopeUx(Qx, Hi, Q, block_width+2, p);
-        }
-    }
-    
+    } 
 }
+
+
 
 
 
@@ -333,7 +342,8 @@ __global__ void swe_2D(
     __syncthreads();
 
     // Adjust the slopes to avoid negative values at integration points
-    adjustSlopes(Qx, Qy, Hi, Q);
+    adjustSlopes_x(Qx, Hi, Q);
+    adjustSlopes_y(Qy, Hi, Q);
     __syncthreads();
     
     //Compute fluxes along the x and y axis
