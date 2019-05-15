@@ -443,8 +443,8 @@ __global__ void swe_2D(
         // Find bottom topography source terms: S3
         const float ST3 = bottomSourceTerm3_kp(Q, Qx, Hi, g_, i, j);
         
-        const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
-        const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
+        const float X = windStressX(wind_stress_t_, ti+0.5f, tj+0.5f, nx_, ny_);
+        const float Y = windStressY(wind_stress_t_, ti+0.5f, tj+0.5f, nx_, ny_);
 
         // Coriolis parameter
         float global_thread_y = tj-2; // Global id including ghost cells
