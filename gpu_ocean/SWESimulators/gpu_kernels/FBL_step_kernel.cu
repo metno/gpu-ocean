@@ -1,13 +1,10 @@
 /*
-This software is part of GPU Ocean.
-
-Copyright (C) 2018, 2019 SINTEF Digital
-Copyright (C) 2018, 2019 Norwegian Meteorological Institute
-
-This CUDA kernel implements the Forward Backward Linear 
+This OpenCL kernel implements part of the Forward Backward Linear 
 numerical scheme for the shallow water equations, described in 
 L. P. Røed, "Documentation of simple ocean models for use in ensemble
-predictions", Met no report 2012/3 and 2012/5.
+predictions", Met no report 2012/3 and 2012/5 .
+
+Copyright (C) 2016  SINTEF ICT
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -172,8 +169,8 @@ __global__ void fblStepKernel(
             //Compute the U at the next timestep
             float U_next = B*(U_current + dt_*(fV_m + P + X) );
             
-            // Checking wall boundary conditions west and east
-            if ( ((k == 0) && (wall_bc_ & 0x08)) || ((k == nx_) && (wall_bc_ & 0x02)) ) {
+            // Checking wall boundary conditions west
+            if ((k == 0) && (wall_bc_ & 0x08)) {
                 U_next = 0.0f;
             }
             
@@ -188,7 +185,10 @@ __global__ void fblStepKernel(
     // Write to [block_height+1][block_width] within [block_height+3][block_width+2]
     for (int j=threadIdx.y+1; j<block_height+2; j+=blockDim.y) {
         const unsigned int l = by + j;
-            
+        
+        //Compute the pointer to current row in the V array
+        float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*l);
+        
         for (int i=threadIdx.x+1; i<block_width+1; i+=blockDim.x) {
             const unsigned int k = bx + i;
             
@@ -221,7 +221,7 @@ __global__ void fblStepKernel(
             float V_next = B*(V_current + dt_*(-fU_m + P + Y) );
             
             // Checking wall boundary conditions
-            if ( ((l < 2) && (wall_bc_ & 0x04)) || ((l > ny_) && (wall_bc_ & 0x01)) ) {
+            if ((l == 1) && (wall_bc_ & 0x04)) {
                 V_next = 0.0f;
             }
             
