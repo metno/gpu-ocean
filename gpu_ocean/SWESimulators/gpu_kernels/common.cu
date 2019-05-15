@@ -146,7 +146,7 @@ __device__ void readBlock2single(float* data_ptr_, int data_pitch_,
         
         for (int i=tx; i<block_width+4; i+=blockDim.x) {
             const int k = clamp(bx + i, 0, nx_+3); // Out of bounds
-	    shmem[j][i] = data_row[k];
+            shmem[j][i] = data_row[k];
         }
     }
 }
@@ -676,7 +676,7 @@ __device__ float3 CentralUpwindFluxBottom(const float3 Qm, float3 Qp, const floa
     // The constant is a compiler constant in the CUDA code.
     const float KPSIMULATOR_FLUX_SLOPE_EPS = 1.0e-4f;
     if ( fabs(ap - am) < KPSIMULATOR_FLUX_SLOPE_EPS ) {
-	return make_float3(0.0f, 0.0f, 0.0f);
+        return make_float3(0.0f, 0.0f, 0.0f);
     }
     
     return ((ap*Fm - am*Fp) + ap*am*(Qp-Qm))/(ap-am);

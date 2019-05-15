@@ -371,16 +371,16 @@ __global__ void swe_2D(
    
     // Read H into sheared memory
     readBlock2single(Hi_ptr_, Hi_pitch_,
-		     Hi, nx_, ny_);
+                     Hi, nx_, ny_);
     __syncthreads();
     
     //Fix boundary conditions
     // TODO: Add if on boundary condition
     if (bc_north_ == 1 || bc_east_ == 1 || bc_south_ == 1 || bc_west_ == 1)
     {
-	noFlowBoundary2Mix(Q, nx_, ny_, bc_north_, bc_east_, bc_south_, bc_west_);
+        noFlowBoundary2Mix(Q, nx_, ny_, bc_north_, bc_east_, bc_south_, bc_west_);
         __syncthreads();	
-	// Looks scary to have fence within if, but the bc parameters are static between threads.
+        // Looks scary to have fence within if, but the bc parameters are static between threads.
     }
     
     // Reconstruct Q in x-direction into Qx
@@ -391,8 +391,8 @@ __global__ void swe_2D(
     __syncthreads();
 
     // Adjust the slopes to avoid negative values at integration points
-    adjustSlopes_x(Qx, Hi, Q);
-    __syncthreads();
+    //adjustSlopes_x(Qx, Hi, Q);
+    //__syncthreads();
     
     float R1 = 0.0f;
     float R2 = 0.0f;
@@ -425,8 +425,8 @@ __global__ void swe_2D(
     __syncthreads();
 
     // Adjust the slopes to avoid negative values at integration points
-    adjustSlopes_y(Qx, Hi, Q);
-    __syncthreads();
+    //adjustSlopes_y(Qx, Hi, Q);
+    //__syncthreads();
       
     
     //Sum fluxes and advance in time for all internal cells
@@ -484,8 +484,7 @@ __global__ void swe_2D(
             const float hv_b = 0.5f*(hv_a + (Q[2][j][i] + dt_*R3));
             
             //Write to main memory
-            //h_row[ti] = 59.975 + coriolis_f;
-	    eta_row[ti] = eta_b;
+            eta_row[ti] = eta_b;
             hu_row[ti] = hu_b / (1.0f + 0.5f*C);
             hv_row[ti] = hv_b / (1.0f + 0.5f*C);
         }
