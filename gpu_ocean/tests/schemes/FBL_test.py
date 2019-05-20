@@ -164,6 +164,22 @@ class FBLtest(unittest.TestCase):
         eta2, u2, v2 = loadResults("FBL", "wallBC", "corner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2)
+        
+    def test_wall_upperCorner(self):
+        self.setBoundaryConditions(1)
+        self.createHostData()
+        makeUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
+        self.sim = FBL.FBL(self.gpu_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r)
+        
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
+        eta2, u2, v2 = loadResults("FBL", "wallBC", "upperCorner")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
 
     def test_periodic_central(self):
@@ -201,7 +217,22 @@ class FBLtest(unittest.TestCase):
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
         
+    def test_periodic_upperCorner(self):
+        self.setBoundaryConditions(2)
+        self.createHostData()
+        makeUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
+        self.sim = FBL.FBL(self.gpu_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r, \
+                           boundary_conditions=self.boundaryConditions)
+        
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
+        eta2, u2, v2 = loadResults("FBL", "periodicAll", "upperCorner")
 
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
   
     def test_periodicNS_central(self):
         self.setBoundaryConditions(3)
@@ -238,6 +269,23 @@ class FBLtest(unittest.TestCase):
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
         
+        
+    def test_periodicNS_upperCorner(self):
+        self.setBoundaryConditions(3)
+        self.createHostData()
+        makeUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
+        self.sim = FBL.FBL(self.gpu_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r, \
+                           boundary_conditions=self.boundaryConditions)
+        
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
+        eta2, u2, v2 = loadResults("FBL", "periodicNS", "upperCorner")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
 
     def test_periodicEW_central(self):
         self.setBoundaryConditions(4)
@@ -273,6 +321,23 @@ class FBLtest(unittest.TestCase):
         eta2, u2, v2 = loadResults("FBL", "periodicEW", "corner")
 
         self.checkResults(eta1, u1, v1, eta2, u2, v2, self.arrayRange)
+        
+    def test_periodicEW_upperCorner(self):
+        self.setBoundaryConditions(4)
+        self.createHostData()
+        makeUpperCornerBump(self.eta0, self.nx, self.ny, self.dx, self.dy, self.ghosts)
+        self.sim = FBL.FBL(self.gpu_ctx, \
+                           self.h0, self.eta0, self.u0, self.v0, \
+                           self.nx, self.ny, \
+                           self.dx, self.dy, self.dt, \
+                           self.g, self.f, self.r, \
+                           boundary_conditions=self.boundaryConditions)
+        
+        t = self.sim.step(self.T)
+        eta1, u1, v1 = self.sim.download(interior_domain_only=True)
+        eta2, u2, v2 = loadResults("FBL", "periodicEW", "upperCorner")
+
+        self.checkResults(eta1, u1, v1, eta2, u2, v2)
         
     def test_coriolis_central(self):
         self.setBoundaryConditions(1)
