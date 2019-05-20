@@ -363,23 +363,21 @@ class FBL_periodic_boundary:
                 int(np.ceil((self.nx+2) / float(self.local_size[0]))), \
                 int(np.ceil((self.ny+3) / float(self.local_size[1]))) )
 
-        self.local_size_NS = (block_width, block_height, 1) # WARNING::: MUST MATCH defines of block_width/height in kernels!
-        self.global_size_NS = ( \
-                int(np.ceil((self.nx+2) / float(self.local_size_NS[0]))), \
-                int(np.ceil((self.ny+3) / float(self.local_size_NS[1]))) )
+        self.local_size_NS = (64, 4, 1)
+        self.global_size_NS = (int(np.ceil((self.nx+2) / float(self.local_size_NS[0]))), 1)
 
-        self.local_size_EW = (block_width, block_height, 1) # WARNING::: MUST MATCH defines of block_width/height in kernels!
-        self.global_size_EW = ( \
-                int(np.ceil((self.nx+2) / float(self.local_size_EW[0]))), \
-                int(np.ceil((self.ny+3) / float(self.local_size_EW[1]))) )
+        self.local_size_EW = (2, 64, 1)
+        self.global_size_EW = (1, int(np.ceil((self.ny+3) / float(self.local_size_EW[1]))) )
 
         
         
         # Load kernel for periodic boundary.
         self.periodicBoundaryKernel_NS = gpu_ctx.get_kernel("FBL_boundary_NS.cu", \
-                defines={'block_width': block_width, 'block_height': block_height})
+                defines={'block_width': self.local_size_NS[0], 
+                         'block_height': self.local_size_NS[1]})
         self.periodicBoundaryKernel_EW = gpu_ctx.get_kernel("FBL_boundary_EW.cu", \
-                defines={'block_width': block_width, 'block_height': block_height})
+                defines={'block_width': self.local_size_EW[0], 
+                         'block_height': self.local_size_EW[1]})
                 
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.closedBoundaryUKernel_EW = self.periodicBoundaryKernel_EW.get_function("closedBoundaryUKernel_EW")
@@ -454,12 +452,12 @@ class FBL_periodic_boundary:
                         
         if (self.boundary_conditions.north == 2):
                     self.periodicBoundaryUKernel_NS.prepared_async_call( \
-                    self.global_size_NS, self.local_size_NS, gpu_stream, \
+                    self.global_size, self.local_size, gpu_stream, \
                     self.nx, self.ny, \
                     hu0.data.gpudata, hu0.pitch)
         if (self.boundary_conditions.east == 2):
             self.periodicBoundaryUKernel_EW.prepared_async_call( \
-                    self.global_size_EW, self.local_size_EW, gpu_stream, \
+                    self.global_size, self.local_size, gpu_stream, \
                     self.nx, self.ny, \
                     hu0.data.gpudata, hu0.pitch)
         
@@ -485,25 +483,25 @@ class FBL_periodic_boundary:
             # North-south before east west.
             
             self.closedBoundaryVKernel_NS.prepared_async_call( \
-                    self.global_size_NS, self.local_size_NS, gpu_stream, \
+                    self.global_size, self.local_size, gpu_stream, \
                     self.nx, self.ny, \
                     self.bc_north, self.bc_east, self.bc_south, self.bc_west, \
                     hv0.data.gpudata, hv0.pitch)
 
             self.closedBoundaryVKernel_EW.prepared_async_call( \
-                    self.global_size_EW, self.local_size_EW, gpu_stream, \
+                    self.global_size, self.local_size, gpu_stream, \
                     self.nx, self.ny, \
                     self.bc_north, self.bc_east, self.bc_south, self.bc_west, \
                     hv0.data.gpudata, hv0.pitch)
                         
         if (self.boundary_conditions.north == 2):
             self.periodicBoundaryVKernel_NS.prepared_async_call( \
-                    self.global_size_NS, self.local_size_NS, gpu_stream, \
+                    self.global_size, self.local_size, gpu_stream, \
                     self.nx, self.ny, \
                     hv0.data.gpudata, hv0.pitch)
         if (self.boundary_conditions.east == 2):
             self.periodicBoundaryVKernel_EW.prepared_async_call( \
-                    self.global_size_EW, self.local_size_EW, gpu_stream, \
+                    self.global_size, self.local_size, gpu_stream, \
                     self.nx, self.ny, \
                     hv0.data.gpudata, hv0.pitch)
         
@@ -522,24 +520,24 @@ class FBL_periodic_boundary:
            self.boundary_conditions.south == 1:
             
             self.closedBoundaryEtaKernel_NS.prepared_async_call( \
-                    self.global_size_NS, self.local_size_NS, gpu_stream, \
+                    self.global_size, self.local_size, gpu_stream, \
                     self.nx, self.ny, \
                     self.bc_north, self.bc_east, self.bc_south, self.bc_west, \
                     eta0.data.gpudata, eta0.pitch)
             self.closedBoundaryEtaKernel_EW.prepared_async_call( \
-                    self.global_size_EW, self.local_size_EW, gpu_stream, \
+                    self.global_size, self.local_size, gpu_stream, \
                     self.nx, self.ny, \
                     self.bc_north, self.bc_east, self.bc_south, self.bc_west, \
                     eta0.data.gpudata, eta0.pitch)
 
         if (self.boundary_conditions.north == 2):
             self.periodicBoundaryEtaKernel_NS.prepared_async_call( \
-                    self.global_size_NS, self.local_size_NS, gpu_stream, \
+                    self.global_size, self.local_size, gpu_stream, \
                     self.nx, self.ny, \
                     eta0.data.gpudata, eta0.pitch)
         if (self.boundary_conditions.east == 2):
             self.periodicBoundaryEtaKernel_EW.prepared_async_call( \
-                    self.global_size_EW, self.local_size_EW, gpu_stream, \
+                    self.global_size, self.local_size, gpu_stream, \
                     self.nx, self.ny, \
                     eta0.data.gpudata, eta0.pitch)
                         

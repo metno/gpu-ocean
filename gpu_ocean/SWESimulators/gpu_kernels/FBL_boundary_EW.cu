@@ -30,9 +30,16 @@ __global__ void closedBoundaryUKernel_EW(
 
         // Data
         float* U_ptr_, int U_pitch_) {
- 
+            
+    // Global tread sizes:
+    // ti = {0, 1}
+    // thread 0 is index 0
+    // thread 1 is index nx
+    // tj = [0, ny_+1]
+    
     // Index of cell within domain
-    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+    const int ti = (thread_id == 0) ? 0 : nx_;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     //Compute pointer to current row in the U array

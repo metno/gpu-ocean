@@ -30,9 +30,16 @@ __global__ void closedBoundaryUKernel_NS(
         // Data
         float* U_ptr_, int U_pitch_) {
             
+    // Global thread sizes:
+    // ti = [0, nx_+1]
+    // tj = [0, 3],
+    // thread 0 is index 0, thread 1 is index ny_+1, 
+    // thread 2 and 3 idle
+    
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
-    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
+    const int thread_id = blockIdx.y * blockDim.y + threadIdx.y;
+    const int tj = (thread_id == 1) ? ny_ + 1 : thread_id;
 
     //Compute pointer to current row in the U array
     float* const U_row = (float*) ((char*) U_ptr_ + U_pitch_*tj);   
