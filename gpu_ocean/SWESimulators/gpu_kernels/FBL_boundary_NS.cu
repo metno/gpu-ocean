@@ -67,9 +67,17 @@ __global__ void periodicBoundaryUKernel_NS(
     
         // Data
         float* U_ptr_, int U_pitch_) {
+
+    // Global thread sizes:
+    // ti = [0, nx_+1]
+    // tj = [0, 3],
+    // thread 0 is index 0, thread 1 is index ny_+1, 
+    // thread 2 and 3 idle
+    
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
-    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
+    const int thread_id = blockIdx.y * blockDim.y + threadIdx.y;
+    const int tj = (thread_id == 1) ? ny_ + 1 : thread_id;
 
     int opposite_row_index = ny_;
     if (tj == ny_+1) {
@@ -98,9 +106,17 @@ __global__ void closedBoundaryVKernel_NS(
         // Data
         float* V_ptr_, int V_pitch_) {
             
+    // Global thread sizes:
+    // ti = [0, nx_+1]
+    // tj = [0, 3],
+    // thread 0 is index 0,    thread 1 is 1, 
+    // thread 2 is index ny+1, thread 3 is ny+2, 
+    
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
-    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
+    const int thread_id = blockIdx.y * blockDim.y + threadIdx.y;
+
+    const int tj = (thread_id > 1) ? ny_ + thread_id - 1 : thread_id;
 
     //Compute pointer to current row in the V array
     float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);   
@@ -139,10 +155,18 @@ __global__ void periodicBoundaryVKernel_NS(
     // One row of ghost values must be updated with the opposite 
     // interior cells' values.
     // The northern boundary must be given the value from the southern boundary
+
+    // Global thread sizes:
+    // ti = [0, nx_+1]
+    // tj = [0, 3],
+    // thread 0 is index 0,    thread 1 is 1, 
+    // thread 2 is index ny+1, thread 3 is ny+2, 
     
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
-    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
+    const int thread_id = blockIdx.y * blockDim.y + threadIdx.y;
+
+    const int tj = (thread_id > 1) ? ny_ + thread_id - 1 : thread_id;
 
     int opposite_row_index = ny_;
     if (tj == ny_+ 1) {
@@ -178,9 +202,17 @@ __global__ void closedBoundaryEtaKernel_NS(
     // make sure they are well defined, but this kernel should not need to
     // be called between time-steps.
     
+    // Global thread sizes:
+    // ti = [0, nx_+1]
+    // tj = [0, 3],
+    // thread 0 is index 0, thread 1 is index ny_+1, 
+    // thread 2 and 3 idle
+    
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
-    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
+    const int thread_id = blockIdx.y * blockDim.y + threadIdx.y;
+
+    const int tj = (thread_id == 1) ? ny_+1 : thread_id;
 
     //Compute pointer to current row in the eta array
     float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj); 
@@ -212,9 +244,16 @@ __global__ void periodicBoundaryEtaKernel_NS(
         // Data
         float* eta_ptr_, int eta_pitch_) {
     
+    // Global thread sizes:
+    // ti = [0, nx_+1]
+    // tj = [0, 3],
+    // thread 0 is index 0, thread 1 is index ny_+1, 
+    // thread 2 and 3 idle
+    
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
-    const int tj = blockIdx.y * blockDim.y + threadIdx.y;
+    const int thread_id = blockIdx.y * blockDim.y + threadIdx.y;
+    const int tj = (thread_id == 1) ? ny_+1 : thread_id;
     
     int opposite_row_index = ny_;
     if (tj == ny_+1) {

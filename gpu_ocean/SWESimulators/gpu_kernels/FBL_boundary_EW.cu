@@ -66,8 +66,15 @@ __global__ void periodicBoundaryUKernel_EW(
     // The compute_U_kernel fixes the western (ti = 0) boundary,
     // and the eastern boundary (ti = nx) needs to be sat the same.
 
+    // Global tread sizes:
+    // ti = {0, 1}
+    // thread 0 is index 0
+    // thread 1 is index nx
+    // tj = [0, ny_+1]
+    
     // Index of cell within domain
-    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+    const int ti = (thread_id == 0) ? 0 : nx_;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     // Check if thread is in the domain:
@@ -89,10 +96,18 @@ __global__ void closedBoundaryVKernel_EW(
 
         // Data
         float* V_ptr_, int V_pitch_) {
-            
+      
+    // Global tread sizes:
+    // ti = {0, 1}
+    // thread 0 is index 0
+    // thread 1 is index nx+1
+    // tj = [0, ny_+1]
+      
     // Index of cell within domain
-    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
+    
+    const int ti = (thread_id == 1) ? nx_ + 1 : thread_id ;
 
     //Compute pointer to current row in the V array
     float* const V_row = (float*) ((char*) V_ptr_ + V_pitch_*tj);   
@@ -118,9 +133,17 @@ __global__ void periodicBoundaryVKernel_EW(
         float* V_ptr_, int V_pitch_) {
     // Straight forward with one ghost column on each side
     
+    // Global tread sizes:
+    // ti = {0, 1}
+    // thread 0 is index 0
+    // thread 1 is index nx+1
+    // tj = [0, ny_+1]
+      
     // Index of cell within domain
-    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
+    
+    const int ti = (thread_id == 1) ? nx_ + 1 : thread_id ;
 
     int opposite_col_index = nx_;
     if (ti == nx_+1) {
@@ -151,9 +174,16 @@ __global__ void closedBoundaryEtaKernel_EW(
     // make sure they are well defined, but this kernel should not need to
     // be called between time-steps.
     
+    // Global tread sizes:
+    // ti = {0, 1}
+    // thread 0 is index 0
+    // thread 1 is index nx+1
+    // tj = [0, ny_+1]
+    
     // Index of cell within domain
-    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
+    const int ti = (thread_id == 1) ? nx_+1 : thread_id; 
 
     //Compute pointer to current row in the eta array
     float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj); 
@@ -183,8 +213,15 @@ __global__ void periodicBoundaryEtaKernel_EW(
         // Data
         float* eta_ptr_, int eta_pitch_) {
     
+    // Global tread sizes:
+    // ti = {0, 1}
+    // thread 0 is index 0
+    // thread 1 is index nx+1
+    // tj = [0, ny_+1]
+    
     // Index of cell within domain
-    const int ti = blockIdx.x * blockDim.x + threadIdx.x;
+    const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+    const int ti = (thread_id == 1) ? nx_+1 : thread_id;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
     
     float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*tj);
