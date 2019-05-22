@@ -131,6 +131,28 @@ def initEtaFD(eta0, ghosts):
     
 
     
+def print_memory_req(sim, fbl=False, fvd=False):
+    def get_buffer_size(buffer):
+        return buffer.mem_size*buffer.itemsize
+    
+    mem = 0
+    mem += get_buffer_size(sim.gpu_data.h0.data)
+    mem += get_buffer_size(sim.gpu_data.hu0.data)
+    mem += get_buffer_size(sim.gpu_data.hv0.data)
+    if not fbl:
+        mem += get_buffer_size(sim.gpu_data.h1.data)
+        mem += get_buffer_size(sim.gpu_data.hu1.data)
+        mem += get_buffer_size(sim.gpu_data.hv1.data)
+    if fvd:
+        mem += get_buffer_size(sim.bathymetry.Bi.data)
+        mem += get_buffer_size(sim.bathymetry.Bm.data)
+    else:
+        mem += get_buffer_size(sim.H.data)
+
+    memory_req = mem/(1024*1024)
+    print(" -> Required memory: {:02.4f} MB".format(memory_req))
+  
+    
 """
 Initializes the KP simulator
 """
@@ -170,6 +192,8 @@ def initKP():
     toc = time.time()
     print("{:02.4f} s: ".format(toc-tic) + "Created KP simulator")
 
+    print_memory_req(sim, fvd=True)
+    
     return sim
 
 """
@@ -211,6 +235,8 @@ def initCDKLM():
     toc = time.time()
     print("{:02.4f} s: ".format(toc-tic) + "Created CDKLM simulator")
 
+    print_memory_req(sim, fvd=True)
+    
     return sim
 
 
@@ -252,7 +278,9 @@ def initFBL():
                                     **kwargs)
     toc = time.time()
     print("{:02.4f} s: ".format(toc-tic) + "Created FBL simulator")
-
+    
+    print_memory_req(sim, fbl=True)
+  
     return sim
 
         
@@ -296,7 +324,9 @@ def initCTCS():
                                     **kwargs)
     toc = time.time()
     print("{:02.4f} s: ".format(toc-tic) + "Created CTCS simulator")
-
+    
+    print_memory_req(sim)
+    
     return sim
         
 
