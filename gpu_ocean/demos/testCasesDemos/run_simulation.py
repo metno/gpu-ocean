@@ -32,8 +32,8 @@ if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../SWESimulators'
 
 import argparse
 parser = argparse.ArgumentParser(description='Benchmark a simulator.')
-parser.add_argument('--nx', type=int, default=1024)
-parser.add_argument('--ny', type=int, default=1024)
+parser.add_argument('--nx', type=int, default=2048)
+parser.add_argument('--ny', type=int, default=2048)
 parser.add_argument('--block_width', type=int)
 parser.add_argument('--block_height', type=int)
 parser.add_argument('--simulator', type=str)
@@ -67,28 +67,70 @@ print("{:02.4f} s: ".format(toc-tic) + "Created context on " + device_name)
 dx = 250.0
 dy = 250.0
 
-courant_number = 0.1
+courant_number = 0.2
 g = 9.81
 
-f = 0.0001318 # 65 degrees latitude
+f = 0.0
 r = 0.0
 
 boundaryConditions = Common.BoundaryConditions()
 
 # Generate initial conditions
-waterHeight = 60
+waterHeight = 50
 
 gravity_wave_speed = np.sqrt(g*(waterHeight + 1)) # 1 represent maximum of initial eta
 
-x_center = dx*args.nx/2.0
-y_center = dy*args.ny/2.0
-size = 0.4*min(args.nx*dx, args.ny*dy)
+nx = args.nx
+ny = args.ny
 
-def my_exp(i, j):
-    x = dx*i - x_center
-    y = dy*j - y_center
-    return 0.1*np.exp(-10*(x*x/(size*size)+y*y/(size*size))) #* (np.sqrt(x*x + y*y) < size)
-        
+               
+def initEtaFV(eta0, ghosts):
+    nx = eta0.shape[1] - ghosts[0] - ghosts[2]
+    ny = eta0.shape[0] - ghosts[1] - ghosts[3]
+    
+    def my_cos(i, j):
+        size = 0.6
+        x = 2*(i + 0.5 - nx/2.0) / float(nx)
+        y = 2*(j + 0.5 - ny/2.0) / float(ny)
+        r = np.sqrt(x**2 + y**2)
+        return 0.5*(1.0 + np.cos(np.pi*r/size)) * (r < size)
+    
+    #Generate disturbance 
+    disturbance = np.fromfunction(lambda i, j: my_cos(i,j), (ny, nx))
+    
+    eta0.fill(0.0)
+    x0, x1 = ghosts[0], nx+ghosts[0]
+    y0, y1 = ghosts[1], ny+ghosts[1]
+    eta0[y0:y1, x0:x1] += disturbance
+    
+    #Make sure solution is symmetric
+    eta0 = 0.5*(eta0 +  eta0[::-1, ::-1])
+    
+
+def initEtaFD(eta0, ghosts):
+    nx = eta0.shape[1] - ghosts[0] - ghosts[2]
+    ny = eta0.shape[0] - ghosts[1] - ghosts[3]
+    
+    def my_cos(i, j):
+        size = 0.6
+        x = 2*(i - (nx-1)/2.0) / float(nx-1)
+        y = 2*(j - (ny-1)/2.0) / float(ny-1)
+        r = np.sqrt(x**2 + y**2)
+        return 0.5*(1.0 + np.cos(np.pi*r/size)) * (r < size)
+    
+    #Generate disturbance 
+    disturbance = np.fromfunction(lambda i, j: my_cos(i,j), (ny, nx))
+    
+    eta0.fill(0.0)
+    x0, x1 = ghosts[0], nx+ghosts[0]
+    y0, y1 = ghosts[1], ny+ghosts[1]
+    eta0[y0:y1, x0:x1] += disturbance
+    
+    #Make sure solution is symmetric
+    eta0 = 0.5*(eta0 +  eta0[::-1, ::-1])
+    
+
+    
 """
 Initializes the KP simulator
 """
@@ -99,7 +141,9 @@ def initKP():
     dataShape = (args.ny + ghosts[0]+ghosts[2], 
                              args.nx + ghosts[1]+ghosts[3])
 
-    eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+    eta0 = np.zeros(dataShape, dtype=np.float32, order='C');
+    initEtaFV(eta0, ghosts)
+    
     u0 = np.zeros(dataShape, dtype=np.float32, order='C');
     v0 = np.zeros(dataShape, dtype=np.float32, order='C');
     Hi = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C') * waterHeight;
@@ -138,7 +182,9 @@ def initCDKLM():
     dataShape = (args.ny + ghosts[0]+ghosts[2], 
                              args.nx + ghosts[1]+ghosts[3])
 
-    eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+    eta0 = np.zeros(dataShape, dtype=np.float32, order='C');
+    initEtaFV(eta0, ghosts)
+    
     u0 = np.zeros(dataShape, dtype=np.float32, order='C');
     v0 = np.zeros(dataShape, dtype=np.float32, order='C');
     Hi = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C') * waterHeight;
@@ -174,8 +220,13 @@ Initializes the FBL simulator
 def initFBL():
     tic = time.time()
 
+    ghosts = [1, 1, 1, 1]
     dataShape = (args.ny+2, args.nx+2)
-    eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+
+    eta0 = np.zeros(dataShape, dtype=np.float32, order='C');
+    initEtaFD(eta0, ghosts)
+    
+
     u0 = np.zeros((dataShape[0]+0, dataShape[1]-1), dtype=np.float32);
     v0 = np.zeros((dataShape[0]+1, dataShape[1]+0), dtype=np.float32);
     h0 = np.ones(dataShape, dtype=np.float32) * waterHeight;
@@ -216,7 +267,9 @@ def initCTCS():
     dataShape = (args.ny + ghosts[0]+ghosts[2], 
                              args.nx + ghosts[1]+ghosts[3])
 
-    eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+    eta0 = np.zeros(dataShape, dtype=np.float32, order='C');
+    initEtaFD(eta0, ghosts)
+    
     u0 = np.zeros((dataShape[0]+0, dataShape[1]+1), dtype=np.float32);
     v0 = np.zeros((dataShape[0]+1, dataShape[1]+0), dtype=np.float32);
     h0 = np.ones(dataShape, dtype=np.float32) * waterHeight;
