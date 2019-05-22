@@ -67,7 +67,7 @@ print("{:02.4f} s: ".format(toc-tic) + "Created context on " + device_name)
 dx = 250.0
 dy = 250.0
 
-courant_number = 0.2
+courant_number = 0.9
 g = 9.81
 
 f = 0.0
@@ -93,7 +93,7 @@ def initEtaFV(eta0, ghosts):
         x = 2*(i + 0.5 - nx/2.0) / float(nx)
         y = 2*(j + 0.5 - ny/2.0) / float(ny)
         r = np.sqrt(x**2 + y**2)
-        return 0.5*(1.0 + np.cos(np.pi*r/size)) * (r < size)
+        return 0.01*0.5*(1.0 + np.cos(np.pi*r/size)) * (r < size)
     
     #Generate disturbance 
     disturbance = np.fromfunction(lambda i, j: my_cos(i,j), (ny, nx))
@@ -116,7 +116,7 @@ def initEtaFD(eta0, ghosts):
         x = 2*(i - (nx-1)/2.0) / float(nx-1)
         y = 2*(j - (ny-1)/2.0) / float(ny-1)
         r = np.sqrt(x**2 + y**2)
-        return 0.5*(1.0 + np.cos(np.pi*r/size)) * (r < size)
+        return 0.01*0.5*(1.0 + np.cos(np.pi*r/size)) * (r < size)
     
     #Generate disturbance 
     disturbance = np.fromfunction(lambda i, j: my_cos(i,j), (ny, nx))
@@ -302,7 +302,7 @@ def initCTCS():
     v0 = np.zeros((dataShape[0]+1, dataShape[1]+0), dtype=np.float32);
     h0 = np.ones(dataShape, dtype=np.float32) * waterHeight;
 
-    dt = courant_number * dx/(np.sqrt(2)*gravity_wave_speed)
+    dt = courant_number * dx/(2*np.sqrt(2)*gravity_wave_speed)
     toc = time.time()
     print("{:02.4f} s: ".format(toc-tic) + "Generated initial conditions")
 
