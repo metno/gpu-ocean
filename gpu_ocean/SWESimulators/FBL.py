@@ -169,10 +169,10 @@ class FBL(Simulator.Simulator):
         self.nx_halo = np.int32(nx + 2)
         self.ny_halo = np.int32(ny + 2)
        
-        self.bc_kernel = FBL_periodic_boundary(self.gpu_ctx, \
-                                               self.nx, \
-                                               self.ny, \
-                                               self.boundary_conditions
+        self.bc_kernel = FBL_boundary_conditions(self.gpu_ctx, \
+                                                 self.nx, \
+                                                 self.ny, \
+                                                 self.boundary_conditions
         )
         
         # Bit-wise boolean for wall boundary conditions
@@ -329,7 +329,7 @@ class FBL(Simulator.Simulator):
         return self.t
     
 
-class FBL_periodic_boundary:
+class FBL_boundary_conditions:
     def __init__(self, \
                  gpu_ctx, \
                  nx, ny, \
@@ -372,39 +372,39 @@ class FBL_periodic_boundary:
         
         
         # Load kernel for periodic boundary.
-        self.periodicBoundaryKernel_NS = gpu_ctx.get_kernel("FBL_boundary_NS.cu", \
+        self.boundaryKernel_NS = gpu_ctx.get_kernel("FBL_boundary_NS.cu", \
                 defines={'block_width': self.local_size_NS[0], 
                          'block_height': self.local_size_NS[1]})
-        self.periodicBoundaryKernel_EW = gpu_ctx.get_kernel("FBL_boundary_EW.cu", \
+        self.boundaryKernel_EW = gpu_ctx.get_kernel("FBL_boundary_EW.cu", \
                 defines={'block_width': self.local_size_EW[0], 
                          'block_height': self.local_size_EW[1]})
                 
         # Get CUDA functions and define data types for prepared_{async_}call()
-        self.closedBoundaryUKernel_EW = self.periodicBoundaryKernel_EW.get_function("closedBoundaryUKernel_EW")
+        self.closedBoundaryUKernel_EW = self.boundaryKernel_EW.get_function("closedBoundaryUKernel_EW")
         self.closedBoundaryUKernel_EW.prepare("iiiiiiPi")
-        self.closedBoundaryUKernel_NS = self.periodicBoundaryKernel_NS.get_function("closedBoundaryUKernel_NS")
+        self.closedBoundaryUKernel_NS = self.boundaryKernel_NS.get_function("closedBoundaryUKernel_NS")
         self.closedBoundaryUKernel_NS.prepare("iiiiiiPi")
-        self.periodicBoundaryUKernel_NS = self.periodicBoundaryKernel_NS.get_function("periodicBoundaryUKernel_NS")
+        self.periodicBoundaryUKernel_NS = self.boundaryKernel_NS.get_function("periodicBoundaryUKernel_NS")
         self.periodicBoundaryUKernel_NS.prepare("iiPi")
-        self.periodicBoundaryUKernel_EW = self.periodicBoundaryKernel_EW.get_function("periodicBoundaryUKernel_EW")
+        self.periodicBoundaryUKernel_EW = self.boundaryKernel_EW.get_function("periodicBoundaryUKernel_EW")
         self.periodicBoundaryUKernel_EW.prepare("iiPi")
         
-        self.closedBoundaryVKernel_NS = self.periodicBoundaryKernel_NS.get_function("closedBoundaryVKernel_NS")
+        self.closedBoundaryVKernel_NS = self.boundaryKernel_NS.get_function("closedBoundaryVKernel_NS")
         self.closedBoundaryVKernel_NS.prepare("iiiiiiPi")
-        self.closedBoundaryVKernel_EW = self.periodicBoundaryKernel_EW.get_function("closedBoundaryVKernel_EW")
+        self.closedBoundaryVKernel_EW = self.boundaryKernel_EW.get_function("closedBoundaryVKernel_EW")
         self.closedBoundaryVKernel_EW.prepare("iiiiiiPi")
-        self.periodicBoundaryVKernel_NS = self.periodicBoundaryKernel_NS.get_function("periodicBoundaryVKernel_NS")
+        self.periodicBoundaryVKernel_NS = self.boundaryKernel_NS.get_function("periodicBoundaryVKernel_NS")
         self.periodicBoundaryVKernel_NS.prepare("iiPi")
-        self.periodicBoundaryVKernel_EW = self.periodicBoundaryKernel_EW.get_function("periodicBoundaryVKernel_EW")
+        self.periodicBoundaryVKernel_EW = self.boundaryKernel_EW.get_function("periodicBoundaryVKernel_EW")
         self.periodicBoundaryVKernel_EW.prepare("iiPi")
         
-        self.closedBoundaryEtaKernel_NS = self.periodicBoundaryKernel_NS.get_function("closedBoundaryEtaKernel_NS")
+        self.closedBoundaryEtaKernel_NS = self.boundaryKernel_NS.get_function("closedBoundaryEtaKernel_NS")
         self.closedBoundaryEtaKernel_NS.prepare("iiiiiiPi")
-        self.closedBoundaryEtaKernel_EW = self.periodicBoundaryKernel_EW.get_function("closedBoundaryEtaKernel_EW")
+        self.closedBoundaryEtaKernel_EW = self.boundaryKernel_EW.get_function("closedBoundaryEtaKernel_EW")
         self.closedBoundaryEtaKernel_EW.prepare("iiiiiiPi")
-        self.periodicBoundaryEtaKernel_NS = self.periodicBoundaryKernel_NS.get_function("periodicBoundaryEtaKernel_NS")
+        self.periodicBoundaryEtaKernel_NS = self.boundaryKernel_NS.get_function("periodicBoundaryEtaKernel_NS")
         self.periodicBoundaryEtaKernel_NS.prepare("iiPi")
-        self.periodicBoundaryEtaKernel_EW = self.periodicBoundaryKernel_EW.get_function("periodicBoundaryEtaKernel_EW")
+        self.periodicBoundaryEtaKernel_EW = self.boundaryKernel_EW.get_function("periodicBoundaryEtaKernel_EW")
         self.periodicBoundaryEtaKernel_EW.prepare("iiPi")
 
         # Reuse CTCS kernels for Flow Relaxation Scheme

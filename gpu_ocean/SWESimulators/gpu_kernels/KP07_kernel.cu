@@ -391,8 +391,8 @@ __global__ void swe_2D(
     __syncthreads();
 
     // Adjust the slopes to avoid negative values at integration points
-    //adjustSlopes_x(Qx, Hi, Q);
-    //__syncthreads();
+    adjustSlopes_x(Qx, Hi, Q);
+    __syncthreads();
     
     float R1 = 0.0f;
     float R2 = 0.0f;
@@ -425,8 +425,8 @@ __global__ void swe_2D(
     __syncthreads();
 
     // Adjust the slopes to avoid negative values at integration points
-    //adjustSlopes_y(Qx, Hi, Q);
-    //__syncthreads();
+    adjustSlopes_y(Qx, Hi, Q);
+    __syncthreads();
       
     
     //Sum fluxes and advance in time for all internal cells
