@@ -272,7 +272,20 @@ class IEWPFOcean:
         self.log('target_weight: ' + str(target_weight))
         self.log('beta         : ' + str(beta))
         
-
+        if beta < 0:
+            print("------!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!------------------------")
+            print("   Something went HORRIBLY WRONG!")
+            print("   We got negative beta: " + str(beta))
+            print("   Target weight: " + str(target_weight))
+            print('phi_array:\n ' + str(phi_array))
+            print("nu_norm_array:\n" + str(nu_norm_array))
+            print("gamma_array:\n" + str(gamma_array))
+            print("c_array:\n" + str(c_array))
+            print("active_particles:\n" + str(ensemble.particlesActive))
+            print("(mean(c) - c)/nu_norm:\n" + str((np.mean(active_c_array)-active_c_array)/active_nu_norm_array))
+            print("\nSetting beta = 0 and continueing... ")
+            print("------!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!------------------------")
+            beta = 0
         
         for p in range(ensemble.getNumParticles()):
             if ensemble.particlesActive[p]:

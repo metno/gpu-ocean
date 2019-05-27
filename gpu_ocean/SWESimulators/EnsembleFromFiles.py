@@ -317,6 +317,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             if self.particlesActive[p]:
                 self.particleInfos[p].add_state_sample_from_sim(self.particles[p], drifter_cells)
                 
+                #if p == 0:
+                #    self.particles[p].writeState()
             
     def dumpParticleInfosToFile(self, path_prefix):
         """
