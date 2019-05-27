@@ -117,7 +117,7 @@ class ParticleInfo:
         Secifying a constant subset of cells, which will be used for sampling the ocean state from in 
         addition to the provided drifter positions.
         """
-        self.extraCells = self.extraCells
+        self.extraCells = extraCells
     
 
     def usePredefinedExtraCells(self):

@@ -250,7 +250,7 @@ class Observation:
         return observation
         
         
-    def _jump(self, pos0, pos1, jump_limit=100000):
+    def _detect_jump(self, pos0, pos1, jump_limit=100000):
         ds = np.sqrt((pos1[0] - pos0[0])**2 + \
                      (pos1[1] - pos0[1])**2)
         if ds > jump_limit:
@@ -266,15 +266,30 @@ class Observation:
         """
         paths = []
         observation_times = self.get_observation_times()
-        total_num_observations = self.get_num_observations()
+        
+        start_obs_index = 0
+        end_obs_index = len(observation_times)
+        try:
+            start_obs_index = np.where(observation_times == start_t)[0][0]
+            end_obs_index   = np.where(observation_times == end_t  )[0][0]+1
+        except IndexError:
+            pass
+        
+        total_num_observations = end_obs_index - start_obs_index
+        
+        # Filter the given drifter based from the data frame only once for efficiency
+        all_drifter_positions_df = self.obs_df[self.columns[1]].values[::self.observationInterval][1:].copy()
+        all_drifter_positions = np.stack(all_drifter_positions_df, axis=0)[:, drifter_id,:]
+        
         path = np.zeros((total_num_observations, 2))
         path_index = 0
-        for obs_t in observation_times:
+        for i in range(start_obs_index, end_obs_index):
+            obs_t = observation_times[i]
             if obs_t < start_t or obs_t > end_t:
                 continue
-            current_pos = self.get_drifter_position(obs_t)[drifter_id,:]
+            current_pos = all_drifter_positions[i, :]
             if path_index > 0:
-                if self._jump(path[path_index-1,:], current_pos):
+                if self._detect_jump(path[path_index-1,:], current_pos):
                     paths.append(path[:path_index,:])
                     
                     path_index = 0
