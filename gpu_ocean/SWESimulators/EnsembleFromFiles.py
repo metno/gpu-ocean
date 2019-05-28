@@ -285,8 +285,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.t = observation_time
         
         
-    def observeTrueDrifters(self):
-        return self.observations.get_drifter_position(self.t)
+    def observeTrueDrifters(self, applyDrifterSet=True):
+        return self.observations.get_drifter_position(self.t, applyDrifterSet=applyDrifterSet)
     
     def getDrifterCells(self):
         drifter_positions = self.observations.get_drifter_position(self.t, applyDrifterSet=False)

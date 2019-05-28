@@ -67,7 +67,8 @@ assert len(os.listdir(truth_path)) == 4, "Truth folder has wrong number of files
 
 
 timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
-destination_dir = os.path.join(current_dir, "da_experiment_" +  timestamp + "/")
+media_dir = "/media/havahol/Seagate Backup Plus Drive/gpu_ocean"
+destination_dir = os.path.join(media_dir, "da_experiment_" +  timestamp + "/")
 os.makedirs(destination_dir)
 
 # Define misc filenames
@@ -263,7 +264,9 @@ log('-----------   STARTING FORECAST              --------------')
 log('-----------------------------------------------------------')
 
 forecast_start_time = obstime
-drifter_start_positions = ensemble.observeTrueDrifters()
+
+# Read all drifters (even those that are not used in the assimilation)
+drifter_start_positions = ensemble.observeTrueDrifters(applyDrifterSet=False)
 
 forecast_end_time = forecast_start_time + 3*24*60*60
 
