@@ -43,6 +43,7 @@ parser.add_argument('-N', '--ensemble_size', type=int, default=None)
 parser.add_argument('--method', type=str, default='iewpf2')
 parser.add_argument('--observation_interval', type=int, default=1)
 parser.add_argument('--observation_variance', type=float, default=15.0)
+parser.add_argument('--observation_type', type=str, default='drifters')
 
 
 args = parser.parse_args()
@@ -151,6 +152,8 @@ from SWESimulators import EnsembleFromFiles, Observation, ParticleInfo
 from SWESimulators import IEWPFOcean
 # For forcasting:
 from SWESimulators import GPUDrifterCollection
+# For ObservationType:
+from SWESimulators import DataAssimilationUtils as dautils
 
 toc = time.time()
 log("\n{:02.4f} s: ".format(toc-tic) + 'GPU Ocean packages imported', True)
@@ -166,13 +169,21 @@ log("{:02.4f} s: ".format(toc-tic) + "Created context on " + device_name, True)
 ###--------------------------
 # Initiate the ensemble
 #
+
+observation_type = dautils.dautils.ObservationType.UnderlyingFlow
+if args.observation_type == 'buoys':
+    observation_type = dautils.ObservationType.StaticBuoys
+
+
+
 tic = time.time()
 ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx, args.ensemble_size, \
                                                ensemble_init_path, truth_path, \
                                                args.observation_variance,
                                                cont_write_netcdf = True,
+                                               use_lcg = True,
                                                write_netcdf_directory = destination_dir,
-                                               use_lcg = True)
+                                               observation_type=observation_type)
 
 # Configure observations according to the selected drifters:
 ensemble.configureObservations(drifterSet=drifterSet, observationInterval = args.observation_interval)
@@ -205,8 +216,8 @@ obstime = 3*24*60*60
 
 master_tic = time.time()
 
-numDays = 7
-numHours = 24
+numDays = 7 # 6
+numHours = 24 # 4
 
 log('---------- Starting simulation --------------') 
 log('--- numDays: ' + str(numDays))
@@ -266,7 +277,8 @@ log('-----------------------------------------------------------')
 forecast_start_time = obstime
 
 # Read all drifters (even those that are not used in the assimilation)
-drifter_start_positions = ensemble.observeTrueDrifters(applyDrifterSet=False)
+drifter_start_positions = ensemble.observeTrueDrifters(applyDrifterSet=False, ignoreBuoys=True)
+num_drifters = len(drifter_start_positions)
 
 forecast_end_time = forecast_start_time + 3*24*60*60
 
@@ -287,7 +299,7 @@ for particle_id in range(ensemble.getNumParticles()):
         next_obs_time = sim.t
 
 
-        drifters = GPUDrifterCollection.GPUDrifterCollection(gpu_ctx, ensemble.getNumDrifters(),
+        drifters = GPUDrifterCollection.GPUDrifterCollection(gpu_ctx, num_drifters,
                                                              boundaryConditions=ensemble.getBoundaryConditions(), 
                                                              domain_size_x=ensemble.getDomainSizeX(), domain_size_y=ensemble.getDomainSizeY())
         drifters.setDrifterPositions(drifter_start_positions)

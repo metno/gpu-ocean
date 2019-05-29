@@ -40,11 +40,12 @@ class Observation:
     """
     
     def __init__(self, observation_type=dautils.ObservationType.UnderlyingFlow,
-                 domain_size_x=None, domain_size_y=None):
+                 domain_size_x=None, domain_size_y=None, nx=None, ny=None):
         """
         Class for facilitating drifter observations in files.
         The pandas DataFrame contains drifter positions only for 
-        each observation time. 
+        each observation time. Values for hu and hv at provided static buoy
+        positions can also be registered in the data frame.
         
         If the domain is considered to have periodic boundary conditions, the
         size of the domain should be provided to ensure correct estimated 
@@ -54,15 +55,38 @@ class Observation:
         self.observation_type = observation_type
         self._check_observation_type()
         
-        self.columns = ('time', 'drifter_positions')
+        self.columns = ('time', 'drifter_positions', 'buoy_observations', 'buoy_positions')
         self.obs_df = pd.DataFrame(columns=self.columns)
+        
+        # For each time the data frame entry will look like this:
+        # {'time' : t,
+        #  'drifter_positions': [[x_1, y_1], [x_2, y_2], ..., [x_D, y_D]]
+        #  'buoy_observations': [[hu_1, hv_1], [hu_2, hv_2], ..., [hu_B, hv_B]]
+        #  'buoy_positions'   : [[x_1, y_1], [x_2, y_2], ..., [x_B, y_B]]
+        # }
+        # D = num drifters, B = num buoys
+        #
+        # buoy_positions is only provided for the first entry in the data frame, as it will be the same for all entries
+        # The same values are also found in the variables self.buoy_positions and self.buoy_indices  
+        
+        self.register_buoys = False
+        self.buoy_indices = None
+        self.buoy_positions = None
         
         # Configuration parameters:
         self.drifterSet = None
         self.observationInterval = 1
         
+        if observation_type == dautils.ObservationType.StaticBuoys:
+            assert(nx is not None), 'nx must be provided if observation_type is StaticBuoys'
+            assert(ny is not None), 'ny must be provided if observation_type is StaticBuoys'
+            assert(domain_size_x is not None), 'domain_size_x must be provided if observation_type is StaticBuoys'
+            assert(domain_size_y is not None), 'domain_size_y must be provided if observation_type is StaticBuoys'
+        
         self.domain_size_x = domain_size_x
         self.domain_size_y = domain_size_y
+        self.nx = nx
+        self.ny = ny
         
         
     def get_num_observations(self):
@@ -71,11 +95,19 @@ class Observation:
         """
         return self.obs_df[self.columns[0]].count()
     
-    def get_num_drifters(self):
+    def get_num_drifters(self, applyDrifterSet=True, ignoreBuoys=False):
         """
         Returns the number of drifters in the observation set.
         """
-        if self.drifterSet is not None:
+         
+        # Count buoys
+        if (self.observation_type == dautils.ObservationType.StaticBuoys) and not ignoreBuoys:
+            first_position = self.obs_df.iloc[0][self.columns[2]]
+            return first_position.shape[0]
+            
+        # Count drifters
+        
+        if (self.drifterSet is not None) and applyDrifterSet:
             return len(self.drifterSet)
         
         first_position = self.obs_df.iloc[0][self.columns[1]]
@@ -91,12 +123,26 @@ class Observation:
         rounded_sim_t = round(sim.t)
         index = self.get_num_observations()
         
+        buoy_positions = None
+        buoy_observations = None
+        
         if not index == 0:
             assert(self.obs_df[self.obs_df[self.columns[0]]==rounded_sim_t].time.count() == 0), \
                 "Observation for time " + str(rounded_sim_t) + " already exists in DataFrame"
-
+        
+        if self.register_buoys:
+            if index == 0:
+                buoy_positions = self.buoy_positions
+            buoy_observations = np.zeros_like(self.buoy_positions)
+            eta, hu, hv = sim.download(interior_domain_only=True)
+            for i in range(len(buoy_observations)):
+                buoy_observations[i, 0] = hu[self.buoy_indices[i,1], self.buoy_indices[i,0]]
+                buoy_observations[i, 1] = hv[self.buoy_indices[i,1], self.buoy_indices[i,0]]
+                                        
+        
         pos = sim.drifters.getDrifterPositions()
-        self.obs_df.loc[index] = {self.columns[0]: rounded_sim_t, self.columns[1]: pos}
+        self.obs_df.loc[index] = {self.columns[0]: rounded_sim_t, self.columns[1]: pos,
+                                  self.columns[2]: buoy_observations, self.columns[3]: buoy_positions}
         
         
     #########################
@@ -119,6 +165,40 @@ class Observation:
     def setObservationInterval(self, interval):
         self.observationInterval = interval
     
+    def setBuoyCells(self, buoy_indices):
+        self.buoy_indices = buoy_indices
+        
+        # Compute the absolute positions for the buoys in the middle of their cells
+        self.buoy_positions = buoy_indices.copy()
+        dx = self.domain_size_x/self.nx
+        dy = self.domain_size_y/self.ny
+        self.buoy_positions[:,0] = (self.buoy_positions[:, 0] + 0.5)*dx
+        self.buoy_positions[:,1] = (self.buoy_positions[:, 1] + 0.5)*dy
+        
+        self.register_buoys = True
+        
+    def setBuoyCellsByFrequency(self, frequency_x, frequency_y):
+        """
+        Defines placements of buoys in the domain based on a given cell-frequency
+        """
+        static_y, static_x = int(self.ny/frequency_y), int(self.nx/frequency_x)
+        num_buoys = static_y*static_x 
+
+        buoy_cells = np.zeros((num_buoys, 2), dtype=np.int32)
+
+        buoy_cell_id = 0
+        for y in range(static_y):
+            cell_y = y*frequency_y
+            for x in range(static_x):
+                cell_x = x*frequency_x
+
+                buoy_cells[buoy_cell_id, :] = [cell_x, cell_y]
+
+                buoy_cell_id += 1
+                
+        self.setBuoyCells(buoy_cells)
+    
+    
     ############################
     ### FILE INTERFACE
     ############################        
@@ -134,15 +214,24 @@ class Observation:
         """
         self.obs_df = pd.read_pickle(path)
         
-    
+        if self.observation_type == dautils.ObservationType.StaticBuoys:
+            self.buoy_positions = obs_df.iloc[0][self.columns[3]].copy()
+            
+            # Compute the cell indices for the buoys in the middle of their cells
+            self.buoy_indices = buoy_positions.copy()
+            dx = self.domain_size_x/self.nx
+            dy = self.domain_size_y/self.ny
+            self.buoy_indices[:,0] = int(floor(self.buoy_indices[:, 0]/dx))
+            self.buoy_indices[:,1] = int(floor(self.buoy_indices[:, 1]/dy))
         
         
     def _check_observation_type(self):
         """
         Checking that we are not trying to use unsupported observation types
         """
-        assert(self.observation_type == dautils.ObservationType.UnderlyingFlow), \
-            "UnderlyingFlow is the only supported ObservationType at the moment."
+        assert(self.observation_type == dautils.ObservationType.UnderlyingFlow) or \
+              (self.observation_type == dautils.ObservationType.StaticBuoys), \
+              "Only UnderlyingFlow and StaticBuoys ObservationType are supported at the moment."
         
     def _check_df_at_given_time(self, rounded_t):
         # Sanity check the DataFrame
@@ -162,19 +251,24 @@ class Observation:
                 
         return self.obs_df.time.values[::self.observationInterval][1:].copy()
     
-    def get_drifter_position(self, t, applyDrifterSet=True):
+    def get_drifter_position(self, t, applyDrifterSet=True, ignoreBuoys=False):
         """
-        Returns an array of drifter positions at time t.
+        Returns an array of drifter positions at time t, as
+        [[x_1, y_1], ..., [x_D, y_D]]
         """
+        
         # The timestamp is rounded to nearest integer, so that it is possible to compare to 
         # entries in the DataFrame.
         rounded_t = round(t)
         
         # Sanity check the DataFrame
         self._check_df_at_given_time(rounded_t)
-
+        
         # Get index in data frame
         index = self.obs_df[self.obs_df[self.columns[0]]==rounded_t].index.values[0]
+        
+        if self.observation_type == dautils.ObservationType.StaticBuoys and not ignoreBuoys:
+            return self.buoy_positions.copy()
         
         current_pos = self.obs_df.iloc[index  ][self.columns[1]]
         
@@ -196,6 +290,7 @@ class Observation:
         Returns a numpy array with D drifter positions and drifter velocities
         [[x_1, y_1, hu_1, hv_1], ... , [x_D, y_D, hu_D, hv_D]]
         """
+        
         # The timestamp is rounded to nearest integer, so that it is possible to compare to 
         # entries in the DataFrame.
         rounded_t = round(t)
@@ -210,6 +305,15 @@ class Observation:
         
         assert(index > self.observationInterval-1), "Observation can not be made this early in the DataFrame."
         
+        # If Buoys
+        if self.observation_type == dautils.ObservationType.StaticBuoys:
+            num_buoys = self.get_num_drifters()
+            observation = np.zeros((num_buoys, 4))
+            observation[:, :2] = self.buoy_positions.copy()
+            observation[:, 2:] = self.obs_df.iloc[index][self.colums[2]]
+            return observations
+        
+        # Else drifters:
         prev_index = index - self.observationInterval
         dt = self.obs_df.iloc[index     ][self.columns[0]] - \
              self.obs_df.iloc[prev_index][self.columns[0]]

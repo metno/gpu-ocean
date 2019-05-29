@@ -155,7 +155,12 @@ sim.attachDrifters(drifters)
 #--------------------------------------------------------------
 # Create observation object and write the first drifter positions
 #--------------------------------------------------------------
-observations = Observation.Observation()
+observations = Observation.Observation(domain_size_x = sim.nx*sim.dx,
+                                       domain_size_y = sim.ny*sim.dy,
+                                       nx=sim.nx, ny=sim.ny)
+
+# Configure observations to register static positions
+observations.setBuoyCellsByFrequency(25, 25)
 observations.add_observation_from_sim(sim)
 
 netcdf_iterations = int(simulation_time/netcdf_frequency)

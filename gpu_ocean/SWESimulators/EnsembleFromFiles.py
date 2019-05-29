@@ -64,7 +64,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                  observation_variance,
                  cont_write_netcdf=False,
                  use_lcg = False,
-                 write_netcdf_directory = None):
+                 write_netcdf_directory = None,
+                 observation_type = dautils.ObservationType.UnderlyingFlow):
         """
         Initalizing ensemble from files.
         
@@ -131,7 +132,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         # We will not simulate the true state, but read it from file:
         self.simulate_true_state = False
         
-        self.observation_type = dautils.ObservationType.UnderlyingFlow
+        self.observation_type = observation_type
         
         ### Then, call appropriate helper functions for initialization of ensemble and true states
         self._initializeEnsembleFromFile()
@@ -188,8 +189,10 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.true_state_reader = SimReader.SimNetCDFReader(self.true_state_nc_files[0])
 
     def _initializeObservationsFromFile(self):    
-        self.observations = Observation.Observation(domain_size_x=self.getDomainSizeX(), 
-                                                    domain_size_y=self.getDomainSizeY())
+        self.observations = Observation.Observation(observation_type=self.observation_type,
+                                                    domain_size_x=self.getDomainSizeX(), 
+                                                    domain_size_y=self.getDomainSizeY(),
+                                                    nx=self.nx, ny=self.ny)
         self.observations.read_pickle(self.observation_files[0])
 
     
@@ -214,7 +217,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             self.observations.setDrifterSet(drifterSet)
         self.observations.setObservationInterval(observationInterval)
         self.driftersPerOceanModel = self.observations.get_num_drifters()
-                
+            
     def configureParticleInfos(self, extraCells):
         """
         Configuring which data to store from the ensemble.
@@ -285,8 +288,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.t = observation_time
         
         
-    def observeTrueDrifters(self, applyDrifterSet=True):
-        return self.observations.get_drifter_position(self.t, applyDrifterSet=applyDrifterSet)
+    def observeTrueDrifters(self, applyDrifterSet=True, ignoreBuoys=False):
+        return self.observations.get_drifter_position(self.t, applyDrifterSet=applyDrifterSet, ignoreBuoys=ignoreBuoys)
     
     def getDrifterCells(self):
         drifter_positions = self.observations.get_drifter_position(self.t, applyDrifterSet=False)
@@ -294,6 +297,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         drifter_positions[:,1] = np.floor(drifter_positions[:,1]/self.getDy())
         return drifter_positions.astype(np.int32)
 
+    def getNumDrifters(self, applyDrifterSet=True):
+        return self.observations.get_num_drifters(applyDrifterSet=applyDrifterSet)
         
     def observeTrueState(self):
         if not self.constant_depth:
