@@ -215,14 +215,14 @@ class Observation:
         self.obs_df = pd.read_pickle(path)
         
         if self.observation_type == dautils.ObservationType.StaticBuoys:
-            self.buoy_positions = obs_df.iloc[0][self.columns[3]].copy()
+            self.buoy_positions = self.obs_df.iloc[0][self.columns[3]].copy()
             
             # Compute the cell indices for the buoys in the middle of their cells
-            self.buoy_indices = buoy_positions.copy()
+            self.buoy_indices = self.buoy_positions.copy()
             dx = self.domain_size_x/self.nx
             dy = self.domain_size_y/self.ny
-            self.buoy_indices[:,0] = int(floor(self.buoy_indices[:, 0]/dx))
-            self.buoy_indices[:,1] = int(floor(self.buoy_indices[:, 1]/dy))
+            self.buoy_indices[:,0] = np.floor(self.buoy_indices[:, 0]/dx).astype(np.int32)
+            self.buoy_indices[:,1] = np.floor(self.buoy_indices[:, 1]/dy).astype(np.int32)
         
         
     def _check_observation_type(self):
@@ -310,8 +310,8 @@ class Observation:
             num_buoys = self.get_num_drifters()
             observation = np.zeros((num_buoys, 4))
             observation[:, :2] = self.buoy_positions.copy()
-            observation[:, 2:] = self.obs_df.iloc[index][self.colums[2]]
-            return observations
+            observation[:, 2:] = self.obs_df.iloc[index][self.columns[2]]
+            return observation
         
         # Else drifters:
         prev_index = index - self.observationInterval

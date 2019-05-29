@@ -96,7 +96,8 @@ class BaseOceanStateEnsemble(object):
             raise ValueError('Observation type DataAssimilationUtils.ObservationType.DrifterPosition is not supported')
 
         elif self.observation_type == dautils.ObservationType.UnderlyingFlow or \
-             self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
+             self.observation_type == dautils.ObservationType.DirectUnderlyingFlow or \
+             self.observation_type == dautils.ObservationType.StaticBuoys:
 
             observedState = np.empty((self.getNumParticles(), \
                                       self.getNumDrifters(), 2))
@@ -184,7 +185,8 @@ class BaseOceanStateEnsemble(object):
             trueState = self.observeTrueState()
 
         if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
-           self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
+           self.observation_type == dautils.ObservationType.DirectUnderlyingFlow or \
+           self.observation_type == dautils.ObservationType.StaticBuoys:
             # Change structure of trueState
             # from: [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
             # to:   [[hu1, hv1], ..., [huD, hvD]]
