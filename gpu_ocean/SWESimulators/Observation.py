@@ -179,7 +179,12 @@ class Observation:
         
     def setBuoyCellsByFrequency(self, frequency_x, frequency_y):
         """
-        Defines placements of buoys in the domain based on a given cell-frequency
+        Defines placements of buoys in the domain based on a given cell-frequency.
+        
+        E.g, if frequency_x = frequency_y = 25, and the domain is of size (500 x 300),
+        (12 x 20) = 240 buoys are defined equally spaced throughout the domain.
+        
+        This cover slightly more than 0.1% of the state space.
         """
         static_y, static_x = int(self.ny/frequency_y), int(self.nx/frequency_x)
         num_buoys = static_y*static_x 
