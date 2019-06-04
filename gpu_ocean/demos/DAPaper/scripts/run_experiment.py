@@ -22,7 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-import sys, os, json, datetime, time
+import sys, os, json, datetime, time, shutil
 import numpy as np
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -63,7 +63,8 @@ elif args.ensemble_size < 1:
 ensemble_init_path = os.path.abspath('double_jet_ensemble_init/')
 assert len(os.listdir(ensemble_init_path)) == 102, "Ensemble init folder has wrong number of files"
 
-truth_path = os.path.abspath('double_jet_truth/')
+#truth_path = os.path.abspath('double_jet_truth/')
+truth_path = os.path.abspath('truth_2019_05_29-13_49_08/')
 assert len(os.listdir(truth_path)) == 4, "Truth folder has wrong number of files"
 
 
@@ -71,6 +72,9 @@ timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
 media_dir = "/media/havahol/Seagate Backup Plus Drive/gpu_ocean"
 destination_dir = os.path.join(media_dir, "da_experiment_" +  timestamp + "/")
 os.makedirs(destination_dir)
+
+# Copy the truth into the destination folder
+shutil.copytree(truth_path, os.path.join(destination_dir, 'truth'))
 
 # Define misc filenames
 log_file = os.path.join(destination_dir, 'description.txt')
@@ -123,20 +127,22 @@ start_time      =  3*24*60*60 #  3 days
 simulation_time = 10*24*60*60 # 10 days (three days spin up is prior to this)fa
 end_time        = 13*24*60*60 # 13 days
 
-drifterSet = [4, 12, 20, 28, 36, 44, 52, 60]
-extraCells = np.array([[423,  25],
-                       [381,  27],
-                       [185,  48],
-                       [ 69, 157],
-                       [288, 132],
-                       [331, 177],
-                       [205, 201],
-                       [442, 234],
-                       [ 93,  11],
-                       [462,   0],
+
+drifterSet = [ 4,  9, 14, 29, 33, 39, 44, 50, 56, 54]
+extraCells = np.array([[327,  91],
+                       [433,  27],
+                       [196,  98],
+                       [363, 136],
+                       [ 88, 165],
+                       [449, 194],
+                       [ 30, 205],
+                       [479, 250],
+                       [ 51, 292],
+                       [279, 268],
                        [202, 135],
-                       [405, 135],
-                       [315, 229]])
+                       [319,  85],
+                       [292, 270]])
+
 
 
 
@@ -170,10 +176,13 @@ log("{:02.4f} s: ".format(toc-tic) + "Created context on " + device_name, True)
 # Initiate the ensemble
 #
 
-observation_type = dautils.dautils.ObservationType.UnderlyingFlow
+observation_type = dautils.ObservationType.UnderlyingFlow
 if args.observation_type == 'buoys':
     observation_type = dautils.ObservationType.StaticBuoys
-
+    log('Observation type changed to StaticBuoys!')
+elif args.observation_type == 'all_drifters':
+    drifterSet = 'all'
+    log('Using all drifters for DA experiment')
 
 
 tic = time.time()
@@ -190,6 +199,7 @@ ensemble.configureObservations(drifterSet=drifterSet, observationInterval = args
 ensemble.configureParticleInfos(extraCells)
 toc = time.time()
 log("{:02.4f} s: ".format(toc-tic) + "Ensemble is loaded and created", True)
+log("Using drifterSet:\n" + str(drifterSet))
 
 ### -------------------------------
 # Initialize IEWPF class (if needed)
@@ -216,12 +226,14 @@ obstime = 3*24*60*60
 
 master_tic = time.time()
 
-numDays = 7 # 6
-numHours = 24 # 4
+numDays = 7 
+numHours = 24 
+forecast_days = 3
 
 log('---------- Starting simulation --------------') 
-log('--- numDays: ' + str(numDays))
-log('--- numHours: ' + str(numHours))
+log('--- numDays:       ' + str(numDays))
+log('--- numHours:      ' + str(numHours))
+log('--- forecast_days: ' + str(forecast_days))
 log('---------------------------------------------') 
 
 
@@ -280,7 +292,7 @@ forecast_start_time = obstime
 drifter_start_positions = ensemble.observeTrueDrifters(applyDrifterSet=False, ignoreBuoys=True)
 num_drifters = len(drifter_start_positions)
 
-forecast_end_time = forecast_start_time + 3*24*60*60
+forecast_end_time = forecast_start_time + forecast_days*24*60*60
 
 observation_intervals = 5*60
 netcdf_intervals = 24*60*60
