@@ -30,6 +30,7 @@ from netCDF4 import Dataset
 import subprocess
 import matplotlib.pyplot as plt
 import os as os
+import time
 
 class SimNetCDFWriter:
     """Write simulator output to file in netCDF-format, following the CF convention.
