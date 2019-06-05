@@ -137,7 +137,24 @@ class KP07(Simulator.Simulator):
         self._set_interior_domain_from_sponge_cells()
         
         #Get kernels
-        self.kp07_kernel = gpu_ctx.get_kernel("KP07_kernel.cu", defines={'block_width': block_width, 'block_height': block_height})
+        self.kp07_kernel = gpu_ctx.get_kernel("KP07_kernel.cu", 
+                defines={'block_width': block_width, 'block_height': block_height},
+                compile_args={                          # default, fast_math, optimal
+                    'options' : ["--ftz=true",          # false,   true,      true
+                                 "--prec-div=false",    # true,    false,     false,
+                                 "--prec-sqrt=false",   # true,    false,     false
+                                 "--fmad=false"]        # true,    true,      false
+                    
+                    #'options': ["--use_fast_math"]
+                    #'options': ["--generate-line-info"], 
+                    #nvcc_options=["--maxrregcount=39"],
+                    #'arch': "compute_50", 
+                    #'code': "sm_50"
+                },
+                jit_compile_args={
+                    #jit_options=[(cuda.jit_option.MAX_REGISTERS, 39)]
+                }
+                )
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.swe_2D = self.kp07_kernel.get_function("swe_2D")
