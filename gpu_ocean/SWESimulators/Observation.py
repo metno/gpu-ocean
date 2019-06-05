@@ -72,6 +72,7 @@ class Observation:
         self.register_buoys = False
         self.buoy_indices = None
         self.buoy_positions = None
+        self.read_buoy = None
         
         # Configuration parameters:
         self.drifterSet = None
@@ -102,8 +103,9 @@ class Observation:
          
         # Count buoys
         if (self.observation_type == dautils.ObservationType.StaticBuoys) and not ignoreBuoys:
-            first_position = self.obs_df.iloc[0][self.columns[2]]
-            return first_position.shape[0]
+            return np.sum(self.read_buoy)
+            #first_position = self.obs_df.iloc[0][self.columns[2]]
+            #return first_position.shape[0]
             
         # Count drifters
         
@@ -175,6 +177,8 @@ class Observation:
         self.buoy_positions[:,0] = (self.buoy_positions[:, 0] + 0.5)*dx
         self.buoy_positions[:,1] = (self.buoy_positions[:, 1] + 0.5)*dy
         
+        self.read_buoy = [True]*self.buoy_indices.shape[0]
+        
         self.register_buoys = True
         
     def setBuoyCellsByFrequency(self, frequency_x, frequency_y):
@@ -203,7 +207,19 @@ class Observation:
                 
         self.setBuoyCells(buoy_cells)
     
-    
+    def setBuoyReadingArea(self, area='all'):
+        if area == "south":
+            for i in range(len(self.buoy_indices)):
+                self.read_buoy[i] = self.buoy_indices[i,1] < self.ny/2
+        elif area == "west":
+            for i in range(len(self.buoy_indices)):
+                self.read_buoy[i] = self.buoy_indices[i,0] < self.nx/2
+        elif area == 'all':
+            self.read_buoy = [True]*self.buoy_indices.shape[0]
+        else:
+            assert(area == 'all'), 'Invalid area. Must be all, south or west'
+            
+            
     ############################
     ### FILE INTERFACE
     ############################        
@@ -229,6 +245,7 @@ class Observation:
             self.buoy_indices[:,0] = np.floor(self.buoy_indices[:, 0]/dx).astype(np.int32)
             self.buoy_indices[:,1] = np.floor(self.buoy_indices[:, 1]/dy).astype(np.int32)
         
+            self.read_buoy = [True]*self.buoy_indices.shape[0]
         
     def _check_observation_type(self):
         """
@@ -273,7 +290,7 @@ class Observation:
         index = self.obs_df[self.obs_df[self.columns[0]]==rounded_t].index.values[0]
         
         if self.observation_type == dautils.ObservationType.StaticBuoys and not ignoreBuoys:
-            return self.buoy_positions.copy()
+            return self.buoy_positions.copy()[self.read_buoy, :]
         
         current_pos = self.obs_df.iloc[index  ][self.columns[1]]
         
@@ -314,8 +331,8 @@ class Observation:
         if self.observation_type == dautils.ObservationType.StaticBuoys:
             num_buoys = self.get_num_drifters()
             observation = np.zeros((num_buoys, 4))
-            observation[:, :2] = self.buoy_positions.copy()
-            observation[:, 2:] = self.obs_df.iloc[index][self.columns[2]]
+            observation[:, :2] = self.buoy_positions.copy()[self.read_buoy, :]
+            observation[:, 2:] = self.obs_df.iloc[index][self.columns[2]][self.read_buoy, :]
             return observation
         
         # Else drifters:

@@ -204,7 +204,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                 particle.cleanUp()
         
                
-    def configureObservations(self, drifterSet="all", observationInterval=1):
+    def configureObservations(self, drifterSet="all", observationInterval=1, buoy_area='all'):
         """
         Configuring which drifters we will observe and how often we will observe them.
         
@@ -217,6 +217,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             self.observations.setDrifterSet(drifterSet)
         self.observations.setObservationInterval(observationInterval)
         self.driftersPerOceanModel = self.observations.get_num_drifters()
+        self.observations.setBuoyReadingArea(buoy_area)
             
     def configureParticleInfos(self, extraCells):
         """

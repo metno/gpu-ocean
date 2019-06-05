@@ -44,6 +44,7 @@ parser.add_argument('--method', type=str, default='iewpf2')
 parser.add_argument('--observation_interval', type=int, default=1)
 parser.add_argument('--observation_variance', type=float, default=15.0)
 parser.add_argument('--observation_type', type=str, default='drifters')
+parser.add_argument('--buoy_area', type=str, default='all')
 
 
 args = parser.parse_args()
@@ -195,11 +196,17 @@ ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx, args.ensemble_size, \
                                                observation_type=observation_type)
 
 # Configure observations according to the selected drifters:
-ensemble.configureObservations(drifterSet=drifterSet, observationInterval = args.observation_interval)
+ensemble.configureObservations(drifterSet=drifterSet, 
+                               observationInterval = args.observation_interval,
+                               buoy_area = args.buoy_area)
 ensemble.configureParticleInfos(extraCells)
 toc = time.time()
 log("{:02.4f} s: ".format(toc-tic) + "Ensemble is loaded and created", True)
 log("Using drifterSet:\n" + str(drifterSet))
+if args.observation_type == 'buoys':
+    log('buoys to read:')
+    log(str(ensemble.observations.read_buoy))
+
 
 ### -------------------------------
 # Initialize IEWPF class (if needed)
