@@ -171,7 +171,7 @@ class Observation:
         self.buoy_indices = buoy_indices
         
         # Compute the absolute positions for the buoys in the middle of their cells
-        self.buoy_positions = buoy_indices.copy()
+        self.buoy_positions = buoy_indices.copy().astype(np.float32)
         dx = self.domain_size_x/self.nx
         dy = self.domain_size_y/self.ny
         self.buoy_positions[:,0] = (self.buoy_positions[:, 0] + 0.5)*dx
@@ -193,7 +193,7 @@ class Observation:
         static_y, static_x = int(self.ny/frequency_y), int(self.nx/frequency_x)
         num_buoys = static_y*static_x 
 
-        buoy_cells = np.zeros((num_buoys, 2), dtype=np.int32)
+        buoy_indices = np.zeros((num_buoys, 2), dtype=np.int32)
 
         buoy_cell_id = 0
         for y in range(static_y):
@@ -201,23 +201,24 @@ class Observation:
             for x in range(static_x):
                 cell_x = x*frequency_x
 
-                buoy_cells[buoy_cell_id, :] = [cell_x, cell_y]
+                buoy_indices[buoy_cell_id, :] = [cell_x, cell_y]
 
                 buoy_cell_id += 1
                 
-        self.setBuoyCells(buoy_cells)
+        self.setBuoyCells(buoy_indices)
     
     def setBuoyReadingArea(self, area='all'):
-        if area == "south":
-            for i in range(len(self.buoy_indices)):
-                self.read_buoy[i] = self.buoy_indices[i,1] < self.ny/2
-        elif area == "west":
-            for i in range(len(self.buoy_indices)):
-                self.read_buoy[i] = self.buoy_indices[i,0] < self.nx/2
-        elif area == 'all':
-            self.read_buoy = [True]*self.buoy_indices.shape[0]
-        else:
-            assert(area == 'all'), 'Invalid area. Must be all, south or west'
+        if self.observation_type == dautils.ObservationType.StaticBuoys:
+            if area == "south":
+                for i in range(len(self.buoy_indices)):
+                    self.read_buoy[i] = self.buoy_indices[i,1] < self.ny/2
+            elif area == "west":
+                for i in range(len(self.buoy_indices)):
+                    self.read_buoy[i] = self.buoy_indices[i,0] < self.nx/2
+            elif area == 'all':
+                self.read_buoy = [True]*self.buoy_indices.shape[0]
+            else:
+                assert(area == 'all'), 'Invalid area. Must be all, south or west'
             
             
     ############################
@@ -242,8 +243,9 @@ class Observation:
             self.buoy_indices = self.buoy_positions.copy()
             dx = self.domain_size_x/self.nx
             dy = self.domain_size_y/self.ny
-            self.buoy_indices[:,0] = np.floor(self.buoy_indices[:, 0]/dx).astype(np.int32)
-            self.buoy_indices[:,1] = np.floor(self.buoy_indices[:, 1]/dy).astype(np.int32)
+            self.buoy_indices[:,0] = np.floor(self.buoy_indices[:, 0]/dx)
+            self.buoy_indices[:,1] = np.floor(self.buoy_indices[:, 1]/dy)
+            self.buoy_indices = self.buoy_indices.astype(np.int32)
         
             self.read_buoy = [True]*self.buoy_indices.shape[0]
         
