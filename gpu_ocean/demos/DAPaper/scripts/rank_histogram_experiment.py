@@ -255,39 +255,34 @@ for run_id in range(args.experiments):
         toc = time.time()
         log("{:04.1f} s: ".format(toc-da_tic) + " Done simulating hour " + str(time_in_hours))
         
+        num_active_particles = ensemble.getNumActiveParticles()
+        if num_active_particles < ensemble_size:
+            log('-------> Found dead particles! Only ' + str(num_active_particles) + ' of ' + str(ensemble_size) + ' active.')
+            outfile = experiment_filename(run_id, time_in_hours)
+            outfile = outfile.replace('.npz', '.txt')
+            np.savetxt(outfile, [obstime])
+            break 
+        
         if time_in_hours in hours_to_store:
             log('-------> Storing ensemble ensemble data at hour ' + str(time_in_hours))
 
             outfile = experiment_filename(run_id, time_in_hours)
             log('-------> outfile: ' + outfile)
-    
             
-            num_active_particles = ensemble.getNumActiveParticles()
-            if num_active_particles == ensemble_size:        
-                ### Store the results
+            hu  = np.zeros((ensemble.ny, ensemble_size))
+            hv  = np.zeros((ensemble.ny, ensemble_size))
+            eta = np.zeros((ensemble.ny, ensemble_size))
 
-                hu  = np.zeros((ensemble.ny, ensemble_size))
-                hv  = np.zeros((ensemble.ny, ensemble_size))
-                eta = np.zeros((ensemble.ny, ensemble_size))
+            ### Store the results
+            for particle_id in range(ensemble_size):
 
+                p_eta, p_hu, p_hv  = ensemble.downloadParticleOceanState(particle_id)
 
-                for particle_id in range(ensemble_size):
+                hu[:, particle_id]  = p_hu[:, x_index]
+                hv[:, particle_id]  = p_hv[:, x_index]
+                eta[:, particle_id] = p_eta[:, x_index]
 
-                    p_eta, p_hu, p_hv  = ensemble.downloadParticleOceanState(particle_id)
-
-                    hu[:, particle_id]  = p_hu[:, x_index]
-                    hv[:, particle_id]  = p_hv[:, x_index]
-                    eta[:, particle_id] = p_eta[:, x_index]
-
-                np.savez(outfile, hu=hu, hv=hv, eta=eta, t=obstime)
-
-            else:
-                log('-------> Found dead particles! Only ' + str(num_active_particles) + ' of ' + str(ensemble_size) + ' active.')
-                outfile = outfile.replace('.npz', 'txt')
-                np.savetxt(outfile, t=obstime)
-                break # out from 'for hour in range(numHours)'
-            # end if num_active_particels_ensemble_size
-            
+            np.savez(outfile, hu=hu, hv=hv, eta=eta, t=obstime)
         # end if time_in_hours in hours_to_store
     
     # Done hours
