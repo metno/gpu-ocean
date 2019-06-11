@@ -10,7 +10,7 @@ import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../')))
+sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../')))
 
 #Import our simulator
 from SWESimulators import FBL, CTCS, KP07, CDKLM16, Common
