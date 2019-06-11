@@ -171,9 +171,9 @@ observation_type = dautils.ObservationType.StaticBuoys
 
 master_tic = time.time()
 
-numHours = 24
+numHours = 72
 x_index =  100
-hours_to_store = [1, 6, 12, 18, 24, 48]
+hours_to_store = [1, 6, 12, 18, 24, 48, 72]
 ensemble_size = const_args['ensemble_size']
 
 log('---------- Starting simulation --------------') 
@@ -301,8 +301,8 @@ for run_id in range(args.experiments):
 log('Done! Only checking is left. There should be a "yes, done" in the next line')
 
 
-assert(numHours == 24), 'Simulated with wrong number of hours'
-assert(obstime == 4*24*60*60), 'Forecast did not reach goal time'
+assert(numHours == 72), 'Simulated with wrong number of hours'
+#assert(obstime == 4*24*60*60), 'Forecast did not reach goal time'
 
 log('Yes, done!')
 
