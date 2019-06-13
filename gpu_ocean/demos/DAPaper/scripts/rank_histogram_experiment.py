@@ -171,14 +171,18 @@ observation_type = dautils.ObservationType.StaticBuoys
 
 master_tic = time.time()
 
-numHours = 72
+numHours = 6
+forecastHours = 1
 x_index =  100
-hours_to_store = [1, 6, 12, 18, 24, 48, 72]
+hours_to_store = [1, 6, 7, 12, 18, 24, 48, 72]
 ensemble_size = const_args['ensemble_size']
+use_lcg = False
 
 log('---------- Starting simulation --------------') 
-log('--- numHours:      ' + str(numHours))
-log('--- hours_to_store: ' +str(hours_to_store))
+log('--- numHours:       ' + str(numHours))
+log('--- hours_to_store: ' + str(hours_to_store))
+log('--- forecastHours:  ' + str(forecastHours))
+log('--- use_lcg:        ' + str(use_lcg))
 log('---------------------------------------------') 
 
 
@@ -208,7 +212,7 @@ for run_id in range(args.experiments):
                                                    ensemble_init_path, truth_path, \
                                                    const_args['observation_variance'],
                                                    cont_write_netcdf = False,
-                                                   use_lcg = True,
+                                                   use_lcg = use_lcg,
                                                    observation_type=observation_type)
 
     # Configure observations according to the selected drifters/buoys:
@@ -232,26 +236,29 @@ for run_id in range(args.experiments):
     ### DATA ASSIMILATION 
     log('-------- Starting data assimilation ')
 
-    for hour in range(numHours):
-
+    for hour in range(numHours+forecastHours):
+        time_in_hours = hour + 1
+        
         for fiveMin in range(12):
 
             drifter_cells = ensemble.getDrifterCells()
-
+                
             for minute in range(5):
                 obstime += 60
-                ensemble.stepToObservation(obstime, model_error_final_step=(minute<4))
 
-                if minute == 4:
+                forecast_instead_of_da = (time_in_hours in hours_to_store and fiveMin == 11) or time_in_hours > numHours
+                apply_model_error = minute < 4 or forecast_instead_of_da
+
+                ensemble.stepToObservation(obstime, model_error_final_step=apply_model_error)
+
+                if minute == 4 and not forecast_instead_of_da:
                     iewpf.iewpf_2stage(ensemble, perform_step=False)
-
+                
                 #ensemble.registerStateSample(drifter_cells)
             # Done minutes
 
         # Done five minutes
-        
-        time_in_hours = hour + 1
-        
+                
         toc = time.time()
         log("{:04.1f} s: ".format(toc-da_tic) + " Done simulating hour " + str(time_in_hours))
         
@@ -301,7 +308,8 @@ for run_id in range(args.experiments):
 log('Done! Only checking is left. There should be a "yes, done" in the next line')
 
 
-assert(numHours == 72), 'Simulated with wrong number of hours'
+assert(numHours == 6), 'Simulated with wrong number of hours'
+assert(forecastHours == 1), 'Simulated with the wrong forecast hours'
 #assert(obstime == 4*24*60*60), 'Forecast did not reach goal time'
 
 log('Yes, done!')
