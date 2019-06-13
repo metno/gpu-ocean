@@ -319,13 +319,18 @@ for run_id in range(args.experiments):
                 hv[:, particle_id]  = p_hv[:, x_index]
                 eta[:, particle_id] = p_eta[:, x_index]
 
-            ## TODO: Store truth
-            # make hu_truth, hv_truth, eta_truth and store along hu, hv and eta.
             
-            ## TODO: Use stored truth
-            # In the rank histogram, use stored truth if avilable in each file. 
-
-            np.savez(outfile, hu=hu, hv=hv, eta=eta, t=obstime)
+            ## TODO: Add observed truth to npz file
+            
+            ### Store truth
+            true_eta, true_hu, true_hv, true_t = ensemble.true_state_reader.getTimeStep(time_in_hours)
+            true_eta = true_eta[:, x_index]
+            true_hu  = true_hu[:, x_index]
+            true_hv  = true_hv[:, x_index]
+            
+            np.savez(outfile, t=obstime,
+                     eta=eta, hu=hu, hv=hv,
+                     true_eta=true_eta, true_hu=true_hu, true_hv=true_hv)
         # end if time_in_hours in hours_to_store
     
     # Done hours
@@ -338,8 +343,8 @@ for run_id in range(args.experiments):
     sim = None
     ensemble.cleanUp()
     toc = time.time()
-    print("\n{:02.4f} s: ".format(toc-tic) + "Clean up simulator done.")
-    print("{:07.1f} s".format(toc-master_tic) + " since starting the program.")
+    log("\n{:02.4f} s: ".format(toc-tic) + "Clean up simulator done.")
+    log("{:07.1f} s".format(toc-master_tic) + " since starting the program.")
 
 log('Done! Only checking is left. There should be a "yes, done" in the next line')
 
