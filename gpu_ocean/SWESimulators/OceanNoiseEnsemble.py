@@ -77,6 +77,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
         self.numParticles = numParticles
         self.particles = [None]*(self.numParticles + 1)
+        self.particlesActive = [True]*(self.numParticles)
         
         self.obs_index = self.numParticles
         
