@@ -174,13 +174,15 @@ forecastHours = 1
 x_index =  100
 hours_to_store = [1, 6, 7, 12, 18, 24, 48, 72]
 ensemble_size = const_args['ensemble_size']
-use_lcg = False
+use_lcg = True
+randomize_initial_ensemble = True
 
 log('---------- Starting simulation --------------') 
 log('--- numHours:       ' + str(numHours))
 log('--- hours_to_store: ' + str(hours_to_store))
 log('--- forecastHours:  ' + str(forecastHours))
 log('--- use_lcg:        ' + str(use_lcg))
+log('--- randomize_initial_ensemble: ' + str(randomize_initial_ensemble))
 log('---------------------------------------------') 
 
 
@@ -209,9 +211,6 @@ for run_id in range(args.experiments):
     # Function that takes input: end_time, destination_dir
     #               and returns: truth_dir
     
-    ## TODO: Random initial ensemble 
-    #  Add functionality to sample initial ensemble 
-    #  if ensemble_size < num_files in ensemble_init_path.
     
     ## TODO: Perturb truth. 
     #  In the truth, add a new column as perturbed_observation
@@ -225,7 +224,8 @@ for run_id in range(args.experiments):
                                                    const_args['observation_variance'],
                                                    cont_write_netcdf = False,
                                                    use_lcg = use_lcg,
-                                                   observation_type=observation_type)
+                                                   observation_type=observation_type,
+                                                   randomize_initial_ensemble=randomize_initial_ensemble)
 
     # Configure observations according to the selected drifters/buoys:
     ensemble.configureObservations(observationInterval = const_args['observation_interval'],

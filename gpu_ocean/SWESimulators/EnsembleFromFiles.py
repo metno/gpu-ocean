@@ -65,7 +65,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                  cont_write_netcdf=False,
                  use_lcg = False,
                  write_netcdf_directory = None,
-                 observation_type = dautils.ObservationType.UnderlyingFlow):
+                 observation_type = dautils.ObservationType.UnderlyingFlow,
+                 randomize_initial_ensemble=False):
         """
         Initalizing ensemble from files.
         
@@ -100,6 +101,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.ensemble_init_nc_files = list(os.path.join(ensemble_directory, file) for file in os.listdir(ensemble_directory) if file.endswith('.nc'))
         self.true_state_nc_files = list(os.path.join(true_state_directory, file)  for file in os.listdir(true_state_directory) if file.endswith('.nc'))
         self.observation_files = list(os.path.join(true_state_directory, file)  for file in os.listdir(true_state_directory) if file.endswith('.pickle'))
+        self.ensemble_init_nc_files.sort()
         
         assert len(self.ensemble_init_nc_files) > 0, "There should be at least one NetCDF file in ensemble directory " + str(ensemble_directory)
         assert len(self.true_state_nc_files) == 1, "There should only be one single NetCDF file in the true state directory " + str(true_state_directory)
@@ -135,7 +137,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.observation_type = observation_type
         
         ### Then, call appropriate helper functions for initialization of ensemble and true states
-        self._initializeEnsembleFromFile()
+        self._initializeEnsembleFromFile(randomize_initial_ensemble)
         self._initializeTruthFromFile() 
         
         ### Set some variables that are used by the super class:
@@ -165,10 +167,25 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self._particleInfoExtraCells = None
         
         
-    def _initializeEnsembleFromFile(self):
+    def _initializeEnsembleFromFile(self, randomize_initial_ensemble):
         num_files = len(self.ensemble_init_nc_files)
+        file_ids = np.arange(self.numParticles) % num_files
+        if randomize_initial_ensemble:
+            print('RANDOMIZING!!!')
+            
+            if self.numParticles < num_files:
+                # Chose a random but unique set of initial conditions
+                file_ids = np.random.choice(np.arange(num_files), 
+                                            self.numParticles, replace=False)
+            if self.numParticles > num_files:
+                # Keep one ensemble member for each file, and sample the rest by random
+                file_ids[num_files:] = np.random.choice(np.arange(num_files), 
+                                                        self.numParticles-num_files, 
+                                                        replace=True)
+            
+        
         for particle_id in range(self.numParticles):
-            file_id = particle_id % num_files
+            file_id = file_ids[particle_id]
             new_netcdf_filename = None
             if self.cont_write_netcdf:
                 filename_only = "ensemble_member_" + str(particle_id).zfill(4) + ".nc"
@@ -178,7 +195,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                                                        cont_write_netcdf=self.cont_write_netcdf,
                                                                        new_netcdf_filename=new_netcdf_filename,
                                                                        use_lcg=self.use_lcg)
-    
+
     def _initializeParticleInfo(self):
         self.particleInfos = [None]*self.numParticles
         for p in range(self.numParticles):
