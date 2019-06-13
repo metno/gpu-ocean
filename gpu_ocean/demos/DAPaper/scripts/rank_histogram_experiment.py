@@ -139,6 +139,8 @@ from SWESimulators import EnsembleFromFiles, Observation
 from SWESimulators import IEWPFOcean
 # For ObservationType:
 from SWESimulators import DataAssimilationUtils as dautils
+# For generating new truths
+from SWESimulators import DoubleJetExperimentUtils as djeutils
 
 toc = time.time()
 log("\n{:02.4f} s: ".format(toc-tic) + 'GPU Ocean packages imported', True)
@@ -207,9 +209,25 @@ for run_id in range(args.experiments):
     log('----------- Rank histogram experiment ' + str(run_id) + " ---------------------------")
     
     
-    ## TODO: Create new truth
-    # Function that takes input: end_time, destination_dir
-    #               and returns: truth_dir
+    ### Generating a new truth
+    tic = time.time()
+    truth_name = 'truth_run_' + str(run_id).zfill(4) + '_attempt_'
+    truth_path = None
+    truth_attempt = 0
+    while truth_path is None:
+        log('Generating truth - attempt ' + str(truth_attempt))
+        try:
+            truth_path = djeutils.generateTruth(gpu_ctx, destination_dir,
+                                                duration_in_days=3,
+                                                duration_in_hours=numHours+forecastHours,
+                                                folder_name=truth_name+str(truth_attempt))
+        except Exception as e:
+            truth_attempt += 1
+            log('Got exception in truth: ' + str(e))
+            
+    toc = time.time()
+    log("{:02.4f} s: ".format(toc-tic) + "Generated truth " + str(truth_path))
+            
     
     
     ## TODO: Perturb truth. 
@@ -313,15 +331,15 @@ for run_id in range(args.experiments):
     # Done hours
     toc = time.time()
     log("{:04.1f} s: ".format(toc-da_tic) + " Rank histogram experiment stored at time " + str(obstime))
-
-
+    
+    
     # Clean up simulation and close netcdf file
     tic = time.time()
     sim = None
     ensemble.cleanUp()
     toc = time.time()
     print("\n{:02.4f} s: ".format(toc-tic) + "Clean up simulator done.")
-    print("{:05.1f} s".format(toc-master_tic) + " since starting the program.")
+    print("{:07.1f} s".format(toc-master_tic) + " since starting the program.")
 
 log('Done! Only checking is left. There should be a "yes, done" in the next line')
 

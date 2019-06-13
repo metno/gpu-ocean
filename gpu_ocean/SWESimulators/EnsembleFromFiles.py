@@ -171,7 +171,6 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         num_files = len(self.ensemble_init_nc_files)
         file_ids = np.arange(self.numParticles) % num_files
         if randomize_initial_ensemble:
-            print('RANDOMIZING!!!')
             
             if self.numParticles < num_files:
                 # Chose a random but unique set of initial conditions
