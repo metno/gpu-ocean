@@ -42,7 +42,7 @@ if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../../SWESimulato
 import argparse
 parser = argparse.ArgumentParser(description='Generate an ensemble.')
 parser.add_argument('--experiments', type=int, default=None)
-parser.add_argument('--output_folder', type=str, default=None)
+parser.add_argument('--output_folder', type=str, default="/media/havahol/Seagate Backup Plus Drive/gpu_ocean")
 
 const_args = {
     'ensemble_size' : 40,
@@ -78,9 +78,7 @@ truth_path = os.path.abspath('truth_2019_06_06-09_23_41/')
 assert len(os.listdir(truth_path)) == 4, "Truth folder has wrong number of files"
 
 
-media_dir = "/media/havahol/Seagate Backup Plus Drive/gpu_ocean"
-if args.output_folder is not None:
-    media_dir = args.output_folder
+media_dir = args.output_folder
 if not os.path.isdir(media_dir):
     print("Output directory does not exist. Please provide an existing folder as --output_folder argument.")
     sys.exit(-1)
@@ -206,6 +204,20 @@ for run_id in range(args.experiments):
     
     log('----------- Rank histogram experiment ' + str(run_id) + " ---------------------------")
     
+    
+    ## TODO: Create new truth
+    # Function that takes input: end_time, destination_dir
+    #               and returns: truth_dir
+    
+    ## TODO: Random initial ensemble 
+    #  Add functionality to sample initial ensemble 
+    #  if ensemble_size < num_files in ensemble_init_path.
+    
+    ## TODO: Perturb truth. 
+    #  In the truth, add a new column as perturbed_observation
+    #  and use a boolean parameter in get_observation to select 
+    #  perturbed or true observations
+    
     ### Initialize ensemble
     tic = time.time()
     ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx, ensemble_size, \
@@ -288,6 +300,12 @@ for run_id in range(args.experiments):
                 hu[:, particle_id]  = p_hu[:, x_index]
                 hv[:, particle_id]  = p_hv[:, x_index]
                 eta[:, particle_id] = p_eta[:, x_index]
+
+            ## TODO: Store truth
+            # make hu_truth, hv_truth, eta_truth and store along hu, hv and eta.
+            
+            ## TODO: Use stored truth
+            # In the rank histogram, use stored truth if avilable in each file. 
 
             np.savez(outfile, hu=hu, hv=hv, eta=eta, t=obstime)
         # end if time_in_hours in hours_to_store
