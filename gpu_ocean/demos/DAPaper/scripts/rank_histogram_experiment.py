@@ -43,10 +43,11 @@ import argparse
 parser = argparse.ArgumentParser(description='Generate an ensemble.')
 parser.add_argument('--experiments', type=int, default=None)
 parser.add_argument('--output_folder', type=str, default="/media/havahol/Seagate Backup Plus Drive/gpu_ocean")
+parser.add_argument('--method', type=str, default='iewpf2')
 
 const_args = {
     'ensemble_size' : 40,
-    'method' : 'iewpf2',
+    #'method' : 'iewpf2',
     'observation_interval' : 1,
     'observation_variance' : 1,
     'observation_type' : 'buoys',
@@ -119,13 +120,16 @@ def logParams():
 
 logParams()
         
-method = const_args['method']
-if not method == 'iewpf2':
-    log('---> WRONG METHOD: ' + method)
-    log('Exiting!')
+# Reading and checking method
+method = str(args.method).lower()
+if method == 'iewpf2':
+    log(' ----> Using IEWPF 2 stage method')
+elif method == 'none':
+    log(' ----> No data assimilation')
+else:
+    log('Illegal method: ' + str(method))
     sys.exit(-1)
-log(' ----> Using IEWPF 2 stage method')
-
+    
 
 ###--------------------------------
 # Import required packages
@@ -277,11 +281,11 @@ for run_id in range(args.experiments):
                 obstime += 60
 
                 forecast_instead_of_da = (time_in_hours in hours_to_store and fiveMin == 11) or time_in_hours > numHours
-                apply_model_error = minute < 4 or forecast_instead_of_da
+                apply_model_error = minute < 4 or forecast_instead_of_da or method=='none'
 
                 ensemble.stepToObservation(obstime, model_error_final_step=apply_model_error)
 
-                if minute == 4 and not forecast_instead_of_da:
+                if minute == 4 and not forecast_instead_of_da and method=='iewpf2':
                     iewpf.iewpf_2stage(ensemble, perform_step=False)
                 
                 #ensemble.registerStateSample(drifter_cells)
