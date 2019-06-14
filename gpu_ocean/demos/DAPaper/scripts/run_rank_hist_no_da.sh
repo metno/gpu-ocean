@@ -1,6 +1,6 @@
 #!/bin/bash
 
-output_dir="tmp/rank_hist_iewpf_$(date +%Y_%m_%d-%H_%M_%S)"
+output_dir="tmp/rank_hist_no_da_$(date +%Y_%m_%d-%H_%M_%S)"
 echo $output_dir
 
 which python
