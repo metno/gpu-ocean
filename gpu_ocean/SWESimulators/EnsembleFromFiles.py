@@ -147,14 +147,15 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.t  = self.particles[0].t
 
         ### Initialize observations
-        self._initializeObservationsFromFile() 
-        self.driftersPerOceanModel = self.observations.get_num_drifters()
-        
         assert(np.isscalar(observation_variance) or observation_variance.shape == (2,2)), 'observation_variance must be scalar or 2x2 matrix'
         if np.isscalar(observation_variance):
             observation_cov = np.diag([observation_variance, observation_variance])
         self.observation_cov = observation_cov.astype(np.float32)
         self.observation_cov_inverse = np.linalg.inv(self.observation_cov).astype(np.float32)
+        
+        self._initializeObservationsFromFile() 
+        self.driftersPerOceanModel = self.observations.get_num_drifters()
+        
         
         # Store mean water_depth, and whether the equilibrium depth is constant across the domain
         H = self.particles[0].downloadBathymetry()[1][2:-2, 2:-2] # H in cell centers
@@ -208,7 +209,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.observations = Observation.Observation(observation_type=self.observation_type,
                                                     domain_size_x=self.getDomainSizeX(), 
                                                     domain_size_y=self.getDomainSizeY(),
-                                                    nx=self.nx, ny=self.ny)
+                                                    nx=self.nx, ny=self.ny,
+                                                    observation_variance=self.observation_cov[0,0])
         self.observations.read_pickle(self.observation_files[0])
 
     

@@ -24,6 +24,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 import sys, os, json, datetime, time, shutil
+import subprocess
+
 import numpy as np
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -44,16 +46,15 @@ parser = argparse.ArgumentParser(description='Generate an ensemble.')
 parser.add_argument('--experiments', type=int, default=None)
 parser.add_argument('--output_folder', type=str, default="/media/havahol/Seagate Backup Plus Drive/gpu_ocean")
 parser.add_argument('--method', type=str, default='iewpf2')
+parser.add_argument('--observation_variance', type=float, default=1)
 
 const_args = {
     'ensemble_size' : 40,
     #'method' : 'iewpf2',
     'observation_interval' : 1,
-    'observation_variance' : 1,
     'observation_type' : 'buoys',
     'buoy_area' : 'west'
 }
-
 
 
 
@@ -66,6 +67,7 @@ if args.experiments is None:
 elif args.experiments < 1:
     parser.error("Illegal number of experiments: " + str(args.ensemble_size))
     sys.exit(-1)
+
 
 
 ###-----------------------------------------
@@ -130,6 +132,22 @@ else:
     log('Illegal method: ' + str(method))
     sys.exit(-1)
     
+###------------------------------
+## Git info
+##
+try:
+    git_hash = str.strip(str(subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode("utf8")[0:-1]))
+    git_branch = str.strip(str(subprocess.check_output(["git","symbolic-ref", "--short", "HEAD"]).decode("utf8")[0:-1]))
+except:
+    git_hash = "git info missing..."
+    git_branch = "git branch missing..."
+    
+log('------Git info---------')
+log('Branch: ' + str(git_branch))
+log('Hash:   ' + str(git_hash))
+log('--------------------------')
+
+
 
 ###--------------------------------
 # Import required packages
@@ -243,7 +261,7 @@ for run_id in range(args.experiments):
     tic = time.time()
     ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx, ensemble_size, \
                                                    ensemble_init_path, truth_path, \
-                                                   const_args['observation_variance'],
+                                                   args.observation_variance,
                                                    cont_write_netcdf = False,
                                                    use_lcg = use_lcg,
                                                    observation_type=observation_type,
@@ -325,6 +343,8 @@ for run_id in range(args.experiments):
 
             
             ## TODO: Add observed truth to npz file
+            observations = ensemble.observeTrueState()
+            observation_variance = ensemble.getObservationVariance()
             
             ### Store truth
             true_eta, true_hu, true_hv, true_t = ensemble.true_state_reader.getTimeStep(time_in_hours)
@@ -334,7 +354,8 @@ for run_id in range(args.experiments):
             
             np.savez(outfile, t=obstime,
                      eta=eta, hu=hu, hv=hv,
-                     true_eta=true_eta, true_hu=true_hu, true_hv=true_hv)
+                     true_eta=true_eta, true_hu=true_hu, true_hv=true_hv,
+                     observations=observations, observation_variance=observation_variance)
         # end if time_in_hours in hours_to_store
     
     # Done hours

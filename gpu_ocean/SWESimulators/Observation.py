@@ -40,7 +40,8 @@ class Observation:
     """
     
     def __init__(self, observation_type=dautils.ObservationType.UnderlyingFlow,
-                 domain_size_x=None, domain_size_y=None, nx=None, ny=None):
+                 domain_size_x=None, domain_size_y=None, nx=None, ny=None,
+                 observation_variance=0.0):
         """
         Class for facilitating drifter observations in files.
         The pandas DataFrame contains drifter positions only for 
@@ -55,14 +56,25 @@ class Observation:
         self.observation_type = observation_type
         self._check_observation_type()
         
-        self.columns = ('time', 'drifter_positions', 'buoy_observations', 'buoy_positions')
-        self.obs_df = pd.DataFrame(columns=self.columns)
+        self.time_key               = 'time'
+        self.drifter_positions_key  = 'drifter_positions'
+        self.drifter_obs_errors_key = 'drifter_obs_errors'
+        self.buoy_observations_key  = 'buoy_observations'
+        self.buoy_positions_key     = 'buoy_positions'
+        self.buoy_obs_errors_key    = 'buoy_obs_errors'
+        self.df_keys = [self.time_key, self.drifter_positions_key, self.drifter_obs_errors_key, 
+                        self.buoy_observations_key, self.buoy_positions_key, self.buoy_obs_errors_key]
+        
+        #self.columns = ('time', 'drifter_positions', 'buoy_observations', 'buoy_positions', 'buoy_obs_errors', 'drifter_obs_errors')
+        self.obs_df = pd.DataFrame(columns=self.df_keys) #columns)
         
         # For each time the data frame entry will look like this:
         # {'time' : t,
         #  'drifter_positions': [[x_1, y_1], [x_2, y_2], ..., [x_D, y_D]]
+        #  'drifter_obs_error': [[eps_1,1, eps_1,2], [eps_2,1, eps_2,2], ..., [eps_D,1 eps_D,2]]
         #  'buoy_observations': [[hu_1, hv_1], [hu_2, hv_2], ..., [hu_B, hv_B]]
         #  'buoy_positions'   : [[x_1, y_1], [x_2, y_2], ..., [x_B, y_B]]
+        #  'buoy_obs_error'   : [[eps_1,1, eps_1,2], [eps_2,1, eps_2,2], ..., [eps_B,1 eps_B,2]]
         # }
         # D = num drifters, B = num buoys
         #
@@ -77,6 +89,8 @@ class Observation:
         # Configuration parameters:
         self.drifterSet = None
         self.observationInterval = 1
+        self.obs_var = observation_variance
+        self.obs_stddev = np.sqrt(observation_variance)
         
         if observation_type == dautils.ObservationType.StaticBuoys:
             assert(nx is not None), 'nx must be provided if observation_type is StaticBuoys'
@@ -94,7 +108,7 @@ class Observation:
         """
         Returns the number of rows (drifter observations) stored in the DataFrame.
         """
-        return self.obs_df[self.columns[0]].count()
+        return self.obs_df[self.time_key].count()
     
     def get_num_drifters(self, applyDrifterSet=True, ignoreBuoys=False):
         """
@@ -104,15 +118,12 @@ class Observation:
         # Count buoys
         if (self.observation_type == dautils.ObservationType.StaticBuoys) and not ignoreBuoys:
             return np.sum(self.read_buoy)
-            #first_position = self.obs_df.iloc[0][self.columns[2]]
-            #return first_position.shape[0]
-            
+           
         # Count drifters
-        
         if (self.drifterSet is not None) and applyDrifterSet:
             return len(self.drifterSet)
         
-        first_position = self.obs_df.iloc[0][self.columns[1]]
+        first_position = self.obs_df.iloc[0][self.drifter_positions_key]
         return first_position.shape[0]
     
     def add_observation_from_sim(self, sim):
@@ -127,9 +138,10 @@ class Observation:
         
         buoy_positions = None
         buoy_observations = None
+        buoy_obs_errors = None
         
         if not index == 0:
-            assert(self.obs_df[self.obs_df[self.columns[0]]==rounded_sim_t].time.count() == 0), \
+            assert(self.obs_df[self.obs_df[self.time_key]==rounded_sim_t].time.count() == 0), \
                 "Observation for time " + str(rounded_sim_t) + " already exists in DataFrame"
         
         if self.register_buoys:
@@ -140,11 +152,15 @@ class Observation:
             for i in range(len(buoy_observations)):
                 buoy_observations[i, 0] = hu[self.buoy_indices[i,1], self.buoy_indices[i,0]]
                 buoy_observations[i, 1] = hv[self.buoy_indices[i,1], self.buoy_indices[i,0]]
-                                        
+            
+            buoy_obs_errors = np.random.normal(size=buoy_observations.shape)
+            
         
         pos = sim.drifters.getDrifterPositions()
-        self.obs_df.loc[index] = {self.columns[0]: rounded_sim_t, self.columns[1]: pos,
-                                  self.columns[2]: buoy_observations, self.columns[3]: buoy_positions}
+        drifter_obs_errors = np.random.normal(size=pos.shape)
+        self.obs_df.loc[index] = {self.time_key: rounded_sim_t, self.drifter_positions_key: pos,
+                                  self.buoy_observations_key: buoy_observations, self.buoy_positions_key: buoy_positions,
+                                  self.buoy_obs_errors_key: buoy_obs_errors, self.drifter_obs_errors_key: drifter_obs_errors}
         
         
     #########################
@@ -237,7 +253,7 @@ class Observation:
         self.obs_df = pd.read_pickle(path)
         
         if self.observation_type == dautils.ObservationType.StaticBuoys:
-            self.buoy_positions = self.obs_df.iloc[0][self.columns[3]].copy()
+            self.buoy_positions = self.obs_df.iloc[0][self.buoy_positions_key].copy()
             
             # Compute the cell indices for the buoys in the middle of their cells
             self.buoy_indices = self.buoy_positions.copy()
@@ -259,9 +275,9 @@ class Observation:
         
     def _check_df_at_given_time(self, rounded_t):
         # Sanity check the DataFrame
-        assert(self.obs_df[self.obs_df[self.columns[0]]==rounded_t].time.count() > 0), \
+        assert(self.obs_df[self.obs_df[self.time_key]==rounded_t].time.count() > 0), \
                 "Observation for time " + str(rounded_t) + " does not exists in DataFrame"
-        assert(self.obs_df[self.obs_df[self.columns[0]]==rounded_t].time.count() < 2), \
+        assert(self.obs_df[self.obs_df[self.time_key]==rounded_t].time.count() < 2), \
                 "Observation for time " + str(rounded_t) + " has multiple entries in DataFrame"
         
         
@@ -289,12 +305,12 @@ class Observation:
         self._check_df_at_given_time(rounded_t)
         
         # Get index in data frame
-        index = self.obs_df[self.obs_df[self.columns[0]]==rounded_t].index.values[0]
+        index = self.obs_df[self.obs_df[self.time_key]==rounded_t].index.values[0]
         
         if self.observation_type == dautils.ObservationType.StaticBuoys and not ignoreBuoys:
             return self.buoy_positions.copy()[self.read_buoy, :]
         
-        current_pos = self.obs_df.iloc[index  ][self.columns[1]]
+        current_pos = self.obs_df.iloc[index  ][self.drifter_positions_key]
         
         # Need to return a copy of the data frame data, elsewise we risk modifying the data frame!
         if applyDrifterSet and self.drifterSet is not None:
@@ -325,25 +341,34 @@ class Observation:
         # Check that we are not trying to use unsupported observation types
         self._check_observation_type()
 
-        index = self.obs_df[self.obs_df[self.columns[0]]==rounded_t].index.values[0]
+        index = self.obs_df[self.obs_df[self.time_key]==rounded_t].index.values[0]
         
         assert(index > self.observationInterval-1), "Observation can not be made this early in the DataFrame."
         
         # If Buoys
         if self.observation_type == dautils.ObservationType.StaticBuoys:
             num_buoys = self.get_num_drifters()
+            
             observation = np.zeros((num_buoys, 4))
+            
             observation[:, :2] = self.buoy_positions.copy()[self.read_buoy, :]
-            observation[:, 2:] = self.obs_df.iloc[index][self.columns[2]][self.read_buoy, :]
+            observation[:, 2:] = self.obs_df.iloc[index][self.buoy_observations_key][self.read_buoy, :]
+            
+            # Add observation error:
+            if self.buoy_obs_errors_key in self.obs_df.columns:
+                obs_error = self.obs_df.iloc[index][self.buoy_obs_errors_key]
+                if obs_error is not None:
+                    observation[:, 2:] += obs_error[self.read_buoy, :] * self.obs_stddev
+            
             return observation
         
         # Else drifters:
         prev_index = index - self.observationInterval
-        dt = self.obs_df.iloc[index     ][self.columns[0]] - \
-             self.obs_df.iloc[prev_index][self.columns[0]]
+        dt = self.obs_df.iloc[index     ][self.time_key] - \
+             self.obs_df.iloc[prev_index][self.time_key]
 
-        current_pos = self.obs_df.iloc[index     ][self.columns[1]]
-        prev_pos    = self.obs_df.iloc[prev_index][self.columns[1]]
+        current_pos = self.obs_df.iloc[index     ][self.drifter_positions_key]
+        prev_pos    = self.obs_df.iloc[prev_index][self.drifter_positions_key]
         if self.drifterSet is not None:
             current_pos = current_pos[self.drifterSet, :]
             prev_pos = prev_pos[self.drifterSet, :]
@@ -351,10 +376,11 @@ class Observation:
         num_drifters = prev_pos.shape[0]
         hu_hv = (current_pos - prev_pos)*waterDepth/dt        
         
+        
         observation = np.zeros((num_drifters, 4))
         observation[:,:2] = current_pos
-        observation[:,2:] = hu_hv
-            
+        observation[:,2:] = hu_hv 
+        
         # Correct velocities for drifters that travel through the domain boundary
         if self.domain_size_x or self.domain_size_y:
             for d in range(observation.shape[0]):
@@ -374,7 +400,16 @@ class Observation:
                         observation[d,3] = velocity_y_p
                     if abs(velocity_y_m) < abs(observation[d,3]):
                         observation[d,3] = velocity_y_m
-                
+        
+        # Add observation error
+        if self.drifter_obs_errors_key in self.obs_df.iloc:
+            obs_error = self.obs_df.iloc[index][self.drifter_obs_errors_key]
+            
+            if obs_error is not None:
+                if self.drifterSet is not None:
+                    obs_error[self.drifterSet, :]
+                observation[:,2:] += obs_error * self.obs_stddev
+        
         return observation
         
         
@@ -385,7 +420,7 @@ class Observation:
             return True
         return False
 
-    def get_drifter_path(self, drifter_id, start_t, end_t):
+    def get_drifter_path(self, drifter_id, start_t, end_t): #, flexiframe=False):
         """
         Creates a list of paths for the given drifter in the given time interval,
         so that the drift trajectory can be plotted.
@@ -406,7 +441,7 @@ class Observation:
         total_num_observations = end_obs_index - start_obs_index
         
         # Filter the given drifter based from the data frame only once for efficiency
-        all_drifter_positions_df = self.obs_df[self.columns[1]].values[::self.observationInterval][1:].copy()
+        all_drifter_positions_df = self.obs_df[self.drifter_positions_key].values[::self.observationInterval][1:].copy()
         all_drifter_positions = np.stack(all_drifter_positions_df, axis=0)[:, drifter_id,:]
         
         path = np.zeros((total_num_observations, 2))
