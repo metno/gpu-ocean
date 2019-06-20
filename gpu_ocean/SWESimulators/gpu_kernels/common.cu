@@ -4,6 +4,10 @@
 #define _180_OVER_PI 57.29578f
 #define PI_OVER_180 0.01745329f
 
+#define KPSIMULATOR_FLUX_SLOPE_EPS 1.0e-4f
+#define KPSIMULATOR_DEPTH_CUTOFF 1.0e-5f
+#define SQRT_OF_TWO 1.41421356237309504880f
+
 /*
 This software is part of GPU Ocean. 
 
@@ -659,22 +663,61 @@ __device__ float3 F_func_bottom(const float3 Q, const float h, const float u, co
   * Central upwind flux function
   * Takes Q = [eta, hu, hv] as input
   */
-__device__ float3 CentralUpwindFluxBottom(const float3 Qm, float3 Qp, const float H, const float g) {
-    const float hp = Qp.x + H;  // h = eta + H
-    const float up = Qp.y / (float) hp; // hu/h
-    const float3 Fp = F_func_bottom(Qp, hp, up, g);
-    const float cp = sqrt(g*hp); // sqrt(g*h)
-
-    const float hm = Qm.x + H;
-    const float um = Qm.y / (float) hm;   // hu / h
-    const float3 Fm = F_func_bottom(Qm, hm, um, g);
-    const float cm = sqrt(g*hm); // sqrt(g*h)
+__device__ float3 CentralUpwindFluxBottom(float3 Qm, float3 Qp, const float H, const float g) {
+    // The constant is a compiler constant in the CUDA code.
+    // const float KPSIMULATOR_FLUX_SLOPE_EPS = 1.0e-4f;
+    // const float KPSIMULATOR_DEPTH_CUTOFF = 1.0e-5f;
+    // These constants are now compiler constants!
     
+    const float hp = Qp.x + H;  // h = eta + H
+    float up = 0.0f; //Qp.y / (float) hp; // hu/h
+    float3 Fp = make_float3(0.0f, 0.0f, 0.0f);
+    float cp = 0.0f;
+    // Check if complely dry:
+    if (hp > KPSIMULATOR_DEPTH_CUTOFF) {
+        up = Qp.y / (float) hp; // hu/h
+        // Check if almost dry
+        float hp4 = hp*hp; hp4 *= hp4;  // hp^4
+        if (hp <= KPSIMULATOR_FLUX_SLOPE_EPS) {
+            // Desingularize u and v
+            up = SQRT_OF_TWO*hp*Qp.y/sqrt(hp4 + fmaxf(hp4, pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            //up = SQRT_OF_TWO*hp*Qp.y/sqrt(hp4 + KPSIMULATOR_FLUX_SLOPE_EPS);
+            const float vp = SQRT_OF_TWO*hp*Qp.z/sqrt(hp4 + fmaxf(hp4, pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            //const float vp = SQRT_OF_TWO*hp*Qp.z/sqrt(hp4 + KPSIMULATOR_FLUX_SLOPE_EPS);
+            // Update hu and hv accordingly
+            Qp.y = hp*up;
+            Qp.z = hp*vp;
+        }
+        Fp = F_func_bottom(Qp, hp, up, g);
+        cp = sqrt(g*hp); // sqrt(g*h)
+    }
+        
+    const float hm = Qm.x + H;
+    float um = 0.0f; //Qm.y / (float) hm;   // hu / h
+    float3 Fm = make_float3(0.0f, 0.0f, 0.0f);
+    float cm = 0.0f;
+    // Check if completely dry:
+    if (hm > KPSIMULATOR_DEPTH_CUTOFF) {
+        um = Qm.y / (float) hm;   // hu / h
+        // Check if almost dry
+        float hm4 = hm*hm; hm4 *= hm4;   // hm^4
+        if (hm <= KPSIMULATOR_FLUX_SLOPE_EPS) {
+            // Desingularize u and v
+            //um = SQRT_OF_TWO*hm*Qm.y/sqrt(hm4 + KPSIMULATOR_FLUX_SLOPE_EPS);
+            um = SQRT_OF_TWO*hm*Qm.y/sqrt(hm4 + fmaxf(hm4, pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            //const float vm = SQRT_OF_TWO*hm*Qm.z/sqrt(hm4 + KPSIMULATOR_FLUX_SLOPE_EPS);
+            const float vm = SQRT_OF_TWO*hm*Qm.z/sqrt(hm4 + fmaxf(hm4, pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            // Update hu and hv accordingly
+            Qm.y = hm*um;
+            Qm.z = hm*vm;
+        }
+        Fm = F_func_bottom(Qm, hm, um, g);
+        cm = sqrt(g*hm); // sqrt(g*h)
+    }
+        
     const float am = min(min(um-cm, up-cp), 0.0f); // largest negative wave speed
     const float ap = max(max(um+cm, up+cp), 0.0f); // largest positive wave speed
     // Related to dry zones
-    // The constant is a compiler constant in the CUDA code.
-    const float KPSIMULATOR_FLUX_SLOPE_EPS = 1.0e-4f;
     if ( fabs(ap - am) < KPSIMULATOR_FLUX_SLOPE_EPS ) {
         return make_float3(0.0f, 0.0f, 0.0f);
     }

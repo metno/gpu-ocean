@@ -82,8 +82,8 @@ class KP07(Simulator.Simulator):
         """
        
         ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
-        if ( np.sum(eta0 - H[:-1, :-1] > 0) > nx):
-            assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
+        #if ( np.sum(eta0 - H[:-1, :-1] > 0) > nx):
+        #    assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
 
         
 

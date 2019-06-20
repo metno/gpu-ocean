@@ -62,8 +62,10 @@ __device__ void adjustSlopeUx(float Qx[3][block_height+2][block_width+2],
     const float RHx_m = reconstructHx(Hi, p, q);
     const float RHx_p = reconstructHx(Hi, p+1, q);
     
+    // Western face
     Qx[0][qQx][pQx] = (Q[0][q][p]-Qx[0][qQx][pQx] < -RHx_m) ?
                         (Q[0][q][p] + RHx_m) : Qx[0][qQx][pQx];
+    // Eastern face
     Qx[0][qQx][pQx] = (Q[0][q][p]+Qx[0][qQx][pQx] < -RHx_p) ?
                         (-RHx_p - Q[0][q][p]) : Qx[0][qQx][pQx];
     
@@ -80,8 +82,10 @@ __device__ void adjustSlopeUy(float Qy[3][block_height+2][block_width+2],
     const float RHy_m = reconstructHy(Hi, p, q);
     const float RHy_p = reconstructHy(Hi, p, q+1);
 
+    // Southern face
     Qy[0][qQy][pQy] = (Q[0][q][p]-Qy[0][qQy][pQy] < -RHy_m) ?
         (Q[0][q][p] + RHy_m) : Qy[0][qQy][pQy];
+    // Nortern face
     Qy[0][qQy][pQy] = (Q[0][q][p]+Qy[0][qQy][pQy] < -RHy_p) ?
         (-RHy_p - Q[0][q][p]) : Qy[0][qQy][pQy];
     
@@ -257,11 +261,25 @@ __device__ float bottomSourceTerm2_kp(float Q[3][block_height+4][block_width+4],
     const float hm = Q[0][q][p] - Qx[0][qQx][pQx];
     
     const float RHx_p = reconstructHx(Hi, p+1, q);
-    const float RHy_m = reconstructHx(Hi, p  , q);
+    const float RHx_m = reconstructHx(Hi, p  , q);
     
     // g (w - B)*B_x -> KP07 equations (3.15) and (3.16)
     // With eta: g (eta + H)*(-H_x)
-    return -0.5f*g*(RHx_p - RHy_m)*(hp + RHx_p + hm + RHy_m);
+    float H_x = RHx_p - RHx_m;
+    const float h = Q[0][p][q] + (RHx_p + RHx_m)/2.0f;
+    float h4 = h*h; h4 *= h4;
+    
+    if (h > KPSIMULATOR_DEPTH_CUTOFF) {
+        
+        if (h4 <= KPSIMULATOR_FLUX_SLOPE_EPS) {
+            // Desingularize u and v
+            //H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + KPSIMULATOR_FLUX_SLOPE_EPS);
+            H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + fmaxf(h4, pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+        }
+    
+        return -0.5f*g*H_x*(hp + RHx_p + hm + RHx_m);
+    }
+    return 0.0f;
 }
 
 __device__ float bottomSourceTerm3_kp(float Q[3][block_height+4][block_width+4],
@@ -279,7 +297,21 @@ __device__ float bottomSourceTerm3_kp(float Q[3][block_height+4][block_width+4],
     const float RHy_p = reconstructHy(Hi, p, q+1);
     const float RHy_m = reconstructHy(Hi, p, q  );
     
-    return -0.5f*g*(RHy_p - RHy_m)*(hp + RHy_p + hm + RHy_m);
+    float H_y = RHy_p - RHy_m;
+    const float h = Q[0][p][q] + (RHy_p + RHy_m)/2.0f;
+    float h4 = h*h; h4 *= h4;
+    
+    if (h > KPSIMULATOR_DEPTH_CUTOFF) {
+        
+        if (h <= KPSIMULATOR_FLUX_SLOPE_EPS) {
+            // Desingularize u and v
+            //H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + KPSIMULATOR_FLUX_SLOPE_EPS);
+            H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + fmaxf(h4, pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+        }
+        
+        return -0.5f*g*H_y*(hp + RHy_p + hm + RHy_m);
+    }
+    return 0.0f;
 }
 
 
@@ -375,18 +407,18 @@ __global__ void swe_2D(
     __syncthreads();
     
     //Fix boundary conditions
-    // TODO: Add if on boundary condition
     if (bc_north_ == 1 || bc_east_ == 1 || bc_south_ == 1 || bc_west_ == 1)
     {
         noFlowBoundary2Mix(Q, nx_, ny_, bc_north_, bc_east_, bc_south_, bc_west_);
         __syncthreads();	
         // Looks scary to have fence within if, but the bc parameters are static between threads.
     }
-    
+
     // Reconstruct Q in x-direction into Qx
     
     //Reconstruct slopes along x and axis
     // The Qx is here dQ/dx*0.5*dx
+    // and represent still [eta_x, hu_x, hv_x]
     minmodSlopeX(Q, Qx, theta_);
     __syncthreads();
 
@@ -462,13 +494,17 @@ __global__ void swe_2D(
         float* const hv_row = (float*) ((char*) hv1_ptr_ + hv1_pitch_*tj);
 
         const float C = 2.0f*r_*dt_/(Q[0][j][i]+Hm);
-                    
+        
+        float eta;
+        float hu;
+        float hv;
+        
         if  (step_ == 0) {
             //First step of RK2 ODE integrator
             
-            eta_row[ti]  =  Q[0][j][i] + dt_*R1;
-            hu_row[ti] = (Q[1][j][i] + dt_*R2) / (1.0f + C);
-            hv_row[ti] = (Q[2][j][i] + dt_*R3) / (1.0f + C);
+            eta  =  Q[0][j][i] + dt_*R1;
+            hu = (Q[1][j][i] + dt_*R2) / (1.0f + C);
+            hv = (Q[2][j][i] + dt_*R3) / (1.0f + C);
         }
         else if (step_ == 1) {
             //Second step of RK2 ODE integrator
@@ -484,10 +520,22 @@ __global__ void swe_2D(
             const float hv_b = 0.5f*(hv_a + (Q[2][j][i] + dt_*R3));
             
             //Write to main memory
-            eta_row[ti] = eta_b;
-            hu_row[ti] = hu_b / (1.0f + 0.5f*C);
-            hv_row[ti] = hv_b / (1.0f + 0.5f*C);
+            eta = eta_b;
+            hu = hu_b / (1.0f + 0.5f*C);
+            hv = hv_b / (1.0f + 0.5f*C);
         }
+        
+        const float h = eta + Hm;
+        if (h <=  KPSIMULATOR_DEPTH_CUTOFF) {
+            eta = 0.0f; //Hm;
+            hu  = 0.0f;
+            hv  = 0.0f;
+        }
+        eta_row[ti] = eta;
+        hu_row[ti]  = hu;
+        hv_row[ti]  = hv;
+        
+        
     }
 }
 } // extern "C"
