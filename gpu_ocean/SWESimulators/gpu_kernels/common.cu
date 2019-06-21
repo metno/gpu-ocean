@@ -4,7 +4,7 @@
 #define _180_OVER_PI 57.29578f
 #define PI_OVER_180 0.01745329f
 
-#define KPSIMULATOR_FLUX_SLOPE_EPS 1.0e-4f
+#define KPSIMULATOR_FLUX_SLOPE_EPS 1.0e-1f
 #define KPSIMULATOR_DEPTH_CUTOFF 1.0e-5f
 #define SQRT_OF_TWO 1.41421356237309504880f
 
@@ -121,6 +121,44 @@ __device__ void readBlock2(float* h_ptr_, int h_pitch_,
             const int k = clamp(bx + i, 0, nx_+3); // Out of bounds
             
             Q[0][j][i] = h_row[k];
+            Q[1][j][i] = hu_row[k];
+            Q[2][j][i] = hv_row[k];
+        }
+    }
+}
+
+/**
+  * Reads a block of data  with two ghost cells for the shallow water equations,
+  * while compensating for dry states
+  */
+__device__ void readBlock2DryStates(float* eta_ptr_, int eta_pitch_,
+                float* hu_ptr_, int hu_pitch_,
+                float* hv_ptr_, int hv_pitch_,
+                float* Hm_ptr_, int Hm_pitch_,
+                float Q[3][block_height+4][block_width+4], 
+                const int nx_, const int ny_) {
+    //Index of thread within block
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+
+    //Index of block within domain
+    const int bx = blockIdx.x * blockDim.x;
+    const int by = blockIdx.y * blockDim.y;
+    
+    //Read into shared memory
+    for (int j=ty; j<block_height+4; j+=blockDim.y) {
+        const int l = clamp(by + j, 0, ny_+3); // Out of bounds
+        
+        //Compute the pointer to current row in the arrays
+        float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*l);
+        float* const hu_row = (float*) ((char*) hu_ptr_ + hu_pitch_*l);
+        float* const hv_row = (float*) ((char*) hv_ptr_ + hv_pitch_*l);
+        float* const Hm_row = (float*) ((char*) Hm_ptr_ + Hm_pitch_*l);
+        
+        for (int i=tx; i<block_width+4; i+=blockDim.x) {
+            const int k = clamp(bx + i, 0, nx_+3); // Out of bounds
+            
+            Q[0][j][i] = max(eta_row[k], -Hm_row[k]);
             Q[1][j][i] = hu_row[k];
             Q[2][j][i] = hv_row[k];
         }
@@ -663,13 +701,13 @@ __device__ float3 F_func_bottom(const float3 Q, const float h, const float u, co
   * Central upwind flux function
   * Takes Q = [eta, hu, hv] as input
   */
-__device__ float3 CentralUpwindFluxBottom(float3 Qm, float3 Qp, const float H, const float g) {
+__device__ float3 CentralUpwindFluxBottom(float3 Qm, float3 Qp, const float RH, const float g) {
     // The constant is a compiler constant in the CUDA code.
     // const float KPSIMULATOR_FLUX_SLOPE_EPS = 1.0e-4f;
     // const float KPSIMULATOR_DEPTH_CUTOFF = 1.0e-5f;
     // These constants are now compiler constants!
     
-    const float hp = Qp.x + H;  // h = eta + H
+    const float hp = Qp.x + RH;  // h = eta + H
     float up = 0.0f; //Qp.y / (float) hp; // hu/h
     float3 Fp = make_float3(0.0f, 0.0f, 0.0f);
     float cp = 0.0f;
@@ -692,7 +730,7 @@ __device__ float3 CentralUpwindFluxBottom(float3 Qm, float3 Qp, const float H, c
         cp = sqrt(g*hp); // sqrt(g*h)
     }
         
-    const float hm = Qm.x + H;
+    const float hm = Qm.x + RH;
     float um = 0.0f; //Qm.y / (float) hm;   // hu / h
     float3 Fm = make_float3(0.0f, 0.0f, 0.0f);
     float cm = 0.0f;

@@ -257,8 +257,8 @@ __device__ float bottomSourceTerm2_kp(float Q[3][block_height+4][block_width+4],
     const int pQx = p - 1;
     const int qQx = q - 2;
     
-    const float hp = Q[0][q][p] + Qx[0][qQx][pQx];
-    const float hm = Q[0][q][p] - Qx[0][qQx][pQx];
+    const float eta_p = Q[0][q][p] + Qx[0][qQx][pQx];
+    const float eta_m = Q[0][q][p] - Qx[0][qQx][pQx];
     
     const float RHx_p = reconstructHx(Hi, p+1, q);
     const float RHx_m = reconstructHx(Hi, p  , q);
@@ -266,7 +266,7 @@ __device__ float bottomSourceTerm2_kp(float Q[3][block_height+4][block_width+4],
     // g (w - B)*B_x -> KP07 equations (3.15) and (3.16)
     // With eta: g (eta + H)*(-H_x)
     float H_x = RHx_p - RHx_m;
-    const float h = Q[0][p][q] + (RHx_p + RHx_m)/2.0f;
+    const float h = Q[0][q][p] + (RHx_p + RHx_m)/2.0f;
     float h4 = h*h; h4 *= h4;
     
     if (h > KPSIMULATOR_DEPTH_CUTOFF) {
@@ -277,7 +277,8 @@ __device__ float bottomSourceTerm2_kp(float Q[3][block_height+4][block_width+4],
             H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + fmaxf(h4, pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
         }
     
-        return -0.5f*g*H_x*(hp + RHx_p + hm + RHx_m);
+        return -0.5f*g*H_x*(eta_p + RHx_p + eta_m + RHx_m);
+        //return - g*H_x*h;
     }
     return 0.0f;
 }
@@ -291,14 +292,14 @@ __device__ float bottomSourceTerm3_kp(float Q[3][block_height+4][block_width+4],
     const int pQy = p - 2;
     const int qQy = q - 1;
     
-    const float hp = Q[0][q][p] + Qy[0][qQy][pQy];
-    const float hm = Q[0][q][p] - Qy[0][qQy][pQy];
+    const float eta_p = Q[0][q][p] + Qy[0][qQy][pQy];
+    const float eta_m = Q[0][q][p] - Qy[0][qQy][pQy];
     
     const float RHy_p = reconstructHy(Hi, p, q+1);
     const float RHy_m = reconstructHy(Hi, p, q  );
     
     float H_y = RHy_p - RHy_m;
-    const float h = Q[0][p][q] + (RHy_p + RHy_m)/2.0f;
+    const float h = Q[0][q][p] + (RHy_p + RHy_m)/2.0f;
     float h4 = h*h; h4 *= h4;
     
     if (h > KPSIMULATOR_DEPTH_CUTOFF) {
@@ -309,7 +310,8 @@ __device__ float bottomSourceTerm3_kp(float Q[3][block_height+4][block_width+4],
             H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + fmaxf(h4, pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
         }
         
-        return -0.5f*g*H_y*(hp + RHy_p + hm + RHy_m);
+        return -0.5f*g*H_y*(eta_p + RHy_p + eta_m + RHy_m);
+        //return - g*H_y*h;
     }
     return 0.0f;
 }
@@ -396,10 +398,11 @@ __global__ void swe_2D(
     const float Hm = Hm_row[ti];
        
     //Read Q = [eta, hu, hv] into shared memory
-    readBlock2(eta0_ptr_, eta0_pitch_,
-               hu0_ptr_, hu0_pitch_,
-               hv0_ptr_, hv0_pitch_,
-               Q, nx_, ny_);
+    readBlock2DryStates(eta0_ptr_, eta0_pitch_,
+                        hu0_ptr_, hu0_pitch_,
+                        hv0_ptr_, hv0_pitch_,
+                        Hm_ptr_, Hm_pitch_,
+                        Q, nx_, ny_);
    
     // Read H into sheared memory
     readBlock2single(Hi_ptr_, Hi_pitch_,
@@ -493,7 +496,8 @@ __global__ void swe_2D(
         float* const hu_row = (float*) ((char*) hu1_ptr_ + hu1_pitch_*tj);
         float* const hv_row = (float*) ((char*) hv1_ptr_ + hv1_pitch_*tj);
 
-        const float C = 2.0f*r_*dt_/(Q[0][j][i]+Hm);
+        //const float C = 2.0f*r_*dt_/(Q[0][j][i]+Hm);
+        const float C = 0.0f;
         
         float eta;
         float hu;
@@ -510,7 +514,7 @@ __global__ void swe_2D(
             //Second step of RK2 ODE integrator
             
             //First read Q^n
-            const float eta_a  = eta_row[ti];
+            const float eta_a  = max(eta_row[ti], -Hm);
             const float hu_a = hu_row[ti];
             const float hv_a = hv_row[ti];
             
@@ -527,7 +531,7 @@ __global__ void swe_2D(
         
         const float h = eta + Hm;
         if (h <=  KPSIMULATOR_DEPTH_CUTOFF) {
-            eta = 0.0f; //Hm;
+            eta = -Hm; // 0.0f; //Hm;
             hu  = 0.0f;
             hv  = 0.0f;
         }
