@@ -42,9 +42,10 @@ parser = argparse.ArgumentParser(description='Generate an ensemble.')
 parser.add_argument('-N', '--ensemble_size', type=int, default=None)
 parser.add_argument('--method', type=str, default='iewpf2')
 parser.add_argument('--observation_interval', type=int, default=1)
-parser.add_argument('--observation_variance', type=float, default=15.0)
+parser.add_argument('--observation_variance', type=float, default=1.0)
 parser.add_argument('--observation_type', type=str, default='drifters')
 parser.add_argument('--buoy_area', type=str, default='all')
+parser.add_argument('--media_dir', type=str, default='/media/havahol/Seagate Backup Plus Drive/gpu_ocean/')
 
 
 args = parser.parse_args()
@@ -70,7 +71,7 @@ assert len(os.listdir(truth_path)) == 4, "Truth folder has wrong number of files
 
 
 timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
-media_dir = "/media/havahol/Seagate Backup Plus Drive/gpu_ocean"
+media_dir = args.media_dir
 destination_dir = os.path.join(media_dir, "da_experiment_" +  timestamp + "/")
 os.makedirs(destination_dir)
 
@@ -233,9 +234,9 @@ obstime = 3*24*60*60
 
 master_tic = time.time()
 
-numDays = 7 
+numDays = 7 # 7 
 numHours = 24 
-forecast_days = 3
+forecast_days = 3 # 3
 
 log('---------- Starting simulation --------------') 
 log('--- numDays:       ' + str(numDays))

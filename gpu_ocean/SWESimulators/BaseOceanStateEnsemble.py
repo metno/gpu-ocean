@@ -77,7 +77,7 @@ class BaseOceanStateEnsemble(object):
 
     
     
-    def observeParticles(self, gpu=False):
+    def observeParticles(self, gpu=False, innovation=False, observations=None):
         """
         Applying the observation operator on each particle.
 
@@ -99,18 +99,21 @@ class BaseOceanStateEnsemble(object):
              self.observation_type == dautils.ObservationType.DirectUnderlyingFlow or \
              self.observation_type == dautils.ObservationType.StaticBuoys:
 
-            observedState = np.empty((self.getNumParticles(), \
+            observedParticles = np.empty((self.getNumParticles(), \
                                       self.getNumDrifters(), 2))
 
-            trueState = self.observeTrueState()
-            # trueState = [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
+            if observations is None:
+                observations = self.observeTrueState()
+            # observations = [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
 
             for p in range(self.getNumParticles()):
                 if not self.particlesActive[p]:
-                    observedState[p,:,:] = np.nan
+                    observedParticles[p,:,:] = np.nan
                     continue
             
                 if gpu:
+                    assert(not innovation), 'Innovation is not supported when the observations are made on the GPU'
+                    
                     sim = self.particles[p]
                     self.observeUnderlyingFlowKernel.prepared_async_call(self.global_size,
                                                                          self.local_size,
@@ -130,7 +133,7 @@ class BaseOceanStateEnsemble(object):
                                                                          self.observation_buffer.data.gpudata,
                                                                          self.observation_buffer.pitch)
                     
-                    observedState[p,:,:] = self.observation_buffer.download(self.gpu_stream)
+                    observedParticles[p,:,:] = self.observation_buffer.download(self.gpu_stream)
                                                                          
                 
                 else:
@@ -138,18 +141,28 @@ class BaseOceanStateEnsemble(object):
                     eta, hu, hv = self.downloadParticleOceanState(p)
 
                     for d in range(self.getNumDrifters()):
-                        id_x = np.int(np.floor(trueState[d,0]/self.dx))
-                        id_y = np.int(np.floor(trueState[d,1]/self.dy))
-
-                        observedState[p,d,0] = hu[id_y, id_x]
-                        observedState[p,d,1] = hv[id_y, id_x]
+                        id_x = np.int(np.floor(observations[d,0]/self.dx))
+                        id_y = np.int(np.floor(observations[d,1]/self.dy))
+                        
+                        if innovation:
+                            
+                            eta_compensation = 1
+                            if self.compensate_for_eta:
+                                # Compensation for the unobserved eta in the true state.
+                                eta_compensation = (self.mean_depth + eta[id_y, id_x])/self.mean_depth
+                                
+                            observedParticles[p,d,0] = hu[id_y, id_x] - observations[d, 0]*eta_compensation
+                            observedParticles[p,d,1] = hv[id_y, id_x] - observations[d, 1]*eta_compensation
+                        else:
+                            observedParticles[p,d,0] = hu[id_y, id_x]
+                            observedParticles[p,d,1] = hv[id_y, id_x]
                         
                         
-            #print "Particle positions obs index:"
-            #print self.particles[self.obs_index].drifters.driftersDevice.download(self.gpu_stream)
-            #print "true state used by the CPU:"
-            #print trueState
-            return observedState
+            #print ("Particle positions obs index:")
+            #print (self.particles[self.obs_index].drifters.driftersDevice.download(self.gpu_stream))
+            #print ("true state used by the CPU:")
+            #print (observations)
+            return observedParticles
         
     @abc.abstractmethod
     def observeTrueDrifters(self):
@@ -174,28 +187,21 @@ class BaseOceanStateEnsemble(object):
         raise NotImplementedError("This function must be implemented in child class")
 
     
-    def getInnovations(self, obs=None):
+    def getInnovations(self, observations=None):
         """
         Obtaining the innovation vectors, y^m - H(\psi_i^m)
 
-        Returns a numpy array with dimensions (particles, drifters, 2)
-
+        Returns a numpy array with dimensions (particles, drifters, 2), as
+        [
+        particle 1:  [d_hu_1, d_hv_1], ... , [d_hu_D, d_hv_D],
+        particle 2:  [d_hu_1, d_hv_1], ... , [d_hu_D, d_hv_D],
+        particle Ne: [d_hu_1, d_hv_1], ... , [d_hu_D, d_hv_D]
+        ]
         """
-        if obs is None:
-            trueState = self.observeTrueState()
-
-        if self.observation_type == dautils.ObservationType.UnderlyingFlow or \
-           self.observation_type == dautils.ObservationType.DirectUnderlyingFlow or \
-           self.observation_type == dautils.ObservationType.StaticBuoys:
-            # Change structure of trueState
-            # from: [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
-            # to:   [[hu1, hv1], ..., [huD, hvD]]
-            trueState = trueState[:, 2:]
-
-        #else, structure of trueState is already fine: [[x1, y1], ..., [xD, yD]]
-
-        innovations = trueState - self.observeParticles()
-        return innovations
+        
+        # The calculations are moved to be an option in self.observeParticles and activated through some flags
+        return self.observeParticles(innovation=True, observations=observations)
+        
             
     def getInnovationNorms(self, obs=None):
         

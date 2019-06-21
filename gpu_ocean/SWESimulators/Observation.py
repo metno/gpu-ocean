@@ -402,7 +402,7 @@ class Observation:
                         observation[d,3] = velocity_y_m
         
         # Add observation error
-        if self.drifter_obs_errors_key in self.obs_df.iloc:
+        if self.drifter_obs_errors_key in self.obs_df.columns:
             obs_error = self.obs_df.iloc[index][self.drifter_obs_errors_key]
             
             if obs_error is not None:
