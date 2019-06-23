@@ -4,15 +4,26 @@
 #define _180_OVER_PI 57.29578f
 #define PI_OVER_180 0.01745329f
 
-#define KPSIMULATOR_FLUX_SLOPE_EPS 1.0e-4f
+
+/*  The ocean simulators and the swashes cases are defined
+ *  on completely different scales. We therefore specify
+ *  a different desingularization parameter if we run a 
+ *  swashes case.
+ */
+#ifndef SWASHES
+    #define KPSIMULATOR_FLUX_SLOPE_EPS 1.0e-2f
+#else
+    #define KPSIMULATOR_FLUX_SLOPE_EPS 1.0e-4f
+#endif
+
 #define KPSIMULATOR_DEPTH_CUTOFF 1.0e-5f
 #define SQRT_OF_TWO 1.41421356237309504880f
 
 /*
 This software is part of GPU Ocean. 
 
-Copyright (C) 2016-2018 SINTEF Digital
-Copyright (C) 2017, 2018 Norwegian Meteorological Institute
+Copyright (C) 2016-2019 SINTEF Digital
+Copyright (C) 2017-2019 Norwegian Meteorological Institute
 
 These CUDA kernels implement common functionality that is shared 
 between multiple numerical schemes for solving the shallow water 

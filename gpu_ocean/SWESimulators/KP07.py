@@ -56,6 +56,7 @@ class KP07(Simulator.Simulator):
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0, \
+                 swashes=False, \
                  block_width=32, block_height=16):
         """
         Initialization routine
@@ -79,6 +80,7 @@ class KP07(Simulator.Simulator):
         wind_stress: Wind stress parameters
         boundary_conditions: Boundary condition object
         write_netcdf: Write the results after each superstep to a netCDF file
+        swashes: Flag to help specifying the desingularization parameter related to dry cells.
         """
        
         ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
@@ -130,9 +132,16 @@ class KP07(Simulator.Simulator):
         self.interior_domain_indices = np.array([-2,-2,2,2])
         self._set_interior_domain_from_sponge_cells()
         
+        # The ocean simulators and the swashes cases are defined on
+        # completely different scales. We therefore specify a different
+        # desingularization parameter if we run a swashes case.
+        defines = {'block_width': block_width, 'block_height': block_height}
+        if swashes:
+            defines = {'block_width': block_width, 'block_height': block_height, 'SWASHES' : 1}
+        
         #Get kernels
         self.kp07_kernel = gpu_ctx.get_kernel("KP07_kernel.cu", 
-                defines={'block_width': block_width, 'block_height': block_height},
+                defines=defines,
                 compile_args={                          # default, fast_math, optimal
                     'options' : ["--ftz=true",          # false,   true,      true
                                  "--prec-div=false",    # true,    false,     false,
