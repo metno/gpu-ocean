@@ -151,8 +151,8 @@ class BaseOceanStateEnsemble(object):
                                 # Compensation for the unobserved eta in the true state.
                                 eta_compensation = (self.mean_depth + eta[id_y, id_x])/self.mean_depth
                                 
-                            observedParticles[p,d,0] = hu[id_y, id_x] - observations[d, 0]*eta_compensation
-                            observedParticles[p,d,1] = hv[id_y, id_x] - observations[d, 1]*eta_compensation
+                            observedParticles[p,d,0] = observations[d, 2]*eta_compensation - hu[id_y, id_x] 
+                            observedParticles[p,d,1] = observations[d, 3]*eta_compensation - hv[id_y, id_x]
                         else:
                             observedParticles[p,d,0] = hu[id_y, id_x]
                             observedParticles[p,d,1] = hv[id_y, id_x]
@@ -198,18 +198,17 @@ class BaseOceanStateEnsemble(object):
         particle Ne: [d_hu_1, d_hv_1], ... , [d_hu_D, d_hv_D]
         ]
         """
-        
         # The calculations are moved to be an option in self.observeParticles and activated through some flags
         return self.observeParticles(innovation=True, observations=observations)
         
             
-    def getInnovationNorms(self, obs=None):
+    def getInnovationNorms(self, observations=None):
         
         # Innovations have the structure 
         # [ particle: [drifter: [x, y] ] ], or
         # [ particle: [drifter: [u, v] ] ]
         # We simply gather find the norm for each particle:
-        innovations = self.getInnovations(obs=obs)
+        innovations = self.getInnovations(observations=observations)
         return np.linalg.norm(np.linalg.norm(innovations, axis=2), axis=1)
             
     def getGaussianWeight(self, innovations=None, normalize=True):

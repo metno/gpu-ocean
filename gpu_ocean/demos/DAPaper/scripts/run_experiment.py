@@ -66,7 +66,8 @@ ensemble_init_path = os.path.abspath('double_jet_ensemble_init/')
 assert len(os.listdir(ensemble_init_path)) == 102, "Ensemble init folder has wrong number of files"
 
 #truth_path = os.path.abspath('double_jet_truth/')
-truth_path = os.path.abspath('truth_2019_05_29-13_49_08/')
+truth_path = os.path.abspath('truth_2019_06_21-22_57_56/')
+#truth_path = os.path.abspath('truth_2019_05_29-13_49_08/')
 assert len(os.listdir(truth_path)) == 4, "Truth folder has wrong number of files"
 
 
@@ -234,9 +235,9 @@ obstime = 3*24*60*60
 
 master_tic = time.time()
 
-numDays = 7 # 7 
+numDays = 7 
 numHours = 24 
-forecast_days = 3 # 3
+forecast_days = 3
 
 log('---------- Starting simulation --------------') 
 log('--- numDays:       ' + str(numDays))
