@@ -407,7 +407,7 @@ class Observation:
             
             if obs_error is not None:
                 if self.drifterSet is not None:
-                    obs_error[self.drifterSet, :]
+                    obs_error = obs_error[self.drifterSet, :]
                 observation[:,2:] += obs_error * self.obs_stddev
         
         return observation
