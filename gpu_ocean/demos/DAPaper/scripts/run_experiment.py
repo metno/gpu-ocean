@@ -66,7 +66,7 @@ ensemble_init_path = os.path.abspath('double_jet_ensemble_init/')
 assert len(os.listdir(ensemble_init_path)) == 102, "Ensemble init folder has wrong number of files"
 
 #truth_path = os.path.abspath('double_jet_truth/')
-truth_path = os.path.abspath('truth_2019_06_21-22_57_56/')
+truth_path = os.path.abspath('truth_2019_06_24-11_29_16/')
 #truth_path = os.path.abspath('truth_2019_05_29-13_49_08/')
 assert len(os.listdir(truth_path)) == 4, "Truth folder has wrong number of files"
 
@@ -131,21 +131,19 @@ simulation_time = 10*24*60*60 # 10 days (three days spin up is prior to this)fa
 end_time        = 13*24*60*60 # 13 days
 
 
-drifterSet = [ 4,  9, 14, 29, 33, 39, 44, 50, 56, 54]
-extraCells = np.array([[327,  91],
-                       [433,  27],
-                       [196,  98],
-                       [363, 136],
-                       [ 88, 165],
-                       [449, 194],
-                       [ 30, 205],
-                       [479, 250],
-                       [ 51, 292],
-                       [279, 268],
-                       [202, 135],
-                       [319,  85],
-                       [292, 270]])
-
+# Based on truth from June 24th 2019
+drifterSet = [ 4,  9, 14, 26, 31, 37, 41, 50, 62, 54]
+extraCells = np.array([[339, 110], # Cross with two trajectories
+                       [330, 110], # West of above
+                       [339, 120], # North of above
+                       [400, 226], # Cross with three trajectories
+                       [196,  50], # Middle of single trajectory
+                       [150,  51], # Middle of single trajectory, earlier than above
+                       [ 88, 100], # Unobserved area just north of southern jet
+                       [ 50, 80],  # Unobserved area in southern jet
+                       [ 88, 150], # Unobserved area in calm area
+                       [ 66, 252], # Thightly inbetween two/three trajectories
+                      ])
 
 
 
