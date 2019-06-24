@@ -18,7 +18,7 @@ mkdir "${output_dir}"
 $gpuoceanpython run_experiment.py -N 100 --method none --media_dir "${output_dir}"
 
 # Drifter set 
-$gpuoceanpython run_experiment.py -N 100
+$gpuoceanpython run_experiment.py -N 100 --media_dir "${output_dir}"
 
 # All drifters
 $gpuoceanpython run_experiment.py -N 100 --observation_type all_drifters --media_dir "${output_dir}"
