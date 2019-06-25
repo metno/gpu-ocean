@@ -51,6 +51,9 @@ class Observation:
         If the domain is considered to have periodic boundary conditions, the
         size of the domain should be provided to ensure correct estimated 
         velocities.
+        
+        All observations are based on velocities (u, v) and equilibrium ocean
+        depth H. There are therefore no observations of eta.
         """
         
         self.observation_type = observation_type
@@ -128,7 +131,8 @@ class Observation:
     
     def add_observation_from_sim(self, sim):
         """
-        Adds the current drifter positions to the observation DataFrame.
+        Adds the current drifter positions to the observation DataFrame, or H*u and H*v 
+        at the buoy positions.
         """
         
         # The timestamp is rounded to nearest integer, so that it is possible to compare to 
@@ -149,9 +153,17 @@ class Observation:
                 buoy_positions = self.buoy_positions
             buoy_observations = np.zeros_like(self.buoy_positions)
             eta, hu, hv = sim.download(interior_domain_only=True)
+            H = sim.downloadBathymetry()[1][2:-2, 2:-2] # H in cell centers
+            
             for i in range(len(buoy_observations)):
-                buoy_observations[i, 0] = hu[self.buoy_indices[i,1], self.buoy_indices[i,0]]
-                buoy_observations[i, 1] = hv[self.buoy_indices[i,1], self.buoy_indices[i,0]]
+                # buoy index
+                x = self.buoy_indices[i, 0]
+                y = self.buoy_indices[i, 1]
+                
+                # Observe current, and we know the depth, but not eta
+                eta_ignorance_factor = H[y, x] / (H[y, x] + eta[y, x])
+                buoy_observations[i, 0] = hu[y, x] * eta_ignorance_factor
+                buoy_observations[i, 1] = hv[y, x] * eta_ignorance_factor
             
             buoy_obs_errors = np.random.normal(size=buoy_observations.shape)
             
