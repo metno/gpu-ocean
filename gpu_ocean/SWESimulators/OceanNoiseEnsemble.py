@@ -53,7 +53,8 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                  observation_variance = None, 
                  observation_variance_factor = 5.0,
                  initialization_variance_factor_drifter_position = 0.0,
-                 initialization_variance_factor_ocean_field = 0.0):
+                 initialization_variance_factor_ocean_field = 0.0,
+                 compensate_for_eta = True):
         """
         Class that holds an ensemble of ocean states. All ensemble members are initiated 
         as perturbations of a given input simulator, and the true state is also a perturbation
@@ -71,12 +72,14 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             drifter positions if non-zero
         initialization_variance_factor_ocean_field: Gives an initial perturbation of 
             the ocean field if non-zero
+        compensate_for_eta: Whether or not the observations should be adjusted by the eta from the particle states.
         """
         self.gpu_ctx = gpu_ctx
         self.gpu_stream = cuda.Stream()
         
         self.numParticles = numParticles
         self.particles = [None]*(self.numParticles + 1)
+        self.particlesActive = [True]*(self.numParticles)
         
         self.obs_index = self.numParticles
         
@@ -87,6 +90,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         dautils.ObservationType._assert_valid(observation_type)
         self.observation_type = observation_type
         self.prev_observation = None
+        self.compensate_for_eta = compensate_for_eta
         
         self.observation_buffer = None
                 
@@ -120,7 +124,11 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                 
         # Put the initial positions into the observation array
         self._addObservation(self.observeTrueDrifters())  
- 
+        
+        # Store mean water_depth, and whether the equilibrium depth is constant across the domain
+        H = self.particles[0].downloadBathymetry()[1][2:-2, 2:-2] # H in cell centers
+        self.mean_depth = np.mean(H)
+        self.constant_depth = np.max(H) == np.min(H)
         
     def _setGridInfo(self, nx, ny, dx, dy, dt, 
                     boundaryConditions=Common.BoundaryConditions(), 
@@ -371,74 +379,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             drifterPositions[p,:,:] = self.particles[p].drifters.getDrifterPositions()
         return drifterPositions
     
-    def observeParticles(self, gpu=False):
-        """
-        Applying the observation operator on each particle.
 
-        Structure on the output:
-        [
-        particle 1:  [hu_1, hv_1], ... , [hu_D, hv_D],
-        particle 2:  [hu_1, hv_1], ... , [hu_D, hv_D],
-        particle Ne: [hu_1, hv_1], ... , [hu_D, hv_D]
-        ]
-        numpy array with dimensions (particles, drifters, 2)
-
-        The two values per particle drifter is either volume transport or position, depending on 
-        the observation type.
-        """
-        if self.observation_type == dautils.ObservationType.DrifterPosition:
-            return self.observeDrifters()
-
-        elif self.observation_type == dautils.ObservationType.UnderlyingFlow or \
-             self.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
-
-            observedState = np.empty((self.getNumParticles(), \
-                                      self.driftersPerOceanModel, 2))
-
-            trueState = self.observeTrueState()
-            # trueState = [[x1, y1, hu1, hv1], ..., [xD, yD, huD, hvD]]
-
-            for p in range(self.numParticles):
-                if gpu:
-                    sim = self.particles[p]
-                    self.observeUnderlyingFlowKernel.prepared_async_call(self.global_size,
-                                                                         self.local_size,
-                                                                         self.gpu_stream,
-                                                                         sim.nx, sim.ny, sim.dx, sim.dy,
-                                                                         np.int32(2), np.int32(2),
-                                                                         sim.gpu_data.h0.data.gpudata,
-                                                                         sim.gpu_data.h0.pitch,
-                                                                         sim.gpu_data.hu0.data.gpudata,
-                                                                         sim.gpu_data.hu0.pitch,
-                                                                         sim.gpu_data.hv0.data.gpudata,
-                                                                         sim.gpu_data.hv0.pitch,
-                                                                         np.max(self.base_H),
-                                                                         self.driftersPerOceanModel,
-                                                                         self.particles[self.obs_index].drifters.driftersDevice.data.gpudata,
-                                                                         self.particles[self.obs_index].drifters.driftersDevice.pitch,
-                                                                         self.observation_buffer.data.gpudata,
-                                                                         self.observation_buffer.pitch)
-                    
-                    observedState[p,:,:] = self.observation_buffer.download(self.gpu_stream)
-                                                                         
-                
-                else:
-                    # Downloading ocean state without ghost cells
-                    eta, hu, hv = self.downloadParticleOceanState(p)
-
-                    for d in range(self.driftersPerOceanModel):
-                        id_x = np.int(np.floor(trueState[d,0]/self.dx))
-                        id_y = np.int(np.floor(trueState[d,1]/self.dy))
-
-                        observedState[p,d,0] = hu[id_y, id_x]
-                        observedState[p,d,1] = hv[id_y, id_x]
-                        
-                        
-            #print "Particle positions obs index:"
-            #print self.particles[self.obs_index].drifters.driftersDevice.download(self.gpu_stream)
-            #print "true state used by the CPU:"
-            #print trueState
-            return observedState
         
     def observeTrueDrifters(self):
         """
@@ -526,6 +467,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         for p in range(self.getNumParticles()):
             dummy_t = self.particles[p].step(t, apply_stochastic_term=stochastic)
         return self.t
+    
     
     def getDistances(self, obs=None):
         """

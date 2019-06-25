@@ -40,12 +40,14 @@ class ObservationType:
     DrifterPosition = 1
     UnderlyingFlow = 2
     DirectUnderlyingFlow = 3
+    StaticBuoys = 4
     
     @staticmethod
     def _assert_valid(obs_type):
         assert(obs_type == ObservationType.DrifterPosition or \
                obs_type == ObservationType.UnderlyingFlow or \
-               obs_type == ObservationType.DirectUnderlyingFlow), \
+               obs_type == ObservationType.DirectUnderlyingFlow or \
+               obs_type == ObservationType.StaticBuoys), \
         'Provided observation type ' + str(obs_type) + ' is invalid'
 
 

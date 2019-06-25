@@ -93,7 +93,7 @@ class IEWPFOcean:
         H = ensemble.particles[0].downloadBathymetry()[1][2:-2, 2:-2] # H in cell centers
         self.const_H = np.float32(H[0,0])
 
-        self.boundaryConditions = ensemble.boundaryConditions
+        self.boundaryConditions = ensemble.particles[0].boundary_conditions
         
         self.geoBalanceConst = np.float32(self.g*self.const_H/(2.0*self.f))
 
@@ -111,7 +111,7 @@ class IEWPFOcean:
         assert(self.boundaryConditions.isPeriodicNorthSouth()), 'IEWPF requires periodic boundary conditions in north-south'
         assert(self.boundaryConditions.isPeriodicEastWest()),  'IEWPF requires periodic boundary conditions in east-west'
         # 3) that the Coriolis force is constant for the entire domain:
-        assert (ensemble.beta == 0), 'IEWPF requires constant Coriolis forcing, but got beta = ' + str(ensemble.beta)
+        assert (ensemble.particles[0].coriolis_beta == 0), 'IEWPF requires constant Coriolis forcing, but got beta = ' + str(ensemble.beta)
         # 4) that dx and dy are the same
         assert (self.dx == self.dy), 'IEWPF requires square grid cells, but got (dx, dy) = ' + str((self.dx, self.dy))
         
@@ -205,21 +205,25 @@ class IEWPFOcean:
             t = ensemble.step_particles(ensemble.getDt(), stochastic=False)
         
         self.log('------------------------------------------------------')
-        self.log('------ Two-stage IEWPF at t = ' + str(t) + '   -------')
+        self.log('------ Two-stage IEWPF at t = ' + str(ensemble.t) + '   -------')
         self.log('------------------------------------------------------')
         
         mem_free, mem_available = cuda.mem_get_info()
         self.log("\n(free mem, avail mem, percentage free): " + str((mem_free, mem_available, 
                                                                 100*mem_free/mem_available)))
         
+        # All arrays are of size numParticles, even though the ensemble size is only 
+        # numActiveParticles.
+        
         # Obtain observations, innovations and the weight from previous timestep
         observed_drifter_positions = ensemble.observeTrueDrifters()
         innovations = ensemble.getInnovations()
-        w_rest = -np.log(1.0/ensemble.getNumParticles())*np.ones(ensemble.getNumParticles())
+        w_rest = -np.log(1.0/ensemble.getNumActiveParticles())*np.ones(ensemble.getNumParticles())
         
         self.log('observed drifter positions:\n' + str(observed_drifter_positions))
         self.log('observed true state:\n' + str(ensemble.observeTrueState()))
         self.log('observed particle states:\n' + str(ensemble.observeParticles()))
+        self.log('(active particles, total number of particles): ' + str((ensemble.getNumActiveParticles(), ensemble.getNumParticles())))
         
         # save plot before
         if infoPlots is not None:
@@ -232,13 +236,21 @@ class IEWPFOcean:
         gamma_array   = np.zeros(ensemble.getNumParticles())
         
         for p in range(ensemble.getNumParticles()):
-            # Pull particles towards observation by adding a Kalman gain term
-            #     Also, we find phi within this function
-            phi_array[p] = self.addKalmanGain(ensemble.particles[p], observed_drifter_positions, innovations[p], drifter_id=p)
-            
-            # Sample perpendicular xi and nu
-            # Obtain gamma = xi^T * xi and nu^T * nu at the same time
-            gamma_array[p], nu_norm_array[p] = self.samplePerpendicular(ensemble.particles[p])
+            if ensemble.particlesActive [p]:
+                # Pull particles towards observation by adding a Kalman gain term
+                #     Also, we find phi within this function
+                phi_array[p] = self.addKalmanGain(ensemble.particles[p], observed_drifter_positions, innovations[p], drifter_id=p)
+                
+                # Sample perpendicular xi and nu
+                # Obtain gamma = xi^T * xi and nu^T * nu at the same time
+                gamma_array[p], nu_norm_array[p] = self.samplePerpendicular(ensemble.particles[p])
+                
+                if np.isnan(phi_array[p]) or np.isnan(nu_norm_array[p]) or np.isnan(gamma_array[p]):
+                    ensemble.deactivateParticle(p, msg='Failed with the Kalman gain, ' + \
+                            '(phi, gamma, nu_norm): ' + str((phi_array[p], gamma_array[p], nu_norm_array[p])))
+                
+            else:
+                phi_array[p], gamma_array[p], nu_norm_array[p] = np.nan, np.nan, np.nan
             
         c_array = phi_array + w_rest
         self.log('--------------------------------------')
@@ -249,25 +261,53 @@ class IEWPFOcean:
         self.log("gamma_array:\n" + str(gamma_array))
         self.log("c_array:\n" + str(c_array))
         
+        
+        
         # Synchronize all particles in order to find the target weight and beta
-        target_weight, beta = self.obtainTargetWeightTwoStage(c_array, nu_norm_array)
+        # based on the active particles only
+        active_c_array = c_array[ensemble.particlesActive]
+        active_nu_norm_array = nu_norm_array[ensemble.particlesActive]
+        target_weight, beta = self.obtainTargetWeightTwoStage(active_c_array, active_nu_norm_array)
         
         self.log('target_weight: ' + str(target_weight))
         self.log('beta         : ' + str(beta))
         
-        for p in range(ensemble.getNumParticles()):
-            # Solve implicit equation
-            c_star = target_weight - c_array[p] - (beta - 1)*nu_norm_array[p]
-            alpha = self.solveImplicitEquation(gamma_array[p], target_weight, w_rest[p], c_star, particle_id=p)
-            
-            # Apply the SVD covariance structure at the drifter positions on scaled xi and nu
-            self.applySVDtoPerpendicular(ensemble.particles[p], observed_drifter_positions,
-                                         alpha, beta)
-            
-            # Add scaled sample from P to the state vector
-            ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
-                                                                     update_random_field=False)
+        if beta < 0:
+            print("------!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!------------------------")
+            print("   Something went HORRIBLY WRONG!")
+            print("   We got negative beta: " + str(beta))
+            print("   Target weight: " + str(target_weight))
+            print('phi_array:\n ' + str(phi_array))
+            print("nu_norm_array:\n" + str(nu_norm_array))
+            print("gamma_array:\n" + str(gamma_array))
+            print("c_array:\n" + str(c_array))
+            print("active_particles:\n" + str(ensemble.particlesActive))
+            print("(mean(c) - c)/nu_norm:\n" + str((np.mean(active_c_array)-active_c_array)/active_nu_norm_array))
+            print("\nSetting beta = 0 and continueing... ")
+            print("------!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!------------------------")
+            beta = 0
         
+        for p in range(ensemble.getNumParticles()):
+            if ensemble.particlesActive[p]:
+                # Solve implicit equation
+                c_star = target_weight - c_array[p] - (beta - 1)*nu_norm_array[p]
+                try:
+                    alpha = self.solveImplicitEquation(gamma_array[p], target_weight, w_rest[p], c_star, particle_id=p)
+                
+                    # Apply the SVD covariance structure at the drifter positions on scaled xi and nu
+                    self.applySVDtoPerpendicular(ensemble.particles[p], observed_drifter_positions,
+                                                 alpha, beta)
+                    
+                    # Add scaled sample from P to the state vector
+                    ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
+                                                                             update_random_field=False)
+                    
+                    # Update ghost cells to ensure that periodic boundary conditions are satisfied
+                    ensemble.particles[p].applyBoundaryConditions()
+                    
+                except RuntimeError as re:
+                    ensemble.deactivateParticle(p, msg='Failed solving implicit equation: ' + str(re))
+                
         # save plot after
         if infoPlots is not None:
             self._keepPlot(ensemble, infoPlots, it, 3)
@@ -324,6 +364,9 @@ class IEWPFOcean:
             ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
                                                                      update_random_field=False, \
                                                                      perturbation_scale=np.sqrt(alpha))   
+            
+            # Update ghost cells to ensure that periodic boundary conditions are satisfied
+            ensemble.particles[p].applyBoundaryConditions()
             
             # TODO
             # Reset the drifter positions in each particle.
@@ -429,6 +472,9 @@ class IEWPFOcean:
             ensemble.particles[p].small_scale_model_error.perturbSim(ensemble.particles[p],\
                                                                      update_random_field=False, \
                                                                      perturbation_scale=np.sqrt(alpha))
+            
+            # Update ghost cells to ensure that periodic boundary conditions are satisfied
+            ensemble.particles[p].applyBoundaryConditions()
             
             add_scaled_event.record(self.master_stream)
             add_scaled_event.synchronize()
@@ -750,45 +796,52 @@ class IEWPFOcean:
         updating the buffers eta_a, hu_a, hv_a as:
         x_a = x_a + alpha*xi
         """
-        self.log("")
-        self.log("---- Implicit equation particle " + str(particle_id) + " ---------")
-        
-        params = {
-            'gamma': gamma,
-            'Nx': self.Nx,
-            'w_rest': w_rest,
-            'target_weight': target_weight,
-            'c_star': c_star
-        }
-        self.log("Input params:")
-        self.log(params)
-        
-        alpha_newton = newton(lambda x: self._implicitEquation_no_limit(x, gamma, self.Nx, c_star),
-                              0.5, maxiter=2000, tol=1e-6)
-                              #fprime=lambda x: self._implicitEquation_no_limit_derivative(x, gamma, self.Nx, c_star))
-        self.log("alpha_newton from Newton's method: " + str(alpha_newton))
-        self.log("Discrepancy with alpha_newton: "+ str(self._implicitEquation_no_limit(alpha_newton, gamma, self.Nx, c_star)))
-        
-        self.log("")
-        self.log("Using the Lambert W:")
-        lambert_arg = -(gamma/self.Nx)*np.exp(-gamma/self.Nx)*np.exp(-c_star/self.Nx)
-        self.log("\tLambert W arg: " + str(lambert_arg))
-        lambert_min1 = lambertw(lambert_arg, k=-1)
-        lambert_zero = lambertw(lambert_arg, k=0)
-        
-        alpha_scale = -(self.Nx/gamma)
-        alpha_min1 = alpha_scale*np.real(lambert_min1)
-        alpha_zero = alpha_scale*np.real(lambert_zero)
-        
-        self.log("\tlambert_min1 = " + str(lambert_min1) + " --> alpha = " + str(alpha_min1))
-        self.log("\tlambert_zero = " + str(lambert_zero) + " --> alpha = " + str(alpha_zero))
-        self.log("Discrepancy with alpha_zero: "+ str(self._implicitEquation_no_limit(alpha_zero, gamma, self.Nx, c_star)))
-        
-        
-        alpha = alpha_zero
-        self.log("returning alpha = " + str(alpha))
-        return alpha
-        
+        try:
+            self.log("")
+            self.log("---- Implicit equation particle " + str(particle_id) + " ---------")
+
+            params = {
+                'gamma': gamma,
+                'Nx': self.Nx,
+                'w_rest': w_rest,
+                'target_weight': target_weight,
+                'c_star': c_star,
+                'particle_id': particle_id
+            }
+            self.log("Input params:")
+            self.log(params)
+
+            alpha_newton = newton(lambda x: self._implicitEquation_no_limit(x, gamma, self.Nx, c_star),
+                                  0.5, maxiter=2000, tol=1e-6)
+                                  #fprime=lambda x: self._implicitEquation_no_limit_derivative(x, gamma, self.Nx, c_star))
+            self.log("alpha_newton from Newton's method: " + str(alpha_newton))
+            self.log("Discrepancy with alpha_newton: "+ str(self._implicitEquation_no_limit(alpha_newton, gamma, self.Nx, c_star)))
+
+            self.log("")
+            self.log("Using the Lambert W:")
+            lambert_arg = -(gamma/self.Nx)*np.exp(-gamma/self.Nx)*np.exp(-c_star/self.Nx)
+            self.log("\tLambert W arg: " + str(lambert_arg))
+            lambert_min1 = lambertw(lambert_arg, k=-1)
+            lambert_zero = lambertw(lambert_arg, k=0)
+
+            alpha_scale = -(self.Nx/gamma)
+            alpha_min1 = alpha_scale*np.real(lambert_min1)
+            alpha_zero = alpha_scale*np.real(lambert_zero)
+
+            self.log("\tlambert_min1 = " + str(lambert_min1) + " --> alpha = " + str(alpha_min1))
+            self.log("\tlambert_zero = " + str(lambert_zero) + " --> alpha = " + str(alpha_zero))
+            self.log("Discrepancy with alpha_zero: "+ str(self._implicitEquation_no_limit(alpha_zero, gamma, self.Nx, c_star)))
+
+
+            alpha = alpha_zero
+            self.log("returning alpha = " + str(alpha))
+            return alpha
+        except RuntimeError as re:
+            print('Got exception during solveImplicitEquation')
+            print(str(re))
+            print("Input params:")
+            print(params)
+            raise
         
     def _createS(self, ensemble):
         """
