@@ -66,7 +66,7 @@ ensemble_init_path = os.path.abspath('double_jet_ensemble_init/')
 assert len(os.listdir(ensemble_init_path)) == 102, "Ensemble init folder has wrong number of files"
 
 #truth_path = os.path.abspath('double_jet_truth/')
-truth_path = os.path.abspath('truth_2019_06_24-11_29_16/')
+truth_path = os.path.abspath('truth_2019_06_25-10_53_32/')
 #truth_path = os.path.abspath('truth_2019_05_29-13_49_08/')
 assert len(os.listdir(truth_path)) == 4, "Truth folder has wrong number of files"
 
@@ -131,20 +131,20 @@ simulation_time = 10*24*60*60 # 10 days (three days spin up is prior to this)fa
 end_time        = 13*24*60*60 # 13 days
 
 
-# Based on truth from June 24th 2019
-drifterSet = [ 4,  9, 14, 26, 31, 37, 41, 50, 62, 54]
-extraCells = np.array([[339, 110], # Cross with two trajectories
-                       [330, 110], # West of above
-                       [339, 120], # North of above
-                       [400, 226], # Cross with three trajectories
-                       [196,  50], # Middle of single trajectory
-                       [150,  51], # Middle of single trajectory, earlier than above
-                       [ 88, 100], # Unobserved area just north of southern jet
-                       [ 50, 80],  # Unobserved area in southern jet
-                       [ 88, 150], # Unobserved area in calm area
-                       [ 66, 252], # Thightly inbetween two/three trajectories
-                      ])
+# Based on truth from June 25th 2019
+drifterSet = [ 2,  7, 12, 24, 29, 35, 41, 48, 53, 60]
 
+extraCells = np.array([[254, 241], # Cross with two trajectories
+                       [249, 246], # northwest of above
+                       [259, 236], # southeast of above
+                       [343, 131], # Closed circle of same drifter
+                       [196,  245], # Middle of single trajectory
+                       [150,  250], # Middle of single trajectory, later than above
+                       [102, 252], # On the same trajectory as the above, but later, and also in a intersection
+                       [ 388, 100], # Unobserved area just north of southern jet
+                       [ 388, 80],  # Unobserved area in southern jet
+                       [ 388, 150], # Unobserved area in calm area
+                      ])
 
 
 ###--------------------------------
