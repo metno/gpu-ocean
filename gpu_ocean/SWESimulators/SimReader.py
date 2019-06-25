@@ -84,6 +84,8 @@ class SimNetCDFReader:
         return np.fromstring(self.get("boundary_conditions_sponge_mr")[1:-1], dtype=int, sep=' ')
 
     
+    def getTimes(self):
+        return self.ncfile.variables['time'][:]
     
     def getLastTimeStep(self):
         return self.getTimeStep(-1)
@@ -117,7 +119,7 @@ class SimNetCDFReader:
                 break
         if index is None:
             raise RuntimeError('Time ' + str(time) + ' not in NetCDF file ' + self.filename)
-        print("Found time " + str(time) + " at index " + str(i))
+        #print("Found time " + str(time) + " at index " + str(i))
         return self.getStateAtTimeStep(i)
     
     

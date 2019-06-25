@@ -212,7 +212,7 @@ class DoubleJetCase:
                 
             tmp_sim = CDKLM16.CDKLM16(**self.sim_args, **self.base_init)
             tmp_t = tmp_sim.step(self.commonSpinUpTime)
-            print("tmp_sim has been spun up to " + str(tmp_t))
+            
             tmp_eta, tmp_hu, tmp_hv = tmp_sim.download(interior_domain_only=False)
             self.base_init['eta0'] = tmp_eta
             self.base_init['hu0']  = tmp_hu

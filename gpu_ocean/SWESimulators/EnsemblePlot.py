@@ -401,8 +401,8 @@ def plotVelocityInfo(ensemble, title=None, printInfo=False):
     plt.title("Sorted distances from observation")
 
     if ensemble.getNumDrifters() > 1:
-        for drifter_id in range(0,min(3, ensemble.getNumDrifters())):
-            ax = plt.subplot2grid((plotRows,3), (2,drifter_id), polar=True)
+        for drifter_id in range(1,min(4, ensemble.getNumDrifters())):
+            ax = plt.subplot2grid((plotRows,3), (2,drifter_id-1), polar=True)
             _fillPolarPlot(ax, ensemble, observedParticles, drifter_id=drifter_id, printInfo=printInfo)
 
     if title is not None:
