@@ -536,7 +536,7 @@ class CDKLM16(Simulator.Simulator):
             leftover_step_size += self.model_time_step
             full_model_time_steps -= 1
         
-        # Avoid extra timestep that is too similar to a full timestep as well:
+        # Force leftover_step_size to zero if it is very small compared to the model_time_step
         if leftover_step_size/self.model_time_step < 0.00001:
             leftover_step_size = 0
 
@@ -553,7 +553,7 @@ class CDKLM16(Simulator.Simulator):
             elif i == 0:
                 # Take the leftover step
                 self.step(leftover_step_size, apply_stochastic_term=False, write_now=False)
-                self.perturbState(q0_scale=np.sqrt(self.model_time_step/leftover_step_size))
+                self.perturbState(q0_scale=np.sqrt(leftover_step_size/self.model_time_step))
 
             else:
                 # Take standard steps
