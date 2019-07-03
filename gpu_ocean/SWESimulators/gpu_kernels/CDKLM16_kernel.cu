@@ -72,6 +72,110 @@ __device__ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
 
 
 
+/**
+  * Adjusting the slope of K_x, found in Qx[3], to avoid negative values for h on the faces,
+  * in the case of dry cells
+  */
+__device__
+void adjustSlopes_x(const int bx, const int by, 
+                    const int nx_, const float dx_, const float dy_,
+                    float R[3][block_height+4][block_width+4],
+                    float Qx[3][block_height+2][block_width+2], // used as if Qx[3][block_height][block_width + 2]
+                    float Hi[block_height+3][block_width+3],
+                    const float g_, 
+                    const float f_, const float beta_, const int y_zero_reference_cell_,
+                    const int wall_bc_) {
+
+    // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
+
+    
+    const int j = threadIdx.y; // values in Qx
+    const int l = j + 2; // values in R
+    const int H_j = j + 1; // values in Hi
+    
+    for (int i=threadIdx.x; i<block_width+2; i+=blockDim.x) {
+        // i referes to values in Qx
+        const int k = i + 1; // values in R
+        const int H_i = i; // values in Hi
+
+        // Reconstruct h at east and west faces
+        const float eta = R[0][l][k];
+        
+        float v   = R[2][l][k];
+        // Fix west boundary for reconstruction of eta (corresponding to Kx)
+        if ((wall_bc_ & 0x08) && (bx + k < 2    )) { v = -v; }
+        // Fix east boundary for reconstruction of eta (corresponding to Kx)
+        if ((wall_bc_ & 0x02) && (bx + k > nx_+2)) { v = -v; }
+        
+        const float coriolis_f = f_ + beta_ * ((by+l)-y_zero_reference_cell_ + 0.5f)*dy_;
+        const float dxfv = dx_*coriolis_f*v;
+        
+        const float H_west = 0.5f*(Hi[H_j][H_i  ] + Hi[H_j+1][H_i  ]);
+        const float H_east = 0.5f*(Hi[H_j][H_i+1] + Hi[H_j+1][H_i+1]);
+        
+        const float h_west = eta + H_west - (Qx[3][j][i] + dxfv)/(2.0f*g_);
+        const float h_east = eta + H_east + (Qx[3][j][i] + dxfv)/(2.0f*g_);
+        
+        // Adjust if negative water level
+        Qx[3][j][i] = (h_west > 0) ? Qx[3][j][i] : -dxfv + 2.0f*g_*(eta + H_west);
+        Qx[3][j][i] = (h_east > 0) ? Qx[3][j][i] : -dxfv - 2.0f*g_*(eta + H_east);
+    }
+}
+
+
+/**
+  * Adjusting the slope of L_y, found in Qx[3], to avoid negative values for h on the faces,
+  * in the case of dry cells
+  */
+__device__
+void adjustSlopes_y(const int bx, const int by, 
+                    const int ny_, const float dx_, const float dy_,
+                    float R[3][block_height+4][block_width+4],
+                    float Qx[3][block_height+2][block_width+2], // used as if Qx[3][block_height+2][block_width]
+                    float Hi[block_height+3][block_width+3],
+                    const float g_, 
+                    const float f_, const float beta_, const int y_zero_reference_cell_,
+                    const int wall_bc_) {
+
+    // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
+
+    
+    const int i = threadIdx.x; // values in Qx
+    const int k = i + 2; // values in R
+    const int H_i = i + 1; // values in Hi
+    
+    for (int j=threadIdx.y; j<block_height+2; j+=blockDim.y) {
+        // i referes to values in Qx
+        const int l = j + 1; // values in R
+        const int H_j = j; // values in Hi
+
+        // Reconstruct h at east and west faces
+        const float eta = R[0][l][k];
+        
+        float u   = R[1][l][k];
+        // Fix south boundary for reconstruction of eta (corresponding to Ly)
+        if ((wall_bc_ & 0x04) && (by + l < 2    )) { u = -u; }
+        // Fix north boundary for reconstruction of eta (corresponding to Ly)
+        if ((wall_bc_ & 0x01) && (by + l > ny_+2)) { u = -u; }
+
+        const float coriolis_f = f_ + beta_ * ((by+l)-y_zero_reference_cell_ + 0.5f)*dy_;
+        const float dyfu = dy_*coriolis_f*u;
+        
+        const float H_south = 0.5f*(Hi[H_j  ][H_i] + Hi[H_j  ][H_i+1]);
+        const float H_north = 0.5f*(Hi[H_j+1][H_i] + Hi[H_j+1][H_i+1]);
+        
+        const float h_south = eta + H_south - (Qx[3][j][i] - dyfu)/(2.0f*g_);
+        const float h_north = eta + H_north + (Qx[3][j][i] - dyfu)/(2.0f*g_);
+        
+        // Adjust if negative water level
+        Qx[3][j][i] = (h_south > 0) ? Qx[3][j][i] : dyfu + 2.0f*g_*(eta + H_south);
+        Qx[3][j][i] = (h_north > 0) ? Qx[3][j][i] : dyfu - 2.0f*g_*(eta + H_north);
+    }
+}
+
+
+
+
 __device__
 float3 computeFFaceFlux(const int i, const int j, const int bx, const int nx_,
                 float R[3][block_height+4][block_width+4],
@@ -448,7 +552,9 @@ __global__ void cdklm_swe_2D(
         
     // Adjust K_x slopes to avoid negative h = eta + H
     // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
-    //adjustSlopes_x(Qx, Hi, Q);
+    adjustSlopes_x(bx, by, nx_, dx_, dy_,
+                   R, Qx, Hi,
+                   g_, f_, beta_, y_zero_reference_cell_, wall_bc_);
     __syncthreads();
     
     // Compute flux along x axis
@@ -515,7 +621,13 @@ __global__ void cdklm_swe_2D(
     }
     __syncthreads();
 
-
+    // Adjust L_y slopes to avoid negative h = eta + H
+    // Need L_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), u (R[1]), H (Hi), g, dx
+    adjustSlopes_y(bx, by, ny_, dx_, dy_,
+                   R, Qx, Hi,
+                   g_, f_, beta_, y_zero_reference_cell_, wall_bc_);
+    __syncthreads();
+    
     //Compute fluxes along the y axis    
     flux_diff = flux_diff + (  computeGFaceFlux(tx, ty+1, by, ny_, R, Qx, Hi, g_, coriolis_f_central,   coriolis_f_upper, dy_, wall_bc_)
                              - computeGFaceFlux(tx, ty  , by, ny_, R, Qx, Hi, g_,   coriolis_f_lower, coriolis_f_central, dy_, wall_bc_)) / dy_;
