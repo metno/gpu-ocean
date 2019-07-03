@@ -47,17 +47,31 @@ __device__ float3 CDKLM16_F_func(const float3 Q, const float g) {
 
 /**
   * Note that the input vectors are (h, u, v), thus not the regular
-  * (h, hu, hv)
+  * (h, hu, hv). 
+  * Note also that u and v are desingularized from the start.
   */
 __device__ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
-    const float3 Fp = CDKLM16_F_func(Qp, g);
-    const float up = Qp.y;         // u
-    const float cp = sqrt(g*Qp.x); // sqrt(g*h)
+    
+    float3 Fp = make_float3(0.0f, 0.0f, 0.0f);
+    float up = 0.0f;
+    float cp = 0.0f;
+    
+    if (Qp.x > KPSIMULATOR_DEPTH_CUTOFF) {
+        Fp = CDKLM16_F_func(Qp, g);
+        up = Qp.y;         // u
+        cp = sqrt(g*Qp.x); // sqrt(g*h)
+    }
+    
+    float3 Fm = make_float3(0.0f, 0.0f, 0.0f);
+    float um = 0.0f;
+    float cm = 0.0f;
 
-    const float3 Fm = CDKLM16_F_func(Qm, g);
-    const float um = Qm.y;         // u
-    const float cm = sqrt(g*Qm.x); // sqrt(g*h)
-
+    if (Qm.x > KPSIMULATOR_DEPTH_CUTOFF) {
+        Fm = CDKLM16_F_func(Qm, g);
+        um = Qm.y;         // u
+        cm = sqrt(g*Qm.x); // sqrt(g*h)
+    }
+    
     const float am = min(min(um-cm, up-cp), 0.0f); // largest negative wave speed
     const float ap = max(max(um+cm, up+cp), 0.0f); // largest positive wave speed
 
@@ -644,27 +658,58 @@ __global__ void cdklm_swe_2D(
         const int H_i = tx + 1;
         const int H_j = ty + 1;
 
-        const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
-        const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
+        // Source terms (wind, coriolis, bathymetry)
+        float st1 = 0.0f;
+        float st2 = 0.0f;
+        
+        const float h = R[0][j][i] + Hm;
+        if (h > KPSIMULATOR_DEPTH_CUTOFF) {
+            
+            // Wind
+            const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
+            const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
 
-        // Bottom topography source terms!
-        // -g*(eta + H)*(-1)*dH/dx   * dx
-        const float RHxp = 0.5f*( Hi[H_j][H_i+1] + Hi[H_j+1][H_i+1] );
-        const float RHxm = 0.5f*( Hi[H_j][H_i  ] + Hi[H_j+1][H_i  ] );
-        const float st1 = g_*(R[0][j][i] + Hm)*(RHxp - RHxm);
+            // Bottom topography source terms!
+            // -g*(eta + H)*(-1)*dH/dx   * dx
+            const float RHxp = 0.5f*( Hi[H_j][H_i+1] + Hi[H_j+1][H_i+1] );
+            const float RHxm = 0.5f*( Hi[H_j][H_i  ] + Hi[H_j+1][H_i  ] );
+            const float RHyp = 0.5f*( Hi[H_j+1][H_i] + Hi[H_j+1][H_i+1] );
+            const float RHym = 0.5f*( Hi[H_j  ][H_i] + Hi[H_j  ][H_i+1] );
+            
+            float H_x = RHxp - RHxm;
+            float H_y = RHyp - RHym;
+            
+            float h4 = h*h; h4 *= h4;
+            if (h4 < KPSIMULATOR_FLUX_SLOPE_EPS) {
+                H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+            }
 
-        const float RHyp = 0.5f*( Hi[H_j+1][H_i] + Hi[H_j+1][H_i+1] );
-        const float RHym = 0.5f*( Hi[H_j  ][H_i] + Hi[H_j  ][H_i+1] );
-        const float st2 = g_*(R[0][j][i] + Hm)*(RHyp - RHym);
+            // TODO: We might want to use the mean of the reconstructed eta's at the faces here, instead of R[0]...
+            const float bathymetry1 = g_*(R[0][j][i] + Hm)*H_x;
+            const float bathymetry2 = g_*(R[0][j][i] + Hm)*H_y;
+            
+            // Coriolis
+            const float coriolis1 = coriolis_f_central*hv;
+            const float coriolis2 = coriolis_f_central*hu;
+
+            // Total source terms
+            st1 = X + coriolis1 + bathymetry1/dx_;
+            st2 = Y - coriolis2 + bathymetry2/dy_;
+        }
 
         const float L1  = - flux_diff.x;
-        const float L2  = - flux_diff.y + (X + coriolis_f_central*hv + st1/dx_);
-        const float L3  = - flux_diff.z + (Y - coriolis_f_central*hu + st2/dy_);
+        const float L2  = - flux_diff.y + st1;
+        const float L3  = - flux_diff.z + st2;
 
         float* const eta_row = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
         float* const hu_row  = (float*) ((char*) hu1_ptr_  +  hu1_pitch_*tj);
         float* const hv_row  = (float*) ((char*) hv1_ptr_  +  hv1_pitch_*tj);
 
+        float updated_eta;
+        float updated_hu;
+        float updated_hv;
+        
         if (rk_order < 3) {
 
             const float C = 2.0f*r_*dt_/(R[0][j][i] + Hm);
@@ -672,9 +717,9 @@ __global__ void cdklm_swe_2D(
             if  (step_ == 0) {
                 //First step of RK2 ODE integrator
 
-                eta_row[ti] =  R[0][j][i] + dt_*L1;
-                hu_row[ti]  = (hu + dt_*L2) / (1.0f + C);
-                hv_row[ti]  = (hv + dt_*L3) / (1.0f + C);
+                updated_eta =  R[0][j][i] + dt_*L1;
+                updated_hu  = (hu + dt_*L2) / (1.0f + C);
+                updated_hv  = (hv + dt_*L3) / (1.0f + C);
             }
             else if (step_ == 1) {
                 //Second step of RK2 ODE integrator
@@ -691,9 +736,9 @@ __global__ void cdklm_swe_2D(
 
 
                 //Write to main memory
-                eta_row[ti] = eta_b;
-                hu_row[ti]  =  hu_b / (1.0f + 0.5f*C);
-                hv_row[ti]  =  hv_b / (1.0f + 0.5f*C);
+                updated_eta = eta_b;
+                updated_hu  =  hu_b / (1.0f + 0.5f*C);
+                updated_hv  =  hv_b / (1.0f + 0.5f*C);
 
             }
         }
@@ -706,9 +751,9 @@ __global__ void cdklm_swe_2D(
                 //First step of RK3 ODE integrator
                 // q^(1) = q^n + dt*L(q^n)
 
-                eta_row[ti] =  R[0][j][i] + dt_*L1;
-                hu_row[ti]  = (hu + dt_*L2);
-                hv_row[ti]  = (hv + dt_*L3);
+                updated_eta =  R[0][j][i] + dt_*L1;
+                updated_hu  = (hu + dt_*L2);
+                updated_hv  = (hv + dt_*L3);
 
             } else if (step_ == 1) {
                 // Second step of RK3 ODE integrator
@@ -726,12 +771,9 @@ __global__ void cdklm_swe_2D(
                 const float hv_b  = 0.75f* hv_a + 0.25f*(hv + dt_*L3);
 
                 // Write output to the input buffer:
-                float* const eta_out_row = (float*) ((char*) eta0_ptr_ + eta0_pitch_*tj);
-                float* const hu_out_row  = (float*) ((char*)  hu0_ptr_ +  hu0_pitch_*tj);
-                float* const hv_out_row  = (float*) ((char*)  hv0_ptr_ +  hv0_pitch_*tj);
-                eta_out_row[ti] = eta_b;
-                hu_out_row[ti]  =  hu_b;
-                hv_out_row[ti]  =  hv_b;
+                updated_eta = eta_b;
+                updated_hu  =  hu_b;
+                updated_hv  =  hv_b;
 
             } else if (step_ == 2) {
                 // Third step of RK3 ODE integrator
@@ -748,15 +790,34 @@ __global__ void cdklm_swe_2D(
                 const float hv_b  = ( hv_a + 2.0f*(hv + dt_*L3)) / 3.0f;
 
                 //Write to main memory
-                eta_row[ti] = eta_b;
-                hu_row[ti]  =  hu_b;
-                hv_row[ti]  =  hv_b;
+                updated_eta = eta_b;
+                updated_hu  =  hu_b;
+                updated_hv  =  hv_b;
             }
         }
+    
+
+        const float updated_h = updated_eta + Hm;
+        if (updated_h <= KPSIMULATOR_DEPTH_CUTOFF) {
+            updated_eta = -Hm;
+            updated_hu  = 0.0f;
+            updated_hv  = 0.0f;
+        }
+
+        if ( (rk_order == 3) && (step_ == 1) ) {
+            float* const eta_out_row = (float*) ((char*) eta0_ptr_ + eta0_pitch_*tj);
+            float* const hu_out_row  = (float*) ((char*)  hu0_ptr_ +  hu0_pitch_*tj);
+            float* const hv_out_row  = (float*) ((char*)  hv0_ptr_ +  hv0_pitch_*tj);
+
+            eta_out_row[ti] = updated_eta;
+            hu_out_row[ti]  = updated_hu;
+            hv_out_row[ti]  = updated_hv;
+        } else {
+            eta_row[ti] = updated_eta;
+            hu_row[ti]  = updated_hu;
+            hv_row[ti]  = updated_hv;
+        }
     }
-
-
-
 }
 
 }
