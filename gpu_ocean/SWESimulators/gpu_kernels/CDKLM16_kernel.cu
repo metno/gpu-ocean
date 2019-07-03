@@ -72,21 +72,20 @@ __device__ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
 
 
 
-
-
-
-
-
 __device__
 float3 computeFFaceFlux(const int i, const int j, const int bx, const int nx_,
                 float R[3][block_height+4][block_width+4],
                 float Qx[3][block_height+2][block_width+2],
-                float Hi[block_height+1][block_width+1],
+                float Hi[block_height+3][block_width+3],
                 const float g_, const float coriolis_f, const float dx_,
                 const int wall_bc_) {
     const int l = j + 2; //Skip ghost cells (be consistent with reconstruction offsets)
     const int k = i + 1;
 
+    // Skip ghost cells in the Hi buffer
+    const int H_i = i+1;
+    const int H_j = j+1;
+    
     // (u, v) reconstructed at a cell interface from the right (p) and left (m)
     // Variables to reconstruct h from u, v, K, L
     const float eta_bar_p = R[0][l][k+1];
@@ -100,7 +99,7 @@ float3 computeFFaceFlux(const int i, const int j, const int bx, const int nx_,
     const float2 Rm = make_float2(um + 0.5f*Qx[0][j][i  ], vm + 0.5f*Qx[1][j][i  ]);
 
     // H is RHx on the given face!
-    const float H_face = 0.5f*( Hi[j][i] + Hi[j+1][i] );
+    const float H_face = 0.5f*( Hi[H_j][H_i] + Hi[H_j+1][H_i] );
 
     // Qx[2] is really dx*Kx
     const float Kx_p = Qx[2][j][i+1];
@@ -130,11 +129,16 @@ __device__
 float3 computeGFaceFlux(const int i, const int j, const int by, const int ny_,
                 float R[3][block_height+4][block_width+4],
                 float Qy[3][block_height+2][block_width+2],
-                float Hi[block_height+1][block_width+1],
+                float Hi[block_height+3][block_width+3],
                 const float g_, const float coriolis_fm, const float coriolis_fp, const float dy_,
                 const int wall_bc_) {
     const int l = j + 1;
     const int k = i + 2; //Skip ghost cells
+    
+    // Skip ghost cells in the Hi buffer
+    const int H_i = i+1;
+    const int H_j = j+1;
+    
     // Q at interface from the right and left
     // Variables to reconstruct h from u, v, K, L
     const float eta_bar_p = R[0][l+1][k];
@@ -148,7 +152,7 @@ float3 computeGFaceFlux(const int i, const int j, const int by, const int ny_,
     const float2 Rm = make_float2(um + 0.5f*Qy[0][j  ][i], vm + 0.5f*Qy[1][j  ][i]);
 
     // H is RHx on the given face!
-    const float H_face = 0.5f*( Hi[j][i] + Hi[j][i+1] );
+    const float H_face = 0.5f*( Hi[H_j][H_i] + Hi[H_j][H_i+1] );
 
     // Qy[2] is really dy*Ly
     const float Ly_p = Qy[2][j+1][i];
@@ -241,7 +245,9 @@ __global__ void cdklm_swe_2D(
     __shared__ float Qx[3][block_height+2][block_width+2];
 
     // Bathymetry
-    __shared__ float  Hi[block_height+1][block_width+1];
+    // Need to find H on all faces for the cells in the block (block_height+1, block_width+1)
+    // and for one face further out to adjust for the Kx and Ly slope outside of the block
+    __shared__ float  Hi[block_height+3][block_width+3];
 
 
 
@@ -272,21 +278,23 @@ __global__ void cdklm_swe_2D(
 
     // Read Hi into shared memory
     // Read intersections on all non-ghost cells
-    for(int j=ty; j < block_height+1; j+=blockDim.y) {
+    for(int j=ty; j < block_height+3; j+=blockDim.y) {
         // Skip ghost cells and
-        const int l = clamp(by+j+2, 2, ny_+2);
+        const int l = clamp(by+j+1, 1, ny_+4);
         float* const Hi_row = (float*) ((char*) Hi_ptr_ + Hi_pitch_*l);
-        for(int i=tx; i < block_width+1; i+=blockDim.x) {
-            const int k = clamp(bx+i+2, 2, nx_+2);
+        for(int i=tx; i < block_width+3; i+=blockDim.x) {
+            const int k = clamp(bx+i+1, 1, nx_+4);
 
             Hi[j][i] = Hi_row[k];
         }
     }
     __syncthreads();
-    const float Hm = 0.25f*(Hi[ty][tx]+Hi[ty+1][tx]+Hi[ty][tx+1]+Hi[ty+1][tx+1]);
+    
+    // Compensate for one layer of ghost cells
+    const float Hm = 0.25f*(Hi[ty+1][tx+1]+Hi[ty+2][tx+1]+Hi[ty+1][tx+2]+Hi[ty+2][tx+2]);
     
     
-    //Compute Coriolis terms needed for fluxes etc.
+    // Compute Coriolis terms needed for fluxes etc.
     // Global id should be including the 
     const float coriolis_f_lower   = f_ + beta_ * ((by+ty+2)-y_zero_reference_cell_ - 1.0f + 0.5f)*dy_;
     const float coriolis_f_central = f_ + beta_ * ((by+ty+2)-y_zero_reference_cell_ +        0.5f)*dy_;
@@ -360,8 +368,19 @@ __global__ void cdklm_swe_2D(
 
             //const float h = R[0][j][i] + Hm[j][i]; // h = eta + H
             const float h = R[0][j][i] + Hm_row[k];
-            R[1][j][i] /= h;
-            R[2][j][i] /= h;
+            
+            // Check if the cell is almost dry
+            if (h < KPSIMULATOR_DEPTH_CUTOFF) {
+                // Desingularizing u and v
+                float h4 = h*h; h4 *= h4;
+                R[1][j][i] = SQRT_OF_TWO*h*R[1][j][i]/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                R[2][j][i] = SQRT_OF_TWO*h*R[2][j][i]/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+            } 
+            else {
+                R[1][j][i] /= h;
+                R[2][j][i] /= h;
+            }
+            
         }
     }
     __syncthreads();
@@ -426,10 +445,15 @@ __global__ void cdklm_swe_2D(
         }
     }
     __syncthreads();
+        
+    // Adjust K_x slopes to avoid negative h = eta + H
+    // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
+    //adjustSlopes_x(Qx, Hi, Q);
+    __syncthreads();
     
     // Compute flux along x axis
-    float3 flux_diff = (  computeFFaceFlux(tx+1, ty, bx, nx_, R, Qx, Hi,g_, coriolis_f_central, dx_, wall_bc_) 
-                        - computeFFaceFlux(tx  , ty, bx, nx_, R, Qx, Hi,g_, coriolis_f_central, dx_, wall_bc_)) / dx_;
+    float3 flux_diff = (  computeFFaceFlux(tx+1, ty, bx, nx_, R, Qx, Hi, g_, coriolis_f_central, dx_, wall_bc_) 
+                        - computeFFaceFlux(tx  , ty, bx, nx_, R, Qx, Hi, g_, coriolis_f_central, dx_, wall_bc_)) / dx_;
     __syncthreads();
 
     //Reconstruct slopes along y axis
@@ -491,6 +515,7 @@ __global__ void cdklm_swe_2D(
     }
     __syncthreads();
 
+
     //Compute fluxes along the y axis    
     flux_diff = flux_diff + (  computeGFaceFlux(tx, ty+1, by, ny_, R, Qx, Hi, g_, coriolis_f_central,   coriolis_f_upper, dy_, wall_bc_)
                              - computeGFaceFlux(tx, ty  , by, ny_, R, Qx, Hi, g_,   coriolis_f_lower, coriolis_f_central, dy_, wall_bc_)) / dy_;
@@ -499,20 +524,25 @@ __global__ void cdklm_swe_2D(
 
     //Sum fluxes and advance in time for all internal cells
     if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
-        const int i = tx + 2; //Skip local ghost cells, i.e., +2
+        //Skip local ghost cells, i.e., +2
+        const int i = tx + 2; 
         const int j = ty + 2;
+        
+        // Skip local ghost cells for Hi
+        const int H_i = tx + 1;
+        const int H_j = ty + 1;
 
         const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
         const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
 
         // Bottom topography source terms!
         // -g*(eta + H)*(-1)*dH/dx   * dx
-        const float RHxp = 0.5f*( Hi[ty][tx+1] + Hi[ty+1][tx+1] );
-        const float RHxm = 0.5f*( Hi[ty][tx  ] + Hi[ty+1][tx  ] );
+        const float RHxp = 0.5f*( Hi[H_j][H_i+1] + Hi[H_j+1][H_i+1] );
+        const float RHxm = 0.5f*( Hi[H_j][H_i  ] + Hi[H_j+1][H_i  ] );
         const float st1 = g_*(R[0][j][i] + Hm)*(RHxp - RHxm);
 
-        const float RHyp = 0.5f*( Hi[ty+1][tx] + Hi[ty+1][tx+1] );
-        const float RHym = 0.5f*( Hi[ty  ][tx] + Hi[ty  ][tx+1] );
+        const float RHyp = 0.5f*( Hi[H_j+1][H_i] + Hi[H_j+1][H_i+1] );
+        const float RHym = 0.5f*( Hi[H_j  ][H_i] + Hi[H_j  ][H_i+1] );
         const float st2 = g_*(R[0][j][i] + Hm)*(RHyp - RHym);
 
         const float L1  = - flux_diff.x;
