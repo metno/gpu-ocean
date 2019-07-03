@@ -12,8 +12,10 @@
  */
 #ifndef SWASHES
     #define KPSIMULATOR_FLUX_SLOPE_EPS 1.0e-2f
+    #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-8f
 #else
     #define KPSIMULATOR_FLUX_SLOPE_EPS 1.0e-4f
+    #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-16f
 #endif
 
 #define KPSIMULATOR_DEPTH_CUTOFF 1.0e-5f
@@ -729,9 +731,9 @@ __device__ float3 CentralUpwindFluxBottom(float3 Qm, float3 Qp, const float RH, 
         float hp4 = hp*hp; hp4 *= hp4;  // hp^4
         if (hp <= KPSIMULATOR_FLUX_SLOPE_EPS) {
             // Desingularize u and v
-            up = SQRT_OF_TWO*hp*Qp.y/sqrt(hp4 + fmaxf(hp4, pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            up = SQRT_OF_TWO*hp*Qp.y/sqrt(hp4 + fmaxf(hp4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
             //up = SQRT_OF_TWO*hp*Qp.y/sqrt(hp4 + KPSIMULATOR_FLUX_SLOPE_EPS);
-            const float vp = SQRT_OF_TWO*hp*Qp.z/sqrt(hp4 + fmaxf(hp4, pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            const float vp = SQRT_OF_TWO*hp*Qp.z/sqrt(hp4 + fmaxf(hp4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
             //const float vp = SQRT_OF_TWO*hp*Qp.z/sqrt(hp4 + KPSIMULATOR_FLUX_SLOPE_EPS);
             // Update hu and hv accordingly
             Qp.y = hp*up;
@@ -753,9 +755,9 @@ __device__ float3 CentralUpwindFluxBottom(float3 Qm, float3 Qp, const float RH, 
         if (hm <= KPSIMULATOR_FLUX_SLOPE_EPS) {
             // Desingularize u and v
             //um = SQRT_OF_TWO*hm*Qm.y/sqrt(hm4 + KPSIMULATOR_FLUX_SLOPE_EPS);
-            um = SQRT_OF_TWO*hm*Qm.y/sqrt(hm4 + fmaxf(hm4, pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            um = SQRT_OF_TWO*hm*Qm.y/sqrt(hm4 + fmaxf(hm4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
             //const float vm = SQRT_OF_TWO*hm*Qm.z/sqrt(hm4 + KPSIMULATOR_FLUX_SLOPE_EPS);
-            const float vm = SQRT_OF_TWO*hm*Qm.z/sqrt(hm4 + fmaxf(hm4, pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            const float vm = SQRT_OF_TWO*hm*Qm.z/sqrt(hm4 + fmaxf(hm4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
             // Update hu and hv accordingly
             Qm.y = hm*um;
             Qm.z = hm*vm;

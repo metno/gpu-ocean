@@ -105,8 +105,8 @@ class CDKLM16(Simulator.Simulator):
         self.logger = logging.getLogger(__name__)
 
         ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
-        if ( np.sum(eta0 - H[:-1, :-1] > 0) > nx):
-            assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
+        #if ( np.sum(eta0 - H[:-1, :-1] > 0) > nx):
+        #    assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
         
         assert( rk_order < 4 or rk_order > 0 ), "Only 1st, 2nd and 3rd order Runge Kutta supported"
 
@@ -188,7 +188,17 @@ class CDKLM16(Simulator.Simulator):
         self.max_dt_reduction_kernel = self.update_dt_kernels.get_function("max_dt_reduction")
         self.max_dt_reduction_kernel.prepare("iPP")
         
-        #Create data by uploading to device
+        # Bathymetry
+        self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
+        self.h0AsWaterElevation = h0AsWaterElevation
+        if self.h0AsWaterElevation:
+            self.bathymetry.waterElevationToDepth(self.gpu_data.h0)
+                
+        # Adjust eta for possible dry states
+        Hm = self.downloadBathymetry()[1]
+        eta0 = np.maximum(eta0, -Hm)
+        
+        # Create data by uploading to device
         self.gpu_data = Common.SWEDataArakawaA(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
 
         # Allocate memory for calculating maximum timestep
@@ -210,12 +220,6 @@ class CDKLM16(Simulator.Simulator):
             self.geoEq_Kx = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
             self.geoEq_Ly = Common.CUDAArray2D(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, dummy_zero_array)
 
-        #Bathymetry
-        self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
-        self.h0AsWaterElevation = h0AsWaterElevation
-        if self.h0AsWaterElevation:
-            self.bathymetry.waterElevationToDepth(self.gpu_data.h0)
-        
         self.constant_equilibrium_depth = np.max(H)
         
         self.bc_kernel = Common.BoundaryConditionsArakawaA(gpu_ctx, \

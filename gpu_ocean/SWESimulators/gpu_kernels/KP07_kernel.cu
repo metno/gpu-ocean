@@ -274,7 +274,7 @@ __device__ float bottomSourceTerm2_kp(float Q[3][block_height+4][block_width+4],
         if (h4 <= KPSIMULATOR_FLUX_SLOPE_EPS) {
             // Desingularize u and v
             //H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + KPSIMULATOR_FLUX_SLOPE_EPS);
-            H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + fmaxf(h4, pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
         }
     
         return -0.5f*g*H_x*(eta_p + RHx_p + eta_m + RHx_m);
@@ -307,7 +307,7 @@ __device__ float bottomSourceTerm3_kp(float Q[3][block_height+4][block_width+4],
         if (h <= KPSIMULATOR_FLUX_SLOPE_EPS) {
             // Desingularize u and v
             //H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + KPSIMULATOR_FLUX_SLOPE_EPS);
-            H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + fmaxf(h4, pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
         }
         
         return -0.5f*g*H_y*(eta_p + RHy_p + eta_m + RHy_m);

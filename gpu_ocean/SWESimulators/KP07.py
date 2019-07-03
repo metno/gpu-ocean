@@ -164,13 +164,19 @@ class KP07(Simulator.Simulator):
         self.swe_2D.prepare("iifffffffffiPiPiPiPiPiPiPiPiiiiif")
         self.update_wind_stress(self.kp07_kernel, self.swe_2D)
         
+        
+        # Upload Bathymetry
+        self.bathymetry = Common.Bathymetry(self.gpu_ctx, self.gpu_stream, \
+                                            nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
+       
+        # Adjust eta for possible dry states
+        Hm = self.downloadBathymetry()[1]
+        eta0 = np.maximum(eta0, -Hm)
+        
         #Create data by uploading to device    
         self.gpu_data = Common.SWEDataArakawaA(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
         
-        #Bathymetry
-        self.bathymetry = Common.Bathymetry(self.gpu_ctx, self.gpu_stream, \
-                                            nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
-        
+         
         self.bc_kernel = Common.BoundaryConditionsArakawaA(gpu_ctx, \
                                                            self.nx, \
                                                            self.ny, \
