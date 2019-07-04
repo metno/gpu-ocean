@@ -224,7 +224,7 @@ __global__ void closed_boundary_intersections_NS(
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if ( tj == 0 && ti < ny_ + (2*halo_y_) +1) {
+    if ( tj == 0 && ti < nx_ + (2*halo_y_) +1) {
 	// Southern boundary:
 	for (int j = 0; j < halo_y_; ++j) {
 	    const int inner_index = 2*halo_y_ - j;
