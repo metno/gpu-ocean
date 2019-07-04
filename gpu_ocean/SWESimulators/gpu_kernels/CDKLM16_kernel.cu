@@ -75,6 +75,11 @@ __device__ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
     const float am = min(min(um-cm, up-cp), 0.0f); // largest negative wave speed
     const float ap = max(max(um+cm, up+cp), 0.0f); // largest positive wave speed
 
+    // Related to dry zones
+    if ( fabs(ap - am) < KPSIMULATOR_FLUX_SLOPE_EPS ) {
+        return make_float3(0.0f, 0.0f, 0.0f);
+    }
+    
     float3 F;
 
     F.x = ((ap*Fm.x - am*Fp.x) + ap*am*(Qp.x-Qm.x))/(ap-am);
@@ -389,10 +394,7 @@ __global__ void cdklm_swe_2D(
         }
     }
     __syncthreads();
-    //Skip local ghost cells, i.e., +2
-    const float hu = R[1][ty + 2][tx + 2];
-    const float hv = R[2][ty + 2][tx + 2];
-
+    
 
     // Read Hi into shared memory
     // Read intersections on all non-ghost cells
@@ -503,6 +505,10 @@ __global__ void cdklm_swe_2D(
     }
     __syncthreads();
 
+    // Store desingulized hu and hv
+    //Skip local ghost cells, i.e., +2
+    const float hu = R[1][ty + 2][tx + 2]*(R[0][ty + 2][tx + 2] + Hm);
+    const float hv = R[2][ty + 2][tx + 2]*(R[0][ty + 2][tx + 2] + Hm);
 
 
 
@@ -575,7 +581,7 @@ __global__ void cdklm_swe_2D(
     float3 flux_diff = (  computeFFaceFlux(tx+1, ty, bx, nx_, R, Qx, Hi, g_, coriolis_f_central, dx_, wall_bc_) 
                         - computeFFaceFlux(tx  , ty, bx, nx_, R, Qx, Hi, g_, coriolis_f_central, dx_, wall_bc_)) / dx_;
     __syncthreads();
-
+    
     //Reconstruct slopes along y axis
     // Write result into shmem Qx = [u_y, v_y, L_y]
     // Qx is now used as if its size was Qx[3][block_height+2][block_width]
@@ -647,7 +653,6 @@ __global__ void cdklm_swe_2D(
                              - computeGFaceFlux(tx, ty  , by, ny_, R, Qx, Hi, g_,   coriolis_f_lower, coriolis_f_central, dy_, wall_bc_)) / dy_;
     __syncthreads();
 
-
     //Sum fluxes and advance in time for all internal cells
     if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
         //Skip local ghost cells, i.e., +2
@@ -663,7 +668,7 @@ __global__ void cdklm_swe_2D(
         float st2 = 0.0f;
         
         const float h = R[0][j][i] + Hm;
-        if (h > KPSIMULATOR_DEPTH_CUTOFF) {
+        if (h >= KPSIMULATOR_DEPTH_CUTOFF) {
             
             // Wind
             const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
@@ -679,11 +684,13 @@ __global__ void cdklm_swe_2D(
             float H_x = RHxp - RHxm;
             float H_y = RHyp - RHym;
             
+            
             float h4 = h*h; h4 *= h4;
             if (h4 < KPSIMULATOR_FLUX_SLOPE_EPS) {
                 H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
                 H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
             }
+            
 
             // TODO: We might want to use the mean of the reconstructed eta's at the faces here, instead of R[0]...
             const float bathymetry1 = g_*(R[0][j][i] + Hm)*H_x;
