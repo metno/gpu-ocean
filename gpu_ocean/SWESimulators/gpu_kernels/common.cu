@@ -11,14 +11,15 @@
  *  swashes case.
  */
 #ifndef SWASHES
-    #define KPSIMULATOR_FLUX_SLOPE_EPS 1.0e-2f
-    #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-8f
+    #define KPSIMULATOR_FLUX_SLOPE_EPS   1e-1f
+    #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-4f
 #else
-    #define KPSIMULATOR_FLUX_SLOPE_EPS 1.0e-4f
+    #define KPSIMULATOR_FLUX_SLOPE_EPS   1.0e-4f
     #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-16f
 #endif
 
 #define KPSIMULATOR_DEPTH_CUTOFF 1.0e-5f
+//#define KPSIMULATOR_DEPTH_CUTOFF 1.0e-4f
 #define SQRT_OF_TWO 1.41421356237309504880f
 
 /*

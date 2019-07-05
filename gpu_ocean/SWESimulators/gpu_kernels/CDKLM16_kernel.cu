@@ -26,6 +26,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "common.cu"
 
+// KPSIMULATOR
+
 
 
 
@@ -50,23 +52,39 @@ __device__ float3 CDKLM16_F_func(const float3 Q, const float g) {
   * (h, hu, hv). 
   * Note also that u and v are desingularized from the start.
   */
-__device__ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
+__device__ float3 CDKLM16_flux(float3 Qm, float3 Qp, const float g) {
     
+    // Contribution from plus cell
     float3 Fp = make_float3(0.0f, 0.0f, 0.0f);
     float up = 0.0f;
     float cp = 0.0f;
     
     if (Qp.x > KPSIMULATOR_DEPTH_CUTOFF) {
+        
+        /*if (Qp.x <= KPSIMULATOR_FLUX_SLOPE_EPS) {
+            const float h2 = Qp.x*Qp.x;
+            const float h4 = h2*h2;
+            Qp.y = SQRT_OF_TWO*h2*Qp.y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+            Qp.z = SQRT_OF_TWO*h2*Qp.z/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+        }*/
         Fp = CDKLM16_F_func(Qp, g);
         up = Qp.y;         // u
         cp = sqrt(g*Qp.x); // sqrt(g*h)
     }
-    
+
+    // Contribution from plus cell
     float3 Fm = make_float3(0.0f, 0.0f, 0.0f);
     float um = 0.0f;
     float cm = 0.0f;
 
     if (Qm.x > KPSIMULATOR_DEPTH_CUTOFF) {
+        /*if (Qm.x <= KPSIMULATOR_FLUX_SLOPE_EPS) {
+            const float h2 = Qm.x*Qm.x;
+            const float h4 = h2*h2;
+            Qm.y = SQRT_OF_TWO*h2*Qm.y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+            Qm.z = SQRT_OF_TWO*h2*Qm.z/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+        }*/
+        
         Fm = CDKLM16_F_func(Qm, g);
         um = Qm.y;         // u
         cm = sqrt(g*Qm.x); // sqrt(g*h)
@@ -104,7 +122,7 @@ void adjustSlopes_x(const int bx, const int by,
                     const float g_, 
                     const float f_, const float beta_, const int y_zero_reference_cell_,
                     const int wall_bc_) {
-
+    
     // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
 
     
@@ -132,12 +150,12 @@ void adjustSlopes_x(const int bx, const int by,
         const float H_west = 0.5f*(Hi[H_j][H_i  ] + Hi[H_j+1][H_i  ]);
         const float H_east = 0.5f*(Hi[H_j][H_i+1] + Hi[H_j+1][H_i+1]);
         
-        const float h_west = eta + H_west - (Qx[3][j][i] + dxfv)/(2.0f*g_);
-        const float h_east = eta + H_east + (Qx[3][j][i] + dxfv)/(2.0f*g_);
+        const float h_west = eta + H_west - (Qx[2][j][i] + dxfv)/(2.0f*g_);
+        const float h_east = eta + H_east + (Qx[2][j][i] + dxfv)/(2.0f*g_);
         
         // Adjust if negative water level
-        Qx[3][j][i] = (h_west > 0) ? Qx[3][j][i] : -dxfv + 2.0f*g_*(eta + H_west);
-        Qx[3][j][i] = (h_east > 0) ? Qx[3][j][i] : -dxfv - 2.0f*g_*(eta + H_east);
+        Qx[2][j][i] = (h_west > 0) ? Qx[2][j][i] : -dxfv + 2.0f*g_*(eta + H_west);
+        Qx[2][j][i] = (h_east > 0) ? Qx[2][j][i] : -dxfv - 2.0f*g_*(eta + H_east);
     }
 }
 
@@ -155,7 +173,7 @@ void adjustSlopes_y(const int bx, const int by,
                     const float g_, 
                     const float f_, const float beta_, const int y_zero_reference_cell_,
                     const int wall_bc_) {
-
+    
     // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
 
     
@@ -183,12 +201,12 @@ void adjustSlopes_y(const int bx, const int by,
         const float H_south = 0.5f*(Hi[H_j  ][H_i] + Hi[H_j  ][H_i+1]);
         const float H_north = 0.5f*(Hi[H_j+1][H_i] + Hi[H_j+1][H_i+1]);
         
-        const float h_south = eta + H_south - (Qx[3][j][i] - dyfu)/(2.0f*g_);
-        const float h_north = eta + H_north + (Qx[3][j][i] - dyfu)/(2.0f*g_);
+        const float h_south = eta + H_south - (Qx[2][j][i] - dyfu)/(2.0f*g_);
+        const float h_north = eta + H_north + (Qx[2][j][i] - dyfu)/(2.0f*g_);
         
         // Adjust if negative water level
-        Qx[3][j][i] = (h_south > 0) ? Qx[3][j][i] : dyfu + 2.0f*g_*(eta + H_south);
-        Qx[3][j][i] = (h_north > 0) ? Qx[3][j][i] : dyfu - 2.0f*g_*(eta + H_north);
+        Qx[2][j][i] = (h_south > 0) ? Qx[2][j][i] : dyfu + 2.0f*g_*(eta + H_south);
+        Qx[2][j][i] = (h_north > 0) ? Qx[2][j][i] : dyfu - 2.0f*g_*(eta + H_north);
     }
 }
 
@@ -410,8 +428,6 @@ __global__ void cdklm_swe_2D(
     }
     __syncthreads();
     
-    // Compensate for one layer of ghost cells
-    const float Hm = 0.25f*(Hi[ty+1][tx+1]+Hi[ty+2][tx+1]+Hi[ty+1][tx+2]+Hi[ty+2][tx+2]);
     
     
     // Compute Coriolis terms needed for fluxes etc.
@@ -438,6 +454,8 @@ __global__ void cdklm_swe_2D(
             R[0][j+2][i] =  R[0][j-1][i];
             R[1][j+2][i] =  R[1][j-1][i];
             R[2][j+2][i] = -R[2][j-1][i];
+            
+            Hi[j+1][i] = Hi[j-1][i];
         }
         
         // Wall boundary on east
@@ -449,6 +467,8 @@ __global__ void cdklm_swe_2D(
             R[0][j][i+2] =  R[0][j][i-1];
             R[1][j][i+2] = -R[1][j][i-1];
             R[2][j][i+2] =  R[2][j][i-1];
+            
+            Hi[j][i+1] = Hi[j][i-1];
         }
         
         // Wall boundary on south
@@ -460,6 +480,8 @@ __global__ void cdklm_swe_2D(
             R[0][j-2][i] =  R[0][j+1][i];
             R[1][j-2][i] =  R[1][j+1][i];
             R[2][j-2][i] = -R[2][j+1][i];
+            
+            Hi[j-2][i] == Hi[j][i];
         }
         
         // Wall boundary on west
@@ -471,12 +493,16 @@ __global__ void cdklm_swe_2D(
             R[0][j][i-2] =  R[0][j][i+1];
             R[1][j][i-2] = -R[1][j][i+1];
             R[2][j][i-2] =  R[2][j][i+1];
+            
+            Hi[j][i-2] = Hi[j][i];
         }
     }
 
     __syncthreads();
-
-
+    
+    // Compensate for one layer of ghost cells
+    const float Hm = 0.25f*(Hi[ty+1][tx+1]+Hi[ty+2][tx+1]+Hi[ty+1][tx+2]+Hi[ty+2][tx+2]);
+    
 
     //Create our "steady state" reconstruction variables (u, v)
     // K and L are never stored, but computed where needed.
@@ -486,16 +512,28 @@ __global__ void cdklm_swe_2D(
         for (int i=tx; i<block_width+4; i+=blockDim.x) {
             const int k = clamp(bx+i, 0, nx_+3);
 
-            //const float h = R[0][j][i] + Hm[j][i]; // h = eta + H
-            const float h = R[0][j][i] + Hm_row[k];
+            // h = eta + H
+            const float local_Hm = Hm_row[k];
+            //const float local_Hm =  0.25f*(Hi[ty+1][tx+1]+Hi[ty+2][tx+1]+Hi[ty+1][tx+2]+Hi[ty+2][tx+2]);
+            const float h = R[0][j][i] + local_Hm;
+            
+           
             
             // Check if the cell is almost dry
-            if (h < KPSIMULATOR_DEPTH_CUTOFF) {
-                // Desingularizing u and v
-                float h4 = h*h; h4 *= h4;
-                R[1][j][i] = SQRT_OF_TWO*h*R[1][j][i]/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
-                R[2][j][i] = SQRT_OF_TWO*h*R[2][j][i]/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
-            } 
+            if (h < KPSIMULATOR_FLUX_SLOPE_EPS) {
+                
+                if (h <= KPSIMULATOR_DEPTH_CUTOFF) {
+                    //R[0][j][i] = -local_Hm;
+                    R[1][j][i] = 0.0f;
+                    R[2][j][i] = 0.0f;
+                }
+                else {                
+                    // Desingularizing u and v
+                    float h4 = h*h; h4 *= h4;
+                    R[1][j][i] = SQRT_OF_TWO*h*R[1][j][i]/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                    R[2][j][i] = SQRT_OF_TWO*h*R[2][j][i]/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                }
+            }
             else {
                 R[1][j][i] /= h;
                 R[2][j][i] /= h;
@@ -507,12 +545,12 @@ __global__ void cdklm_swe_2D(
 
     // Store desingulized hu and hv
     //Skip local ghost cells, i.e., +2
-    const float hu = R[1][ty + 2][tx + 2]*(R[0][ty + 2][tx + 2] + Hm);
-    const float hv = R[2][ty + 2][tx + 2]*(R[0][ty + 2][tx + 2] + Hm);
-
-
-
-
+    float hu = 0.0f;
+    float hv = 0.0f;
+    if ( R[0][ty + 2][tx + 2] + Hm > KPSIMULATOR_DEPTH_CUTOFF) {
+        hu = R[1][ty + 2][tx + 2]*(R[0][ty + 2][tx + 2] + Hm);
+        hv = R[2][ty + 2][tx + 2]*(R[0][ty + 2][tx + 2] + Hm);
+    }
 
 
 
@@ -582,6 +620,12 @@ __global__ void cdklm_swe_2D(
                         - computeFFaceFlux(tx  , ty, bx, nx_, R, Qx, Hi, g_, coriolis_f_central, dx_, wall_bc_)) / dx_;
     __syncthreads();
     
+    // Reconstruct eta_west, eta_east for use in bathymetry source term
+    const float eta_west = R[0][ty+2][tx+2] - (Qx[2][ty][tx+1] + dx_*coriolis_f_central*R[2][ty+2][tx+2])/(2.0f*g_);
+    const float eta_east = R[0][ty+2][tx+2] + (Qx[2][ty][tx+1] + dx_*coriolis_f_central*R[2][ty+2][tx+2])/(2.0f*g_);
+    
+    __syncthreads();
+    
     //Reconstruct slopes along y axis
     // Write result into shmem Qx = [u_y, v_y, L_y]
     // Qx is now used as if its size was Qx[3][block_height+2][block_width]
@@ -649,10 +693,18 @@ __global__ void cdklm_swe_2D(
     __syncthreads();
     
     //Compute fluxes along the y axis    
+    const float3 GFaceFlux_p = computeGFaceFlux(tx, ty+1, by, ny_, R, Qx, Hi, g_, coriolis_f_central,   coriolis_f_upper, dy_, wall_bc_);
+    const float3 GFaceFlux_m = computeGFaceFlux(tx, ty  , by, ny_, R, Qx, Hi, g_,   coriolis_f_lower, coriolis_f_central, dy_, wall_bc_);
+    
     flux_diff = flux_diff + (  computeGFaceFlux(tx, ty+1, by, ny_, R, Qx, Hi, g_, coriolis_f_central,   coriolis_f_upper, dy_, wall_bc_)
                              - computeGFaceFlux(tx, ty  , by, ny_, R, Qx, Hi, g_,   coriolis_f_lower, coriolis_f_central, dy_, wall_bc_)) / dy_;
     __syncthreads();
 
+    // Reconstruct eta_north, eta_south for use in bathymetry source term
+    const float eta_south = R[0][ty+2][tx+2] - (Qx[2][ty+1][tx] - dy_*coriolis_f_central*R[1][ty+2][tx+2])/(2.0f*g_);
+    const float eta_north = R[0][ty+2][tx+2] + (Qx[2][ty+1][tx] - dy_*coriolis_f_central*R[1][ty+2][tx+2])/(2.0f*g_);
+    __syncthreads();
+    
     //Sum fluxes and advance in time for all internal cells
     if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
         //Skip local ghost cells, i.e., +2
@@ -676,10 +728,10 @@ __global__ void cdklm_swe_2D(
 
             // Bottom topography source terms!
             // -g*(eta + H)*(-1)*dH/dx   * dx
-            const float RHxp = 0.5f*( Hi[H_j][H_i+1] + Hi[H_j+1][H_i+1] );
-            const float RHxm = 0.5f*( Hi[H_j][H_i  ] + Hi[H_j+1][H_i  ] );
-            const float RHyp = 0.5f*( Hi[H_j+1][H_i] + Hi[H_j+1][H_i+1] );
-            const float RHym = 0.5f*( Hi[H_j  ][H_i] + Hi[H_j  ][H_i+1] );
+            const float RHxp = 0.5f*( Hi[H_j  ][H_i+1] + Hi[H_j+1][H_i+1] );
+            const float RHxm = 0.5f*( Hi[H_j  ][H_i  ] + Hi[H_j+1][H_i  ] );
+            const float RHyp = 0.5f*( Hi[H_j+1][H_i  ] + Hi[H_j+1][H_i+1] );
+            const float RHym = 0.5f*( Hi[H_j  ][H_i  ] + Hi[H_j  ][H_i+1] );
             
             float H_x = RHxp - RHxm;
             float H_y = RHyp - RHym;
@@ -691,10 +743,14 @@ __global__ void cdklm_swe_2D(
                 H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
             }
             
+            const float eta_sn = 0.5f*(eta_north + eta_south);
+            const float eta_we = 0.5f*(eta_west  + eta_east);
 
             // TODO: We might want to use the mean of the reconstructed eta's at the faces here, instead of R[0]...
-            const float bathymetry1 = g_*(R[0][j][i] + Hm)*H_x;
-            const float bathymetry2 = g_*(R[0][j][i] + Hm)*H_y;
+            //const float bathymetry1 = g_*(R[0][j][i] + Hm)*H_x;
+            //const float bathymetry2 = g_*(R[0][j][i] + Hm)*H_y;
+            const float bathymetry1 = g_*(eta_we + Hm)*H_x;
+            const float bathymetry2 = g_*(eta_sn + Hm)*H_y;
             
             // Coriolis
             const float coriolis1 = coriolis_f_central*hv;
@@ -719,8 +775,9 @@ __global__ void cdklm_swe_2D(
         
         if (rk_order < 3) {
 
-            const float C = 2.0f*r_*dt_/(R[0][j][i] + Hm);
-
+            //const float C = 2.0f*r_*dt_/(R[0][j][i] + Hm);
+            const float C = 0.0f;
+            
             if  (step_ == 0) {
                 //First step of RK2 ODE integrator
 
@@ -805,7 +862,7 @@ __global__ void cdklm_swe_2D(
     
 
         const float updated_h = updated_eta + Hm;
-        if (updated_h <= KPSIMULATOR_DEPTH_CUTOFF) {
+        if ((updated_h <= KPSIMULATOR_DEPTH_CUTOFF) ) { 
             updated_eta = -Hm;
             updated_hu  = 0.0f;
             updated_hv  = 0.0f;
