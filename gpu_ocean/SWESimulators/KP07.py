@@ -56,7 +56,8 @@ class KP07(Simulator.Simulator):
                  write_netcdf=False, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0, \
-                 swashes=False, \
+                 flux_slope_eps = 1.0e-1, \
+                 depth_cutoff = 1.0e-5, \
                  block_width=32, block_height=16):
         """
         Initialization routine
@@ -80,7 +81,8 @@ class KP07(Simulator.Simulator):
         wind_stress: Wind stress parameters
         boundary_conditions: Boundary condition object
         write_netcdf: Write the results after each superstep to a netCDF file
-        swashes: Flag to help specifying the desingularization parameter related to dry cells.
+        depth_cutoff: Used for defining dry cells
+        flux_slope_eps: Used for desingularization with dry cells
         """
        
         ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
@@ -135,9 +137,19 @@ class KP07(Simulator.Simulator):
         # The ocean simulators and the swashes cases are defined on
         # completely different scales. We therefore specify a different
         # desingularization parameter if we run a swashes case.
-        defines = {'block_width': block_width, 'block_height': block_height}
-        if swashes:
-            defines = {'block_width': block_width, 'block_height': block_height, 'SWASHES' : 1}
+        # Typical values:
+        #ifndef SWASHES
+            #define KPSIMULATOR_FLUX_SLOPE_EPS   1e-1f
+            #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-4f
+        #else
+            #define KPSIMULATOR_FLUX_SLOPE_EPS   1.0e-4f
+            #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-16f
+        #endif
+        defines = {'block_width': block_width, 'block_height': block_height,
+                   'KPSIMULATOR_FLUX_SLOPE_EPS': str(flux_slope_eps)+'f',
+                   'KPSIMULATOR_FLUX_SLOPE_EPS_4': str(flux_slope_eps**4)+'f',
+                   'KPSIMULATOR_DEPTH_CUTOFF': str(depth_cutoff)+'f'}
+     
         
         #Get kernels
         self.kp07_kernel = gpu_ctx.get_kernel("KP07_kernel.cu", 

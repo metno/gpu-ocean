@@ -51,6 +51,112 @@ __device__ float reconstructHy(float  Hi[block_height+4][block_width+4],
 
 
 
+
+/**
+  * Central upwind flux function
+  * Takes Q = [eta, hu, hv] as input
+  */
+__device__ float3 CentralUpwindFluxBottom(float3 Qm, float3 Qp, const float RH, const float g) {
+    // The constant is a compiler constant in the CUDA code.
+    // const float KPSIMULATOR_FLUX_SLOPE_EPS = 1.0e-4f;
+    // const float KPSIMULATOR_DEPTH_CUTOFF = 1.0e-5f;
+    // These constants are now compiler constants!
+    
+    const float hp = Qp.x + RH;  // h = eta + H
+    float up = 0.0f; //Qp.y / (float) hp; // hu/h
+    float3 Fp = make_float3(0.0f, 0.0f, 0.0f);
+    float cp = 0.0f;
+    // Check if complely dry:
+    if (hp > KPSIMULATOR_DEPTH_CUTOFF) {
+        up = Qp.y / (float) hp; // hu/h
+        // Check if almost dry
+        float hp4 = hp*hp; hp4 *= hp4;  // hp^4
+        if (hp <= KPSIMULATOR_FLUX_SLOPE_EPS) {
+            // Desingularize u and v
+            up = SQRT_OF_TWO*hp*Qp.y/sqrt(hp4 + fmaxf(hp4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            //up = SQRT_OF_TWO*hp*Qp.y/sqrt(hp4 + KPSIMULATOR_FLUX_SLOPE_EPS);
+            const float vp = SQRT_OF_TWO*hp*Qp.z/sqrt(hp4 + fmaxf(hp4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            //const float vp = SQRT_OF_TWO*hp*Qp.z/sqrt(hp4 + KPSIMULATOR_FLUX_SLOPE_EPS);
+            // Update hu and hv accordingly
+            Qp.y = hp*up;
+            Qp.z = hp*vp;
+        }
+        Fp = F_func_bottom(Qp, hp, up, g);
+        cp = sqrt(g*hp); // sqrt(g*h)
+    }
+        
+    const float hm = Qm.x + RH;
+    float um = 0.0f; //Qm.y / (float) hm;   // hu / h
+    float3 Fm = make_float3(0.0f, 0.0f, 0.0f);
+    float cm = 0.0f;
+    // Check if completely dry:
+    if (hm > KPSIMULATOR_DEPTH_CUTOFF) {
+        um = Qm.y / (float) hm;   // hu / h
+        // Check if almost dry
+        float hm4 = hm*hm; hm4 *= hm4;   // hm^4
+        if (hm <= KPSIMULATOR_FLUX_SLOPE_EPS) {
+            // Desingularize u and v
+            //um = SQRT_OF_TWO*hm*Qm.y/sqrt(hm4 + KPSIMULATOR_FLUX_SLOPE_EPS);
+            um = SQRT_OF_TWO*hm*Qm.y/sqrt(hm4 + fmaxf(hm4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            //const float vm = SQRT_OF_TWO*hm*Qm.z/sqrt(hm4 + KPSIMULATOR_FLUX_SLOPE_EPS);
+            const float vm = SQRT_OF_TWO*hm*Qm.z/sqrt(hm4 + fmaxf(hm4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            // Update hu and hv accordingly
+            Qm.y = hm*um;
+            Qm.z = hm*vm;
+        }
+        Fm = F_func_bottom(Qm, hm, um, g);
+        cm = sqrt(g*hm); // sqrt(g*h)
+    }
+        
+    const float am = min(min(um-cm, up-cp), 0.0f); // largest negative wave speed
+    const float ap = max(max(um+cm, up+cp), 0.0f); // largest positive wave speed
+    // Related to dry zones
+    if ( fabs(ap - am) < KPSIMULATOR_FLUX_SLOPE_EPS ) {
+        return make_float3(0.0f, 0.0f, 0.0f);
+    }
+    
+    return ((ap*Fm - am*Fp) + ap*am*(Qp-Qm))/(ap-am);
+}
+
+
+/**
+  *  Source terms related to bathymetry  
+  */
+__device__ float bottomSourceTerm2(float Q[3][block_height+4][block_width+4],
+			float  Qx[3][block_height+2][block_width+2],
+			float RHx[block_height+4][block_width+4],
+			const float g, 
+			const int p, const int q) {
+    // Compansating for the smaller shmem for Qx relative to Q:
+    const int pQx = p - 1;
+    const int qQx = q - 2;
+    
+    const float hp = Q[0][q][p] + Qx[0][qQx][pQx];
+    const float hm = Q[0][q][p] - Qx[0][qQx][pQx];
+    // g (w - B)*B_x -> KP07 equations (3.15) and (3.16)
+    // With eta: g (eta + H)*(-H_x)
+    return -0.5f*g*(RHx[q][p+1] - RHx[q][p])*(hp + RHx[q][p+1] + hm + RHx[q][p]);
+}
+
+__device__ float bottomSourceTerm3(float Q[3][block_height+4][block_width+4],
+			float  Qy[3][block_height+2][block_width+2],
+			float RHy[block_height+4][block_width+4],
+			const float g, 
+			const int p, const int q) {
+    // Compansating for the smaller shmem for Qy relative to Q:
+    const int pQy = p - 2;
+    const int qQy = q - 1;
+    
+    const float hp = Q[0][q][p] + Qy[0][qQy][pQy];
+    const float hm = Q[0][q][p] - Qy[0][qQy][pQy];
+    return -0.5f*g*(RHy[q+1][p] - RHy[q][p])*(hp + RHy[q+1][p] + hm + RHy[q][p]);
+}
+
+
+
+
+
+
 __device__ void adjustSlopeUx(float Qx[3][block_height+2][block_width+2],
 		   float Hi[block_height+4][block_width+4],
 		   float Q[3][block_height+4][block_width+4],
