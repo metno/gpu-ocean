@@ -214,6 +214,9 @@ class Simulator(object):
         self.logger.debug("Interpolation t is %f", wind_stress_t)
         
         return wind_stress_t
+        
+        
+        
             
     @abstractmethod
     def step(self, t_end=0.0):
@@ -337,6 +340,5 @@ class Simulator(object):
         if (self.boundary_conditions.isSponge()):
             self.interior_domain_indices = self.boundary_conditions.spongeCells.copy()
             self.interior_domain_indices[0:2] = -self.interior_domain_indices[0:2]
-            print("self.interior_domain_indices: " + str(self.interior_domain_indices))
     
     

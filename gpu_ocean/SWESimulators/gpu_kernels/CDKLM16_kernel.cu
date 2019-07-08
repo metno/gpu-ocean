@@ -82,8 +82,9 @@ float3 computeFFaceFlux(const int i, const int j, const int bx, const int nx_,
                 float R[3][block_height+4][block_width+4],
                 float Qx[3][block_height+2][block_width+2],
                 float Hi[block_height+1][block_width+1],
-                const float g_, const float coriolis_f, const float dx_,
-                const int wall_bc_) {
+                const float g_, const float coriolis_fm, const float coriolis_fp, const float dx_,
+                const int& bc_east_, const int& bc_west_,
+                const float2 north) {
     const int l = j + 2; //Skip ghost cells (be consistent with reconstruction offsets)
     const int k = i + 1;
 
@@ -107,13 +108,17 @@ float3 computeFFaceFlux(const int i, const int j, const int bx, const int nx_,
     const float Kx_m = Qx[2][j][i  ];
     
     // Fix west boundary for reconstruction of eta (corresponding to Kx)
-    if ((wall_bc_ & 0x08) && (bx + i + 2 == 2    )) { vm = -vm; }
+    if ((bc_west_ == 1) && (bx + i + 2 == 2    )) { vm = -vm; }
     // Fix east boundary for reconstruction of eta (corresponding to Kx)
-    if ((wall_bc_ & 0x02) && (bx + i + 2 == nx_+2)) { vp = -vp; }
+    if ((bc_east_ == 1) && (bx + i + 2 == nx_+2)) { vp = -vp; }
+    
+    //Reconstruct momentum along north
+    const float vp_north = up*north.x + vp*north.y;
+    const float vm_north = um*north.x + vm*north.y;
     
     // Reconstruct h
-    const float hp = eta_bar_p + H_face - (Kx_p + dx_*coriolis_f*vp)/(2.0f*g_);
-    const float hm = eta_bar_m + H_face + (Kx_m + dx_*coriolis_f*vm)/(2.0f*g_);
+    const float hp = eta_bar_p + H_face - (Kx_p + dx_*coriolis_fp*vp_north)/(2.0f*g_);
+    const float hm = eta_bar_m + H_face + (Kx_m + dx_*coriolis_fm*vm_north)/(2.0f*g_);
 
     // Our flux variables Q=(h, u, v)
     const float3 Qp = make_float3(hp, Rp.x, Rp.y);
@@ -132,9 +137,11 @@ float3 computeGFaceFlux(const int i, const int j, const int by, const int ny_,
                 float Qy[3][block_height+2][block_width+2],
                 float Hi[block_height+1][block_width+1],
                 const float g_, const float coriolis_fm, const float coriolis_fp, const float dy_,
-                const int wall_bc_) {
+                const int& bc_north_, const int& bc_south_,
+                const float2 east) {
     const int l = j + 1;
     const int k = i + 2; //Skip ghost cells
+    
     // Q at interface from the right and left
     // Variables to reconstruct h from u, v, K, L
     const float eta_bar_p = R[0][l+1][k];
@@ -155,13 +162,17 @@ float3 computeGFaceFlux(const int i, const int j, const int by, const int ny_,
     const float Ly_m = Qy[2][j  ][i];
 
     // Fix south boundary for reconstruction of eta (corresponding to Ly)
-    if ((wall_bc_ & 0x04) && (by + j + 2 == 2    )) { um = -um; }
+    if ((bc_south_ == 1) && (by + j + 2 == 2    )) { um = -um; }
     // Fix north boundary for reconstruction of eta (corresponding to Ly)
-    if ((wall_bc_ & 0x01) && (by + j + 2 == ny_+2)) { up = -up; }
+    if ((bc_north_ == 1) && (by + j + 2 == ny_+2)) { up = -up; }
+    
+    // Reconstruct momentum along east
+    const float up_north = up*east.x + vp*east.y;
+    const float um_north = um*east.x + vm*east.y;
     
     // Reconstruct h
-    const float hp = eta_bar_p + H_face - ( Ly_p - dy_*coriolis_fp*up)/(2.0f*g_);
-    const float hm = eta_bar_m + H_face + ( Ly_m - dy_*coriolis_fm*um)/(2.0f*g_);
+    const float hp = eta_bar_p + H_face - ( Ly_p - dy_*coriolis_fp*up_north)/(2.0f*g_);
+    const float hm = eta_bar_m + H_face + ( Ly_m - dy_*coriolis_fm*um_north)/(2.0f*g_);
 
     // Our flux variables Q=(h, v, u)
     // Note that we swap u and v
@@ -175,6 +186,74 @@ float3 computeGFaceFlux(const int i, const int j, const int by, const int ny_,
 }
 
 
+__device__ 
+void handleWallBC(
+                const int& nx_, const int& ny_,
+                const int& ti_, const int& tj_, 
+                const int& tx_, const int& ty_, 
+                const int& bc_north_, const int& bc_south_,
+                const int& bc_east_, const int& bc_west_,
+                float R[3][block_height+4][block_width+4]) {
+    const int wall_bc = 1;
+
+    const int i = tx_ + 2; //Skip local ghost cells, i.e., +2
+    const int j = ty_ + 2;
+        
+    if (bc_north_ == wall_bc && tj_ == ny_+1) {
+        R[0][j+1][i] =  R[0][j][i];
+        R[1][j+1][i] =  R[1][j][i];
+        R[2][j+1][i] = -R[2][j][i];
+
+        R[0][j+2][i] =  R[0][j-1][i];
+        R[1][j+2][i] =  R[1][j-1][i];
+        R[2][j+2][i] = -R[2][j-1][i];
+    }
+    
+    if (bc_south_ == wall_bc && tj_ == 2) {
+        R[0][j-1][i] =  R[0][j][i];
+        R[1][j-1][i] =  R[1][j][i];
+        R[2][j-1][i] = -R[2][j][i];
+
+        R[0][j-2][i] =  R[0][j+1][i];
+        R[1][j-2][i] =  R[1][j+1][i];
+        R[2][j-2][i] = -R[2][j+1][i];
+    }
+    
+    if (bc_east_ == wall_bc && ti_ == nx_+1) {
+        R[0][j][i+1] =  R[0][j][i];
+        R[1][j][i+1] = -R[1][j][i];
+        R[2][j][i+1] =  R[2][j][i];
+
+        R[0][j][i+2] =  R[0][j][i-1];
+        R[1][j][i+2] = -R[1][j][i-1];
+        R[2][j][i+2] =  R[2][j][i-1];
+    }
+    
+    if (bc_west_ == wall_bc && ti_ == 2) {
+        R[0][j][i-1] =  R[0][j][i];
+        R[1][j][i-1] = -R[1][j][i];
+        R[2][j][i-1] =  R[2][j][i];
+
+        R[0][j][i-2] =  R[0][j][i+1];
+        R[1][j][i-2] = -R[1][j][i+1];
+        R[2][j][i-2] =  R[2][j][i+1];
+    }
+}
+
+
+/**
+  * Uses a matrix stored as float 4
+  * [x, y] * [u] = [x*u + y*v]
+  * [z, w]   [v]   [z*u + w*v]
+  * and multiply 
+  */
+__device__
+inline float2 matMul(float4 M, float2 v) {
+    return make_float2(M.x*v.x + M.y*v.y, M.z*v.x + M.w*v.y);
+}
+
+
+texture<float, cudaTextureType2D> angle_tex;
 
 extern "C" {
 __global__ void cdklm_swe_2D(
@@ -184,9 +263,8 @@ __global__ void cdklm_swe_2D(
 
         const float theta_,
 
-        const float f_, //< Coriolis coefficient
-        const float beta_, //< Coriolis force f_ + beta_*(y-y0)
-        const float y_zero_reference_cell_,  // the cell row representing y0 (y0=0 represent southernmost ghost cell)
+        const float f_, //< Coriolis coefficient (f_ - beta_*y0)
+        const float beta_, //< Coriolis force f_ + beta_*y
 
         const float r_, //< Bottom friction coefficient
 
@@ -212,7 +290,7 @@ __global__ void cdklm_swe_2D(
 
         // Boundary conditions (1: wall, 2: periodic, 3: open boundary (flow relaxation scheme))
         // Note: these are packed north, east, south, west boolean bits into an int
-        const int wall_bc_) {
+        const int boundary_conditions_) {
 
 
     //Index of thread within block
@@ -243,6 +321,36 @@ __global__ void cdklm_swe_2D(
     // Bathymetry
     __shared__ float  Hi[block_height+1][block_width+1];
 
+    // Get the angle towards north and create the matrices for the basis transformation
+    const float s = ti / (float) nx_;
+    const float t = tj / (float) ny_;
+    const float angle = tex2D(angle_tex, s, t);
+    const float cos_a = cosf(angle);
+    const float sin_a = sinf(angle);
+    
+    // B transforms from [x, y] to [n, e] (rotates by theta)
+    // B = np.array([[cos(theta), -sin(theta)], [sin(theta), cos(theta)]])
+    const float4 B = make_float4(cos_a, -sin_a, sin_a, cos_a);
+    
+    // BT transforms from [e, n] to [x, y] (rotates by -theta)
+    // BT = np.array([[cos(theta), sin(theta)], [-sin(theta), cos(theta)]])
+    const float4 BT = make_float4(cos_a, sin_a, -sin_a, cos_a);
+    
+    // North and east vector in xy-coordinate system
+    // Given x and y-aligned vectors, simply compute the dot product, 
+    // i.e., 
+    // hu_north = north.x*hu + north.y*hv
+    // hu_east = east.x*hu + east.y*hv
+    const float2 north = matMul(BT, make_float2(0.0, 1.0));
+    const float2 east = make_float2(north.y, -north.x);
+    
+    //Up vector in east-north coordinate system
+    // Given n and e-aligned vectors, simply compute the dot product,
+    // i.e., 
+    // hu = right.x*hu_north + right.y*hu_east
+    // hv = up.x*hu_north + up.y*hu_east
+    const float2 up = matMul(B, make_float2(0.0, 1.0));
+    const float2 right = make_float2(up.y, -up.x);
 
 
     // theta_ = 1.5f;
@@ -288,62 +396,29 @@ __global__ void cdklm_swe_2D(
     
     //Compute Coriolis terms needed for fluxes etc.
     // Global id should be including the 
-    const float coriolis_f_lower   = f_ + beta_ * ((by+ty+2)-y_zero_reference_cell_ - 1.0f + 0.5f)*dy_;
-    const float coriolis_f_central = f_ + beta_ * ((by+ty+2)-y_zero_reference_cell_ +        0.5f)*dy_;
-    const float coriolis_f_upper   = f_ + beta_ * ((by+ty+2)-y_zero_reference_cell_ + 1.0f + 0.5f)*dy_;
-
+    //beta * (i*dx, j*dy)*(north.x, north.y)
+    const float coriolis_f_lower   = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (tj-0.5f)*dy_*north.y);
+    const float coriolis_f_central = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (tj+0.5f)*dy_*north.y);
+    const float coriolis_f_upper   = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (tj+1.5f)*dy_*north.y);
+    const float coriolis_f_left    = f_ + beta_ * ((ti-0.5f)*dx_*north.x + (tj+0.5f)*dy_*north.y);
+    const float coriolis_f_right   = f_ + beta_ * ((ti+1.5f)*dx_*north.x + (tj+0.5f)*dy_*north.y);
 
 
     //Fix boundary conditions
-    if (wall_bc_ != 0) {
+    //This must match code in CDKLM16.py:callKernel(...)
+    const int bc_north = (boundary_conditions_ >> 24) & 0xFF;
+    const int bc_south = (boundary_conditions_ >> 16) & 0xFF;
+    const int bc_east = (boundary_conditions_ >> 8) & 0xFF;
+    const int bc_west = (boundary_conditions_ >> 0) & 0xFF;
+    
+    if (boundary_conditions_ > 0) {
         // These boundary conditions are dealt with inside shared memory
-
-        const int i = tx + 2; //Skip local ghost cells, i.e., +2
-        const int j = ty + 2;
-
-        // Wall boundary on north
-        if (tj == ny_+1 && (wall_bc_ & 0x01)) {
-            R[0][j+1][i] =  R[0][j][i];
-            R[1][j+1][i] =  R[1][j][i];
-            R[2][j+1][i] = -R[2][j][i];
-
-            R[0][j+2][i] =  R[0][j-1][i];
-            R[1][j+2][i] =  R[1][j-1][i];
-            R[2][j+2][i] = -R[2][j-1][i];
-        }
-        
-        // Wall boundary on east
-        if (ti == nx_+1 && (wall_bc_ & 0x02)) {
-            R[0][j][i+1] =  R[0][j][i];
-            R[1][j][i+1] = -R[1][j][i];
-            R[2][j][i+1] =  R[2][j][i];
-
-            R[0][j][i+2] =  R[0][j][i-1];
-            R[1][j][i+2] = -R[1][j][i-1];
-            R[2][j][i+2] =  R[2][j][i-1];
-        }
-        
-        // Wall boundary on south
-        if (tj == 2 && (wall_bc_ & 0x04)) {
-            R[0][j-1][i] =  R[0][j][i];
-            R[1][j-1][i] =  R[1][j][i];
-            R[2][j-1][i] = -R[2][j][i];
-
-            R[0][j-2][i] =  R[0][j+1][i];
-            R[1][j-2][i] =  R[1][j+1][i];
-            R[2][j-2][i] = -R[2][j+1][i];
-        }
-        
-        // Wall boundary on west
-        if (ti == 2 && (wall_bc_ & 0x08)) {
-            R[0][j][i-1] =  R[0][j][i];
-            R[1][j][i-1] = -R[1][j][i];
-            R[2][j][i-1] =  R[2][j][i];
-
-            R[0][j][i-2] =  R[0][j][i+1];
-            R[1][j][i-2] = -R[1][j][i+1];
-            R[2][j][i-2] =  R[2][j][i+1];
-        }
+        handleWallBC(nx_, ny_,
+                ti, tj,
+                tx, ty,
+                bc_north, bc_south,
+                bc_east, bc_west,
+                R);
     }
 
     __syncthreads();
@@ -386,39 +461,45 @@ __global__ void cdklm_swe_2D(
             const float center_eta = R[0][l][k  ];
             const float right_eta  = R[0][l][k+1];
 
-            {
-                const float left_u   = R[1][l][k-1];
-                const float center_u = R[1][l][k  ];
-                const float right_u  = R[1][l][k+1];
-                Qx[0][j][i] = minmodSlope(left_u, center_u, right_u, theta_);
-            }
-
+            const float left_u   = R[1][l][k-1];
+            const float center_u = R[1][l][k  ];
+            const float right_u  = R[1][l][k+1];
+        
             float left_v   = R[2][l][k-1];
             float center_v = R[2][l][k  ];
             float right_v  = R[2][l][k+1];
+            
+            Qx[0][j][i] = minmodSlope(left_u, center_u, right_u, theta_);
             Qx[1][j][i] = minmodSlope(left_v, center_v, right_v, theta_);
             
             // Enforce wall boundary conditions for Kx:
+            //FIXME: Blir ikke dette feil for Qx[1]? Dvs skulle ikke dette vært gjort før slope beregning der?
             int global_thread_id_x = bx + i + 1; // index including ghost cells'
             // Western BC
-            if (wall_bc_ & 0x08) {
+            if (bc_west == 1) {
                 if (global_thread_id_x < 3    ) { left_v   = -left_v;   }
                 if (global_thread_id_x < 2    ) { center_v = -center_v; }
             }
             // Eastern BC
-            if (wall_bc_ & 0x02) {
+            if (bc_east == 1) {
                 if (global_thread_id_x > nx_  ) { right_v  = -right_v;  }
                 if (global_thread_id_x > nx_+1) { center_v = -center_v; }
             }
 
-            // by + j + 2 = global thread id + ghost cells
-            const float coriolis_f = f_ + beta_ * ((by + j + 2)-y_zero_reference_cell_ + 0.5f)*dy_;
-            const float V_constant = dx_*coriolis_f/(2.0f*g_);
+            const float left_coriolis_f   = f_ + beta_ * ((ti-0.5f)*dx_*north.x + (by + l + 0.5f)*dy_*north.y);
+            const float center_coriolis_f = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (by + l + 0.5f)*dy_*north.y);
+            const float right_coriolis_f  = f_ + beta_ * ((ti+1.5f)*dx_*north.x + (by + l + 0.5f)*dy_*north.y);
+            
+            const float left_fv  = (north.x*left_u + north.y*left_v)*left_coriolis_f;
+            const float center_fv = (north.x*center_u + north.y*center_v)*center_coriolis_f;
+            const float right_fv  = (north.x*right_u + north.y*right_v)*right_coriolis_f;
+            
+            const float V_constant = dx_/(2.0f*g_);
 
             // Qx[2] = Kx, which we need to find differently than ux and vx
-            const float backward = theta_*g_*(center_eta - left_eta   - V_constant*(center_v + left_v ) );
-            const float central  =   0.5f*g_*(right_eta  - left_eta   - V_constant*(right_v + 2*center_v + left_v) );
-            const float forward  = theta_*g_*(right_eta  - center_eta - V_constant*(center_v + right_v) );
+            const float backward = theta_*g_*(center_eta - left_eta   - V_constant*(center_fv + left_fv ) );
+            const float central  =   0.5f*g_*(right_eta  - left_eta   - V_constant*(right_fv + 2*center_fv + left_fv) );
+            const float forward  = theta_*g_*(right_eta  - center_eta - V_constant*(center_fv + right_fv) );
 
             // Qx[2] is really dx*Kx
             Qx[2][j][i] = minmodRaw(backward, central, forward);
@@ -428,8 +509,22 @@ __global__ void cdklm_swe_2D(
     __syncthreads();
     
     // Compute flux along x axis
-    float3 flux_diff = (  computeFFaceFlux(tx+1, ty, bx, nx_, R, Qx, Hi,g_, coriolis_f_central, dx_, wall_bc_) 
-                        - computeFFaceFlux(tx  , ty, bx, nx_, R, Qx, Hi,g_, coriolis_f_central, dx_, wall_bc_)) / dx_;
+    float3 flux_diff = (  
+            computeFFaceFlux(
+                tx+1, ty, bx, nx_, 
+                R, Qx, Hi,
+                g_, coriolis_f_central, coriolis_f_right, 
+                dx_, 
+                bc_north, bc_south, 
+                north)
+            - 
+            computeFFaceFlux(
+                tx , ty, bx, nx_, 
+                R, Qx, Hi,
+                g_, coriolis_f_left, coriolis_f_central, 
+                dx_, 
+                bc_north, bc_south, 
+                north)) / dx_;
     __syncthreads();
 
     //Reconstruct slopes along y axis
@@ -448,36 +543,34 @@ __global__ void cdklm_swe_2D(
             float lower_u  = R[1][l-1][k];
             float center_u = R[1][l  ][k];
             float upper_u  = R[1][l+1][k];
-            Qx[0][j][i] = minmodSlope(lower_u, center_u, upper_u, theta_);
 
-            {
-                const float lower_v  = R[2][l-1][k];
-                const float center_v = R[2][l  ][k];
-                const float upper_v  = R[2][l+1][k];
-                Qx[1][j][i] = minmodSlope(lower_v, center_v, upper_v, theta_);
-            }
+            const float lower_v  = R[2][l-1][k];
+            const float center_v = R[2][l  ][k];
+            const float upper_v  = R[2][l+1][k];
+            
+            Qx[0][j][i] = minmodSlope(lower_u, center_u, upper_u, theta_);
+            Qx[1][j][i] = minmodSlope(lower_v, center_v, upper_v, theta_);
 
             // Enforce wall boundary conditions for Ly
             int global_thread_id_y = by + j + 1; // index including ghost cells
             // southern BC
-            if (wall_bc_ & 0x04) {
+            if (bc_south == 1) {
                 if (global_thread_id_y < 3    ) { lower_u  = -lower_u;  }
                 if (global_thread_id_y < 2    ) { center_u = -center_u; }
             }
             // northern BC
-            if (wall_bc_ & 0x01) {
+            if (bc_north == 1) {
                 if (global_thread_id_y > ny_  ) { upper_u  = -upper_u;  }
                 if (global_thread_id_y > ny_+1) { center_u = -center_u; }
             }
             
-            const float thread_y_diff = by + j - 1 + 2 - y_zero_reference_cell_; // (by + j - 1) + 2 = global cell id + ghost cell
-            const float center_coriolis_f = f_ + beta_ * (thread_y_diff        + 0.5f)*dy_;
-            const float lower_coriolis_f  = f_ + beta_ * (thread_y_diff - 1.0f + 0.5f)*dy_;
-            const float upper_coriolis_f  = f_ + beta_ * (thread_y_diff + 1.0f + 0.5f)*dy_;
+            const float lower_coriolis_f  = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (by + l - 0.5f)*dy_*north.y);
+            const float center_coriolis_f = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (by + l + 0.5f)*dy_*north.y);
+            const float upper_coriolis_f  = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (by + l + 1.5f)*dy_*north.y);
 
-            const float lower_fu  = lower_u*lower_coriolis_f;
-            const float center_fu = center_u*center_coriolis_f;
-            const float upper_fu  = upper_u*upper_coriolis_f;
+            const float lower_fu  = (east.x*lower_u + east.y*lower_v)*lower_coriolis_f;
+            const float center_fu = (east.x*center_u + east.y*center_v)*center_coriolis_f;
+            const float upper_fu  = (east.x*upper_u + east.y*upper_v)*upper_coriolis_f;
 
             const float U_constant = dy_/(2.0f*g_);
 
@@ -492,8 +585,22 @@ __global__ void cdklm_swe_2D(
     __syncthreads();
 
     //Compute fluxes along the y axis    
-    flux_diff = flux_diff + (  computeGFaceFlux(tx, ty+1, by, ny_, R, Qx, Hi, g_, coriolis_f_central,   coriolis_f_upper, dy_, wall_bc_)
-                             - computeGFaceFlux(tx, ty  , by, ny_, R, Qx, Hi, g_,   coriolis_f_lower, coriolis_f_central, dy_, wall_bc_)) / dy_;
+    flux_diff = flux_diff + 
+        (computeGFaceFlux(
+            tx, ty+1, by, ny_, 
+            R, Qx, Hi, 
+            g_, coriolis_f_central, coriolis_f_upper, 
+            dy_, 
+            bc_east, bc_west, 
+            east)
+        - 
+        computeGFaceFlux(
+            tx, ty, by, ny_, 
+            R, Qx, Hi, 
+            g_, coriolis_f_lower, coriolis_f_central, 
+            dy_, 
+            bc_east, bc_west, 
+            east)) / dy_;
     __syncthreads();
 
 
@@ -515,9 +622,17 @@ __global__ void cdklm_swe_2D(
         const float RHym = 0.5f*( Hi[ty  ][tx] + Hi[ty  ][tx+1] );
         const float st2 = g_*(R[0][j][i] + Hm)*(RHyp - RHym);
 
+        //Find north-going and east-going coriolis force
+        const float hu_east =  coriolis_f_central*(hu*east.x + hv*east.y);
+        const float hv_north = coriolis_f_central*(hu*north.x + hv*north.y);
+        
+        //Convert back to xy coordinate system
+        const float hu_cor = right.x*hu_east + right.y*hv_north;
+        const float hv_cor = up.x*hu_east + up.y*hv_north;
+        
         const float L1  = - flux_diff.x;
-        const float L2  = - flux_diff.y + (X + coriolis_f_central*hv + st1/dx_);
-        const float L3  = - flux_diff.z + (Y - coriolis_f_central*hu + st2/dy_);
+        const float L2  = - flux_diff.y + (X + hv_cor + st1/dx_);
+        const float L3  = - flux_diff.z + (Y - hu_cor + st2/dy_);
 
         float* const eta_row = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
         float* const hu_row  = (float*) ((char*) hu1_ptr_  +  hu1_pitch_*tj);

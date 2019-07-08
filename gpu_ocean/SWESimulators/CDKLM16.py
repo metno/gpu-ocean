@@ -50,6 +50,7 @@ class CDKLM16(Simulator.Simulator):
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
+                 angle=np.array([[0]], dtype=np.float32), \
                  t=0.0, \
                  theta=1.3, rk_order=2, \
                  coriolis_beta=0.0, \
@@ -57,6 +58,7 @@ class CDKLM16(Simulator.Simulator):
                  max_wind_direction_perturbation = 0, \
                  wind_stress=WindStress.WindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
+                 boundary_conditions_data=Common.BoundaryConditionsData(), \
                  small_scale_perturbation=False, \
                  small_scale_perturbation_amplitude=None, \
                  small_scale_perturbation_interpolation_factor = 1, \
@@ -67,6 +69,7 @@ class CDKLM16(Simulator.Simulator):
                  write_netcdf=False, \
                  netcdf_filename=None, \
                  ignore_ghostcells=False, \
+                 courant_number=0.8, \
                  offset_x=0, offset_y=0, \
                  block_width=32, block_height=8, num_threads_dt=256):
         """
@@ -83,6 +86,7 @@ class CDKLM16(Simulator.Simulator):
         g: Gravitational accelleration (9.81 m/s^2)
         f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
         r: Bottom friction coefficient (2.4e-3 m/s)
+        angle: Angle of rotation from North to y-axis
         t: Start simulation at time t
         theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
         rk_order: Order of Runge Kutta method {1,2*,3}
@@ -125,6 +129,10 @@ class CDKLM16(Simulator.Simulator):
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*ghost_cells_x
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*ghost_cells_y
             y_zero_reference_cell = boundary_conditions.spongeCells[2] + y_zero_reference_cell
+            
+        #Compensate f for reference cell
+        f = f - coriolis_beta * y_zero_reference_cell * dy
+        y_zero_reference_cell = 0
         
         A = None
         self.max_wind_direction_perturbation = max_wind_direction_perturbation
@@ -173,7 +181,7 @@ class CDKLM16(Simulator.Simulator):
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.cdklm_swe_2D = self.kernel.get_function("cdklm_swe_2D")
-        self.cdklm_swe_2D.prepare("iifffffffffiiPiPiPiPiPiPiPiPifi")
+        self.cdklm_swe_2D.prepare("iiffffffffiiPiPiPiPiPiPiPiPifi")
         self.update_wind_stress(self.kernel, self.cdklm_swe_2D)
         
         # CUDA functions for finding max time step size:
@@ -197,7 +205,6 @@ class CDKLM16(Simulator.Simulator):
                                             0, 0, host_dt)
         host_max_dt_buffer = np.zeros((1,1), dtype=np.float32)
         self.max_dt_buffer = Common.CUDAArray2D(self.gpu_stream, 1, 1, 0, 0, host_max_dt_buffer)
-        
         
         ## Allocating memory for geostrophical equilibrium variables
         self.reportGeostrophicEquilibrium = np.int32(reportGeostrophicEquilibrium)
@@ -224,6 +231,7 @@ class CDKLM16(Simulator.Simulator):
                                                            ghost_cells_x, \
                                                            ghost_cells_y, \
                                                            self.boundary_conditions, \
+                                                           boundary_conditions_data, \
         )
 
         # Small scale perturbation:
@@ -241,6 +249,7 @@ class CDKLM16(Simulator.Simulator):
                                                                                        interpolation_factor=small_scale_perturbation_interpolation_factor,
                                                                                        use_lcg=use_lcg)
         
+        
         # Data assimilation model step size
         self.model_time_step = model_time_step
         if model_time_step is None:
@@ -251,6 +260,21 @@ class CDKLM16(Simulator.Simulator):
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, filename=netcdf_filename, ignore_ghostcells=self.ignore_ghostcells, \
                                     offset_x=self.offset_x, offset_y=self.offset_y)
+                                    
+                                    
+        #Upload data to GPU and bind to texture reference
+        self.angle_texref = self.kernel.get_texref("angle_tex")
+        self.angle_texref.set_array(cuda.np_to_array(np.ascontiguousarray(angle, dtype=np.float32), order="C"))
+                    
+        # Set texture parameters
+        self.angle_texref.set_filter_mode(cuda.filter_mode.LINEAR) #bilinear interpolation
+        self.angle_texref.set_address_mode(0, cuda.address_mode.CLAMP) #no indexing outside domain
+        self.angle_texref.set_address_mode(1, cuda.address_mode.CLAMP)
+        self.angle_texref.set_flags(cuda.TRSF_NORMALIZED_COORDINATES) #Use [0, 1] indexing
+        
+        # Calculate dt if using automatic dt
+        if (self.dt <= 0):
+            self.updateDt(courant_number)
 
     
     def cleanUp(self):
@@ -372,6 +396,7 @@ class CDKLM16(Simulator.Simulator):
         n = int(t_end / self.dt + 1)
 
         if self.t == 0:
+            self.bc_kernel.update_bc_values(self.gpu_stream, self.t)
             self.bc_kernel.boundaryCondition(self.gpu_stream, \
                                              self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
         
@@ -393,6 +418,7 @@ class CDKLM16(Simulator.Simulator):
                 break
             
             wind_stress_t = np.float32(self.update_wind_stress(self.kernel, self.cdklm_swe_2D))
+            self.bc_kernel.update_bc_values(self.gpu_stream, self.t)
 
             #self.bc_kernel.boundaryCondition(self.cl_queue, \
             #            self.gpu_data.h1, self.gpu_data.hu1, self.gpu_data.hv1)
@@ -475,18 +501,14 @@ class CDKLM16(Simulator.Simulator):
                    h_out, hu_out, hv_out, \
                    local_dt, wind_stress_t, rk_step):
             
-        #"Beautify" code a bit by packing four bools into a single int
+        #"Beautify" code a bit by packing four int8s into a single int32
         #Note: Must match code in kernel!
         boundary_conditions = np.int32(0)
-        if (self.boundary_conditions.north == 1):
-            boundary_conditions = boundary_conditions | 0x01
-        if (self.boundary_conditions.east == 1):
-            boundary_conditions = boundary_conditions | 0x02
-        if (self.boundary_conditions.south == 1):
-            boundary_conditions = boundary_conditions | 0x04
-        if (self.boundary_conditions.west == 1):
-            boundary_conditions = boundary_conditions | 0x08
-            
+        boundary_conditions = boundary_conditions | np.int8(self.boundary_conditions.north) << 24
+        boundary_conditions = boundary_conditions | np.int8(self.boundary_conditions.south) << 16
+        boundary_conditions = boundary_conditions | np.int8(self.boundary_conditions.east) << 8
+        boundary_conditions = boundary_conditions | np.int8(self.boundary_conditions.west) << 0
+
         self.cdklm_swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                            self.nx, self.ny, \
                            self.dx, self.dy, local_dt, \
@@ -494,7 +516,6 @@ class CDKLM16(Simulator.Simulator):
                            self.theta, \
                            self.f, \
                            self.coriolis_beta, \
-                           self.y_zero_reference_cell, \
                            self.r, \
                            self.rk_order, \
                            np.int32(rk_step), \
@@ -624,8 +645,17 @@ class CDKLM16(Simulator.Simulator):
         
         return courant_number*max_dt    
     
-    def downloadBathymetry(self):
-        return self.bathymetry.download(self.gpu_stream)
+    def downloadBathymetry(self, interior_domain_only=False):
+        if interior_domain_only:
+            Bi, Bm = self.bathymetry.download(self.gpu_stream)
+            return [
+                    Bi[self.interior_domain_indices[2]:self.interior_domain_indices[0]+1,  
+                       self.interior_domain_indices[3]:self.interior_domain_indices[1]]+1, 
+                    Bm[self.interior_domain_indices[2]:self.interior_domain_indices[0],  
+                       self.interior_domain_indices[3]:self.interior_domain_indices[1]]
+                   ]
+        else:
+            return self.bathymetry.download(self.gpu_stream)
     
     def downloadDt(self):
         return self.device_dt.download(self.gpu_stream)

@@ -577,8 +577,8 @@ texture<float, cudaTextureType2D> windstress_Y_next;
 __device__ float windStressX(float wind_stress_t_, float ti_, float tj_, int nx_, int ny_) {
     
     //Normalize coordinates (to [0, 1])
-    const int s = ti_ / float(nx_);
-    const int t = tj_ / float(ny_);
+    const float s = ti_ / float(nx_);
+    const float t = tj_ / float(ny_);
     
     //Look up current and next timestep (using bilinear texture interpolation)
     float current = tex2D(windstress_X_current, s, t);
@@ -599,8 +599,8 @@ __device__ float windStressX(float wind_stress_t_, float ti_, float tj_, int nx_
 __device__ float windStressY(float wind_stress_t_, float ti_, float tj_, int nx_, int ny_) {
     
     //Normalize coordinates (to [0, 1])
-    const int s = ti_ / float(nx_);
-    const int t = tj_ / float(ny_);
+    const float s = ti_ / float(nx_);
+    const float t = tj_ / float(ny_);
     
     //Look up current and next timestep (using bilinear texture interpolation)
     float current = tex2D(windstress_Y_current, s, t);
