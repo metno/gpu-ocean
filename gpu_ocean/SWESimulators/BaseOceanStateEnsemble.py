@@ -211,7 +211,7 @@ class BaseOceanStateEnsemble(object):
         innovations = self.getInnovations(observations=observations)
         return np.linalg.norm(np.linalg.norm(innovations, axis=2), axis=1)
             
-    def getGaussianWeight(self, innovations=None, normalize=True):
+    def getGaussianWeight(self, innovations=None, normalize=True, R_scale = 1.0):
         """
         Calculates a weight associated to every particle, based on its innovation vector, using 
         Gaussian uncertainty for the observation.
@@ -220,14 +220,15 @@ class BaseOceanStateEnsemble(object):
         if innovations is None:
             innovations = self.getInnovations()
         
-        Rinv = self.getObservationCovInverse()
-        R = self.getObservationCov()
+        Rinv = self.getObservationCovInverse() / R_scale
+        R = self.getObservationCov() * R_scale
         
-        weights = np.zeros(innovations.shape[0])
+        log_weights = np.zeros(innovations.shape[0])
         if len(innovations.shape) == 1:
             observationVariance = R[0,0]
-            weights = (1.0/np.sqrt(2*np.pi*observationVariance))* \
-                    np.exp(- (innovations**2/(2*observationVariance)))
+            #log_weights = (1.0/np.sqrt(2*np.pi*observationVariance))* \
+            #        np.exp(- (innovations**2/(2*observationVariance)))
+            log_weights = - (innovations**2/(2*observationVariance))
 
         else:
             numParticles = self.getNumParticles()
@@ -236,22 +237,27 @@ class BaseOceanStateEnsemble(object):
             assert(R.shape    == (2,2)), 'Observation covariance matrix must be 2x2'
             assert(Rinv.shape == (2,2)), 'Inverse of the observation covariance matrix must be 2x2'
 
-            weights = np.zeros(numParticles)
             for i in range(numParticles):
-                w = 0.0
+                log_weights[i] = 0.0
                 if self.particlesActive[i]:
                     for d in range(numDrifters):
                         inn = innovations[i,d,:]
-                        w += np.dot(inn, np.dot(Rinv, inn.transpose()))
-
-                    ## TODO: Restructure to do the normalization before applying
-                    # the exponential function. The current version is sensitive to overflows.
-                    weights[i] = (1.0/((2*np.pi)**numDrifters*np.linalg.det(R)**(numDrifters/2.0)))*np.exp(-0.5*w)
+                        log_weights[i] += np.dot(inn, np.dot(Rinv, inn.transpose()))
+                    
+                
+                    log_weights[i] *= -0.5
                 else:
-                    weights[i] = 0.0
+                    log_weights[i] = -np.infty
         if normalize:
-            return weights/np.sum(weights)
-        return weights
+            # see https://timvieira.github.io/blog/post/2014/02/11/exp-normalize-trick/'
+            max_log_weight = log_weights.max()
+            return np.exp(log_weights - max_log_weight)/np.exp(log_weights-max_log_weight).sum()
+            #return weights/np.sum(weights)
+        else:
+            if len(innovations.shape) == 1:
+                return (1.0/np.sqrt(2*np.pi*observationVariance)) * np.exp(log_weights)
+            else:
+                return (1.0/((2*np.pi)**numDrifters*np.linalg.det(R)**(numDrifters/2.0)))*np.exp(log_weights)
 
     
     # Some get functions that assume some private variables.
