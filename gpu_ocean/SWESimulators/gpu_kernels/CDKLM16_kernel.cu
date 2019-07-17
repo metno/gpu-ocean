@@ -120,8 +120,8 @@ void adjustSlopes_x(const int bx, const int by,
                     float Qx[3][block_height+2][block_width+2], // used as if Qx[3][block_height][block_width + 2]
                     float Hi[block_height+3][block_width+3],
                     const float g_, 
-                    const float f_, const float beta_, const int y_zero_reference_cell_,
-                    const int wall_bc_) {
+                    const float f_, const float beta_, 
+                    const int& bc_east_, const int& bc_west_) {
     
     // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
 
@@ -140,11 +140,11 @@ void adjustSlopes_x(const int bx, const int by,
         
         float v   = R[2][l][k];
         // Fix west boundary for reconstruction of eta (corresponding to Kx)
-        if ((wall_bc_ & 0x08) && (bx + k < 2    )) { v = -v; }
+        if ((bc_west_ == 1) && (bx + k < 2    )) { v = -v; }
         // Fix east boundary for reconstruction of eta (corresponding to Kx)
-        if ((wall_bc_ & 0x02) && (bx + k > nx_+2)) { v = -v; }
+        if ((bc_east_ == 1) && (bx + k > nx_+2)) { v = -v; }
         
-        const float coriolis_f = f_ + beta_ * ((by+l)-y_zero_reference_cell_ + 0.5f)*dy_;
+        const float coriolis_f = f_ + beta_ * ((by+l) + 0.5f)*dy_;
         const float dxfv = dx_*coriolis_f*v;
         
         const float H_west = 0.5f*(Hi[H_j][H_i  ] + Hi[H_j+1][H_i  ]);
@@ -171,8 +171,8 @@ void adjustSlopes_y(const int bx, const int by,
                     float Qx[3][block_height+2][block_width+2], // used as if Qx[3][block_height+2][block_width]
                     float Hi[block_height+3][block_width+3],
                     const float g_, 
-                    const float f_, const float beta_, const int y_zero_reference_cell_,
-                    const int wall_bc_) {
+                    const float f_, const float beta_,
+                    const int& bc_north_, const int& bc_south_) {
     
     // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
 
@@ -191,11 +191,11 @@ void adjustSlopes_y(const int bx, const int by,
         
         float u   = R[1][l][k];
         // Fix south boundary for reconstruction of eta (corresponding to Ly)
-        if ((wall_bc_ & 0x04) && (by + l < 2    )) { u = -u; }
+        if ((bc_south_ == 1) && (by + l < 2    )) { u = -u; }
         // Fix north boundary for reconstruction of eta (corresponding to Ly)
-        if ((wall_bc_ & 0x01) && (by + l > ny_+2)) { u = -u; }
+        if ((bc_north_ == 1) && (by + l > ny_+2)) { u = -u; }
 
-        const float coriolis_f = f_ + beta_ * ((by+l)-y_zero_reference_cell_ + 0.5f)*dy_;
+        const float coriolis_f = f_ + beta_ * ((by+l) + 0.5f)*dy_;
         const float dyfu = dy_*coriolis_f*u;
         
         const float H_south = 0.5f*(Hi[H_j  ][H_i] + Hi[H_j  ][H_i+1]);
@@ -684,7 +684,8 @@ __global__ void cdklm_swe_2D(
     // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
     adjustSlopes_x(bx, by, nx_, dx_, dy_,
                    R, Qx, Hi,
-                   g_, f_, beta_, y_zero_reference_cell_, wall_bc_);
+                   g_, f_, beta_, 
+                   bc_east, bc_west);
     __syncthreads();
     
     // Compute flux along x axis
@@ -773,7 +774,8 @@ __global__ void cdklm_swe_2D(
     // Need L_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), u (R[1]), H (Hi), g, dx
     adjustSlopes_y(bx, by, ny_, dx_, dy_,
                    R, Qx, Hi,
-                   g_, f_, beta_, y_zero_reference_cell_, wall_bc_);
+                   g_, f_, beta_, 
+                   bc_north, bc_south);
     __syncthreads();
     
     //Compute fluxes along the y axis
