@@ -4,11 +4,28 @@
 #define _180_OVER_PI 57.29578f
 #define PI_OVER_180 0.01745329f
 
+
+/*  The ocean simulators and the swashes cases are defined
+ *  on completely different scales. We therefore specify
+ *  a different desingularization parameter if we run a 
+ *  swashes case.
+ */
+//#ifndef SWASHES
+//    #define KPSIMULATOR_FLUX_SLOPE_EPS   1e-1f
+//    #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-4f
+//#else
+//    #define KPSIMULATOR_FLUX_SLOPE_EPS   1.0e-4f
+//    #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-16f
+//#endif
+
+//#define KPSIMULATOR_DEPTH_CUTOFF 1.0e-5f
+#define SQRT_OF_TWO 1.41421356237309504880f
+
 /*
 This software is part of GPU Ocean. 
 
-Copyright (C) 2016-2018 SINTEF Digital
-Copyright (C) 2017, 2018 Norwegian Meteorological Institute
+Copyright (C) 2016-2019 SINTEF Digital
+Copyright (C) 2017-2019 Norwegian Meteorological Institute
 
 These CUDA kernels implement common functionality that is shared 
 between multiple numerical schemes for solving the shallow water 
@@ -117,6 +134,44 @@ __device__ void readBlock2(float* h_ptr_, int h_pitch_,
             const int k = clamp(bx + i, 0, nx_+3); // Out of bounds
             
             Q[0][j][i] = h_row[k];
+            Q[1][j][i] = hu_row[k];
+            Q[2][j][i] = hv_row[k];
+        }
+    }
+}
+
+/**
+  * Reads a block of data  with two ghost cells for the shallow water equations,
+  * while compensating for dry states
+  */
+__device__ void readBlock2DryStates(float* eta_ptr_, int eta_pitch_,
+                float* hu_ptr_, int hu_pitch_,
+                float* hv_ptr_, int hv_pitch_,
+                float* Hm_ptr_, int Hm_pitch_,
+                float Q[3][block_height+4][block_width+4], 
+                const int nx_, const int ny_) {
+    //Index of thread within block
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+
+    //Index of block within domain
+    const int bx = blockIdx.x * blockDim.x;
+    const int by = blockIdx.y * blockDim.y;
+    
+    //Read into shared memory
+    for (int j=ty; j<block_height+4; j+=blockDim.y) {
+        const int l = clamp(by + j, 0, ny_+3); // Out of bounds
+        
+        //Compute the pointer to current row in the arrays
+        float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*l);
+        float* const hu_row = (float*) ((char*) hu_ptr_ + hu_pitch_*l);
+        float* const hv_row = (float*) ((char*) hv_ptr_ + hv_pitch_*l);
+        float* const Hm_row = (float*) ((char*) Hm_ptr_ + Hm_pitch_*l);
+        
+        for (int i=tx; i<block_width+4; i+=blockDim.x) {
+            const int k = clamp(bx + i, 0, nx_+3); // Out of bounds
+            
+            Q[0][j][i] = max(eta_row[k], -Hm_row[k]);
             Q[1][j][i] = hu_row[k];
             Q[2][j][i] = hv_row[k];
         }
@@ -653,67 +708,6 @@ __device__ float3 F_func_bottom(const float3 Q, const float h, const float u, co
     F.z = Q.z*u;                     //hv*u;
 
     return F;
-}
-
-/**
-  * Central upwind flux function
-  * Takes Q = [eta, hu, hv] as input
-  */
-__device__ float3 CentralUpwindFluxBottom(const float3 Qm, float3 Qp, const float H, const float g) {
-    const float hp = Qp.x + H;  // h = eta + H
-    const float up = Qp.y / (float) hp; // hu/h
-    const float3 Fp = F_func_bottom(Qp, hp, up, g);
-    const float cp = sqrt(g*hp); // sqrt(g*h)
-
-    const float hm = Qm.x + H;
-    const float um = Qm.y / (float) hm;   // hu / h
-    const float3 Fm = F_func_bottom(Qm, hm, um, g);
-    const float cm = sqrt(g*hm); // sqrt(g*h)
-    
-    const float am = min(min(um-cm, up-cp), 0.0f); // largest negative wave speed
-    const float ap = max(max(um+cm, up+cp), 0.0f); // largest positive wave speed
-    // Related to dry zones
-    // The constant is a compiler constant in the CUDA code.
-    const float KPSIMULATOR_FLUX_SLOPE_EPS = 1.0e-4f;
-    if ( fabs(ap - am) < KPSIMULATOR_FLUX_SLOPE_EPS ) {
-        return make_float3(0.0f, 0.0f, 0.0f);
-    }
-    
-    return ((ap*Fm - am*Fp) + ap*am*(Qp-Qm))/(ap-am);
-}
-
-
-/**
-  *  Source terms related to bathymetry  
-  */
-__device__ float bottomSourceTerm2(float Q[3][block_height+4][block_width+4],
-			float  Qx[3][block_height+2][block_width+2],
-			float RHx[block_height+4][block_width+4],
-			const float g, 
-			const int p, const int q) {
-    // Compansating for the smaller shmem for Qx relative to Q:
-    const int pQx = p - 1;
-    const int qQx = q - 2;
-    
-    const float hp = Q[0][q][p] + Qx[0][qQx][pQx];
-    const float hm = Q[0][q][p] - Qx[0][qQx][pQx];
-    // g (w - B)*B_x -> KP07 equations (3.15) and (3.16)
-    // With eta: g (eta + H)*(-H_x)
-    return -0.5f*g*(RHx[q][p+1] - RHx[q][p])*(hp + RHx[q][p+1] + hm + RHx[q][p]);
-}
-
-__device__ float bottomSourceTerm3(float Q[3][block_height+4][block_width+4],
-			float  Qy[3][block_height+2][block_width+2],
-			float RHy[block_height+4][block_width+4],
-			const float g, 
-			const int p, const int q) {
-    // Compansating for the smaller shmem for Qy relative to Q:
-    const int pQy = p - 2;
-    const int qQy = q - 1;
-    
-    const float hp = Q[0][q][p] + Qy[0][qQy][pQy];
-    const float hm = Q[0][q][p] - Qy[0][qQy][pQy];
-    return -0.5f*g*(RHy[q+1][p] - RHy[q][p])*(hp + RHy[q+1][p] + hm + RHy[q][p]);
 }
 
 

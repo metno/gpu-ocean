@@ -26,6 +26,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "common.cu"
 
+// KPSIMULATOR
+
 
 
 
@@ -47,20 +49,55 @@ __device__ float3 CDKLM16_F_func(const float3 Q, const float g) {
 
 /**
   * Note that the input vectors are (h, u, v), thus not the regular
-  * (h, hu, hv)
+  * (h, hu, hv). 
+  * Note also that u and v are desingularized from the start.
   */
-__device__ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
-    const float3 Fp = CDKLM16_F_func(Qp, g);
-    const float up = Qp.y;         // u
-    const float cp = sqrt(g*Qp.x); // sqrt(g*h)
+__device__ float3 CDKLM16_flux(float3 Qm, float3 Qp, const float g) {
+    
+    // Contribution from plus cell
+    float3 Fp = make_float3(0.0f, 0.0f, 0.0f);
+    float up = 0.0f;
+    float cp = 0.0f;
+    
+    if (Qp.x > KPSIMULATOR_DEPTH_CUTOFF) {
+        
+        /*if (Qp.x <= KPSIMULATOR_FLUX_SLOPE_EPS) {
+            const float h2 = Qp.x*Qp.x;
+            const float h4 = h2*h2;
+            Qp.y = SQRT_OF_TWO*h2*Qp.y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+            Qp.z = SQRT_OF_TWO*h2*Qp.z/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+        }*/
+        Fp = CDKLM16_F_func(Qp, g);
+        up = Qp.y;         // u
+        cp = sqrt(g*Qp.x); // sqrt(g*h)
+    }
 
-    const float3 Fm = CDKLM16_F_func(Qm, g);
-    const float um = Qm.y;         // u
-    const float cm = sqrt(g*Qm.x); // sqrt(g*h)
+    // Contribution from plus cell
+    float3 Fm = make_float3(0.0f, 0.0f, 0.0f);
+    float um = 0.0f;
+    float cm = 0.0f;
 
+    if (Qm.x > KPSIMULATOR_DEPTH_CUTOFF) {
+        /*if (Qm.x <= KPSIMULATOR_FLUX_SLOPE_EPS) {
+            const float h2 = Qm.x*Qm.x;
+            const float h4 = h2*h2;
+            Qm.y = SQRT_OF_TWO*h2*Qm.y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+            Qm.z = SQRT_OF_TWO*h2*Qm.z/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+        }*/
+        
+        Fm = CDKLM16_F_func(Qm, g);
+        um = Qm.y;         // u
+        cm = sqrt(g*Qm.x); // sqrt(g*h)
+    }
+    
     const float am = min(min(um-cm, up-cp), 0.0f); // largest negative wave speed
     const float ap = max(max(um+cm, up+cp), 0.0f); // largest positive wave speed
 
+    // Related to dry zones
+    if ( fabs(ap - am) < KPSIMULATOR_FLUX_SLOPE_EPS ) {
+        return make_float3(0.0f, 0.0f, 0.0f);
+    }
+    
     float3 F;
 
     F.x = ((ap*Fm.x - am*Fp.x) + ap*am*(Qp.x-Qm.x))/(ap-am);
@@ -72,7 +109,106 @@ __device__ float3 CDKLM16_flux(const float3 Qm, float3 Qp, const float g) {
 
 
 
+/**
+  * Adjusting the slope of K_x, found in Qx[3], to avoid negative values for h on the faces,
+  * in the case of dry cells
+  */
+__device__
+void adjustSlopes_x(const int bx, const int by, 
+                    const int nx_, const float dx_, const float dy_,
+                    float R[3][block_height+4][block_width+4],
+                    float Qx[3][block_height+2][block_width+2], // used as if Qx[3][block_height][block_width + 2]
+                    float Hi[block_height+3][block_width+3],
+                    const float g_, 
+                    const float f_, const float beta_, const int y_zero_reference_cell_,
+                    const int wall_bc_) {
+    
+    // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
 
+    
+    const int j = threadIdx.y; // values in Qx
+    const int l = j + 2; // values in R
+    const int H_j = j + 1; // values in Hi
+    
+    for (int i=threadIdx.x; i<block_width+2; i+=blockDim.x) {
+        // i referes to values in Qx
+        const int k = i + 1; // values in R
+        const int H_i = i; // values in Hi
+
+        // Reconstruct h at east and west faces
+        const float eta = R[0][l][k];
+        
+        float v   = R[2][l][k];
+        // Fix west boundary for reconstruction of eta (corresponding to Kx)
+        if ((wall_bc_ & 0x08) && (bx + k < 2    )) { v = -v; }
+        // Fix east boundary for reconstruction of eta (corresponding to Kx)
+        if ((wall_bc_ & 0x02) && (bx + k > nx_+2)) { v = -v; }
+        
+        const float coriolis_f = f_ + beta_ * ((by+l)-y_zero_reference_cell_ + 0.5f)*dy_;
+        const float dxfv = dx_*coriolis_f*v;
+        
+        const float H_west = 0.5f*(Hi[H_j][H_i  ] + Hi[H_j+1][H_i  ]);
+        const float H_east = 0.5f*(Hi[H_j][H_i+1] + Hi[H_j+1][H_i+1]);
+        
+        const float h_west = eta + H_west - (Qx[2][j][i] + dxfv)/(2.0f*g_);
+        const float h_east = eta + H_east + (Qx[2][j][i] + dxfv)/(2.0f*g_);
+        
+        // Adjust if negative water level
+        Qx[2][j][i] = (h_west > 0) ? Qx[2][j][i] : -dxfv + 2.0f*g_*(eta + H_west);
+        Qx[2][j][i] = (h_east > 0) ? Qx[2][j][i] : -dxfv - 2.0f*g_*(eta + H_east);
+    }
+}
+
+
+/**
+  * Adjusting the slope of L_y, found in Qx[3], to avoid negative values for h on the faces,
+  * in the case of dry cells
+  */
+__device__
+void adjustSlopes_y(const int bx, const int by, 
+                    const int ny_, const float dx_, const float dy_,
+                    float R[3][block_height+4][block_width+4],
+                    float Qx[3][block_height+2][block_width+2], // used as if Qx[3][block_height+2][block_width]
+                    float Hi[block_height+3][block_width+3],
+                    const float g_, 
+                    const float f_, const float beta_, const int y_zero_reference_cell_,
+                    const int wall_bc_) {
+    
+    // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
+
+    
+    const int i = threadIdx.x; // values in Qx
+    const int k = i + 2; // values in R
+    const int H_i = i + 1; // values in Hi
+    
+    for (int j=threadIdx.y; j<block_height+2; j+=blockDim.y) {
+        // i referes to values in Qx
+        const int l = j + 1; // values in R
+        const int H_j = j; // values in Hi
+
+        // Reconstruct h at east and west faces
+        const float eta = R[0][l][k];
+        
+        float u   = R[1][l][k];
+        // Fix south boundary for reconstruction of eta (corresponding to Ly)
+        if ((wall_bc_ & 0x04) && (by + l < 2    )) { u = -u; }
+        // Fix north boundary for reconstruction of eta (corresponding to Ly)
+        if ((wall_bc_ & 0x01) && (by + l > ny_+2)) { u = -u; }
+
+        const float coriolis_f = f_ + beta_ * ((by+l)-y_zero_reference_cell_ + 0.5f)*dy_;
+        const float dyfu = dy_*coriolis_f*u;
+        
+        const float H_south = 0.5f*(Hi[H_j  ][H_i] + Hi[H_j  ][H_i+1]);
+        const float H_north = 0.5f*(Hi[H_j+1][H_i] + Hi[H_j+1][H_i+1]);
+        
+        const float h_south = eta + H_south - (Qx[2][j][i] - dyfu)/(2.0f*g_);
+        const float h_north = eta + H_north + (Qx[2][j][i] - dyfu)/(2.0f*g_);
+        
+        // Adjust if negative water level
+        Qx[2][j][i] = (h_south > 0) ? Qx[2][j][i] : dyfu + 2.0f*g_*(eta + H_south);
+        Qx[2][j][i] = (h_north > 0) ? Qx[2][j][i] : dyfu - 2.0f*g_*(eta + H_north);
+    }
+}
 
 
 
@@ -81,13 +217,17 @@ __device__
 float3 computeFFaceFlux(const int i, const int j, const int bx, const int nx_,
                 float R[3][block_height+4][block_width+4],
                 float Qx[3][block_height+2][block_width+2],
-                float Hi[block_height+1][block_width+1],
+                float Hi[block_height+3][block_width+3],
                 const float g_, const float coriolis_fm, const float coriolis_fp, const float dx_,
                 const int& bc_east_, const int& bc_west_,
                 const float2 north) {
     const int l = j + 2; //Skip ghost cells (be consistent with reconstruction offsets)
     const int k = i + 1;
 
+    // Skip ghost cells in the Hi buffer
+    const int H_i = i+1;
+    const int H_j = j+1;
+    
     // (u, v) reconstructed at a cell interface from the right (p) and left (m)
     // Variables to reconstruct h from u, v, K, L
     const float eta_bar_p = R[0][l][k+1];
@@ -101,7 +241,7 @@ float3 computeFFaceFlux(const int i, const int j, const int bx, const int nx_,
     const float2 Rm = make_float2(um + 0.5f*Qx[0][j][i  ], vm + 0.5f*Qx[1][j][i  ]);
 
     // H is RHx on the given face!
-    const float H_face = 0.5f*( Hi[j][i] + Hi[j+1][i] );
+    const float H_face = 0.5f*( Hi[H_j][H_i] + Hi[H_j+1][H_i] );
 
     // Qx[2] is really dx*Kx
     const float Kx_p = Qx[2][j][i+1];
@@ -135,12 +275,16 @@ __device__
 float3 computeGFaceFlux(const int i, const int j, const int by, const int ny_,
                 float R[3][block_height+4][block_width+4],
                 float Qy[3][block_height+2][block_width+2],
-                float Hi[block_height+1][block_width+1],
+                float Hi[block_height+3][block_width+3],
                 const float g_, const float coriolis_fm, const float coriolis_fp, const float dy_,
                 const int& bc_north_, const int& bc_south_,
                 const float2 east) {
     const int l = j + 1;
     const int k = i + 2; //Skip ghost cells
+    
+    // Skip ghost cells in the Hi buffer
+    const int H_i = i+1;
+    const int H_j = j+1;
     
     // Q at interface from the right and left
     // Variables to reconstruct h from u, v, K, L
@@ -155,7 +299,7 @@ float3 computeGFaceFlux(const int i, const int j, const int by, const int ny_,
     const float2 Rm = make_float2(um + 0.5f*Qy[0][j  ][i], vm + 0.5f*Qy[1][j  ][i]);
 
     // H is RHx on the given face!
-    const float H_face = 0.5f*( Hi[j][i] + Hi[j][i+1] );
+    const float H_face = 0.5f*( Hi[H_j][H_i] + Hi[H_j][H_i+1] );
 
     // Qy[2] is really dy*Ly
     const float Ly_p = Qy[2][j+1][i];
@@ -319,7 +463,9 @@ __global__ void cdklm_swe_2D(
     __shared__ float Qx[3][block_height+2][block_width+2];
 
     // Bathymetry
-    __shared__ float  Hi[block_height+1][block_width+1];
+    // Need to find H on all faces for the cells in the block (block_height+1, block_width+1)
+    // and for one face further out to adjust for the Kx and Ly slope outside of the block
+    __shared__ float  Hi[block_height+3][block_width+3];
 
     // Get the angle towards north and create the matrices for the basis transformation
     const float s = ti / (float) nx_;
@@ -373,28 +519,25 @@ __global__ void cdklm_swe_2D(
         }
     }
     __syncthreads();
-    //Skip local ghost cells, i.e., +2
-    const float hu = R[1][ty + 2][tx + 2];
-    const float hv = R[2][ty + 2][tx + 2];
-
+    
 
     // Read Hi into shared memory
     // Read intersections on all non-ghost cells
-    for(int j=ty; j < block_height+1; j+=blockDim.y) {
+    for(int j=ty; j < block_height+3; j+=blockDim.y) {
         // Skip ghost cells and
-        const int l = clamp(by+j+2, 2, ny_+2);
+        const int l = clamp(by+j+1, 1, ny_+4);
         float* const Hi_row = (float*) ((char*) Hi_ptr_ + Hi_pitch_*l);
-        for(int i=tx; i < block_width+1; i+=blockDim.x) {
-            const int k = clamp(bx+i+2, 2, nx_+2);
+        for(int i=tx; i < block_width+3; i+=blockDim.x) {
+            const int k = clamp(bx+i+1, 1, nx_+4);
 
             Hi[j][i] = Hi_row[k];
         }
     }
     __syncthreads();
-    const float Hm = 0.25f*(Hi[ty][tx]+Hi[ty+1][tx]+Hi[ty][tx+1]+Hi[ty+1][tx+1]);
     
     
-    //Compute Coriolis terms needed for fluxes etc.
+    
+    // Compute Coriolis terms needed for fluxes etc.
     // Global id should be including the 
     //beta * (i*dx, j*dy)*(north.x, north.y)
     const float coriolis_f_lower   = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (tj-0.5f)*dy_*north.y);
@@ -422,8 +565,10 @@ __global__ void cdklm_swe_2D(
     }
 
     __syncthreads();
-
-
+    
+    // Compensate for one layer of ghost cells
+    const float Hm = 0.25f*(Hi[ty+1][tx+1]+Hi[ty+2][tx+1]+Hi[ty+1][tx+2]+Hi[ty+2][tx+2]);
+    
 
     //Create our "steady state" reconstruction variables (u, v)
     // K and L are never stored, but computed where needed.
@@ -433,18 +578,45 @@ __global__ void cdklm_swe_2D(
         for (int i=tx; i<block_width+4; i+=blockDim.x) {
             const int k = clamp(bx+i, 0, nx_+3);
 
-            //const float h = R[0][j][i] + Hm[j][i]; // h = eta + H
-            const float h = R[0][j][i] + Hm_row[k];
-            R[1][j][i] /= h;
-            R[2][j][i] /= h;
+            // h = eta + H
+            const float local_Hm = Hm_row[k];
+            //const float local_Hm =  0.25f*(Hi[ty+1][tx+1]+Hi[ty+2][tx+1]+Hi[ty+1][tx+2]+Hi[ty+2][tx+2]);
+            const float h = R[0][j][i] + local_Hm;
+            
+           
+            
+            // Check if the cell is almost dry
+            if (h < KPSIMULATOR_FLUX_SLOPE_EPS) {
+                
+                if (h <= KPSIMULATOR_DEPTH_CUTOFF) {
+                    //R[0][j][i] = -local_Hm;
+                    R[1][j][i] = 0.0f;
+                    R[2][j][i] = 0.0f;
+                }
+                else {                
+                    // Desingularizing u and v
+                    float h4 = h*h; h4 *= h4;
+                    R[1][j][i] = SQRT_OF_TWO*h*R[1][j][i]/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                    R[2][j][i] = SQRT_OF_TWO*h*R[2][j][i]/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                }
+            }
+            else {
+                R[1][j][i] /= h;
+                R[2][j][i] /= h;
+            }
+            
         }
     }
     __syncthreads();
 
-
-
-
-
+    // Store desingulized hu and hv
+    //Skip local ghost cells, i.e., +2
+    float hu = 0.0f;
+    float hv = 0.0f;
+    if ( R[0][ty + 2][tx + 2] + Hm > KPSIMULATOR_DEPTH_CUTOFF) {
+        hu = R[1][ty + 2][tx + 2]*(R[0][ty + 2][tx + 2] + Hm);
+        hv = R[2][ty + 2][tx + 2]*(R[0][ty + 2][tx + 2] + Hm);
+    }
 
 
 
@@ -507,6 +679,13 @@ __global__ void cdklm_swe_2D(
         }
     }
     __syncthreads();
+        
+    // Adjust K_x slopes to avoid negative h = eta + H
+    // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
+    adjustSlopes_x(bx, by, nx_, dx_, dy_,
+                   R, Qx, Hi,
+                   g_, f_, beta_, y_zero_reference_cell_, wall_bc_);
+    __syncthreads();
     
     // Compute flux along x axis
     float3 flux_diff = (  
@@ -526,7 +705,13 @@ __global__ void cdklm_swe_2D(
                 bc_north, bc_south, 
                 north)) / dx_;
     __syncthreads();
-
+    
+    // Reconstruct eta_west, eta_east for use in bathymetry source term
+    const float eta_west = R[0][ty+2][tx+2] - (Qx[2][ty][tx+1] + dx_*coriolis_f_central*R[2][ty+2][tx+2])/(2.0f*g_);
+    const float eta_east = R[0][ty+2][tx+2] + (Qx[2][ty][tx+1] + dx_*coriolis_f_central*R[2][ty+2][tx+2])/(2.0f*g_);
+    
+    __syncthreads();
+    
     //Reconstruct slopes along y axis
     // Write result into shmem Qx = [u_y, v_y, L_y]
     // Qx is now used as if its size was Qx[3][block_height+2][block_width]
@@ -584,7 +769,14 @@ __global__ void cdklm_swe_2D(
     }
     __syncthreads();
 
-    //Compute fluxes along the y axis    
+    // Adjust L_y slopes to avoid negative h = eta + H
+    // Need L_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), u (R[1]), H (Hi), g, dx
+    adjustSlopes_y(bx, by, ny_, dx_, dy_,
+                   R, Qx, Hi,
+                   g_, f_, beta_, y_zero_reference_cell_, wall_bc_);
+    __syncthreads();
+    
+    //Compute fluxes along the y axis
     flux_diff = flux_diff + 
         (computeGFaceFlux(
             tx, ty+1, by, ny_, 
@@ -603,51 +795,95 @@ __global__ void cdklm_swe_2D(
             east)) / dy_;
     __syncthreads();
 
-
+    // Reconstruct eta_north, eta_south for use in bathymetry source term
+    const float eta_south = R[0][ty+2][tx+2] - (Qx[2][ty+1][tx] - dy_*coriolis_f_central*R[1][ty+2][tx+2])/(2.0f*g_);
+    const float eta_north = R[0][ty+2][tx+2] + (Qx[2][ty+1][tx] - dy_*coriolis_f_central*R[1][ty+2][tx+2])/(2.0f*g_);
+    __syncthreads();
+    
     //Sum fluxes and advance in time for all internal cells
     if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
-        const int i = tx + 2; //Skip local ghost cells, i.e., +2
+        //Skip local ghost cells, i.e., +2
+        const int i = tx + 2; 
         const int j = ty + 2;
-
-        const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
-        const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
-
-        // Bottom topography source terms!
-        // -g*(eta + H)*(-1)*dH/dx   * dx
-        const float RHxp = 0.5f*( Hi[ty][tx+1] + Hi[ty+1][tx+1] );
-        const float RHxm = 0.5f*( Hi[ty][tx  ] + Hi[ty+1][tx  ] );
-        const float st1 = g_*(R[0][j][i] + Hm)*(RHxp - RHxm);
-
-        const float RHyp = 0.5f*( Hi[ty+1][tx] + Hi[ty+1][tx+1] );
-        const float RHym = 0.5f*( Hi[ty  ][tx] + Hi[ty  ][tx+1] );
-        const float st2 = g_*(R[0][j][i] + Hm)*(RHyp - RHym);
-
-        //Find north-going and east-going coriolis force
-        const float hu_east =  coriolis_f_central*(hu*east.x + hv*east.y);
-        const float hv_north = coriolis_f_central*(hu*north.x + hv*north.y);
         
-        //Convert back to xy coordinate system
-        const float hu_cor = right.x*hu_east + right.y*hv_north;
-        const float hv_cor = up.x*hu_east + up.y*hv_north;
+        // Skip local ghost cells for Hi
+        const int H_i = tx + 1;
+        const int H_j = ty + 1;
+
+        // Source terms (wind, coriolis, bathymetry)
+        float st1 = 0.0f;
+        float st2 = 0.0f;
+        
+        const float h = R[0][j][i] + Hm;
+        if (h >= KPSIMULATOR_DEPTH_CUTOFF) {
+            
+            // Wind
+            const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
+            const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
+
+            // Bottom topography source terms!
+            // -g*(eta + H)*(-1)*dH/dx   * dx
+            const float RHxp = 0.5f*( Hi[H_j  ][H_i+1] + Hi[H_j+1][H_i+1] );
+            const float RHxm = 0.5f*( Hi[H_j  ][H_i  ] + Hi[H_j+1][H_i  ] );
+            const float RHyp = 0.5f*( Hi[H_j+1][H_i  ] + Hi[H_j+1][H_i+1] );
+            const float RHym = 0.5f*( Hi[H_j  ][H_i  ] + Hi[H_j  ][H_i+1] );
+            
+            float H_x = RHxp - RHxm;
+            float H_y = RHyp - RHym;
+            
+            
+            float h4 = h*h; h4 *= h4;
+            if (h4 < KPSIMULATOR_FLUX_SLOPE_EPS) {
+                H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+            }
+            
+            const float eta_sn = 0.5f*(eta_north + eta_south);
+            const float eta_we = 0.5f*(eta_west  + eta_east);
+
+            // TODO: We might want to use the mean of the reconstructed eta's at the faces here, instead of R[0]...
+            //const float bathymetry1 = g_*(R[0][j][i] + Hm)*H_x;
+            //const float bathymetry2 = g_*(R[0][j][i] + Hm)*H_y;
+            const float bathymetry1 = g_*(eta_we + Hm)*H_x;
+            const float bathymetry2 = g_*(eta_sn + Hm)*H_y;
+            
+            //Find north-going and east-going coriolis force
+            const float hu_east =  coriolis_f_central*(hu*east.x + hv*east.y);
+            const float hv_north = coriolis_f_central*(hu*north.x + hv*north.y);
+            
+            //Convert back to xy coordinate system
+            const float hu_cor = right.x*hu_east + right.y*hv_north;
+            const float hv_cor = up.x*hu_east + up.y*hv_north;
+
+            // Total source terms
+            st1 = X + hv_cor + bathymetry1/dx_;
+            st2 = Y - hu_cor + bathymetry2/dy_;
+        }
+
         
         const float L1  = - flux_diff.x;
-        const float L2  = - flux_diff.y + (X + hv_cor + st1/dx_);
-        const float L3  = - flux_diff.z + (Y - hu_cor + st2/dy_);
+        const float L2  = - flux_diff.y + st1;
+        const float L3  = - flux_diff.z + st2;
 
         float* const eta_row = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
         float* const hu_row  = (float*) ((char*) hu1_ptr_  +  hu1_pitch_*tj);
         float* const hv_row  = (float*) ((char*) hv1_ptr_  +  hv1_pitch_*tj);
 
+        float updated_eta;
+        float updated_hu;
+        float updated_hv;
+        
         if (rk_order < 3) {
 
-            const float C = 2.0f*r_*dt_/(R[0][j][i] + Hm);
-
+            //const float C = 2.0f*r_*dt_/(R[0][j][i] + Hm);
+            const float C = 0.0f;
+            
             if  (step_ == 0) {
                 //First step of RK2 ODE integrator
 
-                eta_row[ti] =  R[0][j][i] + dt_*L1;
-                hu_row[ti]  = (hu + dt_*L2) / (1.0f + C);
-                hv_row[ti]  = (hv + dt_*L3) / (1.0f + C);
+                updated_eta =  R[0][j][i] + dt_*L1;
+                updated_hu  = (hu + dt_*L2) / (1.0f + C);
+                updated_hv  = (hv + dt_*L3) / (1.0f + C);
             }
             else if (step_ == 1) {
                 //Second step of RK2 ODE integrator
@@ -664,9 +900,9 @@ __global__ void cdklm_swe_2D(
 
 
                 //Write to main memory
-                eta_row[ti] = eta_b;
-                hu_row[ti]  =  hu_b / (1.0f + 0.5f*C);
-                hv_row[ti]  =  hv_b / (1.0f + 0.5f*C);
+                updated_eta = eta_b;
+                updated_hu  =  hu_b / (1.0f + 0.5f*C);
+                updated_hv  =  hv_b / (1.0f + 0.5f*C);
 
             }
         }
@@ -679,9 +915,9 @@ __global__ void cdklm_swe_2D(
                 //First step of RK3 ODE integrator
                 // q^(1) = q^n + dt*L(q^n)
 
-                eta_row[ti] =  R[0][j][i] + dt_*L1;
-                hu_row[ti]  = (hu + dt_*L2);
-                hv_row[ti]  = (hv + dt_*L3);
+                updated_eta =  R[0][j][i] + dt_*L1;
+                updated_hu  = (hu + dt_*L2);
+                updated_hv  = (hv + dt_*L3);
 
             } else if (step_ == 1) {
                 // Second step of RK3 ODE integrator
@@ -699,12 +935,9 @@ __global__ void cdklm_swe_2D(
                 const float hv_b  = 0.75f* hv_a + 0.25f*(hv + dt_*L3);
 
                 // Write output to the input buffer:
-                float* const eta_out_row = (float*) ((char*) eta0_ptr_ + eta0_pitch_*tj);
-                float* const hu_out_row  = (float*) ((char*)  hu0_ptr_ +  hu0_pitch_*tj);
-                float* const hv_out_row  = (float*) ((char*)  hv0_ptr_ +  hv0_pitch_*tj);
-                eta_out_row[ti] = eta_b;
-                hu_out_row[ti]  =  hu_b;
-                hv_out_row[ti]  =  hv_b;
+                updated_eta = eta_b;
+                updated_hu  =  hu_b;
+                updated_hv  =  hv_b;
 
             } else if (step_ == 2) {
                 // Third step of RK3 ODE integrator
@@ -721,15 +954,34 @@ __global__ void cdklm_swe_2D(
                 const float hv_b  = ( hv_a + 2.0f*(hv + dt_*L3)) / 3.0f;
 
                 //Write to main memory
-                eta_row[ti] = eta_b;
-                hu_row[ti]  =  hu_b;
-                hv_row[ti]  =  hv_b;
+                updated_eta = eta_b;
+                updated_hu  =  hu_b;
+                updated_hv  =  hv_b;
             }
         }
+    
+
+        const float updated_h = updated_eta + Hm;
+        if ((updated_h <= KPSIMULATOR_DEPTH_CUTOFF) ) { 
+            updated_eta = -Hm;
+            updated_hu  = 0.0f;
+            updated_hv  = 0.0f;
+        }
+
+        if ( (rk_order == 3) && (step_ == 1) ) {
+            float* const eta_out_row = (float*) ((char*) eta0_ptr_ + eta0_pitch_*tj);
+            float* const hu_out_row  = (float*) ((char*)  hu0_ptr_ +  hu0_pitch_*tj);
+            float* const hv_out_row  = (float*) ((char*)  hv0_ptr_ +  hv0_pitch_*tj);
+
+            eta_out_row[ti] = updated_eta;
+            hu_out_row[ti]  = updated_hu;
+            hv_out_row[ti]  = updated_hv;
+        } else {
+            eta_row[ti] = updated_eta;
+            hu_row[ti]  = updated_hu;
+            hv_row[ti]  = updated_hv;
+        }
     }
-
-
-
 }
 
 }
