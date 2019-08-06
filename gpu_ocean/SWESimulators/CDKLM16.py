@@ -417,8 +417,7 @@ class CDKLM16(Simulator.Simulator):
                                 self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
                                 local_dt, wind_stress_t, 1)
 
-                self.bc_kernel.boundaryCondition(self.gpu_stream, \
-                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
+                # Applying final boundary conditions after perturbation (if applicable)
                 
             elif (self.rk_order == 1):
                 self.callKernel(self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
@@ -427,9 +426,8 @@ class CDKLM16(Simulator.Simulator):
                                 
                 self.gpu_data.swap()
 
-                self.bc_kernel.boundaryCondition(self.gpu_stream, \
-                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
-
+                # Applying boundary conditions after perturbation (if applicable)
+                
             # 3rd order RK method:
             elif (self.rk_order == 3):
 
@@ -451,12 +449,15 @@ class CDKLM16(Simulator.Simulator):
                                 self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0, \
                                 local_dt, wind_stress_t, 2)
                 
-                self.bc_kernel.boundaryCondition(self.gpu_stream, \
-                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
+                # Applying final boundary conditions after perturbation (if applicable)
             
             # Perturb ocean state with model error
             if self.small_scale_perturbation and apply_stochastic_term:
                 self.small_scale_model_error.perturbSim(self)
+                
+            # Apply boundary conditions
+            self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
             
             # Evolve drifters
             if self.hasDrifters:
@@ -518,7 +519,11 @@ class CDKLM16(Simulator.Simulator):
     def perturbState(self, q0_scale=1):
         self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
-    def dataAssimilationStep(self, observation_time, model_error_final_step=True, write_now=True):
+    def applyBoundaryConditions(self):
+        self.bc_kernel.boundaryCondition(self.gpu_stream, \
+                        self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
+    
+    def dataAssimilationStep(self, observation_time, model_error_final_step=True, write_now=True, courant_number=0.8):
         """
         The model runs until self.t = observation_time - self.model_time_step with model error.
         If model_error_final_step is true, another stochastic model_time_step is performed, 
@@ -529,23 +534,32 @@ class CDKLM16(Simulator.Simulator):
         # We therefore make sure to take the (potential) small timestep first in this function,
         # followed by appropriately many full time steps.
         
-        full_model_time_steps = int((observation_time - self.t)/self.model_time_step) 
+        full_model_time_steps = int(round(observation_time - self.t)/self.model_time_step)
         leftover_step_size = observation_time - self.t - full_model_time_steps*self.model_time_step
-        
-        assert(full_model_time_steps > 0), "There is less than CDKLM16.model_time_step until the observation"
-            
+
         # Avoid a too small extra timestep
         if leftover_step_size/self.model_time_step < 0.1 and full_model_time_steps > 1:
             leftover_step_size += self.model_time_step
             full_model_time_steps -= 1
         
+        # Force leftover_step_size to zero if it is very small compared to the model_time_step
+        if leftover_step_size/self.model_time_step < 0.00001:
+            leftover_step_size = 0
+
+        assert(full_model_time_steps > 0), "There is less than CDKLM16.model_time_step until the observation"
+
+        # Start by updating the timestep size.
+        self.updateDt(courant_number=courant_number)
+            
         # Loop standard steps:
         for i in range(full_model_time_steps+1):
             
-            if i == 0 and not leftover_step_size == 0:
+            if i == 0 and leftover_step_size == 0:
+                continue
+            elif i == 0:
                 # Take the leftover step
                 self.step(leftover_step_size, apply_stochastic_term=False, write_now=False)
-                self.perturbState(q0_scale=np.sqrt(self.model_time_step/leftover_step_size))
+                self.perturbState(q0_scale=np.sqrt(leftover_step_size/self.model_time_step))
 
             else:
                 # Take standard steps
@@ -557,10 +571,13 @@ class CDKLM16(Simulator.Simulator):
             
             # Update dt now and then
             if self.total_time_steps % 5 == 0:
-                self.updateDt()
+                self.updateDt(courant_number=courant_number)
             
         if self.write_netcdf and write_now:
             self.sim_writer.writeTimestep(self)
+    
+        assert(round(observation_time) == round(self.t)), 'The simulation time is not the same as observation time after dataAssimilationStep! \n' + \
+            '(self.t, observation_time, diff): ' + str((self.t, observation_time, self.t - observation_time))
     
     def writeState(self):        
         if self.write_netcdf:
