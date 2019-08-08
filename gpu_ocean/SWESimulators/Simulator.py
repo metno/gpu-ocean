@@ -62,8 +62,7 @@ class Simulator(object):
                  write_netcdf, \
                  ignore_ghostcells, \
                  offset_x, offset_y, \
-                 ensemble_size, \
-                 ensemble_member, \
+                 comm, \
                  block_width, block_height):
         """
         Setting all parameters that are common for all simulators
@@ -126,8 +125,10 @@ class Simulator(object):
         self.sim_writer = None
         
         # Ensemble prediction system (EPS) parameters
-        self.ensemble_size = ensemble_size
-        self.ensemble_member = ensemble_member
+        self.comm = comm # MPI communicator
+        if comm is not None:
+            self.ensemble_size = comm.size
+            self.ensemble_member = comm.rank
 
         # Compute kernel launch parameters
         self.local_size = (block_width, block_height, 1) 
