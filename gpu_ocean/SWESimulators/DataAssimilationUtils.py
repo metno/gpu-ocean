@@ -3,7 +3,7 @@
 """
 This software is a part of GPU Ocean.
 
-Copyright (C) 2018  SINTEF Digital
+Copyright (C) 2018-2019 SINTEF Digital
 
 This module implements a selection of resampling schemes used for 
 particle filters, as described in 
@@ -40,22 +40,24 @@ class ObservationType:
     DrifterPosition = 1
     UnderlyingFlow = 2
     DirectUnderlyingFlow = 3
+    StaticBuoys = 4
     
     @staticmethod
     def _assert_valid(obs_type):
         assert(obs_type == ObservationType.DrifterPosition or \
                obs_type == ObservationType.UnderlyingFlow or \
-               obs_type == ObservationType.DirectUnderlyingFlow), \
+               obs_type == ObservationType.DirectUnderlyingFlow or \
+               obs_type == ObservationType.StaticBuoys), \
         'Provided observation type ' + str(obs_type) + ' is invalid'
 
 
     
-def probabilisticResampling(particles, reinitialization_variance=0):
+def probabilisticResampling(ensemble, reinitialization_variance=0):
     """
     Probabilistic resampling of the particles based on the attached observation.
     Particles are sampled directly from the discrete distribution given by their weights.
 
-    particles: The ensemble to be resampled, holding the ensemble particles, the observation, and measures to compute the weight of particles based on this information.
+    ensemble: The ensemble to be resampled, holding the ensemble particles, the observation, and measures to compute the weight of particles based on this information.
     reinitialization_variance: The variance used for resampling of particles that are already resampled. These duplicates are sampled around the original particle.
     If reinitialization_variance is zero, exact duplications are generated.
 
@@ -63,26 +65,26 @@ def probabilisticResampling(particles, reinitialization_variance=0):
     """
     
     # Obtain weights:
-    weights = particles.getGaussianWeight()
-    #weights = getCauchyWeight(particles.getDistances(), \
-    #                          particles.getObservationVariance())
+    weights = ensemble.getGaussianWeight()
+    #weights = getCauchyWeight(ensemble.getDistances(), \
+    #                          ensemble.getObservationVariance())
     
     # Create array of possible indices to resample:
-    allIndices = range(particles.getNumParticles())
+    allIndices = np.arange(ensemble.getNumParticles())
     
     # Draw new indices based from discrete distribution based on weights
-    newSampleIndices = np.random.choice(allIndices, particles.getNumParticles(), p=weights)
+    newSampleIndices = np.random.choice(allIndices, ensemble.getNumParticles(), p=weights)
         
     # Return a new set of particles
-    particles.resample(newSampleIndices, reinitialization_variance)
+    ensemble.resample(newSampleIndices, reinitialization_variance)
 
 
-def residualSampling(particles, reinitialization_variance=0, onlyDeterministic=False, onlyStochastic=False):
+def residualSampling(ensemble, reinitialization_variance=0, onlyDeterministic=False, onlyStochastic=False):
     """
     Residual resampling of particles based on the attached observation.
-    Each particle is first resampled floor(N*w) times, which in total given M <= N particles. Afterwards, N-M particles are drawn from the discrete distribution given by weights N*w % 1.
+    Each particle is first resampled floor(N*w) times, which in total given M <= N ensemble. Afterwards, N-M particles are drawn from the discrete distribution given by weights N*w % 1.
 
-   particles: The ensemble to be resampled, holding the ensemble particles, the observation, and measures to compute the weight of particles based on this information.
+   ensemble: The ensemble to be resampled, holding the ensemble particles, the observation, and measures to compute the weight of particles based on this information.
     reinitialization_variance: The variance used for resampling of particles that are already resampled. These duplicates are sampled around the original particle.
     If reinitialization_variance is zero, exact duplications are generated.
 
@@ -90,15 +92,15 @@ def residualSampling(particles, reinitialization_variance=0, onlyDeterministic=F
     """
     
     # Obtain weights:
-    #weights = getCauchyWeight(particles.getDistances(), \
-    #                          particles.getObservationVariance())
-    weights = particles.getGaussianWeight()
-
+    #weights = getCauchyWeight(ensemble.getDistances(), \
+    #                          ensemble.getObservationVariance())
+    weights = ensemble.getGaussianWeight()
+    
     # Create array of possible indices to resample:
-    allIndices = range(particles.getNumParticles())
+    allIndices = np.arange(ensemble.getNumParticles())
 
     # Deterministic resampling based on the integer part of N*weights:
-    weightsTimesN = weights*particles.getNumParticles()
+    weightsTimesN = weights*ensemble.getNumParticles()
     weightsTimesNInteger = np.int64(np.floor(weightsTimesN))
     deterministicResampleIndices = np.repeat(allIndices, weightsTimesNInteger)
     
@@ -106,27 +108,27 @@ def residualSampling(particles, reinitialization_variance=0, onlyDeterministic=F
     decimalWeights = np.mod(weightsTimesN, 1)
     decimalWeights = decimalWeights/np.sum(decimalWeights)
     stochasticResampleIndices = np.random.choice(allIndices, 
-                                                 particles.getNumParticles() - len(deterministicResampleIndices), 
+                                                 ensemble.getNumParticles() - len(deterministicResampleIndices), 
                                                  p=decimalWeights)
     ### NOTE!
     # In numpy v >= 1.13, np.divmod can be used to get weightsTimesNInteger and decimalWeights from one function call.
     
     if onlyDeterministic:
-        particles.resample(deterministicResampleIndices, reinitialization_variance)
+        ensemble.resample(deterministicResampleIndices, reinitialization_variance)
     if onlyStochastic:
-        particles.resample(stochasticResampleIndices, reinitialization_variance)
+        ensemble.resample(stochasticResampleIndices, reinitialization_variance)
     
-    particles.resample(np.concatenate((deterministicResampleIndices, stochasticResampleIndices)), \
+    ensemble.resample(np.concatenate((deterministicResampleIndices, stochasticResampleIndices)), \
                       reinitialization_variance)
     
 
 
-def stochasticUniversalSampling(particles, reinitialization_variance=0):
+def stochasticUniversalSampling(ensemble, reinitialization_variance=0):
     """
     Stochastic resampling of particles based on the attached observation.
     Consider all weights as line lengths, so that all particles represent segments completely covering the line [0, 1]. Draw u ~ U[0,1/N], and resample all particles representing points u + i/N, i = 0,...,N-1 on the line.
 
-    particles: The ensemble to be resampled, holding the ensemble particles, the observation, and measures to compute the weight of particles based on this information.
+    ensemble: The ensemble to be resampled, holding the ensemble particles, the observation, and measures to compute the weight of particles based on this information.
     reinitialization_variance: The variance used for resampling of particles that are already resampled. These duplicates are sampled around the original particle.
     If reinitialization_variance is zero, exact duplications are generated.
 
@@ -134,19 +136,19 @@ def stochasticUniversalSampling(particles, reinitialization_variance=0):
     """   
     
     # Obtain weights:
-    #weights = getCauchyWeight(particles.getDistances(), \
-    #                          particles.getObservationVariance())
-    weights = particles.getGaussianWeight()
+    #weights = getCauchyWeight(ensemble.getDistances(), \
+    #                          ensemble.getObservationVariance())
+    weights = ensemble.getGaussianWeight()
 
     # Create array of possible indices to resample:
-    allIndices = np.array(range(particles.getNumParticles()))
+    allIndices = np.array(range(ensemble.getNumParticles()))
     
     # Create histogram buckets based on the cumulative weights
     cumulativeWeights = np.concatenate(([0.0], np.cumsum(weights)))
     
     # Find first starting position:
-    startPos = np.random.rand()/particles.getNumParticles()
-    lengths = 1.0/particles.getNumParticles()
+    startPos = np.random.rand()/ensemble.getNumParticles()
+    lengths = 1.0/ensemble.getNumParticles()
     #print startPos, lengths
     selectionValues = allIndices*lengths + startPos
     
@@ -158,15 +160,15 @@ def stochasticUniversalSampling(particles, reinitialization_variance=0):
     newSampleIndices = np.repeat(allIndices, bucketValues)
     
     # Return a new set of particles
-    particles.resample(newSampleIndices, reinitialization_variance)
+    ensemble.resample(newSampleIndices, reinitialization_variance)
 
 
-def metropolisHastingSampling(particles,  reinitialization_variance=0):
+def metropolisHastingSampling(ensemble,  reinitialization_variance=0):
     """
     Resampling based on the Monte Carlo Metropolis-Hasting algorithm.
     The first particle, having weight w_1, is automatically resampled. The next particle, with weight w_2, is then resampled with the probability p = w_2/w_1, otherwise the first particle is sampled again. The latest resampled particle make the comparement basis for the next particle. 
 
-    particles: The ensemble to be resampled, holding the ensemble particles, the observation, and measures to compute the weight of particles based on this information.
+    ensemble: The ensemble to be resampled, holding the ensemble particles, the observation, and measures to compute the weight of particles based on this information.
     reinitialization_variance: The variance used for resampling of particles that are already resampled. These duplicates are sampled around the original particle.
     If reinitialization_variance is zero, exact duplications are generated.
 
@@ -174,9 +176,9 @@ def metropolisHastingSampling(particles,  reinitialization_variance=0):
     """
     
     # Obtain weights:
-    #weights = getCauchyWeight(particles.getDistances(), \
-    #                          particles.getObservationVariance())
-    weights = particles.getGaussianWeight()
+    #weights = getCauchyWeight(ensemble.getDistances(), \
+    #                          ensemble.getObservationVariance())
+    weights = ensemble.getGaussianWeight()
     
     # Create buffer for indices which should be in the new ensemble:
     newSampleIndices = np.zeros_like(weights, dtype=int)
@@ -185,7 +187,7 @@ def metropolisHastingSampling(particles,  reinitialization_variance=0):
     newSampleIndices[0] = 0
     
     # Iterate through all weights, and apply the Metropolis-Hasting algorithm
-    for i in range(1, particles.getNumParticles()):
+    for i in range(1, ensemble.getNumParticles()):
         # Draw random number U[0,1]
         p = np.random.rand()
         if p < weights[i]/weights[newSampleIndices[i-1]]:
@@ -194,4 +196,4 @@ def metropolisHastingSampling(particles,  reinitialization_variance=0):
             newSampleIndices[i] = newSampleIndices[i-1]
     
     # Return a new set of particles
-    particles.resample(newSampleIndices, reinitialization_variance)
+    ensemble.resample(newSampleIndices, reinitialization_variance)

@@ -153,7 +153,6 @@ class IEWPFOceanTest(unittest.TestCase):
         self.assertEqual(self.iewpf.ny, self.ny)
         self.assertAlmostEqual(self.iewpf.dx, self.dx)
         self.assertAlmostEqual(self.iewpf.dy, self.dy)
-        self.assertAlmostEqual(self.iewpf.dt, self.dt)
         self.assertAlmostEqual(self.iewpf.soar_q0, self.q0)
         self.assertAlmostEqual(self.iewpf.soar_L, self.sim.small_scale_model_error.soar_L)
         self.assertAlmostEqual(self.iewpf.f, self.f)

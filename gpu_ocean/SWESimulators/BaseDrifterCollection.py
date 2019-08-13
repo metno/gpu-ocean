@@ -138,6 +138,40 @@ class BaseDrifterCollection(object):
         
     ### METHODS UNIQUELY DEFINED FOR ALL CHILD CLASSES
     
+    def uniformly_distribute_drifters(self, initialization_cov_drifters=None):
+        """
+        Initializing/re-distributing drifters so that they are equally spread as much as possibly 
+        within the given domain, by creating a regular grid and using the cell centers as drifter
+        positions.
+        """
+        # Define mid-points for the different drifters k
+        # Decompose the domain, so that we spread the drifters as much as possible
+        sub_domains_y = np.int(np.round(np.sqrt(self.numDrifters)))
+        sub_domains_x = np.int(np.ceil(1.0*self.numDrifters/sub_domains_y))
+        drifterPositions = np.empty((self.numDrifters, 2))
+       
+        for sub_y in range(sub_domains_y):
+            for sub_x in range(sub_domains_x):
+                drifter_id = sub_y*sub_domains_x + sub_x
+                if drifter_id >= self.numDrifters:
+                    break
+                drifterPositions[drifter_id, 0]  = (sub_x + 0.5)*self.domain_size_x/sub_domains_x
+                drifterPositions[drifter_id, 1]  = (sub_y + 0.5)*self.domain_size_y/sub_domains_y
+        
+        # Perturb the drifter positions
+        if initialization_cov_drifters is None:
+            initialization_cov_drifters = np.zeros((2,2))
+        elif np.isscalar(initialization_cov_drifters):
+            initialization_cov_drifters = np.eye(2)*initialization_cov_drifters
+            
+        assert(initialization_cov_drifters.shape == (2,2)), \
+            'initialization_cov_drifters has the wrong shape: ' + str(initialization_cov_drifters)
+        
+        for d in range(self.numDrifters):
+            drifterPositions[d,:] = np.random.multivariate_normal(drifterPositions[d,:], initialization_cov_drifters)
+            
+        self.setDrifterPositions(drifterPositions)
+    
     def _getClosestPositions(self, obs=None):
         """
         Returns a set of coordinates corresponding to each particles closest position to the observation,

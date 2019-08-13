@@ -146,7 +146,7 @@ __device__ void readBlock2single(float* data_ptr_, int data_pitch_,
         
         for (int i=tx; i<block_width+4; i+=blockDim.x) {
             const int k = clamp(bx + i, 0, nx_+3); // Out of bounds
-	    shmem[j][i] = data_row[k];
+            shmem[j][i] = data_row[k];
         }
     }
 }
@@ -676,7 +676,7 @@ __device__ float3 CentralUpwindFluxBottom(const float3 Qm, float3 Qp, const floa
     // The constant is a compiler constant in the CUDA code.
     const float KPSIMULATOR_FLUX_SLOPE_EPS = 1.0e-4f;
     if ( fabs(ap - am) < KPSIMULATOR_FLUX_SLOPE_EPS ) {
-	return make_float3(0.0f, 0.0f, 0.0f);
+        return make_float3(0.0f, 0.0f, 0.0f);
     }
     
     return ((ap*Fm - am*Fp) + ap*am*(Qp-Qm))/(ap-am);
@@ -718,12 +718,18 @@ __device__ float bottomSourceTerm3(float Q[3][block_height+4][block_width+4],
 
 
 /**
-  *  Struct and functions for doing bicubic interpolation
+  *  Struct and functions for doing bicubic interpolation.
+  *  We use four float4 variables instead of an array in order to 
+  *  keep the variables in registers rather than L1 cache.
   */
 
 typedef struct
 {
-    float4 m_row[4];
+    float4 m_row0;
+    float4 m_row1;
+    float4 m_row2;
+    float4 m_row3;
+    
 }Matrix4x4_d;
 
 __device__ inline float dotProduct(const float4 v1, const float4 v2) {
@@ -741,33 +747,76 @@ __device__ inline float dotProduct(const float4 v1, const float4 v2) {
   */
 __device__ Matrix4x4_d bicubic_interpolation_coefficients(const Matrix4x4_d f) {
     Matrix4x4_d b;
-    b.m_row[0] = make_float4( 1.0f,  0.0f,  0.0f,  0.0f);
-    b.m_row[1] = make_float4( 0.0f,  0.0f,  1.0f,  0.0f);
-    b.m_row[2] = make_float4(-3.0f,  3.0f, -2.0f, -1.0f);
-    b.m_row[3] = make_float4( 2.0f, -2.0f,  1.0f,  1.0f);
+    // [[ 1.0f,  0.0f,  0.0f,  0.0f)],
+    //  [ 0.0f,  0.0f,  1.0f,  0.0f)],
+    //  [-3.0f,  3.0f, -2.0f, -1.0f)],
+    //  [ 2.0f, -2.0f,  1.0f,  1.0f)]]
+    b.m_row0.x= 1.0f; b.m_row0.y= 0.0f; b.m_row0.z= 0.0f; b.m_row0.w= 0.0f;
+    b.m_row1.x= 0.0f; b.m_row1.y= 0.0f; b.m_row1.z= 1.0f; b.m_row1.w= 0.0f;
+    b.m_row2.x=-3.0f; b.m_row2.y= 3.0f; b.m_row2.z=-2.0f; b.m_row2.w=-1.0f;
+    b.m_row3.x= 2.0f; b.m_row3.y=-2.0f; b.m_row3.z= 1.0f; b.m_row3.w= 1.0f;
     
     // Obtain fb = f * b^T, but store the result as its transpose:
     // fb[row i, col j]   = f[row i] dot b^T[col j] 
     //                    = f[row i] dot b[row j]
     // fb^T[row i, col j] = f[row j] dot b[row i]
     Matrix4x4_d fb_transpose;
-    for (int i = 0; i < 4; i++) {
-        fb_transpose.m_row[i] = make_float4(dotProduct(f.m_row[0], b.m_row[i]),
-                                            dotProduct(f.m_row[1], b.m_row[i]),
-                                            dotProduct(f.m_row[2], b.m_row[i]),
-                                            dotProduct(f.m_row[3], b.m_row[i]));
-    }
+    /*for (int i = 0; i < 4; i++) {
+        fb_transpose.m_row[i] = make_float4(dotProduct(f.m_row0, b.m_row[i]),
+                                            dotProduct(f.m_row1, b.m_row[i]),
+                                            dotProduct(f.m_row2, b.m_row[i]),
+                                            dotProduct(f.m_row3, b.m_row[i]));
+    }*/
+    fb_transpose.m_row0.x = dotProduct(f.m_row0, b.m_row0);
+    fb_transpose.m_row0.y = dotProduct(f.m_row1, b.m_row0);
+    fb_transpose.m_row0.z = dotProduct(f.m_row2, b.m_row0);
+    fb_transpose.m_row0.w = dotProduct(f.m_row3, b.m_row0);
+    
+    fb_transpose.m_row1.x = dotProduct(f.m_row0, b.m_row1);
+    fb_transpose.m_row1.y = dotProduct(f.m_row1, b.m_row1);
+    fb_transpose.m_row1.z = dotProduct(f.m_row2, b.m_row1);
+    fb_transpose.m_row1.w = dotProduct(f.m_row3, b.m_row1);
+    
+    fb_transpose.m_row2.x = dotProduct(f.m_row0, b.m_row2);
+    fb_transpose.m_row2.y = dotProduct(f.m_row1, b.m_row2);
+    fb_transpose.m_row2.z = dotProduct(f.m_row2, b.m_row2);
+    fb_transpose.m_row2.w = dotProduct(f.m_row3, b.m_row2);
+    
+    fb_transpose.m_row3.x = dotProduct(f.m_row0, b.m_row3);
+    fb_transpose.m_row3.y = dotProduct(f.m_row1, b.m_row3);
+    fb_transpose.m_row3.z = dotProduct(f.m_row2, b.m_row3);
+    fb_transpose.m_row3.w = dotProduct(f.m_row3, b.m_row3);
     
     // Obtain out = b * f * b^T = b * fb
     // out[row i, col j] = b[row i] dot fb[col j]
     //                   = b[row i] dot fb^T[row j]
     Matrix4x4_d out;
-    for (int i = 0; i < 4; i++) {
+    /*for (int i = 0; i < 4; i++) {
         out.m_row[i] = make_float4(dotProduct(b.m_row[i], fb_transpose.m_row[0]),
                                    dotProduct(b.m_row[i], fb_transpose.m_row[1]),
                                    dotProduct(b.m_row[i], fb_transpose.m_row[2]),
                                    dotProduct(b.m_row[i], fb_transpose.m_row[3]));
-    }
+    }*/
+    
+    out.m_row0.x = dotProduct(b.m_row0, fb_transpose.m_row0);
+    out.m_row0.y = dotProduct(b.m_row0, fb_transpose.m_row1);
+    out.m_row0.z = dotProduct(b.m_row0, fb_transpose.m_row2);
+    out.m_row0.w = dotProduct(b.m_row0, fb_transpose.m_row3);
+    
+    out.m_row1.x = dotProduct(b.m_row1, fb_transpose.m_row0);
+    out.m_row1.y = dotProduct(b.m_row1, fb_transpose.m_row1);
+    out.m_row1.z = dotProduct(b.m_row1, fb_transpose.m_row2);
+    out.m_row1.w = dotProduct(b.m_row1, fb_transpose.m_row3);
+    
+    out.m_row2.x = dotProduct(b.m_row2, fb_transpose.m_row0);
+    out.m_row2.y = dotProduct(b.m_row2, fb_transpose.m_row1);
+    out.m_row2.z = dotProduct(b.m_row2, fb_transpose.m_row2);
+    out.m_row2.w = dotProduct(b.m_row2, fb_transpose.m_row3);
+    
+    out.m_row3.x = dotProduct(b.m_row3, fb_transpose.m_row0);
+    out.m_row3.y = dotProduct(b.m_row3, fb_transpose.m_row1);
+    out.m_row3.z = dotProduct(b.m_row3, fb_transpose.m_row2);
+    out.m_row3.w = dotProduct(b.m_row3, fb_transpose.m_row3);
     
     return out;
 }
@@ -780,10 +829,11 @@ __device__ float bicubic_evaluation(const float4 x,
     // out = x^T * temp
     
     // tmp[i] = coeff[row i] * y
-    const float4 tmp = make_float4(dotProduct(coeff.m_row[0], y),
-                                   dotProduct(coeff.m_row[1], y),
-                                   dotProduct(coeff.m_row[2], y),
-                                   dotProduct(coeff.m_row[3], y) );
+    float4 tmp;
+    tmp.x = dotProduct(coeff.m_row0, y);
+    tmp.y = dotProduct(coeff.m_row1, y);
+    tmp.z = dotProduct(coeff.m_row2, y);
+    tmp.w = dotProduct(coeff.m_row3, y);
                                    
     return dotProduct(x, tmp);
 }

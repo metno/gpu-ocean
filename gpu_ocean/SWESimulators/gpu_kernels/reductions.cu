@@ -93,6 +93,7 @@ __global__ void squareSumDouble(
     volatile float* snorm2_volatile = snorm2;
     volatile float* sdotpr_volatile = sdot;
     
+    // The input data is interpreted as one dimensional buffers
     unsigned int tid = threadIdx.x;
     const int numElements = nx_*ny_;
 

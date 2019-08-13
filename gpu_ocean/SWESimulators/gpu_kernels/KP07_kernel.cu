@@ -4,7 +4,7 @@ This software is part of GPU Ocean.
 Copyright (C) 2018, 2019 SINTEF Digital
 Copyright (C) 2018, 2019 Norwegian Meteorological Institute
 
-This OpenCL kernel implements the Kurganov-Petrova numerical scheme 
+This CUDA kernel implements the Kurganov-Petrova numerical scheme 
 for the shallow water equations, described in 
 A. Kurganov & Guergana Petrova
 A Second-Order Well-Balanced Positivity Preserving Central-Upwind
@@ -37,104 +37,119 @@ __device__ float linear_coriolis_term(const float f, const float beta,
     return f + beta * y;
 }
 
-__device__ void reconstructHx(float RHx[block_height+4][block_width+4],
-		   float  Hi[block_height+4][block_width+4],
+__device__ float reconstructHx(float Hi[block_height+4][block_width+4],
+           const int p,
+           const int q) {
+    return 0.5f*(Hi[q][p]+Hi[q+1][p]); //0.5*(down+up)
+}
+
+__device__ float reconstructHy(float  Hi[block_height+4][block_width+4],
 		   const int p,
 		   const int q) {
-    RHx[q][p] = 0.5f*(Hi[q][p]+Hi[q+1][p]); //0.5*(down+up)
+    return 0.5f*(Hi[q][p]+Hi[q][p+1]); //0.5*(left+right)
 }
 
-__device__ void reconstructHy(float RHy[block_height+4][block_width+4],
-		   float  Hi[block_height+4][block_width+4],
-		   const int p,
-		   const int q) {
-    RHy[q][p] = 0.5f*(Hi[q][p]+Hi[q][p+1]); //0.5*(left+right)
-}
-
-// Reconstruct depth on the cell faces, store them in RHx and RHy
-__device__ void reconstructH(float RHx[block_height+4][block_width+4],
-		  float RHy[block_height+4][block_width+4],
-		  float  Hi[block_height+4][block_width+4]) {
-    const int p = threadIdx.x + 2;
-    const int q = threadIdx.y + 2;
-    reconstructHx(RHx, Hi, p, q);
-    reconstructHy(RHy, Hi, p, q);
-
-    //Use one warp to perform the extra reconstructions needed
-    if (threadIdx.y == 0) { 
-	reconstructHy(RHy, Hi, p, 1);//second row
-	reconstructHy(RHy, Hi, p, block_height+2);//second last row
-	reconstructHy(RHy, Hi, p, block_height+3);//last row
-	if (threadIdx.x < block_height) {
-	    reconstructHx(RHx, Hi, 1, p);//second column
-	    reconstructHx(RHx, Hi, block_width+2, p); //second last column
-	    reconstructHx(RHx, Hi, block_width+3, p);//last column
-	}
-    }
-}
 
 
 __device__ void adjustSlopeUx(float Qx[3][block_height+2][block_width+2],
-		   float RHx[block_height+4][block_width+4],
+		   float Hi[block_height+4][block_width+4],
 		   float Q[3][block_height+4][block_width+4],
 		   const int p, const int q) {
     // define indices in the Qx world:
     const int pQx = p - 1;
     const int qQx = q - 2;
     
-    Qx[0][qQx][pQx] = (Q[0][q][p]-Qx[0][qQx][pQx] < -RHx[q][p]) ?
-	(Q[0][q][p] + RHx[q][p]) : Qx[0][qQx][pQx];
-    Qx[0][qQx][pQx] = (Q[0][q][p]+Qx[0][qQx][pQx] < -RHx[q][p+1]) ?
-	(-RHx[q][p+1] - Q[0][q][p]) : Qx[0][qQx][pQx];
+    const float RHx_m = reconstructHx(Hi, p, q);
+    const float RHx_p = reconstructHx(Hi, p+1, q);
+    
+    Qx[0][qQx][pQx] = (Q[0][q][p]-Qx[0][qQx][pQx] < -RHx_m) ?
+                        (Q[0][q][p] + RHx_m) : Qx[0][qQx][pQx];
+    Qx[0][qQx][pQx] = (Q[0][q][p]+Qx[0][qQx][pQx] < -RHx_p) ?
+                        (-RHx_p - Q[0][q][p]) : Qx[0][qQx][pQx];
     
 }
 
 __device__ void adjustSlopeUy(float Qy[3][block_height+2][block_width+2],
-		   float RHy[block_height+4][block_width+4],
+		   float Hi[block_height+4][block_width+4],
 		   float Q[3][block_height+4][block_width+4],
 		   const int p, const int q) {
     // define indices in the Qy world:
     const int pQy = p - 2;
     const int qQy = q - 1;
+    
+    const float RHy_m = reconstructHy(Hi, p, q);
+    const float RHy_p = reconstructHy(Hi, p, q+1);
 
-    Qy[0][qQy][pQy] = (Q[0][q][p]-Qy[0][qQy][pQy] < -RHy[q][p]) ?
-	(Q[0][q][p] + RHy[q][p]) : Qy[0][qQy][pQy];
-    Qy[0][qQy][pQy] = (Q[0][q][p]+Qy[0][qQy][pQy] < -RHy[q+1][p]) ?
-	(-RHy[q+1][p] - Q[0][q][p]) : Qy[0][qQy][pQy];
+    Qy[0][qQy][pQy] = (Q[0][q][p]-Qy[0][qQy][pQy] < -RHy_m) ?
+        (Q[0][q][p] + RHy_m) : Qy[0][qQy][pQy];
+    Qy[0][qQy][pQy] = (Q[0][q][p]+Qy[0][qQy][pQy] < -RHy_p) ?
+        (-RHy_p - Q[0][q][p]) : Qy[0][qQy][pQy];
     
 }
 
-__device__ void adjustSlopes(float Qx[3][block_height+2][block_width+2],
-		  float Qy[3][block_height+2][block_width+2],
-		  float RHx[block_height+4][block_width+4],
-		  float RHy[block_height+4][block_width+4],
-		  float Q[3][block_height+4][block_width+4] ) {
+__device__ void adjustSlopes_x(float Qx[3][block_height+2][block_width+2],
+            float Hi[block_height+4][block_width+4],
+            float Q[3][block_height+4][block_width+4] ) {
     const int p = threadIdx.x + 2;
     const int q = threadIdx.y + 2;
 
-    adjustSlopeUx(Qx, RHx, Q, p, q);
-    adjustSlopeUy(Qy, RHy, Q, p, q);
+    adjustSlopeUx(Qx, Hi, Q, p, q);
+
+    // Use one warp to perform the extra adjustments
+    if (threadIdx.x == 0) {
+        adjustSlopeUx(Qx, Hi, Q, 1, q);
+        adjustSlopeUx(Qx, Hi, Q, block_width+2, q);
+    }
+}
+
+__device__ void adjustSlopes_y(float Qy[3][block_height+2][block_width+2],
+            float Hi[block_height+4][block_width+4],
+            float Q[3][block_height+4][block_width+4] ) {
+    const int p = threadIdx.x + 2;
+    const int q = threadIdx.y + 2;
+
+    adjustSlopeUy(Qy, Hi, Q, p, q);
 
     // Use one warp to perform the extra adjustments
     if (threadIdx.y == 0) {
-	adjustSlopeUy(Qy, RHy, Q, p, 1);
-	adjustSlopeUy(Qy, RHy, Q, p, block_height+2);
-
-	if (threadIdx.x < block_height) {
-	    adjustSlopeUx(Qx, RHx, Q, 1, p);
-	    adjustSlopeUx(Qx, RHx, Q, block_width+2, p);
-	}
-    }
-    
+        adjustSlopeUy(Qy, Hi, Q, p, 1);
+        adjustSlopeUy(Qy, Hi, Q, p, block_height+2);
+    } 
 }
 
 
 
+__device__ float3 computeSingleFluxF(float Q[3][block_height+4][block_width+4],
+                float Qx[3][block_height+2][block_width+2],
+                float Hi[block_height+4][block_width+4],
+                const float g_,
+                const int i,
+                const int j) {
+                    
+    const int l = j + 2; //Skip ghost cells
+    const int k = i + 1;
+
+    // Q at interface from the right and left
+    // In CentralUpwindFlux we need [eta, hu, hv]
+    // Subtract the bottom elevation on the relevant face in Q[0]
+    float3 Qp = make_float3(Q[0][l][k+1] - Qx[0][j][i+1],
+                         Q[1][l][k+1] - Qx[1][j][i+1],
+                         Q[2][l][k+1] - Qx[2][j][i+1]);
+    float3 Qm = make_float3(Q[0][l][k  ] + Qx[0][j][i  ],
+                         Q[1][l][k  ] + Qx[1][j][i  ],
+                         Q[2][l][k  ] + Qx[2][j][i  ]);
+                               
+    // Computed flux
+    const float RHx = reconstructHx(Hi, k+1, l);
+    const float3 flux = CentralUpwindFluxBottom(Qm, Qp, RHx, g_);
+    return flux;
+}
+
 __device__ void computeFluxF(float Q[3][block_height+4][block_width+4],
-                  float Qx[3][block_height+2][block_width+2],
-                  float F[3][block_height+1][block_width+1],
-		  float RHx[block_height+4][block_width+4],
-                  const float g_) {
+                float Qx[3][block_height+2][block_width+2],
+                float F[3][block_height+1][block_width+1],
+                float Hi[block_height+4][block_width+4],
+                const float g_) {
     //Index of thread within block
     const int tx = threadIdx.x;
     const int ty = threadIdx.y;
@@ -144,8 +159,8 @@ __device__ void computeFluxF(float Q[3][block_height+4][block_width+4],
         for (int i=tx; i<block_width+1; i+=blockDim.x) {
             const int k = i + 1;
             // Q at interface from the right and left
-	    // In CentralUpwindFlux we need [eta, hu, hv]
-	    // Subtract the bottom elevation on the relevant face in Q[0]
+            // In CentralUpwindFlux we need [eta, hu, hv]
+            // Subtract the bottom elevation on the relevant face in Q[0]
             float3 Qp = make_float3(Q[0][l][k+1] - Qx[0][j][i+1],
                                  Q[1][l][k+1] - Qx[1][j][i+1],
                                  Q[2][l][k+1] - Qx[2][j][i+1]);
@@ -154,7 +169,8 @@ __device__ void computeFluxF(float Q[3][block_height+4][block_width+4],
                                  Q[2][l][k  ] + Qx[2][j][i  ]);
                                        
             // Computed flux
-            const float3 flux = CentralUpwindFluxBottom(Qm, Qp, RHx[l][k+1], g_);
+            const float RHx = reconstructHx(Hi, k+1, l);
+            const float3 flux = CentralUpwindFluxBottom(Qm, Qp, RHx, g_);
             F[0][j][i] = flux.x;
             F[1][j][i] = flux.y;
             F[2][j][i] = flux.z;
@@ -162,15 +178,43 @@ __device__ void computeFluxF(float Q[3][block_height+4][block_width+4],
     }    
 }
 
+__device__ float3 computeSingleFluxG(float Q[3][block_height+4][block_width+4],
+                float Qy[3][block_height+2][block_width+2],
+                float Hi[block_height+4][block_width+4],
+                const float g_,
+                const int i,
+                const int j) {
+     
+    const int l = j + 1;
+    const int k = i + 2; //Skip ghost cells
+    
+    // Q at interface from the right and left
+    // Note that we swap hu and hv
+    float3 Qp = make_float3(Q[0][l+1][k] - Qy[0][j+1][i],
+                         Q[2][l+1][k] - Qy[2][j+1][i],
+                         Q[1][l+1][k] - Qy[1][j+1][i]);
+    float3 Qm = make_float3(Q[0][l  ][k] + Qy[0][j  ][i],
+                         Q[2][l  ][k] + Qy[2][j  ][i],
+                         Q[1][l  ][k] + Qy[1][j  ][i]);
+                               
+    // Computed flux
+    // Note that we swap back
+    const float RHy = reconstructHy(Hi, k , l+1);
+    const float3 flux = CentralUpwindFluxBottom(Qm, Qp, RHy, g_);
+    
+    // Return reordered fluxes 
+    return make_float3(flux.x, flux.z, flux.y);
+}
+  
 __device__ void computeFluxG(float Q[3][block_height+4][block_width+4],
-                  float Qy[3][block_height+2][block_width+2],
-                  float G[3][block_height+1][block_width+1],
-		  float RHy[block_height+4][block_width+4],
-                  const float g_) {
+                float Qy[3][block_height+2][block_width+2],
+                float G[3][block_height+1][block_width+1],
+                float Hi[block_height+4][block_width+4],
+                const float g_) {
     //Index of thread within block
     const int tx = threadIdx.x;
     const int ty = threadIdx.y;
-    
+
     for (int j=ty; j<block_height+1; j+=blockDim.y) {
         const int l = j + 1;
         for (int i=tx; i<block_width; i+=blockDim.x) {            
@@ -186,7 +230,8 @@ __device__ void computeFluxG(float Q[3][block_height+4][block_width+4],
                                        
             // Computed flux
             // Note that we swap back
-            const float3 flux = CentralUpwindFluxBottom(Qm, Qp, RHy[l+1][k], g_);
+            const float RHy = reconstructHy(Hi, k , l+1);
+            const float3 flux = CentralUpwindFluxBottom(Qm, Qp, RHy, g_);
             G[0][j][i] = flux.x;
             G[1][j][i] = flux.z;
             G[2][j][i] = flux.y;
@@ -196,19 +241,63 @@ __device__ void computeFluxG(float Q[3][block_height+4][block_width+4],
 
 
 
+/**
+  *  Source terms related to bathymetry  
+  */
+__device__ float bottomSourceTerm2_kp(float Q[3][block_height+4][block_width+4],
+			float Qx[3][block_height+2][block_width+2],
+			float Hi[block_height+4][block_width+4],
+			const float g, 
+			const int p, const int q) {
+    // Compansating for the smaller shmem for Qx relative to Q:
+    const int pQx = p - 1;
+    const int qQx = q - 2;
+    
+    const float hp = Q[0][q][p] + Qx[0][qQx][pQx];
+    const float hm = Q[0][q][p] - Qx[0][qQx][pQx];
+    
+    const float RHx_p = reconstructHx(Hi, p+1, q);
+    const float RHy_m = reconstructHx(Hi, p  , q);
+    
+    // g (w - B)*B_x -> KP07 equations (3.15) and (3.16)
+    // With eta: g (eta + H)*(-H_x)
+    return -0.5f*g*(RHx_p - RHy_m)*(hp + RHx_p + hm + RHy_m);
+}
+
+__device__ float bottomSourceTerm3_kp(float Q[3][block_height+4][block_width+4],
+			float Qy[3][block_height+2][block_width+2],
+			float Hi[block_height+4][block_width+4],
+			const float g, 
+			const int p, const int q) {
+    // Compansating for the smaller shmem for Qy relative to Q:
+    const int pQy = p - 2;
+    const int qQy = q - 1;
+    
+    const float hp = Q[0][q][p] + Qy[0][qQy][pQy];
+    const float hm = Q[0][q][p] - Qy[0][qQy][pQy];
+    
+    const float RHy_p = reconstructHy(Hi, p, q+1);
+    const float RHy_m = reconstructHy(Hi, p, q  );
+    
+    return -0.5f*g*(RHy_p - RHy_m)*(hp + RHy_p + hm + RHy_m);
+}
+
+
+
+
 
 __device__ void init_H_with_garbage(float Hi[block_height+4][block_width+4],
 			 float RHx[block_height+4][block_width+4],
 			 float RHy[block_height+4][block_width+4] ) {
 
     if (threadIdx.x == 0 && threadIdx.y == 0) {
-	for (int j = 0; j < block_height+4; j++) {
-	    for (int i = 0; i < block_width+4; i++) {
-		Hi[j][i]  = 99.0f;
-		RHx[j][i] = 99.0f;
-		RHy[j][i] = 99.0f;
-	    }
-	}
+        for (int j = 0; j < block_height+4; j++) {
+            for (int i = 0; i < block_width+4; i++) {
+            Hi[j][i]  = 99.0f;
+            RHx[j][i] = 99.0f;
+            RHy[j][i] = 99.0f;
+            }
+        }
     }
 }
 
@@ -264,22 +353,11 @@ __global__ void swe_2D(
     __shared__ float Q[3][block_height+4][block_width+4];
     
     //The following slightly wastes memory, but enables us to reuse the 
-    //funcitons in common.opencl
+    //funcitons in common.cu
     __shared__ float Qx[3][block_height+2][block_width+2];
-    __shared__ float Qy[3][block_height+2][block_width+2];
-    __shared__ float F[3][block_height+1][block_width+1];
-    __shared__ float G[3][block_height+1][block_width+1];
 
-    // Shared memory for bathymetry, and
-    // reconstructed bathymetry in both directions
-    // We use too much shared memory for RBx and RBy in order
-    // to easier follow the implementation from the C++ version
+    // Shared memory for bathymetry
     __shared__ float  Hi[block_height+4][block_width+4];
-    __shared__ float RHx[block_height+4][block_width+4];
-    __shared__ float RHy[block_height+4][block_width+4];
-
-    //init_H_with_garbage(Hi, RHx, RHy);
-    //__syncthreads();
     
     // Read H in mid-cell:
     float* const Hm_row  = (float*) ((char*) Hm_ptr_ + Hm_pitch_*tj);
@@ -293,37 +371,63 @@ __global__ void swe_2D(
    
     // Read H into sheared memory
     readBlock2single(Hi_ptr_, Hi_pitch_,
-		     Hi, nx_, ny_);
+                     Hi, nx_, ny_);
     __syncthreads();
-
-    // Reconstruct H at the cell faces
-    reconstructH(RHx, RHy, Hi);
-    __syncthreads();
-
+    
     //Fix boundary conditions
     // TODO: Add if on boundary condition
     if (bc_north_ == 1 || bc_east_ == 1 || bc_south_ == 1 || bc_west_ == 1)
     {
-	noFlowBoundary2Mix(Q, nx_, ny_, bc_north_, bc_east_, bc_south_, bc_west_);
+        noFlowBoundary2Mix(Q, nx_, ny_, bc_north_, bc_east_, bc_south_, bc_west_);
         __syncthreads();	
-	// Looks scary to have fence within if, but the bc parameters are static between threads.
+        // Looks scary to have fence within if, but the bc parameters are static between threads.
     }
+    
+    // Reconstruct Q in x-direction into Qx
     
     //Reconstruct slopes along x and axis
     // The Qx is here dQ/dx*0.5*dx
     minmodSlopeX(Q, Qx, theta_);
-    minmodSlopeY(Q, Qy, theta_);
     __syncthreads();
 
     // Adjust the slopes to avoid negative values at integration points
-    adjustSlopes(Qx, Qy, RHx, RHy, Q);
+    adjustSlopes_x(Qx, Hi, Q);
     __syncthreads();
     
-    //Compute fluxes along the x and y axis
-    computeFluxF(Q, Qx, F, RHx, g_);
-    computeFluxG(Q, Qy, G, RHy, g_);
+    float R1 = 0.0f;
+    float R2 = 0.0f;
+    float R3 = 0.0f;
+    
+    if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
+        const int i = tx + 2; //Skip local ghost cells, i.e., +2
+        const int j = ty + 2; 
+        
+        // Find bottom topography source terms: S3
+        const float ST2 = bottomSourceTerm2_kp(Q, Qx, Hi, g_, i, j);
+
+        // Flux along x-direction
+        const float3 F_flux_p = computeSingleFluxF(Q, Qx, Hi, g_, tx+1, ty);
+        const float3 F_flux_m = computeSingleFluxF(Q, Qx, Hi, g_, tx  , ty);
+        
+
+        R1 = - (F_flux_p.x - F_flux_m.x) / dx_;
+        R2 = - (F_flux_p.y - F_flux_m.y) / dx_
+             + ( - ST2/dx_);
+        R3 = - (F_flux_p.z - F_flux_m.z) / dx_;
+    }
     __syncthreads();
     
+    // Reconstruct Q in y-direction while reusing Qx shmem buffer
+    
+    //Reconstruct slopes along x and axis
+    // The Qx is here dQ/dx*0.5*dx
+    minmodSlopeY(Q, Qx, theta_);
+    __syncthreads();
+
+    // Adjust the slopes to avoid negative values at integration points
+    adjustSlopes_y(Qx, Hi, Q);
+    __syncthreads();
+      
     
     //Sum fluxes and advance in time for all internal cells
     //Check global indices against global domain
@@ -331,37 +435,33 @@ __global__ void swe_2D(
         const int i = tx + 2; //Skip local ghost cells, i.e., +2
         const int j = ty + 2;
 
-	// Find bottom topography source terms: S2, S3
-	const float ST2 = bottomSourceTerm2(Q, Qx, RHx, g_, i, j);
-	const float ST3 = bottomSourceTerm3(Q, Qy, RHy, g_, i, j);
-	
-    const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
-    const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
+        // Flux along y-direction
+        const float3 G_flux_p = computeSingleFluxG(Q, Qx, Hi, g_, tx, ty+1);
+        const float3 G_flux_m = computeSingleFluxG(Q, Qx, Hi, g_, tx, ty  );
 
-	
-	// Coriolis parameter
-	float global_thread_y = tj-2; // Global id including ghost cells
-	float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
-						dy_, y_zero_reference_cell_);
-	
-	const float R1 =
-	    - (F[0][ty  ][tx+1] - F[0][ty][tx]) / dx_
-	    - (G[0][ty+1][tx  ] - G[0][ty][tx]) / dy_;
-	const float R2 =
-	    - (F[1][ty  ][tx+1] - F[1][ty][tx]) / dx_ 
-	    - (G[1][ty+1][tx  ] - G[1][ty][tx]) / dy_
-	    + (X + coriolis_f*Q[2][j][i] - ST2/dx_);
-	const float R3 =
-	    - (F[2][ty  ][tx+1] - F[2][ty][tx]) / dx_
-	    - (G[2][ty+1][tx  ] - G[2][ty][tx]) / dy_
-	    + (Y - coriolis_f*Q[1][j][i] - ST3/dy_);
-						       
-	
-	float* const eta_row  = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
+
+        // Find bottom topography source terms: S3
+        const float ST3 = bottomSourceTerm3_kp(Q, Qx, Hi, g_, i, j);
+        
+        const float X = windStressX(wind_stress_t_, ti+0.5f, tj+0.5f, nx_, ny_);
+        const float Y = windStressY(wind_stress_t_, ti+0.5f, tj+0.5f, nx_, ny_);
+
+        // Coriolis parameter
+        float global_thread_y = tj-2; // Global id including ghost cells
+        float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+                            dy_, y_zero_reference_cell_);
+        
+        R1 += - (G_flux_p.x - G_flux_m.x) / dy_;
+        R2 += - (G_flux_p.y - G_flux_m.y) / dy_
+            + (X + coriolis_f*Q[2][j][i]);
+        R3 += - (G_flux_p.z - G_flux_m.z) / dy_
+            + (Y - coriolis_f*Q[1][j][i] - ST3/dy_);
+
+        float* const eta_row  = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
         float* const hu_row = (float*) ((char*) hu1_ptr_ + hu1_pitch_*tj);
         float* const hv_row = (float*) ((char*) hv1_ptr_ + hv1_pitch_*tj);
 
-	const float C = 2.0f*r_*dt_/(Q[0][j][i]+Hm);
+        const float C = 2.0f*r_*dt_/(Q[0][j][i]+Hm);
                     
         if  (step_ == 0) {
             //First step of RK2 ODE integrator
@@ -384,8 +484,7 @@ __global__ void swe_2D(
             const float hv_b = 0.5f*(hv_a + (Q[2][j][i] + dt_*R3));
             
             //Write to main memory
-            //h_row[ti] = 59.975 + coriolis_f;
-	    eta_row[ti] = eta_b;
+            eta_row[ti] = eta_b;
             hu_row[ti] = hu_b / (1.0f + 0.5f*C);
             hv_row[ti] = hv_b / (1.0f + 0.5f*C);
         }

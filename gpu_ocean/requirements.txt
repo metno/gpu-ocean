@@ -11,3 +11,4 @@ python-coveralls
 numpy
 scipy
 pandas
+tables

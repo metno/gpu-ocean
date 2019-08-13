@@ -69,6 +69,11 @@ class DoubleJetPerturbationType:
     # model errors only every 10th timestep.
     LowFrequencyStandardSpinUp = 9
     
+    # IEWPF paper case!
+    # Using the dataAssimilationStep with 1 min model time steps with model error and dynamic dt.
+    # Initialize with 3 days spin up
+    IEWPFPaperCase = 10
+    
     @staticmethod
     def _assert_valid(pert_type):
         assert(pert_type == DoubleJetPerturbationType.SteadyState or \
@@ -79,7 +84,8 @@ class DoubleJetPerturbationType:
                pert_type == DoubleJetPerturbationType.SpinUp or \
                pert_type == DoubleJetPerturbationType.NormalPerturbedSpinUp or \
                pert_type == DoubleJetPerturbationType.LowFrequencySpinUp or \
-               pert_type == DoubleJetPerturbationType.LowFrequencyStandardSpinUp), \
+               pert_type == DoubleJetPerturbationType.LowFrequencyStandardSpinUp or \
+               pert_type == DoubleJetPerturbationType.IEWPFPaperCase), \
         'Provided double jet perturbation type ' + str(pert_type) + ' is invalid'
 
 class DoubleJetCase:
@@ -90,7 +96,7 @@ class DoubleJetCase:
     
     def __init__(self, gpu_ctx, 
                  perturbation_type=DoubleJetPerturbationType.SteadyState,
-                 model_error = True):
+                 model_error = True, commonSpinUpTime = 200000):
         """
         Class that generates initial conditions for a double jet case (both perturbed and unperturbed).
         The use of initial perturbations/spin up periods are given by the perturbation_type argument,
@@ -142,7 +148,7 @@ class DoubleJetCase:
         self.u_max = 3 # m/s   - Gulf stream has "maximum speed typically about 2.5 m/s"
         self.h_0 = 230 # m     - It was found to be 230.03, but with a dobious calculation. 
                        #       - Better then just to set the depth to a constant :) 
-        self.commonSpinUpTime     = 200000  # s - Because it just seems like a good measure.
+        self.commonSpinUpTime     = commonSpinUpTime  # s - Because it just seems like a good measure.
         self.individualSpinUpTime = 100000  # s - Because it just seems like a good measure.
         
         self.f = 2*omega*np.sin(self.phi_05)
@@ -184,7 +190,6 @@ class DoubleJetCase:
             "small_scale_perturbation": model_error,
             "small_scale_perturbation_amplitude": 0.0003,
             "small_scale_perturbation_interpolation_factor": 5,
-            "perturbation_frequency": 1
         }
         
         self.base_init = {
@@ -197,19 +202,17 @@ class DoubleJetCase:
            self.perturbation_type == DoubleJetPerturbationType.LowFrequencySpinUp or \
            self.perturbation_type == DoubleJetPerturbationType.LowFrequencyStandardSpinUp:
             if self.perturbation_type == DoubleJetPerturbationType.LowFrequencySpinUp:
-                self.sim_args['perturbation_frequency'] = 10
                 self.commonSpinUpTime = self.commonSpinUpTime
                 self.individualSpinUpTime = self.individualSpinUpTime*1.5
             
             
             elif self.perturbation_type == DoubleJetPerturbationType.LowFrequencyStandardSpinUp:
                 self.sim_args, self.base_init = self.getStandardPerturbedInitConditions()
-                self.sim_args['perturbation_frequency'] = 10
                 self.commonSpinUpTime = self.commonSpinUpTime*2
                 
             tmp_sim = CDKLM16.CDKLM16(**self.sim_args, **self.base_init)
             tmp_t = tmp_sim.step(self.commonSpinUpTime)
-            print("tmp_sim has been spun up to " + str(tmp_t))
+            
             tmp_eta, tmp_hu, tmp_hv = tmp_sim.download(interior_domain_only=False)
             self.base_init['eta0'] = tmp_eta
             self.base_init['hu0']  = tmp_hu
@@ -217,10 +220,24 @@ class DoubleJetCase:
             self.sim_args['t'] = tmp_sim.t
             tmp_sim.cleanUp()
             
-        if self.perturbation_type == DoubleJetPerturbationType.NormalPerturbedSpinUp:
-            self.sim_args['perturbation_frequency'] = 10
             
-    
+        # The IEWPFPaperCase - isolated to give a better overview
+        if self.perturbation_type == DoubleJetPerturbationType.IEWPFPaperCase:
+            self.sim_args["small_scale_perturbation_amplitude"] = 0.00025
+            self.sim_args["model_time_step"] = 60 # sec
+            
+            tmp_sim = CDKLM16.CDKLM16(**self.sim_args, **self.base_init)
+            tmp_sim.updateDt()
+            
+            three_days = 3*24*60*60
+            tmp_t = tmp_sim.dataAssimilationStep(three_days)
+            
+            tmp_eta, tmp_hu, tmp_hv = tmp_sim.download(interior_domain_only=False)
+            self.base_init['eta0'] = tmp_eta
+            self.base_init['hu0']  = tmp_hu
+            self.base_init['hv0']  = tmp_hv
+            self.sim_args['t'] = tmp_sim.t
+            tmp_sim.cleanUp()
     
     def __del__(self):
         self.cleanUp()

@@ -375,9 +375,12 @@ class CTCS_boundary_condition:
 
         
         # Load kernel for periodic boundary
-        self.boundaryKernels = gpu_ctx.get_kernel("CTCS_boundary.cu", defines={'block_width': block_width, 'block_height': block_height})
-        self.boundaryKernels_NS = gpu_ctx.get_kernel("CTCS_boundary_NS.cu", defines={'block_width': self.local_size_NS[0], 'block_height': self.local_size_NS[1]})
-        self.boundaryKernels_EW = gpu_ctx.get_kernel("CTCS_boundary_EW.cu", defines={'block_width': self.local_size_EW[0], 'block_height': self.local_size_EW[1]})
+        self.boundaryKernels = gpu_ctx.get_kernel("CTCS_boundary.cu", defines={'block_width': block_width, 
+                                                                               'block_height': block_height})
+        self.boundaryKernels_NS = gpu_ctx.get_kernel("CTCS_boundary_NS.cu", defines={'block_width': self.local_size_NS[0], 
+                                                                                     'block_height': self.local_size_NS[1]})
+        self.boundaryKernels_EW = gpu_ctx.get_kernel("CTCS_boundary_EW.cu", defines={'block_width': self.local_size_EW[0], 
+                                                                                     'block_height': self.local_size_EW[1]})
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.boundaryUKernel_NS = self.boundaryKernels_NS.get_function("boundaryUKernel_NS")

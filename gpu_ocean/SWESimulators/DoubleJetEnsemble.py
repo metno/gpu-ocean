@@ -107,7 +107,7 @@ class DoubleJetEnsemble(OceanNoiseEnsemble.OceanNoiseEnsemble):
                 print('Individual spin up for particle ' + str(i))
                 
         # Initialize and attach drifters to all particles.
-        self._initialize_drifters(driftersPerOceanModel)
+        self._TO_DELETE_initialize_drifters(driftersPerOceanModel)
         
         # Create gpu kernels and buffers:
         self._setupGPU()

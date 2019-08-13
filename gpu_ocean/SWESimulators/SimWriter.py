@@ -36,14 +36,14 @@ class SimNetCDFWriter:
 
     Args:
         sim: Simulator that will be generating netCDF output.
+        filename: Use this filename. (If not defined, a filename will be generated.)
         num_layers: Number of layers in sim.
         staggerede_grid: Is simulator grid staggered.
         ignore_ghostcells: Ghost cells will not be written to file if set to True.
         offset_x: Offset simulator origo with offset_x*dx in x-dimension, before writing to netCDF. 
         offset_y: Offset simulator origo with offset_y*dy in y-dimension, before writing to netCDF.
-
     """
-    def __init__(self, sim, num_layers=1, staggered_grid=False, \
+    def __init__(self, sim, filename=None, num_layers=1, staggered_grid=False, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0):
 
@@ -52,22 +52,34 @@ class SimNetCDFWriter:
 
         # Write options:
         self.ignore_ghostcells = ignore_ghostcells
-        self.num_layers = num_layers
         self.staggered_grid = staggered_grid
+        self.num_layers = num_layers
 
         # Identification of solution
         self.timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
         self.timestamp_short = datetime.datetime.now().strftime("%Y_%m_%d")
         try:
-            self.git_hash = str.strip(subprocess.check_output(['git', 'rev-parse', 'HEAD']))
+            self.git_hash = str.strip(str(subprocess.check_output(['git', 'rev-parse', 'HEAD'])))
         except:
             self.git_hash = "git info missing..."
 
         self.simulator_short = str(sim.__class__.__name__)
 
+        
         self.dir_name = "netcdf_" + self.timestamp_short + "/"
-        self.output_file_name = self.dir_name + self.simulator_short + "_" + self.timestamp + ".nc"
-
+        
+        if not filename:
+            self.output_file_name = self.dir_name + self.simulator_short + "_" + self.timestamp + ".nc"
+        elif str.find(filename, '/') == -1:
+            self.output_file_name = self.dir_name + self.simulator_short + "_" + filename + ".nc"
+        else:
+            # Input file name is given as 'folder/file' 
+            self.output_file_name = filename + ".nc"
+            self.dir_name = filename.rsplit('/', 1)[0]
+            
+        # Avoid filenames such as "file.nc.nc"
+        self.output_file_name = self.output_file_name.replace('.nc.nc', '.nc')
+            
         self.current_directory =os.getcwd()
         self.textPos = -1
         
@@ -94,7 +106,7 @@ class SimNetCDFWriter:
         self.minmod_theta = sim.theta
         self.coriolis_force = sim.f
         self.coriolis_beta = sim.coriolis_beta
-        self.y_zero_reference_cell = sim.y_zero_reference_cell
+        self.y_zero_reference_cell = sim.y_zero_reference_cell-2
         self.wind_stress = sim.wind_stress.source_filename
         self.eddy_viscosity_coefficient = sim.A
         g = sim.g
@@ -160,6 +172,28 @@ class SimNetCDFWriter:
         self.ncfile.ghost_cells_east  = self.ghost_cells_east
         self.ncfile.ghost_cells_south = self.ghost_cells_south
         self.ncfile.ghost_cells_west  = self.ghost_cells_west
+        
+        
+        # Write parameters related to stochastic model error and data assimilation
+        # At the time of writing, such parameters are only available in the CDKLM simulator.
+        if (sim.__class__.__name__ == "CDKLM16"):
+            self.model_time_step = sim.model_time_step
+            self.ncfile.model_time_step = self.model_time_step 
+            
+            self.small_scale_perturbation = sim.small_scale_perturbation
+            self.ncfile.small_scale_perturbation = str(self.small_scale_perturbation)
+            
+            if self.small_scale_perturbation:
+
+                self.small_scale_perturbation_amplitude = sim.small_scale_model_error.soar_q0
+                self.ncfile.small_scale_perturbation_amplitude = self.small_scale_perturbation_amplitude
+
+                self.small_scale_perturbation_interpolation_factor = sim.small_scale_model_error.interpolation_factor
+                self.ncfile.small_scale_perturbation_interpolation_factor = self.small_scale_perturbation_interpolation_factor
+            
+            #y_zero_reference_cell
+            
+
         
         #Create dimensions 
         self.ncfile.createDimension('time', None) #Unlimited time dimension

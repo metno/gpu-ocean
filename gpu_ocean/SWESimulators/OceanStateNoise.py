@@ -166,7 +166,11 @@ class OceanStateNoise(object):
        
         # Generate kernels
         self.kernels = gpu_ctx.get_kernel("ocean_noise.cu", \
-                                          defines={'block_width': block_width, 'block_height': block_height})
+                                          defines={'block_width': block_width, 'block_height': block_height},
+                                          compile_args={
+                                              'options': ["--use_fast_math",
+                                                          "--maxrregcount=32"]
+                                          })
         
         self.reduction_kernels = self.gpu_ctx.get_kernel("reductions.cu", \
                                                          defines={})
@@ -251,7 +255,7 @@ class OceanStateNoise(object):
         gc.collect()
         
     @classmethod
-    def fromsim(cls, sim, soar_q0=None, soar_L=None, interpolation_factor=1,  
+    def fromsim(cls, sim, soar_q0=None, soar_L=None, interpolation_factor=1, use_lcg=False,
                 block_width=16, block_height=16):
         staggered = False
         if isinstance(sim, FBL.FBL) or isinstance(sim, CTCS.CTCS):
@@ -261,6 +265,7 @@ class OceanStateNoise(object):
                    sim.boundary_conditions, staggered,
                    soar_q0=soar_q0, soar_L=soar_L,
                    interpolation_factor=interpolation_factor,
+                   use_lcg=use_lcg,
                    block_width=block_width, block_height=block_height)
 
     def getSeed(self):
