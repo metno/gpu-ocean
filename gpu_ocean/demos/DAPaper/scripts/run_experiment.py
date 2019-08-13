@@ -47,6 +47,11 @@ parser.add_argument('--observation_type', type=str, default='drifters')
 parser.add_argument('--buoy_area', type=str, default='all')
 parser.add_argument('--media_dir', type=str, default='/media/havahol/Seagate Backup Plus Drive/gpu_ocean/')
 
+parser.add_argument('--num_days', type=int, default=7) 
+parser.add_argument('--num_hours', type=int, default=24) 
+parser.add_argument('--forecast_days', type=int, default=3)
+parser.add_argument('--profiling', action='store_true')
+
 
 args = parser.parse_args()
 
@@ -57,13 +62,13 @@ if args.ensemble_size is None:
 elif args.ensemble_size < 1:
     parser.error("Illegal ensemble size " + str(args.ensemble_size))
 
-
+profiling = args.profiling
 
 ###-----------------------------------------
 ## Define files for ensemble and truth.
 ##
 ensemble_init_path = os.path.abspath('double_jet_ensemble_init/')
-assert len(os.listdir(ensemble_init_path)) == 102, "Ensemble init folder has wrong number of files"
+assert len(os.listdir(ensemble_init_path)) == 102, "Ensemble init folder has wrong number of files: " + str(len(os.listdir(ensemble_init_path)))
 
 #truth_path = os.path.abspath('double_jet_truth/')
 truth_path = os.path.abspath('truth_2019_06_25-10_53_32/')
@@ -185,12 +190,14 @@ elif args.observation_type == 'all_drifters':
     drifterSet = 'all'
     log('Using all drifters for DA experiment')
 
+    
+cont_write_netcdf = True and not profiling
 
 tic = time.time()
 ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx, args.ensemble_size, \
                                                ensemble_init_path, truth_path, \
                                                args.observation_variance,
-                                               cont_write_netcdf = True,
+                                               cont_write_netcdf = cont_write_netcdf,
                                                use_lcg = True,
                                                write_netcdf_directory = destination_dir,
                                                observation_type=observation_type)
@@ -233,9 +240,10 @@ obstime = 3*24*60*60
 
 master_tic = time.time()
 
-numDays = 7 
-numHours = 24 
-forecast_days = 3
+numDays = args.num_days 
+numHours = args.num_hours 
+forecast_days = args.forecast_days
+
 
 log('---------- Starting simulation --------------') 
 log('--- numDays:       ' + str(numDays))
@@ -364,10 +372,10 @@ print("\n{:02.4f} s: ".format(toc-tic) + "Clean up simulator done.")
 
 log('Done! Only checking is left. There should be a "yes, done" in the next line')
 
-
-assert(numDays == 7), 'Simulated with wrong number of days!'
-assert(numHours == 24), 'Simulated with wrong number of hours'
-assert(forecast_end_time == 13*24*60*60), 'Forecast did not reach goal time'
+if not profiling:
+    assert(numDays == 7), 'Simulated with wrong number of days!'
+    assert(numHours == 24), 'Simulated with wrong number of hours'
+    assert(forecast_end_time == 13*24*60*60), 'Forecast did not reach goal time'
 
 log('Yes, done!')
 
