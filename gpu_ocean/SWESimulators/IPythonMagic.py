@@ -24,6 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import logging
 
 import argparse
+import time, sys
 from IPython.core import magic_arguments
 from IPython.core.magic import line_magic, Magics, magics_class
 import pycuda.driver as cuda
@@ -31,6 +32,78 @@ import pycuda.driver as cuda
 from SWESimulators import Common
 
 
+
+        
+        
+        
+class ProgressPrinter(object):
+    """
+    Small helper class for 
+    """
+    def __init__(self, print_every=5):
+        self.logger = logging.getLogger(__name__)
+        self.start = time.time()
+        self.print_every = print_every
+        self.next_print_time = print_every
+        self.print_string = ProgressPrinter.formatString(0, 0, 0)
+        self.last_x = 0
+        self.secs_per_iter = None
+        
+    def __enter__(self):
+        return self
+        
+    def __exit__(self, *args):
+        pass
+        
+    def getPrintString(self, x):
+        elapsed =  time.time() - self.start
+        
+        if (elapsed >= self.next_print_time or x == 1.0):
+            dt = elapsed - (self.next_print_time - self.print_every)
+            dx = x - self.last_x
+                        
+            if (dt <= 0):
+                return
+                
+            self.last_x = x
+            self.next_print_time = max(elapsed, self.next_print_time + self.print_every)
+            
+            # A kind of floating average
+            if not self.secs_per_iter:
+                self.secs_per_iter = dt / dx
+            self.secs_per_iter = 0.2*self.secs_per_iter + 0.8*(dt / dx)
+            
+            remaining_time = (1-x) * self.secs_per_iter
+            
+            self.print_string = ProgressPrinter.formatString(x, elapsed, remaining_time)
+            
+        return self.print_string
+            
+
+    def formatString(t, elapsed, remaining_time):
+        return "{:s}. Total: {:s}, elapsed: {:s}, remaining: {:s}".format(
+            ProgressPrinter.progressBar(t), 
+            ProgressPrinter.timeString(elapsed + remaining_time), 
+            ProgressPrinter.timeString(elapsed), 
+            ProgressPrinter.timeString(remaining_time))
+                
+
+    def timeString(seconds):
+        seconds = int(max(seconds, 0))
+        minutes, seconds = divmod(seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        periods = [('h', hours), ('m', minutes), ('s', seconds + sys.float_info.epsilon)]
+        time_string = ' '.join('{:d}{:s}'.format(int(value), name)
+                                for name, value in periods
+                                if value)
+        return time_string
+
+    def progressBar(t, width=30):
+        progress = int(round(width * t))
+        progressbar = "0% [" + "#"*(progress) + "="*(width-progress) + "] 100%"
+        return progressbar
+
+    
 
 @magics_class
 class MyIPythonMagic(Magics): 

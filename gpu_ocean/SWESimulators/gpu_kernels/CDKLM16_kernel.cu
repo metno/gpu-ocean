@@ -144,6 +144,7 @@ void adjustSlopes_x(const int bx, const int by,
         // Fix east boundary for reconstruction of eta (corresponding to Kx)
         if ((bc_east_ == 1) && (bx + k > nx_+2)) { v = -v; }
         
+        //FIXME: CORIOLIS HERE
         const float coriolis_f = f_ + beta_ * ((by+l) + 0.5f)*dy_;
         const float dxfv = dx_*coriolis_f*v;
         
@@ -195,6 +196,7 @@ void adjustSlopes_y(const int bx, const int by,
         // Fix north boundary for reconstruction of eta (corresponding to Ly)
         if ((bc_north_ == 1) && (by + l > ny_+2)) { u = -u; }
 
+        //FIXME: CORIOLIS HERE
         const float coriolis_f = f_ + beta_ * ((by+l) + 0.5f)*dy_;
         const float dyfu = dy_*coriolis_f*u;
         
@@ -257,8 +259,8 @@ float3 computeFFaceFlux(const int i, const int j, const int bx, const int nx_,
     const float vm_north = um*north.x + vm*north.y;
     
     // Reconstruct h
-    const float hp = eta_bar_p + H_face - (Kx_p + dx_*coriolis_fp*vp_north)/(2.0f*g_);
-    const float hm = eta_bar_m + H_face + (Kx_m + dx_*coriolis_fm*vm_north)/(2.0f*g_);
+    const float hp = fmaxf(0.0f, eta_bar_p + H_face - (Kx_p + dx_*coriolis_fp*vp_north)/(2.0f*g_));
+    const float hm = fmaxf(0.0f, eta_bar_m + H_face + (Kx_m + dx_*coriolis_fm*vm_north)/(2.0f*g_));
 
     // Our flux variables Q=(h, u, v)
     const float3 Qp = make_float3(hp, Rp.x, Rp.y);
@@ -315,8 +317,8 @@ float3 computeGFaceFlux(const int i, const int j, const int by, const int ny_,
     const float um_north = um*east.x + vm*east.y;
     
     // Reconstruct h
-    const float hp = eta_bar_p + H_face - ( Ly_p - dy_*coriolis_fp*up_north)/(2.0f*g_);
-    const float hm = eta_bar_m + H_face + ( Ly_m - dy_*coriolis_fm*um_north)/(2.0f*g_);
+    const float hp = fmaxf(0.0f, eta_bar_p + H_face - ( Ly_p - dy_*coriolis_fp*up_north)/(2.0f*g_));
+    const float hm = fmaxf(0.0f, eta_bar_m + H_face + ( Ly_m - dy_*coriolis_fm*um_north)/(2.0f*g_));
 
     // Our flux variables Q=(h, v, u)
     // Note that we swap u and v
@@ -877,8 +879,7 @@ __global__ void cdklm_swe_2D(
         
         if (rk_order < 3) {
 
-            //const float C = 2.0f*r_*dt_/(R[0][j][i] + Hm);
-            const float C = 0.0f;
+            const float C = 2.0f*r_*dt_/(R[0][j][i] + Hm);
             
             if  (step_ == 0) {
                 //First step of RK2 ODE integrator
@@ -965,7 +966,7 @@ __global__ void cdklm_swe_2D(
 
         const float updated_h = updated_eta + Hm;
         if ((updated_h <= KPSIMULATOR_DEPTH_CUTOFF) ) { 
-            updated_eta = -Hm;
+            updated_eta = -Hm + KPSIMULATOR_DEPTH_CUTOFF;
             updated_hu  = 0.0f;
             updated_hv  = 0.0f;
         }
@@ -975,11 +976,11 @@ __global__ void cdklm_swe_2D(
             float* const hu_out_row  = (float*) ((char*)  hu0_ptr_ +  hu0_pitch_*tj);
             float* const hv_out_row  = (float*) ((char*)  hv0_ptr_ +  hv0_pitch_*tj);
 
-            eta_out_row[ti] = updated_eta;
+            eta_out_row[ti] = fmaxf(-Hm + KPSIMULATOR_DEPTH_CUTOFF, updated_eta);
             hu_out_row[ti]  = updated_hu;
             hv_out_row[ti]  = updated_hv;
         } else {
-            eta_row[ti] = updated_eta;
+            eta_row[ti] = fmaxf(-Hm + KPSIMULATOR_DEPTH_CUTOFF, updated_eta);
             hu_row[ti]  = updated_hu;
             hv_row[ti]  = updated_hv;
         }

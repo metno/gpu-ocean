@@ -69,17 +69,23 @@ __global__ void per_block_max_dt(
         
         float const eta = eta_row[ti];
         float const h   = eta + Hm_row[ti];
-        float const u   = hu_row[ti]/h;
-        float const v   = hv_row[ti]/h;
         
-        float const gravity_wave = sqrt(g_*h);
-        
-        float dt_thread =          0.25f*dx_/abs(u + gravity_wave);
-        dt_thread = min(dt_thread, 0.25f*dx_/abs(u - gravity_wave));
-        dt_thread = min(dt_thread, 0.25f*dy_/abs(v + gravity_wave));
-        dt_thread = min(dt_thread, 0.25f*dy_/abs(v - gravity_wave));
-        
-        shared_dt[ty][tx] = dt_thread;
+        if (h <= 0.0) {
+            shared_dt[ty][tx] = FLT_MAX;
+        }
+        else {
+            float const u   = hu_row[ti]/h;
+            float const v   = hv_row[ti]/h;
+            
+            float const gravity_wave = sqrt(g_*h);
+            
+            float dt_thread =          0.25f*dx_/abs(u + gravity_wave);
+            dt_thread = min(dt_thread, 0.25f*dx_/abs(u - gravity_wave));
+            dt_thread = min(dt_thread, 0.25f*dy_/abs(v + gravity_wave));
+            dt_thread = min(dt_thread, 0.25f*dy_/abs(v - gravity_wave));
+            
+            shared_dt[ty][tx] = dt_thread;
+        }
     }
     else {
         shared_dt[ty][tx] = FLT_MAX;

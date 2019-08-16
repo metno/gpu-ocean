@@ -135,6 +135,7 @@ class CDKLM16(Simulator.Simulator):
             y_zero_reference_cell = boundary_conditions.spongeCells[2] + y_zero_reference_cell
             
         #Compensate f for reference cell
+        #FIXME: NEED TO TAKE north angle into account!
         f = f - coriolis_beta * y_zero_reference_cell * dy
         y_zero_reference_cell = 0
         
@@ -225,6 +226,7 @@ class CDKLM16(Simulator.Simulator):
                                             0, 0, host_dt)
         host_max_dt_buffer = np.zeros((1,1), dtype=np.float32)
         self.max_dt_buffer = Common.CUDAArray2D(self.gpu_stream, 1, 1, 0, 0, host_max_dt_buffer)
+        self.courant_number = courant_number
         
         ## Allocating memory for geostrophical equilibrium variables
         self.reportGeostrophicEquilibrium = np.int32(reportGeostrophicEquilibrium)
@@ -285,11 +287,6 @@ class CDKLM16(Simulator.Simulator):
         self.angle_texref.set_address_mode(0, cuda.address_mode.CLAMP) #no indexing outside domain
         self.angle_texref.set_address_mode(1, cuda.address_mode.CLAMP)
         self.angle_texref.set_flags(cuda.TRSF_NORMALIZED_COORDINATES) #Use [0, 1] indexing
-        
-        # Calculate dt if using automatic dt
-        if (self.dt <= 0):
-            self.updateDt(courant_number)
-
     
     def cleanUp(self):
         """
@@ -407,6 +404,11 @@ class CDKLM16(Simulator.Simulator):
         apply_stochastic_term: Boolean value for whether the stochastic
             perturbation (if any) should be applied.
         """
+        
+        # Calculate dt if using automatic dt
+        if (self.dt <= 0):
+            self.updateDt()
+            
         n = int(t_end / self.dt + 1)
 
         if self.t == 0:
@@ -614,11 +616,14 @@ class CDKLM16(Simulator.Simulator):
         
     
     
-    def updateDt(self, courant_number=0.8):
+    def updateDt(self, courant_number=None):
         """
         Updates the time step self.dt by finding the maximum size of dt according to the 
         CFL conditions, and scale it with the provided courant number (0.8 on default).
         """
+        if courant_number is None:
+            courant_number = self.courant_number
+        
         self.per_block_max_dt_kernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                    self.nx, self.ny, \
                    self.dx, self.dy, \
