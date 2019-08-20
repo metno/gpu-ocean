@@ -60,13 +60,6 @@ __device__ float3 CDKLM16_flux(float3 Qm, float3 Qp, const float g) {
     float cp = 0.0f;
     
     if (Qp.x > KPSIMULATOR_DEPTH_CUTOFF) {
-        
-        /*if (Qp.x <= KPSIMULATOR_FLUX_SLOPE_EPS) {
-            const float h2 = Qp.x*Qp.x;
-            const float h4 = h2*h2;
-            Qp.y = SQRT_OF_TWO*h2*Qp.y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
-            Qp.z = SQRT_OF_TWO*h2*Qp.z/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
-        }*/
         Fp = CDKLM16_F_func(Qp, g);
         up = Qp.y;         // u
         cp = sqrt(g*Qp.x); // sqrt(g*h)
@@ -78,13 +71,6 @@ __device__ float3 CDKLM16_flux(float3 Qm, float3 Qp, const float g) {
     float cm = 0.0f;
 
     if (Qm.x > KPSIMULATOR_DEPTH_CUTOFF) {
-        /*if (Qm.x <= KPSIMULATOR_FLUX_SLOPE_EPS) {
-            const float h2 = Qm.x*Qm.x;
-            const float h4 = h2*h2;
-            Qm.y = SQRT_OF_TWO*h2*Qm.y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
-            Qm.z = SQRT_OF_TWO*h2*Qm.z/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
-        }*/
-        
         Fm = CDKLM16_F_func(Qm, g);
         um = Qm.y;         // u
         cm = sqrt(g*Qm.x); // sqrt(g*h)
@@ -313,12 +299,12 @@ float3 computeGFaceFlux(const int i, const int j, const int by, const int ny_,
     if ((bc_north_ == 1) && (by + j + 2 == ny_+2)) { up = -up; }
     
     // Reconstruct momentum along east
-    const float up_north = up*east.x + vp*east.y;
-    const float um_north = um*east.x + vm*east.y;
+    const float up_east = up*east.x + vp*east.y;
+    const float um_east = um*east.x + vm*east.y;
     
     // Reconstruct h
-    const float hp = fmaxf(0.0f, eta_bar_p + H_face - ( Ly_p - dy_*coriolis_fp*up_north)/(2.0f*g_));
-    const float hm = fmaxf(0.0f, eta_bar_m + H_face + ( Ly_m - dy_*coriolis_fm*um_north)/(2.0f*g_));
+    const float hp = fmaxf(0.0f, eta_bar_p + H_face - ( Ly_p - dy_*coriolis_fp*up_east)/(2.0f*g_));
+    const float hm = fmaxf(0.0f, eta_bar_m + H_face + ( Ly_m - dy_*coriolis_fm*um_east)/(2.0f*g_));
 
     // Our flux variables Q=(h, v, u)
     // Note that we swap u and v
@@ -647,7 +633,6 @@ __global__ void cdklm_swe_2D(
             Qx[1][j][i] = minmodSlope(left_v, center_v, right_v, theta_);
             
             // Enforce wall boundary conditions for Kx:
-            //FIXME: Blir ikke dette feil for Qx[1]? Dvs skulle ikke dette vært gjort før slope beregning der?
             int global_thread_id_x = bx + i + 1; // index including ghost cells'
             // Western BC
             if (bc_west == 1) {

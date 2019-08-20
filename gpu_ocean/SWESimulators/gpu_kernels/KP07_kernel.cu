@@ -73,10 +73,8 @@ __device__ float3 CentralUpwindFluxBottom(float3 Qm, float3 Qp, const float RH, 
         float hp4 = hp*hp; hp4 *= hp4;  // hp^4
         if (hp <= KPSIMULATOR_FLUX_SLOPE_EPS) {
             // Desingularize u and v
-            up = SQRT_OF_TWO*hp*Qp.y/sqrt(hp4 + fmaxf(hp4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
-            //up = SQRT_OF_TWO*hp*Qp.y/sqrt(hp4 + KPSIMULATOR_FLUX_SLOPE_EPS);
-            const float vp = SQRT_OF_TWO*hp*Qp.z/sqrt(hp4 + fmaxf(hp4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
-            //const float vp = SQRT_OF_TWO*hp*Qp.z/sqrt(hp4 + KPSIMULATOR_FLUX_SLOPE_EPS);
+            up = SQRT_OF_TWO*hp*Qp.y/sqrt(hp4 + fmaxf(hp4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+            const float vp = SQRT_OF_TWO*hp*Qp.z/sqrt(hp4 + fmaxf(hp4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
             // Update hu and hv accordingly
             Qp.y = hp*up;
             Qp.z = hp*vp;
@@ -96,10 +94,8 @@ __device__ float3 CentralUpwindFluxBottom(float3 Qm, float3 Qp, const float RH, 
         float hm4 = hm*hm; hm4 *= hm4;   // hm^4
         if (hm <= KPSIMULATOR_FLUX_SLOPE_EPS) {
             // Desingularize u and v
-            //um = SQRT_OF_TWO*hm*Qm.y/sqrt(hm4 + KPSIMULATOR_FLUX_SLOPE_EPS);
-            um = SQRT_OF_TWO*hm*Qm.y/sqrt(hm4 + fmaxf(hm4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
-            //const float vm = SQRT_OF_TWO*hm*Qm.z/sqrt(hm4 + KPSIMULATOR_FLUX_SLOPE_EPS);
-            const float vm = SQRT_OF_TWO*hm*Qm.z/sqrt(hm4 + fmaxf(hm4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            um = SQRT_OF_TWO*hm*Qm.y/sqrt(hm4 + fmaxf(hm4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+            const float vm = SQRT_OF_TWO*hm*Qm.z/sqrt(hm4 + fmaxf(hm4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
             // Update hu and hv accordingly
             Qm.y = hm*um;
             Qm.z = hm*vm;
@@ -379,8 +375,7 @@ __device__ float bottomSourceTerm2_kp(float Q[3][block_height+4][block_width+4],
         
         if (h4 <= KPSIMULATOR_FLUX_SLOPE_EPS) {
             // Desingularize u and v
-            //H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + KPSIMULATOR_FLUX_SLOPE_EPS);
-            H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
         }
     
         return -0.5f*g*H_x*(eta_p + RHx_p + eta_m + RHx_m);
@@ -412,8 +407,7 @@ __device__ float bottomSourceTerm3_kp(float Q[3][block_height+4][block_width+4],
         
         if (h <= KPSIMULATOR_FLUX_SLOPE_EPS) {
             // Desingularize u and v
-            //H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + KPSIMULATOR_FLUX_SLOPE_EPS);
-            H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4)); //pow(KPSIMULATOR_FLUX_SLOPE_EPS, 4.0f)));
+            H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
         }
         
         return -0.5f*g*H_y*(eta_p + RHy_p + eta_m + RHy_m);
@@ -608,6 +602,9 @@ __global__ void swe_2D(
         float eta;
         float hu;
         float hv;
+        
+        // TODO: Make absolutely sure that we use the correct values in relation to 
+        // dry cells. See the implementation for CDKLM!
         
         if  (step_ == 0) {
             //First step of RK2 ODE integrator
