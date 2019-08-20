@@ -54,7 +54,7 @@ class CDKLM16(Simulator.Simulator):
                  t=0.0, \
                  theta=1.3, rk_order=2, \
                  coriolis_beta=0.0, \
-                 y_zero_reference_cell = 0, \
+                 y_zero_reference_cell = None, \
                  max_wind_direction_perturbation = 0, \
                  wind_stress=WindStress.WindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
@@ -63,7 +63,6 @@ class CDKLM16(Simulator.Simulator):
                  small_scale_perturbation_amplitude=None, \
                  small_scale_perturbation_interpolation_factor = 1, \
                  model_time_step=None,
-                 h0AsWaterElevation=False, \
                  reportGeostrophicEquilibrium=False, \
                  use_lcg=False, \
                  write_netcdf=False, \
@@ -93,7 +92,7 @@ class CDKLM16(Simulator.Simulator):
         theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
         rk_order: Order of Runge Kutta method {1,2*,3}
         coriolis_beta: Coriolis linear factor -> f = f + beta*(y-y_0)
-        y_zero_reference_cell: The cell representing y_0 in the above, defined as the lower face of the cell .
+        y_zero_reference_cell: [DEPRECATED] The cell representing y_0 in the above, defined as the lower face of the cell .
         max_wind_direction_perturbation: Large-scale model error emulation by per-time-step perturbation of wind direction by +/- max_wind_direction_perturbation (degrees)
         wind_stress: Wind stress parameters
         boundary_conditions: Boundary condition object
@@ -101,7 +100,6 @@ class CDKLM16(Simulator.Simulator):
         small_scale_perturbation_amplitude: Amplitude (q0 coefficient) for model error
         small_scale_perturbation_interpolation_factor: Width factor for correlation in model error
         model_time_step: The size of a data assimilation model step (default same as dt)
-        h0AsWaterElevation: True if h0 is described by the surface elevation, and false if h0 is described by water depth
         reportGeostrophicEquilibrium: Calculate the Geostrophic Equilibrium variables for each superstep
         use_lcg: Use LCG as the random number generator. Default is False, which means using curand.
         write_netcdf: Write the results after each superstep to a netCDF file
@@ -112,10 +110,6 @@ class CDKLM16(Simulator.Simulator):
                
         self.logger = logging.getLogger(__name__)
 
-        ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
-        #if ( np.sum(eta0 - H[:-1, :-1] > 0) > nx):
-        #    assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
-        
         assert( rk_order < 4 or rk_order > 0 ), "Only 1st, 2nd and 3rd order Runge Kutta supported"
 
         if (rk_order == 3):
@@ -125,19 +119,14 @@ class CDKLM16(Simulator.Simulator):
         # boundary conditions
         ghost_cells_x = 2
         ghost_cells_y = 2
-        y_zero_reference_cell = 2 + y_zero_reference_cell
+        assert(y_zero_reference_cell is None), "y_zero_reference_cell is deprecated. Please provide f0 and beta so that f0 corresponds to cell eta[0,0]" 
+        y_zero_reference_cell = 0 # In order to pass it to the super constructor
         
         # Boundary conditions
         self.boundary_conditions = boundary_conditions
         if (boundary_conditions.isSponge()):
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*ghost_cells_x
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*ghost_cells_y
-            y_zero_reference_cell = boundary_conditions.spongeCells[2] + y_zero_reference_cell
-            
-        #Compensate f for reference cell
-        #FIXME: NEED TO TAKE north angle into account!
-        f = f - coriolis_beta * y_zero_reference_cell * dy
-        y_zero_reference_cell = 0
         
         A = None
         self.max_wind_direction_perturbation = max_wind_direction_perturbation
@@ -209,9 +198,6 @@ class CDKLM16(Simulator.Simulator):
         
         # Bathymetry
         self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
-        self.h0AsWaterElevation = h0AsWaterElevation
-        if self.h0AsWaterElevation:
-            self.bathymetry.waterElevationToDepth(self.gpu_data.h0)
                 
         # Adjust eta for possible dry states
         Hm = self.downloadBathymetry()[1]
@@ -307,7 +293,6 @@ class CDKLM16(Simulator.Simulator):
         if self.geoEq_Ly is not None:
             self.geoEq_Ly.release()
         self.bathymetry.release()
-        self.h0AsWaterElevation = False # Quick fix to stop waterDepthToElevation conversion
         
         self.device_dt.release()
         self.max_dt_buffer.release()
