@@ -37,6 +37,7 @@ import os
 import os.path
 import sys
 import time
+from tempfile import TemporaryFile
 
 #import matplotlib.pyplot as plt
 #from matplotlib import cm
@@ -84,63 +85,64 @@ def runBenchmark(folder_name, simulator):
                     test_file.write("-----------------------------------------\n")
                     print('\n'+start_info)
                     
-                    # Start nvidia-smi to file f
-                    smi_report_filename = 'nvidia_smi_w'+str(block_width[i,j])+'_h'+str(block_height[i,j])+'.log'
-                    smi_report_file = os.path.join(folder_name, smi_report_filename)
-                    
-                    smi_cmd = [
-                        'nvidia-smi',
-                        '--query-gpu=timestamp,'+\
-                                    'temperature.gpu,'+\
-                                    'memory.free,'+\
-                                    'fan.speed,'+\
-                                    'utilization.gpu,'+\
-                                    'power.draw,'+\
-                                    'clocks.current.sm,'+\
-                                    'clocks.current.graphics,'+\
-                                    'clocks.current.memory',
-                        '--format=csv',
-                        '--loop-ms=500',
-                        '--filename='+str(smi_report_file)
-                    ]
-                    print('nvidia_smi_file='+str(smi_report_file))
-                    
-                    smi_process = subprocess.Popen(smi_cmd, shell=shell, 
-                                                   stdin=subprocess.PIPE, 
-                                                   stdout=subprocess.PIPE, 
-                                                   stderr=subprocess.STDOUT)
-                    
-                    
-                    # Sleep 3 sec
-                    time.sleep(3)
-                    
-                    # Run benchmark
-                    print('starting benchmark... ', end='')
-                    tic = time.time()
-                    
-                    test_file.write("=========================================\n")
-                    cmd = [ "python3", "run_benchmark.py", "--block_width", str(block_width[i,j]), \
-                           "--block_height", str(block_height[i,j]), "--simulator", sim[k],
-                           "--steps_per_download", "300", "--iterations", "10"]
-                    p = subprocess.Popen(cmd, shell=shell, 
-                                         stdin=subprocess.PIPE, 
-                                         stdout=subprocess.PIPE, 
-                                         stderr=subprocess.STDOUT)
-                    output = p.stdout.read()
-                    test_file.write('nvidia_smi_file='+str(smi_report_file)+', ')
-                    test_file.write('nvidia_smi_cmd='+str(smi_cmd)+', ')
-                    test_file.write(str(output) + "\n")
-                    test_file.write("=========================================\n")
-                    test_file.write("\n")
-                    print('benchmark finished!')
+                    with TemporaryFile() as tmpfile:
+                        # Start nvidia-smi to file f
+                        smi_report_filename = 'nvidia_smi_w'+str(block_width[i,j])+'_h'+str(block_height[i,j])+'.log'
+                        smi_report_file = os.path.join(folder_name, smi_report_filename)
 
-                    toc = time.time()
-                    
-                    # Sleep 3 sec
-                    time.sleep(3)
-                    
-                    # Kill nvidia-smi process.
-                    smi_process.terminate()
+                        smi_cmd = [
+                            'nvidia-smi',
+                            '--query-gpu=timestamp,'+\
+                                        'temperature.gpu,'+\
+                                        'memory.free,'+\
+                                        'fan.speed,'+\
+                                        'utilization.gpu,'+\
+                                        'power.draw,'+\
+                                        'clocks.current.sm,'+\
+                                        'clocks.current.graphics,'+\
+                                        'clocks.current.memory',
+                            '--format=csv',
+                            '--loop-ms=500',
+                            '--filename='+str(smi_report_file)
+                        ]
+                        print('nvidia_smi_file='+str(smi_report_file))
+
+                        smi_process = subprocess.Popen(smi_cmd, shell=shell, 
+                                                       stdin=subprocess.PIPE, 
+                                                       stdout=tmpfile, 
+                                                       stderr=subprocess.STDOUT)
+
+
+                        # Sleep 3 sec
+                        time.sleep(3)
+
+                        # Run benchmark
+                        print('starting benchmark... ')
+                        tic = time.time()
+
+                        test_file.write("=========================================\n")
+                        cmd = [ "python3", "run_benchmark.py", "--block_width", str(block_width[i,j]), \
+                               "--block_height", str(block_height[i,j]), "--simulator", sim[k],
+                               "--steps_per_download", "300", "--iterations", "10"]
+                        p = subprocess.Popen(cmd, shell=shell, 
+                                             stdin=subprocess.PIPE, 
+                                             stdout=subprocess.PIPE, 
+                                             stderr=subprocess.STDOUT)
+                        output = p.stdout.read()
+                        test_file.write('nvidia_smi_file='+str(smi_report_file)+', ')
+                        test_file.write('nvidia_smi_cmd='+str(smi_cmd)+', ')
+                        test_file.write(str(output) + "\n")
+                        test_file.write("=========================================\n")
+                        test_file.write("\n")
+                        print('benchmark finished!')
+
+                        toc = time.time()
+
+                        # Sleep 3 sec
+                        time.sleep(3)
+
+                        # Kill nvidia-smi process.
+                        smi_process.terminate()
                     
                     
                     infostr = sim[k] + " [{:02d} x {:02d}] completed in {:.02f} s\n".format(block_width[i,j], block_height[i,j], (toc-tic))
