@@ -28,6 +28,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // KPSIMULATOR
 
+//WARNING: Must match max_dt.cu and initBm_kernel.cu
+//WARNING: This is error prone - as comparison with floating point numbers is not accurate
+#define CDKLM_DRY_FLAG 1.0e-30f
+#define CDKLM_DRY_EPS 1.0e-10f
+
 
 
 
@@ -79,8 +84,8 @@ __device__ float3 CDKLM16_flux(float3 Qm, float3 Qp, const float g) {
     const float am = min(min(um-cm, up-cp), 0.0f); // largest negative wave speed
     const float ap = max(max(um+cm, up+cp), 0.0f); // largest positive wave speed
 
-    // Related to dry zones
-    if ( fabs(ap - am) < KPSIMULATOR_FLUX_SLOPE_EPS ) {
+    // If symmetric Rieman fan, return zero flux
+    if ( fabsf(ap - am) < KPSIMULATOR_FLUX_SLOPE_EPS ) {
         return make_float3(0.0f, 0.0f, 0.0f);
     }
     
@@ -224,6 +229,11 @@ float3 computeFFaceFlux(const int i, const int j, const int bx, const int nx_,
     const float um = R[1][l][k  ];
     float vp = R[2][l][k+1];
     float vm = R[2][l][k  ];
+    
+    //Check if dry: if so return zero flux
+    if (eta_bar_p == CDKLM_DRY_FLAG || eta_bar_m == CDKLM_DRY_FLAG) {
+        return make_float3(0.0f, 0.0f, 0.0f);
+    }
 
     const float2 Rp = make_float2(up - 0.5f*Qx[0][j][i+1], vp - 0.5f*Qx[1][j][i+1]);
     const float2 Rm = make_float2(um + 0.5f*Qx[0][j][i  ], vm + 0.5f*Qx[1][j][i  ]);
@@ -283,6 +293,11 @@ float3 computeGFaceFlux(const int i, const int j, const int by, const int ny_,
     const float vp = R[2][l+1][k];
     const float vm = R[2][l  ][k];
 
+    //Check if dry: if so return zero flux
+    if (eta_bar_p == CDKLM_DRY_FLAG || eta_bar_m == CDKLM_DRY_FLAG) {
+        return make_float3(0.0f, 0.0f, 0.0f);
+    }
+    
     const float2 Rp = make_float2(up - 0.5f*Qy[0][j+1][i], vp - 0.5f*Qy[1][j+1][i]);
     const float2 Rm = make_float2(um + 0.5f*Qy[0][j  ][i], vm + 0.5f*Qy[1][j  ][i]);
 
@@ -416,6 +431,7 @@ __global__ void cdklm_swe_2D(
         //Bathymery
         float* Hi_ptr_, const int Hi_pitch_,
         float* Hm_ptr_, const int Hm_pitch_,
+        float land_value_,
 
         //Wind stress parameters
         const float wind_stress_t_,
@@ -519,6 +535,10 @@ __global__ void cdklm_swe_2D(
             const int k = clamp(bx+i+1, 1, nx_+4);
 
             Hi[j][i] = Hi_row[k];
+            
+            if (fabsf(Hi[j][i] - land_value_) < CDKLM_DRY_EPS) {
+                Hi[j][i] = CDKLM_DRY_FLAG;
+            }
         }
     }
     __syncthreads();
@@ -555,8 +575,7 @@ __global__ void cdklm_swe_2D(
     __syncthreads();
     
     // Compensate for one layer of ghost cells
-    const float Hm = 0.25f*(Hi[ty+1][tx+1]+Hi[ty+2][tx+1]+Hi[ty+1][tx+2]+Hi[ty+2][tx+2]);
-    
+    float Hm = 0.25f*(Hi[ty+1][tx+1] + Hi[ty+2][tx+1] + Hi[ty+1][tx+2] + Hi[ty+2][tx+2]);
 
     //Create our "steady state" reconstruction variables (u, v)
     // K and L are never stored, but computed where needed.
@@ -568,13 +587,18 @@ __global__ void cdklm_swe_2D(
 
             // h = eta + H
             const float local_Hm = Hm_row[k];
-            //const float local_Hm =  0.25f*(Hi[ty+1][tx+1]+Hi[ty+2][tx+1]+Hi[ty+1][tx+2]+Hi[ty+2][tx+2]);
+            //const float local_Hm = 0.25f*(Hi[j][i] + Hi[j+1][i] + Hi[j][i+1] + Hi[j+1][i+1]);
             const float h = R[0][j][i] + local_Hm;
             
-           
-            
+            //Check if this cell is actually dry (or land)
+            //NOTE: This requires that all four corners of a cell are dry to be considered dry cell
+            if (fabsf(local_Hm - land_value_) <= CDKLM_DRY_EPS) {
+                R[0][j][i] = CDKLM_DRY_FLAG;
+                R[1][j][i] = 0.0f;
+                R[2][j][i] = 0.0f;
+            }
             // Check if the cell is almost dry
-            if (h < KPSIMULATOR_FLUX_SLOPE_EPS) {
+            else if (h < KPSIMULATOR_FLUX_SLOPE_EPS) {
                 
                 if (h <= KPSIMULATOR_DEPTH_CUTOFF) {
                     //R[0][j][i] = -local_Hm;
@@ -588,10 +612,12 @@ __global__ void cdklm_swe_2D(
                     R[2][j][i] = SQRT_OF_TWO*h*R[2][j][i]/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
                 }
             }
+            // Wet cells
             else {
                 R[1][j][i] /= h;
                 R[2][j][i] /= h;
             }
+
             
         }
     }
@@ -804,49 +830,52 @@ __global__ void cdklm_swe_2D(
         float st2 = 0.0f;
         
         const float h = R[0][j][i] + Hm;
+        //If wet cell
         if (h >= KPSIMULATOR_DEPTH_CUTOFF) {
-            
-            // Wind
-            const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
-            const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
+            // If not land
+            if (R[0][j][i] != CDKLM_DRY_FLAG) {
+                // Wind
+                const float X = windStressX(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
+                const float Y = windStressY(wind_stress_t_, ti+0.5, tj+0.5, nx_, ny_);
 
-            // Bottom topography source terms!
-            // -g*(eta + H)*(-1)*dH/dx   * dx
-            const float RHxp = 0.5f*( Hi[H_j  ][H_i+1] + Hi[H_j+1][H_i+1] );
-            const float RHxm = 0.5f*( Hi[H_j  ][H_i  ] + Hi[H_j+1][H_i  ] );
-            const float RHyp = 0.5f*( Hi[H_j+1][H_i  ] + Hi[H_j+1][H_i+1] );
-            const float RHym = 0.5f*( Hi[H_j  ][H_i  ] + Hi[H_j  ][H_i+1] );
-            
-            float H_x = RHxp - RHxm;
-            float H_y = RHyp - RHym;
-            
-            
-            float h4 = h*h; h4 *= h4;
-            if (h4 < KPSIMULATOR_FLUX_SLOPE_EPS) {
-                H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
-                H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                // Bottom topography source terms!
+                // -g*(eta + H)*(-1)*dH/dx   * dx
+                const float RHxp = 0.5f*( Hi[H_j  ][H_i+1] + Hi[H_j+1][H_i+1] );
+                const float RHxm = 0.5f*( Hi[H_j  ][H_i  ] + Hi[H_j+1][H_i  ] );
+                const float RHyp = 0.5f*( Hi[H_j+1][H_i  ] + Hi[H_j+1][H_i+1] );
+                const float RHym = 0.5f*( Hi[H_j  ][H_i  ] + Hi[H_j  ][H_i+1] );
+                
+                float H_x = RHxp - RHxm;
+                float H_y = RHyp - RHym;
+                
+                
+                float h4 = h*h; h4 *= h4;
+                if (h4 < KPSIMULATOR_FLUX_SLOPE_EPS) {
+                    H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                    H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                }
+                
+                const float eta_sn = 0.5f*(eta_north + eta_south);
+                const float eta_we = 0.5f*(eta_west  + eta_east);
+
+                // TODO: We might want to use the mean of the reconstructed eta's at the faces here, instead of R[0]...
+                //const float bathymetry1 = g_*(R[0][j][i] + Hm)*H_x;
+                //const float bathymetry2 = g_*(R[0][j][i] + Hm)*H_y;
+                const float bathymetry1 = g_*(eta_we + Hm)*H_x;
+                const float bathymetry2 = g_*(eta_sn + Hm)*H_y;
+                
+                //Find north-going and east-going coriolis force
+                const float hu_east =  coriolis_f_central*(hu*east.x + hv*east.y);
+                const float hv_north = coriolis_f_central*(hu*north.x + hv*north.y);
+                
+                //Convert back to xy coordinate system
+                const float hu_cor = right.x*hu_east + right.y*hv_north;
+                const float hv_cor = up.x*hu_east + up.y*hv_north;
+
+                // Total source terms
+                st1 = X + hv_cor + bathymetry1/dx_;
+                st2 = Y - hu_cor + bathymetry2/dy_;
             }
-            
-            const float eta_sn = 0.5f*(eta_north + eta_south);
-            const float eta_we = 0.5f*(eta_west  + eta_east);
-
-            // TODO: We might want to use the mean of the reconstructed eta's at the faces here, instead of R[0]...
-            //const float bathymetry1 = g_*(R[0][j][i] + Hm)*H_x;
-            //const float bathymetry2 = g_*(R[0][j][i] + Hm)*H_y;
-            const float bathymetry1 = g_*(eta_we + Hm)*H_x;
-            const float bathymetry2 = g_*(eta_sn + Hm)*H_y;
-            
-            //Find north-going and east-going coriolis force
-            const float hu_east =  coriolis_f_central*(hu*east.x + hv*east.y);
-            const float hv_north = coriolis_f_central*(hu*north.x + hv*north.y);
-            
-            //Convert back to xy coordinate system
-            const float hu_cor = right.x*hu_east + right.y*hv_north;
-            const float hv_cor = up.x*hu_east + up.y*hv_north;
-
-            // Total source terms
-            st1 = X + hv_cor + bathymetry1/dx_;
-            st2 = Y - hu_cor + bathymetry2/dy_;
         }
 
         

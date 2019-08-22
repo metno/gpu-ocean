@@ -181,7 +181,7 @@ class CDKLM16(Simulator.Simulator):
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.cdklm_swe_2D = self.kernel.get_function("cdklm_swe_2D")
-        self.cdklm_swe_2D.prepare("iiffffffffiiPiPiPiPiPiPiPiPifi")
+        self.cdklm_swe_2D.prepare("iiffffffffiiPiPiPiPiPiPiPiPiffi")
         self.update_wind_stress(self.kernel, self.cdklm_swe_2D)
         
         # CUDA functions for finding max time step size:
@@ -192,10 +192,11 @@ class CDKLM16(Simulator.Simulator):
                          'block_height': block_height,
                          'NUM_THREADS': self.num_threads_dt})
         self.per_block_max_dt_kernel = self.update_dt_kernels.get_function("per_block_max_dt")
-        self.per_block_max_dt_kernel.prepare("iifffPiPiPiPiPi")
+        self.per_block_max_dt_kernel.prepare("iifffPiPiPiPifPi")
         self.max_dt_reduction_kernel = self.update_dt_kernels.get_function("max_dt_reduction")
         self.max_dt_reduction_kernel.prepare("iPP")
         
+            
         # Bathymetry
         self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
                 
@@ -383,25 +384,19 @@ class CDKLM16(Simulator.Simulator):
     
     
     
-    def step(self, t_end=0.0, apply_stochastic_term=True, write_now=True):
+    def step(self, t_end=0.0, apply_stochastic_term=True, write_now=True, update_dt=False):
         """
         Function which steps n timesteps.
         apply_stochastic_term: Boolean value for whether the stochastic
             perturbation (if any) should be applied.
         """
-        
-        # Calculate dt if using automatic dt
-        if (self.dt <= 0):
-            self.updateDt()
-            
-        n = int(t_end / self.dt + 1)
 
         if self.t == 0:
             self.bc_kernel.update_bc_values(self.gpu_stream, self.t)
             self.bc_kernel.boundaryCondition(self.gpu_stream, \
                                              self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
-        
-        for i in range(0, n):
+        t_now = np.float64(0.0)
+        while (t_now < t_end):
             # Get new random wind direction (emulationg large-scale model error)
             if(self.max_wind_direction_perturbation > 0.0 and self.wind_stress.type() == 1):
                 # max perturbation +/- max_wind_direction_perturbation deg within original wind direction (at t=0)
@@ -413,7 +408,10 @@ class CDKLM16(Simulator.Simulator):
                 # Upload new wind stress params to device
                 cuda.memcpy_htod_async(int(self.wind_stress_dev), new_wind_stress.tostruct(), stream=self.gpu_stream)
                 
-            local_dt = np.float32(min(self.dt, t_end-i*self.dt))
+            # Calculate dt if using automatic dt
+            if (self.dt <= 0 or update_dt):
+                self.updateDt()
+            local_dt = np.float32(min(self.dt, t_end-t_now))
             
             if (local_dt <= 0.0):
                 break
@@ -488,8 +486,11 @@ class CDKLM16(Simulator.Simulator):
                                     self.nx, self.ny, self.dx, self.dy, \
                                     local_dt, \
                                     np.int32(2), np.int32(2))
-            self.t += np.float64(local_dt)
+                                    
+            t_now = t_now + np.float64(local_dt)
             self.num_iterations += 1
+            
+        self.t += np.float64(t_end)
             
         if self.write_netcdf and write_now:
             self.sim_writer.writeTimestep(self)
@@ -528,6 +529,7 @@ class CDKLM16(Simulator.Simulator):
                            hv_out.data.gpudata, hv_out.pitch, \
                            self.bathymetry.Bi.data.gpudata, self.bathymetry.Bi.pitch, \
                            self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
+                           self.bathymetry.land_value,
                            wind_stress_t, \
                            boundary_conditions)
             
@@ -617,6 +619,7 @@ class CDKLM16(Simulator.Simulator):
                    self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
                    self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
                    self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
+                   self.bathymetry.land_value, \
                    self.device_dt.data.gpudata, self.device_dt.pitch)
     
         self.max_dt_reduction_kernel.prepared_async_call((1,1),
@@ -650,16 +653,15 @@ class CDKLM16(Simulator.Simulator):
         return courant_number*max_dt    
     
     def downloadBathymetry(self, interior_domain_only=False):
+        Bi, Bm = self.bathymetry.download(self.gpu_stream)
+        
         if interior_domain_only:
-            Bi, Bm = self.bathymetry.download(self.gpu_stream)
-            return [
-                    Bi[self.interior_domain_indices[2]:self.interior_domain_indices[0]+1,  
-                       self.interior_domain_indices[3]:self.interior_domain_indices[1]]+1, 
-                    Bm[self.interior_domain_indices[2]:self.interior_domain_indices[0],  
-                       self.interior_domain_indices[3]:self.interior_domain_indices[1]]
-                   ]
-        else:
-            return self.bathymetry.download(self.gpu_stream)
+            Bi = Bi[self.interior_domain_indices[2]:self.interior_domain_indices[0]+1,  
+               self.interior_domain_indices[3]:self.interior_domain_indices[1]]+1, 
+            Bm = Bm[self.interior_domain_indices[2]:self.interior_domain_indices[0],  
+               self.interior_domain_indices[3]:self.interior_domain_indices[1]]
+               
+        return [Bi, Bm]
     
     def downloadDt(self):
         return self.device_dt.download(self.gpu_stream)

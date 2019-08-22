@@ -20,14 +20,58 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 from scipy import interpolate 
 
+
+def fillMaskedValues(input, steps=5):
+
+    def fillStep(a):
+        valid = np.zeros(a.shape)
+        valid[~a.mask] = 1
+        valid[1:-1, 1:-1] += valid[:-2, 1:-1] + valid[2:, 1:-1] + valid[1:-1, :-2] + valid[1:-1, 2:]
+        valid[valid == 0] = -1 #avoid divide by zero below
+
+        values = np.copy(a.filled(0))
+        values[1:-1, 1:-1] += values[:-2, 1:-1] + values[2:, 1:-1] + values[1:-1, :-2] + values[1:-1, 2:]
+        values = values / valid
+        values[~a.mask] = 0
+
+        a[values > 0] = values[values > 0]
+    
+    retval = np.ma.copy(input)
+    for i in range(steps):
+        fillStep(retval)
+        
+    return retval
+
+
+
 def intersectionsToMidpoints(a_i):
     """
     Converts values at cell intersections to values at midpoints. Use simple averaging
+    Also respects masked values when computing the average
     """
-    return 0.25*(a_i[:-1, :-1] + a_i[:-1, 1:] + a_i[1:, :-1] + a_i[1:, 1:])
+    if np.ma.is_masked(a_i):
+        valid = np.zeros(a_i.shape, dtype=np.int32)
+        valid[~a_i.mask] = 1 
+        valid = valid[:-1, :-1] + valid[:-1, 1:] + valid[1:, :-1] + valid[1:, 1:]
+        mask = valid==0
+        
+        #Set values for all elements
+        masked_values = 0.25*(a_i.data[:-1, :-1] + a_i.data[:-1, 1:] + a_i.data[1:, :-1] + a_i.data[1:, 1:])
+        
+        #Set values for non-masked elements 
+        values = a_i.filled(0)
+        unmasked_values = values[:-1, :-1] + values[:-1, 1:] + values[1:, :-1] + values[1:, 1:]
+        unmasked_values[~mask] = unmasked_values[~mask] / valid[~mask]
+        
+        all_values = mask*masked_values + ~mask*unmasked_values
+        return np.ma.array(all_values, mask=mask, fill_value=a_i.fill_value)
+    else:
+        values = 0.25*(a_i[:-1, :-1] + a_i[:-1, 1:] + a_i[1:, :-1] + a_i[1:, 1:])
+   
+    return values
 
     
-def midpointsToIntersections(a_m, border_size, smoothing_factor=0.4):
+def midpointsToIntersections(a_m, iterations, smoothing_factor=0.3):
     """
     Converts cell values at midpoints to cell values at midpoints using a cubic
     interpolating spline to generate first guess, followed by an iterative update. 
@@ -35,30 +79,84 @@ def midpointsToIntersections(a_m, border_size, smoothing_factor=0.4):
     from scipy import interpolate 
     from scipy.ndimage.filters import gaussian_filter
     
+    vmax = a_m.max()
+    vmin = a_m.min()
+    
     # Coordinates to midpoints
     x_m = np.mgrid[0:a_m.shape[1]] + 0.5
     y_m = np.mgrid[0:a_m.shape[0]] + 0.5
+    x_m, y_m = np.meshgrid(x_m, y_m)
+    #x_m = x_m[~a_m.mask]
+    #y_m = y_m[~a_m.mask]
+    #X = np.vstack((x_m, y_m)).T
+    X = np.vstack((x_m.flatten(), y_m.flatten())).T
+        
+    
+    # Create interpolating function 
+    a_m_filled = a_m.data.copy()#fillMaskedValues(a_m, 20).filled(0)
+        
+    #a_i1f = interpolate.LinearNDInterpolator(X, a_m[~a_m.mask], fill_value=0)
+    a_i1f = interpolate.LinearNDInterpolator(X, a_m_filled.flatten())
     
     # Coordinates to intersections
     x_i = np.mgrid[1:a_m.shape[1]]
     y_i = np.mgrid[1:a_m.shape[0]]
+    x_i, y_i = np.meshgrid(x_i, y_i)
     
-    # Create interpolating function and create first guess
-    a_i1f = interpolate.interp2d(x_m, y_m, a_m, kind='cubic')
+    #Interpolate to create first guess
     a_i1 = a_i1f(x_i, y_i)
+    a_i1_orig = a_i1.copy()
+    
+    #return np.ma.array(a_i1.data)
+    
+    #Create mask (constant values)
+    a_i1_mask = np.zeros_like(a_i1, dtype=np.bool)
+    
+    #Set masked values of midpoints
+    a_i1_mask += a_m.mask[:-1, :-1]
+    a_i1_mask += a_m.mask[:-1, 1:]
+    a_i1_mask += a_m.mask[1:, :-1]
+    a_i1_mask += a_m.mask[1:, 1:]
 
     # Iteratively refine intersections estimate
-    for i in range(border_size):
-        delta = a_m[1:-1,1:-1] - intersectionsToMidpoints(a_i1)
-        smooth_delta = gaussian_filter(delta, max(1, border_size-i-1))
-        delta = (1.0-smoothing_factor)*delta + smoothing_factor*smooth_delta
+    #Use kind of a heat equation explisit solver with a source term from the error
+    gauss_sigma = 1
+    for i in range(iterations):
+        delta = a_m_filled[1:-1,1:-1] - intersectionsToMidpoints(a_i1)
+        delta[a_m.mask[1:-1, 1:-1]] = 0
         
+        
+        if (i%100 == 0):
+            print(i, np.max(np.abs(delta)), np.mean(np.abs(delta)))
+        
+        t = 0.7#smoothing_factor# * min(1.0, 1-i/iterations)
+        smooth_delta = gaussian_filter(delta, gauss_sigma)
+        delta = (1.0-t)*delta + t*smooth_delta
+        
+        delta = 0.1 * delta #scale source term
+        
+        if (i % 2 == 0):
+            delta[::2, ::2] = 0
+            delta[1::2, 1::2] = 0
+        else:
+            delta[::2, 1::2] = 0
+            delta[1::2, ::2] = 0
+        
+        #Distribute the delta to the four corners of each cell
         a_i1[:-1, :-1] += delta*0.25
-        a_i1[1:, :-1] += delta*0.25
+        a_i1[:-1, 1:] += delta*0.25
         a_i1[1:, 1:] += delta*0.25
-        a_i1[:-1, 1:] += delta*0.25 
+        a_i1[1:, :-1] += delta*0.25
         
-    return a_i1[border_size-1:-border_size+1,border_size-1:-border_size+1]
+        #Reset the fixed values"
+        a_i1[a_i1_mask] = a_i1_orig[a_i1_mask]
+        
+        #Clip out of bounds values
+        a_i1 = np.clip(a_i1, vmin, vmax)
+                
+    a_i1 = np.ma.array(a_i1, mask=a_i1_mask, fill_value=a_m.fill_value);
+
+    return a_i1
     
     
 def calcCoriolisParams(lat):

@@ -29,6 +29,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define FLT_MAX 100000.0f
 
+//WARNING: Must match CDKLM16_kernel.cu and initBm_kernel.cu
+//WARNING: This is error prone - as comparison with floating point numbers is not accurate
+#define CDKLM_DRY_FLAG 1.0e-30f
+#define CDKLM_DRY_EPS 1.0e-10f
+
+
 extern "C" {
 /*
  * Find the maximum dt allowed within each block based on the current ocean state.
@@ -41,6 +47,7 @@ __global__ void per_block_max_dt(
         float* hu_ptr_,  const int hu_pitch_,
         float* hv_ptr_,  const int hv_pitch_,
         float* Hm_ptr_,  const int Hm_pitch_,
+        float land_value_,
         float* dt_ptr_,  const int dt_pitch_)
 {
     
@@ -68,9 +75,11 @@ __global__ void per_block_max_dt(
         float* const Hm_row  = (float*) ((char*) Hm_ptr_  +  Hm_pitch_*tj);
         
         float const eta = eta_row[ti];
-        float const h   = eta + Hm_row[ti];
+        const float H = Hm_row[ti];
+        float const h   = eta + H;
         
-        if (h <= 0.0) {
+        //Ignore cells which are dry or masked as land
+        if (h <= 0.0 || fabsf(H - land_value_) < CDKLM_DRY_EPS) {
             shared_dt[ty][tx] = FLT_MAX;
         }
         else {

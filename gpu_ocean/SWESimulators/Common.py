@@ -1145,6 +1145,13 @@ class Bathymetry:
         self.halo_nx = np.int32(nx + 2*halo_x)
         self.halo_ny = np.int32(ny + 2*halo_y)
         self.boundary_conditions = boundary_conditions
+        
+        # Set land value (if masked array)
+        if (np.ma.is_masked(Bi_host)):
+            self.land_value = np.float32(1.0e20)
+            Bi_host = Bi_host.copy().filled(self.land_value).astype(np.float32)
+        else:
+            self.land_value = np.float32(np.nan)
              
         # Check that Bi has the size corresponding to number of cell intersections
         BiShapeY, BiShapeX = Bi_host.shape
@@ -1187,7 +1194,7 @@ class Bathymetry:
 
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.initBm = self.initBm_kernel.get_function("initBm")
-        self.initBm.prepare("iiPiPi")
+        self.initBm.prepare("iiPifPi")
         self.waterElevationToDepth = self.initBm_kernel.get_function("waterElevationToDepth")
         self.waterElevationToDepth.prepare("iiPiPi")
 
@@ -1195,6 +1202,7 @@ class Bathymetry:
         self.initBm.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                                    self.halo_nx, self.halo_ny, \
                                    self.Bi.data.gpudata, self.Bi.pitch, \
+                                   self.land_value, \
                                    self.Bm.data.gpudata, self.Bm.pitch)
 
                  
@@ -1202,6 +1210,11 @@ class Bathymetry:
         Bm_cpu = self.Bm.download(gpu_stream)
         Bi_cpu = self.Bi.download(gpu_stream)
 
+        #Mask land values in output
+        if (not np.isnan(self.land_value)):
+            Bi_cpu = np.ma.array(data=Bi_cpu, mask=(Bi_cpu == self.land_value), fill_value=0.0)
+            Bm_cpu = np.ma.array(data=Bm_cpu, mask=(Bm_cpu == self.land_value), fill_value=0.0)
+            
         return Bi_cpu, Bm_cpu
 
     def release(self):
