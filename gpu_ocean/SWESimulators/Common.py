@@ -1147,11 +1147,11 @@ class Bathymetry:
         self.boundary_conditions = boundary_conditions
         
         # Set land value (if masked array)
+        self.mask_value = np.float32(1.0e20)
+        self.use_mask = False
         if (np.ma.is_masked(Bi_host)):
-            self.land_value = np.float32(1.0e20)
-            Bi_host = Bi_host.copy().filled(self.land_value).astype(np.float32)
-        else:
-            self.land_value = np.float32(np.nan)
+            Bi_host = Bi_host.copy().filled(self.mask_value).astype(np.float32)
+            self.use_mask = True
              
         # Check that Bi has the size corresponding to number of cell intersections
         BiShapeY, BiShapeX = Bi_host.shape
@@ -1202,7 +1202,7 @@ class Bathymetry:
         self.initBm.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                                    self.halo_nx, self.halo_ny, \
                                    self.Bi.data.gpudata, self.Bi.pitch, \
-                                   self.land_value, \
+                                   self.mask_value, \
                                    self.Bm.data.gpudata, self.Bm.pitch)
 
                  
@@ -1211,9 +1211,9 @@ class Bathymetry:
         Bi_cpu = self.Bi.download(gpu_stream)
 
         #Mask land values in output
-        if (not np.isnan(self.land_value)):
-            Bi_cpu = np.ma.array(data=Bi_cpu, mask=(Bi_cpu == self.land_value), fill_value=0.0)
-            Bm_cpu = np.ma.array(data=Bm_cpu, mask=(Bm_cpu == self.land_value), fill_value=0.0)
+        if (self.use_mask):
+            Bi_cpu = np.ma.array(data=Bi_cpu, mask=(Bi_cpu == self.mask_value), fill_value=0.0)
+            Bm_cpu = np.ma.array(data=Bm_cpu, mask=(Bm_cpu == self.mask_value), fill_value=0.0)
             
         return Bi_cpu, Bm_cpu
 

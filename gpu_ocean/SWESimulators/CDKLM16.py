@@ -54,7 +54,6 @@ class CDKLM16(Simulator.Simulator):
                  t=0.0, \
                  theta=1.3, rk_order=2, \
                  coriolis_beta=0.0, \
-                 y_zero_reference_cell = None, \
                  max_wind_direction_perturbation = 0, \
                  wind_stress=WindStress.WindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
@@ -92,7 +91,6 @@ class CDKLM16(Simulator.Simulator):
         theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
         rk_order: Order of Runge Kutta method {1,2*,3}
         coriolis_beta: Coriolis linear factor -> f = f + beta*(y-y_0)
-        y_zero_reference_cell: [DEPRECATED] The cell representing y_0 in the above, defined as the lower face of the cell .
         max_wind_direction_perturbation: Large-scale model error emulation by per-time-step perturbation of wind direction by +/- max_wind_direction_perturbation (degrees)
         wind_stress: Wind stress parameters
         boundary_conditions: Boundary condition object
@@ -119,14 +117,26 @@ class CDKLM16(Simulator.Simulator):
         # boundary conditions
         ghost_cells_x = 2
         ghost_cells_y = 2
-        assert(y_zero_reference_cell is None), "y_zero_reference_cell is deprecated. Please provide f0 and beta so that f0 corresponds to cell eta[0,0]" 
-        y_zero_reference_cell = 0 # In order to pass it to the super constructor
+        
+        #Coriolis at "first" cell
+        x_zero_reference_cell = ghost_cells_x
+        y_zero_reference_cell = ghost_cells_y # In order to pass it to the super constructor
         
         # Boundary conditions
         self.boundary_conditions = boundary_conditions
         if (boundary_conditions.isSponge()):
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*ghost_cells_x
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*ghost_cells_y
+            
+            x_zero_reference_cell += boundary_conditions.spongeCells[3]
+            y_zero_reference_cell += boundary_conditions.spongeCells[2]
+
+        #Compensate f for reference cell (first cell in internal of domain)
+        north = np.array([np.sin(angle[0,0]), np.cos(angle[0,0])])
+        f = f - coriolis_beta * (x_zero_reference_cell*dx*north[0] + y_zero_reference_cell*dy*north[1])
+        
+        x_zero_reference_cell = 0
+        y_zero_reference_cell = 0
         
         A = None
         self.max_wind_direction_perturbation = max_wind_direction_perturbation
@@ -152,7 +162,6 @@ class CDKLM16(Simulator.Simulator):
         #     self.interior_domain_indices[3]:self.interior_domain_indices[1] ]
         self.interior_domain_indices = np.array([-2,-2,2,2])
         self._set_interior_domain_from_sponge_cells()
-        
         
         defines={'block_width': block_width, 'block_height': block_height,
                    'KPSIMULATOR_FLUX_SLOPE_EPS': str(flux_slope_eps)+'f',
@@ -390,13 +399,17 @@ class CDKLM16(Simulator.Simulator):
         apply_stochastic_term: Boolean value for whether the stochastic
             perturbation (if any) should be applied.
         """
+        
+            
 
         if self.t == 0:
             self.bc_kernel.update_bc_values(self.gpu_stream, self.t)
             self.bc_kernel.boundaryCondition(self.gpu_stream, \
                                              self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
-        t_now = np.float64(0.0)
+        
+        t_now = 0.0
         while (t_now < t_end):
+        #for i in range(0, n):
             # Get new random wind direction (emulationg large-scale model error)
             if(self.max_wind_direction_perturbation > 0.0 and self.wind_stress.type() == 1):
                 # max perturbation +/- max_wind_direction_perturbation deg within original wind direction (at t=0)
@@ -411,10 +424,7 @@ class CDKLM16(Simulator.Simulator):
             # Calculate dt if using automatic dt
             if (self.dt <= 0 or update_dt):
                 self.updateDt()
-            local_dt = np.float32(min(self.dt, t_end-t_now))
-            
-            if (local_dt <= 0.0):
-                break
+            local_dt = np.float32(min(self.dt, np.float32(t_end - t_now)))
             
             wind_stress_t = np.float32(self.update_wind_stress(self.kernel, self.cdklm_swe_2D))
             self.bc_kernel.update_bc_values(self.gpu_stream, self.t)
@@ -486,11 +496,9 @@ class CDKLM16(Simulator.Simulator):
                                     self.nx, self.ny, self.dx, self.dy, \
                                     local_dt, \
                                     np.int32(2), np.int32(2))
-                                    
-            t_now = t_now + np.float64(local_dt)
+            self.t += np.float64(local_dt)
+            t_now += np.float64(local_dt)
             self.num_iterations += 1
-            
-        self.t += np.float64(t_end)
             
         if self.write_netcdf and write_now:
             self.sim_writer.writeTimestep(self)
@@ -529,7 +537,7 @@ class CDKLM16(Simulator.Simulator):
                            hv_out.data.gpudata, hv_out.pitch, \
                            self.bathymetry.Bi.data.gpudata, self.bathymetry.Bi.pitch, \
                            self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
-                           self.bathymetry.land_value,
+                           self.bathymetry.mask_value,
                            wind_stress_t, \
                            boundary_conditions)
             
@@ -619,7 +627,7 @@ class CDKLM16(Simulator.Simulator):
                    self.gpu_data.hu0.data.gpudata, self.gpu_data.hu0.pitch, \
                    self.gpu_data.hv0.data.gpudata, self.gpu_data.hv0.pitch, \
                    self.bathymetry.Bm.data.gpudata, self.bathymetry.Bm.pitch, \
-                   self.bathymetry.land_value, \
+                   self.bathymetry.mask_value, \
                    self.device_dt.data.gpudata, self.device_dt.pitch)
     
         self.max_dt_reduction_kernel.prepared_async_call((1,1),

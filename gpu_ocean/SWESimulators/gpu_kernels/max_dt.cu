@@ -32,7 +32,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //WARNING: Must match CDKLM16_kernel.cu and initBm_kernel.cu
 //WARNING: This is error prone - as comparison with floating point numbers is not accurate
 #define CDKLM_DRY_FLAG 1.0e-30f
-#define CDKLM_DRY_EPS 1.0e-10f
+#define CDKLM_DRY_EPS 1.0e-3f
 
 
 extern "C" {
@@ -50,6 +50,7 @@ __global__ void per_block_max_dt(
         float land_value_,
         float* dt_ptr_,  const int dt_pitch_)
 {
+    //const float land_value_ = 1.0e20;
     
     // Block ID for output
     const int block_id_x = blockIdx.x;

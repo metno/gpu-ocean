@@ -96,15 +96,29 @@ def midpointsToIntersections(a_m, iterations, smoothing_factor=0.3):
     a_m_filled = a_m.data.copy()#fillMaskedValues(a_m, 20).filled(0)
         
     #a_i1f = interpolate.LinearNDInterpolator(X, a_m[~a_m.mask], fill_value=0)
-    a_i1f = interpolate.LinearNDInterpolator(X, a_m_filled.flatten())
+    #a_i1f = interpolate.LinearNDInterpolator(X, a_m_filled.flatten())
     
     # Coordinates to intersections
-    x_i = np.mgrid[1:a_m.shape[1]]
-    y_i = np.mgrid[1:a_m.shape[0]]
-    x_i, y_i = np.meshgrid(x_i, y_i)
+    #x_i = np.mgrid[1:a_m.shape[1]]
+    #y_i = np.mgrid[1:a_m.shape[0]]
+    #x_i, y_i = np.meshgrid(x_i, y_i)
     
     #Interpolate to create first guess
-    a_i1 = a_i1f(x_i, y_i)
+    #a_i1 = a_i1f(x_i, y_i)
+    
+    dx = minmodX(a_m_filled)
+    dy = minmodY(a_m_filled)
+    
+    # d - c
+    # |   |
+    # a - b
+    a_a = a_m_filled - 0.5*dx - 0.5*dy
+    a_b = a_m_filled + 0.5*dx - 0.5*dy
+    a_c = a_m_filled + 0.5*dx + 0.5*dy
+    a_d = a_m_filled - 0.5*dx + 0.5*dy
+    
+    a_i1 = 0.25 * (a_a[1:, 1:] + a_b[:-1, 1:] + a_c[:-1, :-1] + a_d[1:, :-1])
+    
     a_i1_orig = a_i1.copy()
     
     #return np.ma.array(a_i1.data)
@@ -129,11 +143,11 @@ def midpointsToIntersections(a_m, iterations, smoothing_factor=0.3):
         if (i%100 == 0):
             print(i, np.max(np.abs(delta)), np.mean(np.abs(delta)))
         
-        t = 0.7#smoothing_factor# * min(1.0, 1-i/iterations)
+        t = 0.3#smoothing_factor# * min(1.0, 1-i/iterations)
         smooth_delta = gaussian_filter(delta, gauss_sigma)
         delta = (1.0-t)*delta + t*smooth_delta
         
-        delta = 0.1 * delta #scale source term
+        delta = 1.0 * delta #scale source term
         
         if (i % 2 == 0):
             delta[::2, ::2] = 0

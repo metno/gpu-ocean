@@ -31,7 +31,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //WARNING: Must match max_dt.cu and initBm_kernel.cu
 //WARNING: This is error prone - as comparison with floating point numbers is not accurate
 #define CDKLM_DRY_FLAG 1.0e-30f
-#define CDKLM_DRY_EPS 1.0e-10f
+#define CDKLM_DRY_EPS 1.0e-3f
 
 
 
@@ -67,7 +67,7 @@ __device__ float3 CDKLM16_flux(float3 Qm, float3 Qp, const float g) {
     if (Qp.x > KPSIMULATOR_DEPTH_CUTOFF) {
         Fp = CDKLM16_F_func(Qp, g);
         up = Qp.y;         // u
-        cp = sqrt(g*Qp.x); // sqrt(g*h)
+        cp = sqrtf(g*Qp.x); // sqrt(g*h)
     }
 
     // Contribution from plus cell
@@ -78,7 +78,7 @@ __device__ float3 CDKLM16_flux(float3 Qm, float3 Qp, const float g) {
     if (Qm.x > KPSIMULATOR_DEPTH_CUTOFF) {
         Fm = CDKLM16_F_func(Qm, g);
         um = Qm.y;         // u
-        cm = sqrt(g*Qm.x); // sqrt(g*h)
+        cm = sqrtf(g*Qm.x); // sqrt(g*h)
     }
     
     const float am = min(min(um-cm, up-cp), 0.0f); // largest negative wave speed
@@ -439,6 +439,8 @@ __global__ void cdklm_swe_2D(
         // Boundary conditions (1: wall, 2: periodic, 3: open boundary (flow relaxation scheme))
         // Note: these are packed north, east, south, west boolean bits into an int
         const int boundary_conditions_) {
+            
+    //const float land_value_ = 1.0e20;
 
 
     //Index of thread within block
@@ -601,15 +603,16 @@ __global__ void cdklm_swe_2D(
             else if (h < KPSIMULATOR_FLUX_SLOPE_EPS) {
                 
                 if (h <= KPSIMULATOR_DEPTH_CUTOFF) {
-                    //R[0][j][i] = -local_Hm;
+                    R[0][j][i] = -local_Hm + KPSIMULATOR_DEPTH_CUTOFF;
                     R[1][j][i] = 0.0f;
                     R[2][j][i] = 0.0f;
                 }
                 else {                
                     // Desingularizing u and v
                     float h4 = h*h; h4 *= h4;
-                    R[1][j][i] = SQRT_OF_TWO*h*R[1][j][i]/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
-                    R[2][j][i] = SQRT_OF_TWO*h*R[2][j][i]/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                    //R[0][j][i] = h - local_Hm;
+                    R[1][j][i] = SQRT_OF_TWO*h*R[1][j][i]/sqrtf(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                    R[2][j][i] = SQRT_OF_TWO*h*R[2][j][i]/sqrtf(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
                 }
             }
             // Wet cells
@@ -627,7 +630,7 @@ __global__ void cdklm_swe_2D(
     //Skip local ghost cells, i.e., +2
     float hu = 0.0f;
     float hv = 0.0f;
-    if ( R[0][ty + 2][tx + 2] + Hm > KPSIMULATOR_DEPTH_CUTOFF) {
+    if ((R[0][ty + 2][tx + 2] + Hm) > KPSIMULATOR_DEPTH_CUTOFF) {
         hu = R[1][ty + 2][tx + 2]*(R[0][ty + 2][tx + 2] + Hm);
         hv = R[2][ty + 2][tx + 2]*(R[0][ty + 2][tx + 2] + Hm);
     }
@@ -851,8 +854,8 @@ __global__ void cdklm_swe_2D(
                 
                 float h4 = h*h; h4 *= h4;
                 if (h4 < KPSIMULATOR_FLUX_SLOPE_EPS) {
-                    H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
-                    H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                    H_x = SQRT_OF_TWO*h*h*H_x/sqrtf(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                    H_y = SQRT_OF_TWO*h*h*H_y/sqrtf(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
                 }
                 
                 const float eta_sn = 0.5f*(eta_north + eta_south);

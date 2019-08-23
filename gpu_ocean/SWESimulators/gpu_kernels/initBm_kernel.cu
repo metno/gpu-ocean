@@ -26,7 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //WARNING: Must match CDKLM16_kernel.cu and max_dt.cu
 //WARNING: This is error prone - as comparison with floating point numbers is not accurate
 #define CDKLM_DRY_FLAG 1.0e-30f
-#define CDKLM_DRY_EPS 1.0e-10f
+#define CDKLM_DRY_EPS 1.0e-3f
 
 /**
  * Initializing bottom bathymetry on cell mid-points (Bm) based on 
@@ -39,6 +39,9 @@ __global__ void initBm(const int nx_, const int ny_,
         float* Bi_ptr_, int Bi_pitch_,
         float land_value_,
         float* Bm_ptr_, int Bm_pitch_) {
+            
+           
+    //const float land_value_ = 1.0e20;
 
     //Index of thread within block
     const int tx = threadIdx.x;
