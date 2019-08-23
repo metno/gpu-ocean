@@ -27,6 +27,7 @@ import os
 
 import numpy as np
 import time
+import sys
 import re
 import io
 import hashlib
@@ -44,10 +45,12 @@ from SWESimulators import WindStress
 
 
 
-"""
-Class which keeps track of time spent for a section of code
-"""
+
+
 class Timer(object):
+    """
+    Class which keeps track of time spent for a section of code
+    """
     def __init__(self, tag, log_level=logging.DEBUG):
         self.tag = tag
         self.log_level = log_level
@@ -64,9 +67,78 @@ class Timer(object):
         self.logger.log(self.log_level, "%s: %f ms", self.tag, self.msecs)
         
     def elapsed(self):
-        return time.time() - self.start()
+        return time.time() - self.start
             
+        
+        
+        
+class ProgressPrinter(object):
+    """
+    Small helper class for 
+    """
+    def __init__(self, print_every=5):
+        self.logger = logging.getLogger(__name__)
+        self.start = time.time()
+        self.print_every = print_every
+        self.next_print_time = print_every
+        self.print_string = ProgressPrinter.formatString(0, 0, 0)
+        self.last_x = 0
+        self.secs_per_iter = None
+        
+    def __enter__(self):
+        return self
+        
+    def __exit__(self, *args):
+        pass
+        
+    def getPrintString(self, x):
+        elapsed =  time.time() - self.start
+        
+        if (elapsed >= self.next_print_time or x == 1.0):
+            dt = elapsed - (self.next_print_time - self.print_every)
+            dx = x - self.last_x
+                        
+            if (dt <= 0):
+                return
+                
+            self.last_x = x
+            self.next_print_time = max(elapsed, self.next_print_time + self.print_every)
             
+            # A kind of floating average
+            if not self.secs_per_iter:
+                self.secs_per_iter = dt / dx
+            self.secs_per_iter = 0.2*self.secs_per_iter + 0.8*(dt / dx)
+            
+            remaining_time = (1-x) * self.secs_per_iter
+            
+            self.print_string = ProgressPrinter.formatString(x, elapsed, remaining_time)
+            
+        return self.print_string
+            
+
+    def formatString(t, elapsed, remaining_time):
+        return "{:s}. Total: {:s}, elapsed: {:s}, remaining: {:s}".format(
+            ProgressPrinter.progressBar(t), 
+            ProgressPrinter.timeString(elapsed + remaining_time), 
+            ProgressPrinter.timeString(elapsed), 
+            ProgressPrinter.timeString(remaining_time))
+                
+
+    def timeString(seconds):
+        seconds = int(max(seconds, 0))
+        minutes, seconds = divmod(seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        periods = [('h', hours), ('m', minutes), ('s', seconds + sys.float_info.epsilon)]
+        time_string = ' '.join('{:d}{:s}'.format(int(value), name)
+                                for name, value in periods
+                                if value)
+        return time_string
+
+    def progressBar(t, width=30):
+        progress = int(round(width * t))
+        progressbar = "0% [" + "#"*(progress) + "="*(width-progress) + "] 100%"
+        return progressbar
+
             
 
 def deprecated(func):
@@ -693,7 +765,9 @@ class BoundaryConditions:
     
     
 class SingleBoundaryConditionData():
-    
+    """
+    This class holds the external solution for a single boundary over time.
+    """
     def __init__(self, h=None, hu=None, hv=None):
         self.h = [np.zeros((1,1), dtype=np.float32, order='C')]
         self.hu = [np.zeros((1,1), dtype=np.float32, order='C')]
@@ -721,6 +795,9 @@ class SingleBoundaryConditionData():
         return str(self.numSteps) + " steps, each " + str(self.shape)
     
 class BoundaryConditionsData():
+    """
+    This class holds external solution for all boundaries over time.
+    """
     
     def __init__(self, 
                     t=None, \
@@ -808,7 +885,7 @@ class BoundaryConditionsArakawaA:
 
         
     """
-    Function which updates the boundary condition values
+    Function which updates the external solution for the boundary conditions
     """
     def update_bc_values(self, gpu_stream, t):
         #Only if we use flow relaxation
