@@ -26,7 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import argparse
 parser = argparse.ArgumentParser(description='Find ideal block sizes for a given simulator/scheme.')
-parser.add_argument('--simulator', type=str)
+parser.add_argument('--simulator', type=str, required=True)
 args = parser.parse_args()
 
 import re
@@ -48,6 +48,12 @@ sys.path.insert(0, os.path.abspath(current_dir))
 
 main_log_filename='power_consumptions.log'
 shell = False
+
+smi_loop_ms = 50
+smi_entries_per_sec = round(1000/smi_loop_ms) # Number of smi log entries per second
+sleep_duration_sec = 3
+num_entries_to_ignore = smi_entries_per_sec*sleep_duration_sec 
+
 
 def runBenchmark(folder_name, simulator):
     #sim = np.array(["FBL", "CTCS", "KP", "CDKLM"])
@@ -87,7 +93,7 @@ def runBenchmark(folder_name, simulator):
                     
                     with TemporaryFile() as tmpfile:
                         # Start nvidia-smi to file f
-                        smi_report_filename = 'nvidia_smi_w'+str(block_width[i,j])+'_h'+str(block_height[i,j])+'.log'
+                        smi_report_filename = 'nvidia_smi_'+sim[k]+'_w'+str(block_width[i,j])+'_h'+str(block_height[i,j])+'.log'
                         smi_report_file = os.path.join(folder_name, smi_report_filename)
 
                         smi_cmd = [
@@ -102,7 +108,7 @@ def runBenchmark(folder_name, simulator):
                                         'clocks.current.graphics,'+\
                                         'clocks.current.memory',
                             '--format=csv',
-                            '--loop-ms=500',
+                            '--loop-ms='+str(smi_loop_ms),
                             '--filename='+str(smi_report_file)
                         ]
                         print('nvidia_smi_file='+str(smi_report_file))
@@ -114,7 +120,7 @@ def runBenchmark(folder_name, simulator):
 
 
                         # Sleep 3 sec
-                        time.sleep(3)
+                        time.sleep(sleep_duration_sec)
 
                         # Run benchmark
                         print('starting benchmark... ')
@@ -139,7 +145,7 @@ def runBenchmark(folder_name, simulator):
                         toc = time.time()
 
                         # Sleep 3 sec
-                        time.sleep(3)
+                        time.sleep(sleep_duration_sec)
 
                         # Kill nvidia-smi process.
                         smi_process.terminate()
@@ -207,13 +213,13 @@ def getData(filename):
                 min_temperature = smi_log['temperature.gpu'].min()
 
                 # temperature*seconds
-                all_sum_temperature = smi_log['temperature.gpu'].sum()*0.5
+                all_sum_temperature = smi_log['temperature.gpu'].sum()*smi_loop_ms/1000.0
 
                 # Drop first and last three seconds (0.5 sec loggin)
                 # This compensates for the sleep commands above.
-                smi_log.drop(smi_log.tail(6).index,inplace=True)
-                smi_log.drop(smi_log.tail(6).index,inplace=True)
-                cumsum_temperature = smi_log['temperature.gpu'].sum()*0.5
+                smi_log.drop(smi_log.tail(num_entries_to_ignore).index,inplace=True)
+                smi_log.drop(smi_log.tail(num_entries_to_ignore).index,inplace=True)
+                cumsum_temperature = smi_log['temperature.gpu'].sum()*smi_loop_ms/1000.0
                 
                 #print('max/min temperature: ', max_temperature, min_temperature)
                 #print('all_sum_temperature: ', all_sum_temperature)

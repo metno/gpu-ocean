@@ -40,6 +40,12 @@ import json
 
 
 
+    
+smi_loop_ms = 50
+smi_entries_per_sec = round(1000/smi_loop_ms) # Number of smi log entries per second
+sleep_duration_sec = 3
+num_entries_to_ignore = smi_entries_per_sec*sleep_duration_sec 
+
 
 
 
@@ -92,7 +98,7 @@ def monitor_benchmark(benchmark_cmd, smi_report_file, **kwargs):
                         'clocks.current.graphics,'+\
                         'clocks.current.memory',
             '--format=csv',
-            '--loop-ms=500',
+            '--loop-ms='+str(smi_loop_ms),
             '--filename='+str(smi_report_file)
         ]
         logger.debug("=========================================\n")
@@ -106,13 +112,13 @@ def monitor_benchmark(benchmark_cmd, smi_report_file, **kwargs):
 
 
         # Sleep 3 sec
-        time.sleep(3)
+        time.sleep(sleep_duration_sec)
 
         # Run benchmark
         stdout = safe_call(benchmark_cmd, **kwargs)
         
         # Sleep 3 sec
-        time.sleep(3)
+        time.sleep(sleep_duration_sec)
 
         # Kill nvidia-smi process.
         smi_process.terminate()
@@ -154,15 +160,16 @@ def read_smi_file(smi_log_file):
     smi_log = smi_log.replace(' [Not Supported]', np.NaN)
     
     # Helper function for parcing percent values
-    def parse_percent(df, key):
+    def parse_value(df, key, unit):
         if not pd.isnull(df[key].iloc[0]):
             #print('fixing ' + key)
             df[key] = df[key].str.replace(' ','')
-            df[key] = df[key].str.replace('%', '')
+            df[key] = df[key].str.replace(unit, '')
             df[key] = pd.to_numeric(smi_log[key])
             
-    parse_percent(smi_log, utilization_key)
-    parse_percent(smi_log, fan_key)
+    parse_value(smi_log, utilization_key, '%')
+    parse_value(smi_log, fan_key, '%')
+    parse_value(smi_log, power_key, 'W')
     
     # Find min and max 
     max_temperature = smi_log[temp_key].max()
@@ -173,15 +180,16 @@ def read_smi_file(smi_log_file):
     max_utilization = smi_log[utilization_key].max()
     
     # temperature*seconds
-    all_sum_temperature = smi_log[temp_key].sum()*0.5
+    all_sum_temperature = smi_log[temp_key].sum()*smi_loop_ms/1000
 
-    # Drop first and last three seconds (0.5 sec loggin)
+    # Drop first and last columns according to sleep time and log frequency
     # This compensates for the sleep commands above.
-    smi_log.drop(smi_log.head(6).index,inplace=True)
-    smi_log.drop(smi_log.tail(6).index,inplace=True)
+    smi_log.drop(smi_log.head(num_entries_to_ignore).index,inplace=True)
+    smi_log.drop(smi_log.tail(num_entries_to_ignore).index,inplace=True)
     
-    cumsum_temperature = smi_log[temp_key].sum()*0.5
-    total_power = smi_log[power_key].sum()*0.5
+    cumsum_temperature = smi_log[temp_key].sum()*smi_loop_ms/1000
+    
+    total_power = smi_log[power_key].sum()*smi_loop_ms/1000
     if np.isnan(max_power_draw) and np.isnan(min_power_draw):
         total_power = np.NaN
     mean_power = smi_log[power_key].mean()
@@ -217,7 +225,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../')))
 logger.info("Added " + current_dir + " to path")
 
 
-
 #Parse arguments
 import argparse
 parser = argparse.ArgumentParser(description='Benchmark a simulator across git commits.')
@@ -240,6 +247,11 @@ current_time = time.strftime("%Y_%m_%d-%H_%M_%S")
 smi_report_folder = os.path.join(current_dir, basename+'_nvidia-smi-reports')
 if not os.path.isdir(smi_report_folder):
     os.mkdir(smi_report_folder)
+
+
+logger.info('nvidia-smi will log every ' + str(smi_loop_ms) + ' ms, meaning ' + str(smi_entries_per_sec) + ' log entries per second')
+logger.info('Nvidia-smi will run ' + str(sleep_duration_sec) + ' sec(s) before and after the benchmark run.')
+logger.info('We will therefore drop the ' + str(num_entries_to_ignore) + ' first and last log entries before analysis.')
 
 
 
