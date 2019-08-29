@@ -125,6 +125,11 @@ show_list = args.list
 
 
 chosen_index = args.index
+
+# Make index -1 refer to the last entry in the list.
+if chosen_index < 0:
+    chosen_index = df['git_commit'].size + chosen_index
+
 if chosen_index < 0 or chosen_index > df['git_commit'].size-1:
     print('\n!!! Error')
     print('Index '+str(chosen_index)+' out of range. Select from the below commits.')
@@ -216,32 +221,39 @@ for index, row in df.iterrows():
     # Cleaning git folder so that it can be deleted
     #stdout = git(git_clone, ["-n", ])
         
+    logger.debug('Finished executing:')
+    logger.debug(row[['git_commit', 'label']])
+
 logger.debug('Executed in [seconds]: ')
 logger.debug(time.time()-start_time)
 logger.debug("*************** benchmarking finished **********************")
 
-exit()
 
 
 
 
 #Save results to file
-megacells = np.full((len(df.index)), np.nan)
-
-for index, row in df.iterrows():
-    filename = os.path.join(tmpdir, "benchmark_" + row['git_commit'] + ".npz")
-    with np.load(filename) as version_data:
-        megacells[index] = version_data['megacells']
-
-current_time = time.strftime("%Y_%m_%d-%H_%M_%S")
-basename = args.outfile_basename
-if (basename == None):
-    basename = os.path.splitext(os.path.basename(args.csv_file))[0]
-outfile = os.path.join(os.getcwd(), basename + "_" + current_time + ".npz")
-logger.debug("Writing results to " + outfile)
+#megacells = np.full((len(df.index)), np.nan)
+#
+#for index, row in df.iterrows():
+#    filename = os.path.join(tmpdir, "benchmark_" + row['git_commit'] + ".npz")
+#    with np.load(filename) as version_data:
+#        megacells[index] = version_data['megacells']
+#
+#current_time = time.strftime("%Y_%m_%d-%H_%M_%S")
+#basename = args.outfile_basename
+#if (basename == None):
+#    basename = os.path.splitext(os.path.basename(args.csv_file))[0]
+#outfile = os.path.join(os.getcwd(), basename + "_" + current_time + ".npz")
+#logger.debug("Writing results to " + outfile)
 #np.savez(outfile, versions=df['git_commit'], labels=df['label'], megacells=megacells, args=json.dumps(vars(args)), timestamp=current_time)
 
 
+if (os.name == 'nt'):
+    import winsound
+    duration=300
+    freq = 440
+    winsound.Beep(freq, duration)
 
 
 #Remove temporary directory
