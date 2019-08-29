@@ -251,10 +251,14 @@ logger.debug("*************** benchmarking finished **********************")
 
 if (os.name == 'nt'):
     import winsound
-    duration=300
+    duration=300 # ms
     freq = 440
     winsound.Beep(freq, duration)
-
+else:
+    duration = 0.2 # ms
+    freq = 440
+    os.system('play -nq -t alsa synth {} sine {}'.format(duration, freq))
+    
 
 #Remove temporary directory
 def remove_readonly(func, path, _):
