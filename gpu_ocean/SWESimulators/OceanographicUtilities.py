@@ -53,7 +53,7 @@ def intersectionsToMidpoints(a_i):
         valid = np.zeros(a_i.shape, dtype=np.int32)
         valid[~a_i.mask] = 1 
         valid = valid[:-1, :-1] + valid[:-1, 1:] + valid[1:, :-1] + valid[1:, 1:]
-        mask = valid==0
+        mask = valid<4
         
         #Set values for all elements
         masked_values = 0.25*(a_i.data[:-1, :-1] + a_i.data[:-1, 1:] + a_i.data[1:, :-1] + a_i.data[1:, 1:])
@@ -71,106 +71,123 @@ def intersectionsToMidpoints(a_i):
     return values
 
     
-def midpointsToIntersections(a_m, iterations, smoothing_factor=0.3):
+def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=False, dt=0.125):
     """
     Converts cell values at midpoints to cell values at midpoints using a cubic
     interpolating spline to generate first guess, followed by an iterative update. 
     """
     from scipy import interpolate 
-    from scipy.ndimage.filters import gaussian_filter
+    from scipy.ndimage.morphology import binary_dilation
+        
+        
+    def genIntersections(midpoints, use_minmod):
+        if (use_minmod):
+            dx = minmodX(midpoints.data)
+            dy = minmodY(midpoints.data)
+        else:
+            dx, dy = np.gradient(midpoints.data)
+        
+        #Set slope for masked cells to zero
+        dx[midpoints.mask] = 0.0
+        dy[midpoints.mask] = 0.0
+        
+        # d - c
+        # | X |
+        # a - b
+        # Evaluate the piecewise planar surface in the four corners of cell X
+        a_a = midpoints.data - 0.5*dx - 0.5*dy
+        a_b = midpoints.data + 0.5*dx - 0.5*dy
+        a_c = midpoints.data + 0.5*dx + 0.5*dy
+        a_d = midpoints.data - 0.5*dx + 0.5*dy
+        
+        
+        # Now take the average reconstructed value from the four cells which join
+        # in a single cell.
+        # d - c   d - c
+        # | X |   | X |
+        # a - b   a - b
+        #       Y   
+        # d - c   d - c
+        # | X |   | X |
+        # a - b   a - b
+        a_a = a_a[1:, 1:] * (1-midpoints.mask[1:, 1:])
+        a_b = a_b[:-1, 1:] * (1-midpoints.mask[:-1, 1:])
+        a_c = a_c[:-1, :-1] * (1-midpoints.mask[:-1, :-1])
+        a_d = a_d[1:, :-1] * (1-midpoints.mask[1:, :-1])
+        
+        # First count number of valid cells 
+        # for each intersection
+        count = 4 - (np.int32(midpoints.mask[1:, 1:]) \
+                + np.int32(midpoints.mask[:-1, 1:]) \
+                + np.int32(midpoints.mask[:-1, :-1]) \
+                + np.int32(midpoints.mask[1:, :-1]))
+
+        # Then set the average
+        values = midpoints.data[1:, 1:] + midpoints.data[:-1, 1:] + midpoints.data[:-1, :-1] + midpoints.data[1:, :-1]
+        values[count>0] = (a_a[count>0] + a_b[count>0] + a_c[count>0] + a_d[count>0]) / count[count>0]
+
+        #Create mask
+        mask = (count == 0)
+        
+        return np.ma.array(values, mask=mask, fill_value=midpoints.fill_value)
     
     vmax = a_m.max()
     vmin = a_m.min()
     
-    # Coordinates to midpoints
-    x_m = np.mgrid[0:a_m.shape[1]] + 0.5
-    y_m = np.mgrid[0:a_m.shape[0]] + 0.5
-    x_m, y_m = np.meshgrid(x_m, y_m)
-    #x_m = x_m[~a_m.mask]
-    #y_m = y_m[~a_m.mask]
-    #X = np.vstack((x_m, y_m)).T
-    X = np.vstack((x_m.flatten(), y_m.flatten())).T
-        
+    # Generate initial guess
+    a_i = genIntersections(a_m, use_minmod=use_minmod)
+    a_i = np.clip(a_i, vmin, vmax)
     
-    # Create interpolating function 
-    a_m_filled = a_m.data.copy()#fillMaskedValues(a_m, 20).filled(0)
-        
-    #a_i1f = interpolate.LinearNDInterpolator(X, a_m[~a_m.mask], fill_value=0)
-    #a_i1f = interpolate.LinearNDInterpolator(X, a_m_filled.flatten())
-    
-    # Coordinates to intersections
-    #x_i = np.mgrid[1:a_m.shape[1]]
-    #y_i = np.mgrid[1:a_m.shape[0]]
-    #x_i, y_i = np.meshgrid(x_i, y_i)
-    
-    #Interpolate to create first guess
-    #a_i1 = a_i1f(x_i, y_i)
-    
-    dx = minmodX(a_m_filled)
-    dy = minmodY(a_m_filled)
-    
-    # d - c
-    # |   |
-    # a - b
-    a_a = a_m_filled - 0.5*dx - 0.5*dy
-    a_b = a_m_filled + 0.5*dx - 0.5*dy
-    a_c = a_m_filled + 0.5*dx + 0.5*dy
-    a_d = a_m_filled - 0.5*dx + 0.5*dy
-    
-    a_i1 = 0.25 * (a_a[1:, 1:] + a_b[:-1, 1:] + a_c[:-1, :-1] + a_d[1:, :-1])
-    
-    a_i1_orig = a_i1.copy()
-    
-    #return np.ma.array(a_i1.data)
-    
-    #Create mask (constant values)
-    a_i1_mask = np.zeros_like(a_i1, dtype=np.bool)
-    
-    #Set masked values of midpoints
-    a_i1_mask += a_m.mask[:-1, :-1]
-    a_i1_mask += a_m.mask[:-1, 1:]
-    a_i1_mask += a_m.mask[1:, :-1]
-    a_i1_mask += a_m.mask[1:, 1:]
-
     # Iteratively refine intersections estimate
     #Use kind of a heat equation explisit solver with a source term from the error
     gauss_sigma = 1
-    for i in range(iterations):
-        delta = a_m_filled[1:-1,1:-1] - intersectionsToMidpoints(a_i1)
-        delta[a_m.mask[1:-1, 1:-1]] = 0
+    delta = np.zeros_like(a_m)
+    u_mask = binary_dilation(a_i.mask)
+    
+    convergence = []
+    for i in range(iterations):    
+        delta[1:-1,1:-1] = a_m.data[1:-1,1:-1] - intersectionsToMidpoints(a_i.data)
+        delta = np.ma.array(delta, mask=a_m.mask.copy())
         
+        l_1 = np.sum(np.abs(delta))
+        l_2 = np.sum(np.abs(delta**2))**(1/2)
+        l_inf = np.max(np.abs(delta))
+        convergence += [[l_1, l_2, l_inf]]
         
-        if (i%100 == 0):
-            print(i, np.max(np.abs(delta)), np.mean(np.abs(delta)))
-        
-        t = 0.3#smoothing_factor# * min(1.0, 1-i/iterations)
-        smooth_delta = gaussian_filter(delta, gauss_sigma)
-        delta = (1.0-t)*delta + t*smooth_delta
-        
-        delta = 1.0 * delta #scale source term
-        
-        if (i % 2 == 0):
-            delta[::2, ::2] = 0
-            delta[1::2, 1::2] = 0
+        if (i%2 == 0):
+            count = 4 - (np.int32(delta.mask[1:, 1:]) \
+                    + np.int32(delta.mask[:-1, 1:]) \
+                    + np.int32(delta.mask[:-1, :-1]) \
+                    + np.int32(delta.mask[1:, :-1]))
+            delta_sum = (delta[:-1, :-1] + delta[:-1, 1:] + delta[1:, 1:] + delta[1:, :-1])
+            delta_i = np.zeros(a_i.shape)
+            delta_i[count>2] = delta_sum[count>2] / count[count>2]
+            a_i[~u_mask] += dt*delta_i[~u_mask]
+            
+            # Heat equation
+            kappa = 1
+            dx = 1
+            dy = 1
+            u = a_i.data.copy()
+            
+            #rand = (np.random.random_sample(a_i.shape) - 0.5)*l_inf*1e-2
+            #u[~a_i.mask] += rand[~a_i.mask]
+            
+            u[1:-1, 1:-1] = u[1:-1, 1:-1] \
+                            + kappa*dt/(dx*dx)*(u[1:-1, :-2] - 2*u[1:-1, 1:-1] + u[1:-1, 2:]) \
+                            + kappa*dt/(dy*dy)*(u[:-2, 1:-1] - 2*u[1:-1, 1:-1] + u[2:, 1:-1])
+            a_i[~u_mask] = u[~u_mask]
         else:
-            delta[::2, 1::2] = 0
-            delta[1::2, ::2] = 0
-        
-        #Distribute the delta to the four corners of each cell
-        a_i1[:-1, :-1] += delta*0.25
-        a_i1[:-1, 1:] += delta*0.25
-        a_i1[1:, 1:] += delta*0.25
-        a_i1[1:, :-1] += delta*0.25
-        
-        #Reset the fixed values"
-        a_i1[a_i1_mask] = a_i1_orig[a_i1_mask]
-        
-        #Clip out of bounds values
-        a_i1 = np.clip(a_i1, vmin, vmax)
+            # Intersections fix 
+            a_i[~a_i.mask] = a_i[~a_i.mask] + genIntersections(delta, use_minmod=use_minmod)[~a_i.mask]
                 
-    a_i1 = np.ma.array(a_i1, mask=a_i1_mask, fill_value=a_m.fill_value);
+        a_i = np.clip(a_i, vmin, vmax)
+        
+        #Stop criteria
+        if (convergence[i][0] / convergence[0][0] < tolerance):
+            break        
 
-    return a_i1
+    return a_i, convergence
     
     
 def calcCoriolisParams(lat):
@@ -222,60 +239,76 @@ def rescaleMidpoints(data, nx1, ny1, **kwargs):
     ny0, nx0 = data.shape
     
     if (nx0 > nx1 and ny0 > ny1):
-        # Subsample - non volume preserving
-        dx0 = 1.0 / nx0
-        dy0 = 1.0 / ny0
-        
-        x0 = np.linspace(0.5*dx0, 1.0-0.5*dx0, nx0)
-        y0 = np.linspace(0.5*dy0, 1.0-0.5*dy0, ny0)
+        # Subsample - non volume preserving        
+        x0 = np.linspace(0.5, nx0-0.5, nx0)
+        y0 = np.linspace(0.5, ny0-0.5, ny0)
         
         data_int = interpolate.interp2d(x0, y0, data, kind='linear', **kwargs)
         
-        dx1 = 1.0 / nx1
-        dy1 = 1.0 / ny1
+        dx1 = nx0 / nx1
+        dy1 = ny0 / ny1
         
-        x1 = np.linspace(0.5*dx1, 1.0-0.5*dx1, nx1)
-        y1 = np.linspace(0.5*dy1, 1.0-0.5*dy1, ny1)
+        x1 = np.linspace(0.5*dx1, nx0-0.5*dx1, nx1)
+        y1 = np.linspace(0.5*dy1, ny0-0.5*dy1, ny1)
         
-        return nx0/nx1, ny0/ny1, data_int(x1, y1)
+        out_data = data_int(x1, y1)
+        if np.ma.is_masked(data):
+            x1, y1 = np.meshgrid(x1, y1)
+            out_mask = data.mask[y1.round().astype(np.int32), x1.round().astype(np.int32)]
+            out_data = np.ma.array(out_data, mask=out_mask)
+            
+        return nx0/nx1, ny0/ny1, out_data
+        
     else:
-        # Minmod reconstruction of slopes (volume preserving)
+        # Minmod reconstruction of slopes (can be volume preserving)
         dx = minmodX(data)
         dy = minmodY(data)
         
-        x1 = nx0*np.linspace(0.5/nx1, 1-0.5/nx1, nx1)
-        y1 = ny0*np.linspace(0.5/ny1, 1-0.5/ny1, ny1)
+        dx1 = nx0 / nx1
+        dy1 = ny0 / ny1
         
+        x1 = np.linspace(0.5*dx1, nx0-0.5*dx1, nx1)
+        y1 = np.linspace(0.5*dy1, ny0-0.5*dy1, ny1)
+
         x1, y1 = np.meshgrid(x1, y1)
         
         i = np.int32(x1)
         j = np.int32(y1)
         
-        x1 = x1 - (i+0.5)
-        y1 = y1 - (j+0.5)
+        s = x1 - (i+0.5)
+        t = y1 - (j+0.5)
         
-        data_int = data[j, i] + x1 * dx[j, i] + y1 * dy[j, i]
+        out_data = data[j, i] + s * dx[j, i] + t * dy[j, i]
+        if np.ma.is_masked(data):
+            out_mask = data.mask[y1.astype(np.int32), x1.astype(np.int32)]
+            out_data = np.ma.array(out_data, mask=out_mask)
         
-        return nx0/nx1, ny0/ny1, data_int
+        return nx0/nx1, ny0/ny1, out_data
 
 def rescaleIntersections(data, nx1, ny1, **kwargs):
     ny0, nx0 = data.shape
         
     if (nx0 > nx1 and ny0 > ny1):
         # Subsample - using linear interpolation
-        x0 = np.linspace(0, 1.0, nx0)
-        y0 = np.linspace(0, 1.0, ny0)
+        x0 = np.linspace(0, nx0-1, nx0)
+        y0 = np.linspace(0, ny0-1, ny0)
         
         data_int = interpolate.interp2d(x0, y0, data, kind='linear', **kwargs)
         
-        x1 = np.linspace(0, 1, nx1)
-        y1 = np.linspace(0, 1, ny1)
+        x1 = np.linspace(0, nx0-1, nx1)
+        y1 = np.linspace(0, ny0-1, ny1)
         
-        return (nx0-1)/(nx1-1), (ny0-1)/(ny1-1), data_int(x1, y1)
+        out_data = data_int(x1, y1)
+        if np.ma.is_masked(data):
+            x1, y1 = np.meshgrid(x1, y1)
+            out_mask = data.mask[y1.round().astype(np.int32), x1.round().astype(np.int32)]
+            out_data = np.ma.array(out_data, mask=out_mask)
+        
+        return (nx0-1)/(nx1-1), (ny0-1)/(ny1-1), out_data
     else:
         # Rescales using bilinear interpolation        
-        x1 = (nx0-1)*np.linspace(0, 1, nx1)
-        y1 = (ny0-1)*np.linspace(0, 1, ny1)
+        x1 = np.linspace(0, nx0-1, nx1)
+        y1 = np.linspace(0, ny0-1, ny1)
         
         x1, y1 = np.meshgrid(x1, y1)
         
@@ -286,13 +319,16 @@ def rescaleIntersections(data, nx1, ny1, **kwargs):
         l = np.minimum(j+1, ny0-1)
         
         #Get interpolation factors
-        x1 = x1 - i
-        y1 = y1 - j
+        s = x1 - i
+        t = y1 - j
         
-        data_int = (1.0-y1) * ((1.0-x1)*data[j, i] + x1*data[j, k]) \
-                       + y1 * ((1.0-x1)*data[l, i] + x1*data[l, k])
+        out_data = (1.0-t) * ((1.0-s)*data[j, i] + s*data[j, k]) \
+                       + t * ((1.0-s)*data[l, i] + s*data[l, k])
+        if np.ma.is_masked(data):
+            out_mask = data.mask[y1.round().astype(np.int32), x1.round().astype(np.int32)]
+            out_data = np.ma.array(out_data, mask=out_mask)
         
-        return (nx0-1)/(nx1-1), (ny0-1)/(ny1-1), data_int
+        return (nx0-1)/(nx1-1), (ny0-1)/(ny1-1), out_data
     
     
 def calcGeostrophicBalance(eta, H_m, hu, hv, angle, f_beta, dx, dy, g=9.81, use_minmod=False, minmod_theta=1.3):
