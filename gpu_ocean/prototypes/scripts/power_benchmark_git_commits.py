@@ -3,7 +3,7 @@
 """
 This software is part of GPU Ocean. 
 
-Copyright (C) 2018 SINTEF Digital
+Copyright (C) 2018, 2019 SINTEF Digital
 Copyright (C) 2018 Norwegian Meteorological Institute
 
 This python program checks out a series of git commits, and reports 
@@ -16,7 +16,7 @@ the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
+but WITHOUT ANY WARRANTY; without even sthe implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
