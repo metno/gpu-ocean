@@ -240,7 +240,7 @@ logger.info(args)
 basename = args.outfile_basename
 if (basename == None):
     basename = os.path.splitext(os.path.basename(args.csv_file))[0]
-logger.debug('basename: ', basename)
+logger.debug('basename: '+ str(basename))
 
 # Folder for storing 
 current_time = time.strftime("%Y_%m_%d-%H_%M_%S")
