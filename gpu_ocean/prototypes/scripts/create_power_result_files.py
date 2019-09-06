@@ -139,7 +139,7 @@ store_results('cdklm_opencl_laptop.npz',
 store_results('ctcs_cuda_laptop.npz', 
               ['9507b86aa57bdcedccdf3840435b31b20005dc11',
                'c39c8ba8701fdf708dadafd12cc76f809aeb8cb0'],
-              [124.3, 299.1], [21.2, 2.8], [33.5, 30.8])
+              [124.3, 299.1], [21.2, 21.8], [33.5, 30.8])
 store_results('ctcs_opencl_laptop.npz', 
               ['4113be8accf34aa57ce186f3e236d1c0c14ffd5b',
                '964e98a5831950724002674b216dfe28f2d7ffd2'],
