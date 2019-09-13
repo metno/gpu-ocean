@@ -1,12 +1,12 @@
 #!/bin/bash
 # Job name:
-#SBATCH --job-name=gpu_ocean_test
+#SBATCH --job-name=gpu_ocean_sir
 #
 # Project:
 #SBATCH --account=nn9550k
 #
 # Wall clock limit:
-#SBATCH --time=00:30:00
+#SBATCH --time=01:00:00
 #
 # Ask for 1 GPU (max is 2)
 # Note: The environment variable CUDA_VISIBLE_DEVICES will show which GPU 
@@ -19,7 +19,7 @@
 #
 # Number of tasks (for performance benchmarking, use --nodes switch):
 ##SBATCH --nodes=16 --ntasks-per-node=2 # gives exclusive access to all GPU-nodes
-#SBATCH --nodes=4 --ntasks-per-node=1
+#SBATCH --nodes=12 --ntasks-per-node=1
 
 ## Set up job environment:
 source /cluster/bin/jobsetup
@@ -33,9 +33,9 @@ export PATH=$HOME/.local/bin:$PATH
 
 ## Set up input and output files:
 cp -r gpu_ocean/ $SCRATCH
-chkfile "$SCRATCH/gpu_ocean/prototypes/scripts/mpi_run_benchmark.log"
-chkfile "$SCRATCH/gpu_ocean/prototypes/scripts/netcdf*/*.nc"
+chkfile "$SCRATCH/gpu_ocean/demos/sequential_importance_resampling.log"
+chkfile "$SCRATCH/gpu_ocean/demos/*.npz"
 
-cd $SCRATCH/gpu_ocean/prototypes/scripts/
-mpirun python mpi_run_benchmark.py --nx 256 --ny 256 --iterations 200 --simulator CDKLM > mpi_run_benchmark.log
+cd $SCRATCH/gpu_ocean/demos
+mpirun python sequential_importance_resampling.py > sequential_importance_resampling.log
 
