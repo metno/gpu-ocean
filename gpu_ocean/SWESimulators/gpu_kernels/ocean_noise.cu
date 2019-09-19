@@ -540,10 +540,6 @@ __global__ void bicubicInterpolation(
     }
     __syncthreads();    
         
-    
-    //int min_val = 10000;
-    //int max_val = -10000;
-    
     // Carry out bicubic interpolation and write d_eta to shmem.
     // We calulate d_eta for all threads within the block plus one layer of ghost cells, so that
     // geostrophic balance can be found for the cell in the block.
@@ -593,6 +589,13 @@ __global__ void bicubicInterpolation(
             //  [fx00, fx01, fxy00, fxy01 ]
             //  [fx10, fx11, fxy10, fxy11 ]]
             {
+                // We use the following notation:
+                //     function values (f) or derivatives (fx, fy), or cross derivatives (fxy)
+                //     Evaluated in the unit square at given positions
+                //     e.g., f01   = function value at (0, 1)
+                //           fy_10 = value of derivative wrt y at (-1,0)
+                //           fy21  = value of derivative wrt y at ( 2,1)
+                
                 // Corner point values
                 f_matrix.m_row0.x = coarse[loc_j  ][loc_i  ]; // f00
                 f_matrix.m_row0.y = coarse[loc_j+1][loc_i  ]; // f01
@@ -630,12 +633,6 @@ __global__ void bicubicInterpolation(
 
             //Bilinear interpolation (kept for future reference)
             //const float bi_linear_eta = f00*(1.0f-rel_x)*(1.0f-rel_y) + f10*rel_x*(1.0f-rel_y) + f01*(1.0f-rel_x)*rel_y + f11*rel_x*rel_y;
-
-            // Structure the values and derivatives in a matrix
-            // f_matrix.m_row0 = make_float4( f00,  f01,  fy00,  fy01);
-            // f_matrix.m_row1 = make_float4( f10,  f11,  fy10,  fy11);
-            // f_matrix.m_row2 = make_float4(fx00, fx01, fxy00, fxy01);
-            // f_matrix.m_row3 = make_float4(fx10, fx11, fxy10, fxy11);
 
             // Obtain the coefficients for the bicubic surface
             Matrix4x4_d a_matrix = bicubic_interpolation_coefficients(f_matrix);

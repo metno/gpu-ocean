@@ -761,7 +761,9 @@ __device__ Matrix4x4_d bicubic_interpolation_coefficients(const Matrix4x4_d f) {
     //                    = f[row i] dot b[row j]
     // fb^T[row i, col j] = f[row j] dot b[row i]
     Matrix4x4_d fb_transpose;
-    /*for (int i = 0; i < 4; i++) {
+    /*
+    Below is the loop unrolled version of the following loop:
+    for (int i = 0; i < 4; i++) {
         fb_transpose.m_row[i] = make_float4(dotProduct(f.m_row0, b.m_row[i]),
                                             dotProduct(f.m_row1, b.m_row[i]),
                                             dotProduct(f.m_row2, b.m_row[i]),
@@ -791,7 +793,9 @@ __device__ Matrix4x4_d bicubic_interpolation_coefficients(const Matrix4x4_d f) {
     // out[row i, col j] = b[row i] dot fb[col j]
     //                   = b[row i] dot fb^T[row j]
     Matrix4x4_d out;
-    /*for (int i = 0; i < 4; i++) {
+    /*
+    Below is the loop unrolled version of the following loop:
+    for (int i = 0; i < 4; i++) {
         out.m_row[i] = make_float4(dotProduct(b.m_row[i], fb_transpose.m_row[0]),
                                    dotProduct(b.m_row[i], fb_transpose.m_row[1]),
                                    dotProduct(b.m_row[i], fb_transpose.m_row[2]),

@@ -157,11 +157,6 @@ class BaseOceanStateEnsemble(object):
                             observedParticles[p,d,0] = hu[id_y, id_x]
                             observedParticles[p,d,1] = hv[id_y, id_x]
                         
-                        
-            #print ("Particle positions obs index:")
-            #print (self.particles[self.obs_index].drifters.driftersDevice.download(self.gpu_stream))
-            #print ("true state used by the CPU:")
-            #print (observations)
             return observedParticles
         
     @abc.abstractmethod
@@ -233,8 +228,6 @@ class BaseOceanStateEnsemble(object):
         log_weights = np.zeros(innovations.shape[0])
         if len(innovations.shape) == 1:
             observationVariance = R[0,0]
-            #log_weights = (1.0/np.sqrt(2*np.pi*observationVariance))* \
-            #        np.exp(- (innovations**2/(2*observationVariance)))
             log_weights = - (innovations**2/(2*observationVariance))
 
         else:
@@ -259,7 +252,7 @@ class BaseOceanStateEnsemble(object):
             # see https://timvieira.github.io/blog/post/2014/02/11/exp-normalize-trick/'
             max_log_weight = log_weights.max()
             return np.exp(log_weights - max_log_weight)/np.exp(log_weights-max_log_weight).sum()
-            #return weights/np.sum(weights)
+            # The above is equivalent to 'return weights/np.sum(weights)'
         else:
             if len(innovations.shape) == 1:
                 return (1.0/np.sqrt(2*np.pi*observationVariance)) * np.exp(log_weights)

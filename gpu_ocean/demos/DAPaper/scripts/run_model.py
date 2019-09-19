@@ -29,7 +29,7 @@ current_dir = os.path.dirname(os.path.realpath(__file__))
 
 
 if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../../SWESimulators'))):
-        sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../../')))
+    sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../../')))
         
 import argparse
 parser = argparse.ArgumentParser(description='Benchmark a simulator.')
@@ -100,47 +100,47 @@ def my_exp(i, j):
 Initializes the CDKLM simulator
 """
 def initCDKLM():
-        tic = time.time()
-        
-        ghosts = np.array([2,2,2,2]) # north, east, south, west
-        dataShape = (args.ny + ghosts[0]+ghosts[2], 
-                                 args.nx + ghosts[1]+ghosts[3])
+    tic = time.time()
 
-        eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
-        u0 = np.zeros(dataShape, dtype=np.float32, order='C');
-        v0 = np.zeros(dataShape, dtype=np.float32, order='C');
-        Hi = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C') * waterHeight;
+    ghosts = np.array([2,2,2,2]) # north, east, south, west
+    dataShape = (args.ny + ghosts[0]+ghosts[2], 
+                 args.nx + ghosts[1]+ghosts[3])
 
-        toc = time.time()
-        print("{:02.4f} s: ".format(toc-tic) + "Generated initial conditions")
-                        
-        # Initialize simulator
-        tic = time.time()
-        
-        kwargs = {'boundary_conditions': boundaryConditions, 'rk_order': 2}
-        if (args.block_width != None):
-                kwargs['block_width'] = args.block_width
-        if (args.block_height != None):
-                kwargs['block_height'] = args.block_height
-        if (args.block_width_model_error != None):
-                kwargs['block_width_model_error'] = args.block_width_model_error
-        if (args.block_height_model_error != None):
-                kwargs['block_height_model_error'] = args.block_height_model_error
-               
-                
-        sim = CDKLM16.CDKLM16(gpu_ctx, \
-                                        eta0, u0, v0, Hi, \
-                                        args.nx, args.ny, \
-                                        dx, dy, dt, \
-                                        g, f, r, \
-                                        small_scale_perturbation = small_scale_perturbation, \
-                                        small_scale_perturbation_amplitude = small_scale_perturbation_amplitude, \
-                                        small_scale_perturbation_interpolation_factor = small_scale_perturbation_interpolation_factor, \
-                                        **kwargs)
-        toc = time.time()
-        print("{:02.4f} s: ".format(toc-tic) + "Created CDKLM simulator")
-        
-        return sim
+    eta0 = np.fromfunction(lambda i, j: my_exp(i,j), dataShape, dtype=np.float32)
+    u0 = np.zeros(dataShape, dtype=np.float32, order='C');
+    v0 = np.zeros(dataShape, dtype=np.float32, order='C');
+    Hi = np.ones((dataShape[0]+1, dataShape[1]+1), dtype=np.float32, order='C') * waterHeight;
+
+    toc = time.time()
+    print("{:02.4f} s: ".format(toc-tic) + "Generated initial conditions")
+
+    # Initialize simulator
+    tic = time.time()
+
+    kwargs = {'boundary_conditions': boundaryConditions, 'rk_order': 2}
+    if (args.block_width != None):
+        kwargs['block_width'] = args.block_width
+    if (args.block_height != None):
+        kwargs['block_height'] = args.block_height
+    if (args.block_width_model_error != None):
+        kwargs['block_width_model_error'] = args.block_width_model_error
+    if (args.block_height_model_error != None):
+        kwargs['block_height_model_error'] = args.block_height_model_error
+
+
+    sim = CDKLM16.CDKLM16(gpu_ctx, \
+                          eta0, u0, v0, Hi, \
+                          args.nx, args.ny, \
+                          dx, dy, dt, \
+                          g, f, r, \
+                          small_scale_perturbation = small_scale_perturbation, \
+                          small_scale_perturbation_amplitude = small_scale_perturbation_amplitude, \
+                          small_scale_perturbation_interpolation_factor = small_scale_perturbation_interpolation_factor, \
+                          **kwargs)
+    toc = time.time()
+    print("{:02.4f} s: ".format(toc-tic) + "Created CDKLM simulator")
+
+    return sim
 
 
 
@@ -154,8 +154,8 @@ toc = time.time()
 print("{:02.4f} s: ".format(toc-tic) + "Spinup of simulator")
 
 if (np.any(np.isnan(eta1))):
-        print(" `-> ERROR: Not a number in spinup, aborting!")
-        sys.exit(-1)
+    print(" `-> ERROR: Not a number in spinup, aborting!")
+    sys.exit(-1)
 
 # Run simulator
 print("=== Running with domain size [{:02d} x {:02d}], model error block size [{:s} x {:s}] ===".format(args.nx, args.ny, 
@@ -164,30 +164,30 @@ print("=== Running with domain size [{:02d} x {:02d}], model error block size [{
         
 max_mcells = 0;
 for i in range(args.iterations):
-        print("{:03.0f} %".format(100*(i+1) / args.iterations))
+    print("{:03.0f} %".format(100*(i+1) / args.iterations))
 
-        gpu_ctx.synchronize()
-        tic = time.time()
+    gpu_ctx.synchronize()
+    tic = time.time()
 
-        t = sim.step(args.steps_per_download*dt)
+    t = sim.step(args.steps_per_download*dt)
 
-        gpu_ctx.synchronize()
-        toc = time.time()
-        
-        mcells = args.nx*args.ny*args.steps_per_download/(1e6*(toc-tic))
-        max_mcells = max(mcells, max_mcells);
-        print(" `-> {:02.4f} s: ".format(toc-tic) + "Step, " + "{:02.4f} mcells/sec".format(mcells))
-        tic = time.time()
-        eta1, u1, v1 = sim.download()
-        toc = time.time()
-        print(" `-> {:02.4f} s: ".format(toc-tic) + "Download")
-        print(" '->max(u): " + str(np.max(u1)))
-        
-        if (np.any(np.isnan(eta1))):
-                print(" `-> ERROR: Not a number in simulation, aborting!")
-                sys.exit(-1)
-                
-        print(" `-> t_sim={:02.4f}".format(t) + ", u_max={:02.4f}".format(np.max(u1)))
+    gpu_ctx.synchronize()
+    toc = time.time()
+
+    mcells = args.nx*args.ny*args.steps_per_download/(1e6*(toc-tic))
+    max_mcells = max(mcells, max_mcells);
+    print(" `-> {:02.4f} s: ".format(toc-tic) + "Step, " + "{:02.4f} mcells/sec".format(mcells))
+    tic = time.time()
+    eta1, u1, v1 = sim.download()
+    toc = time.time()
+    print(" `-> {:02.4f} s: ".format(toc-tic) + "Download")
+    print(" '->max(u): " + str(np.max(u1)))
+
+    if (np.any(np.isnan(eta1))):
+            print(" `-> ERROR: Not a number in simulation, aborting!")
+            sys.exit(-1)
+
+    print(" `-> t_sim={:02.4f}".format(t) + ", u_max={:02.4f}".format(np.max(u1)))
 
         
 print(" === Maximum megacells: {:02.8f} ===".format(max_mcells))
