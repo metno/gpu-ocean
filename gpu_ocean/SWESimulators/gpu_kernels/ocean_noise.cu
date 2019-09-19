@@ -540,10 +540,6 @@ __global__ void bicubicInterpolation(
     }
     __syncthreads();    
         
-    
-    int min_val = 10000;
-    int max_val = -10000;
-    
     // Carry out bicubic interpolation and write d_eta to shmem.
     // We calulate d_eta for all threads within the block plus one layer of ghost cells, so that
     // geostrophic balance can be found for the cell in the block.
@@ -555,8 +551,8 @@ __global__ void bicubicInterpolation(
             const int loop_tj = by + j - 1;
 
             // Find coarse index for this thread
-            const float x = (loop_ti - ghost_cells_x_ + 0.5 + offset_i_)*dx_;
-            const float y = (loop_tj - ghost_cells_y_ + 0.5 + offset_j_)*dy_;
+            const float x = (loop_ti - ghost_cells_x_ + 0.5f + offset_i_)*dx_;
+            const float y = (loop_tj - ghost_cells_y_ + 0.5f + offset_j_)*dy_;
             
             // Location in the coarse grid:
             int coarse_i = (int)(floorf((x/coarse_dx_) + coarse_ghost_cells_x_ - 0.5f));
@@ -581,43 +577,55 @@ __global__ void bicubicInterpolation(
             const int loc_i = coarse_i - coarse_bx; // coarse_bx accounts for ghost cell already.
             const int loc_j = coarse_j - coarse_by; 
             
-            min_val = min(min_val, min(loc_i-1, loc_j-1));
-            max_val = max(max_val, max(loc_i-1, loc_j-1));
+            //min_val = min(min_val, min(loc_i-1, loc_j-1));
+            //max_val = max(max_val, max(loc_i-1, loc_j-1));
            
             //---------------------------------
             // Read values for interpolation
             //---------------------------------
-            
-            // Corner point values
-            const float f00 = coarse[loc_j  ][loc_i  ];
-            const float f01 = coarse[loc_j+1][loc_i  ];
-            const float f10 = coarse[loc_j  ][loc_i+1];
-            const float f11 = coarse[loc_j+1][loc_i+1];
+            Matrix4x4_d f_matrix;
+            // [[ f00,  f01,  fy00,  fy01 ]
+            //  [ f10,  f11,  fy10,  fy11 ]
+            //  [fx00, fx01, fxy00, fxy01 ]
+            //  [fx10, fx11, fxy10, fxy11 ]]
+            {
+                // We use the following notation:
+                //     function values (f) or derivatives (fx, fy), or cross derivatives (fxy)
+                //     Evaluated in the unit square at given positions
+                //     e.g., f01   = function value at (0, 1)
+                //           fy_10 = value of derivative wrt y at (-1,0)
+                //           fy21  = value of derivative wrt y at ( 2,1)
+                
+                // Corner point values
+                f_matrix.m_row0.x = coarse[loc_j  ][loc_i  ]; // f00
+                f_matrix.m_row0.y = coarse[loc_j+1][loc_i  ]; // f01
+                f_matrix.m_row1.x = coarse[loc_j  ][loc_i+1]; // f10
+                f_matrix.m_row1.y = coarse[loc_j+1][loc_i+1]; // f11
 
-            // Derivatives in x-direction in the corner points
-            const float fx00 = (coarse[loc_j  ][loc_i+1] - coarse[loc_j  ][loc_i-1])/2.0f;
-            const float fx01 = (coarse[loc_j+1][loc_i+1] - coarse[loc_j+1][loc_i-1])/2.0f;
-            const float fx10 = (coarse[loc_j  ][loc_i+2] - coarse[loc_j  ][loc_i  ])/2.0f;
-            const float fx11 = (coarse[loc_j+1][loc_i+2] - coarse[loc_j+1][loc_i  ])/2.0f;
+                // Derivatives in x-direction in the corner points
+                f_matrix.m_row2.x = (coarse[loc_j  ][loc_i+1] - coarse[loc_j  ][loc_i-1])/2.0f; // fx00
+                f_matrix.m_row2.y = (coarse[loc_j+1][loc_i+1] - coarse[loc_j+1][loc_i-1])/2.0f; // fx01
+                f_matrix.m_row3.x = (coarse[loc_j  ][loc_i+2] - coarse[loc_j  ][loc_i  ])/2.0f; // fx10
+                f_matrix.m_row3.y = (coarse[loc_j+1][loc_i+2] - coarse[loc_j+1][loc_i  ])/2.0f; // fx11
 
-            // Derivatives in y-direction in the corner points
-            const float fy00 = (coarse[loc_j+1][loc_i  ] - coarse[loc_j-1][loc_i  ])/2.0f;
-            const float fy01 = (coarse[loc_j+2][loc_i  ] - coarse[loc_j  ][loc_i  ])/2.0f;
-            const float fy10 = (coarse[loc_j+1][loc_i+1] - coarse[loc_j-1][loc_i+1])/2.0f;
-            const float fy11 = (coarse[loc_j+2][loc_i+1] - coarse[loc_j  ][loc_i+1])/2.0f;
+                // Derivatives in y-direction in the corner points
+                f_matrix.m_row0.z = (coarse[loc_j+1][loc_i  ] - coarse[loc_j-1][loc_i  ])/2.0f; // fy00
+                f_matrix.m_row0.w = (coarse[loc_j+2][loc_i  ] - coarse[loc_j  ][loc_i  ])/2.0f; // fy01
+                f_matrix.m_row1.z = (coarse[loc_j+1][loc_i+1] - coarse[loc_j-1][loc_i+1])/2.0f; // fy10
+                f_matrix.m_row1.w = (coarse[loc_j+2][loc_i+1] - coarse[loc_j  ][loc_i+1])/2.0f; // fy11
 
-            // Derivatives in y-direction required for obtaining the cross derivatives
-            const float fy_10 = (coarse[loc_j+1][loc_i-1] - coarse[loc_j-1][loc_i-1])/2.0f;
-            const float fy_11 = (coarse[loc_j+2][loc_i-1] - coarse[loc_j  ][loc_i-1])/2.0f;
-            const float fy20  = (coarse[loc_j+1][loc_i+2] - coarse[loc_j-1][loc_i+2])/2.0f;
-            const float fy21  = (coarse[loc_j+2][loc_i+2] - coarse[loc_j  ][loc_i+2])/2.0f;
+                // Derivatives in y-direction required for obtaining the cross derivatives
+                const float fy_10 = (coarse[loc_j+1][loc_i-1] - coarse[loc_j-1][loc_i-1])/2.0f; // fy_10
+                const float fy_11 = (coarse[loc_j+2][loc_i-1] - coarse[loc_j  ][loc_i-1])/2.0f; // fy_11
+                const float fy20  = (coarse[loc_j+1][loc_i+2] - coarse[loc_j-1][loc_i+2])/2.0f; // fy20 
+                const float fy21  = (coarse[loc_j+2][loc_i+2] - coarse[loc_j  ][loc_i+2])/2.0f; // fy21 
 
-            // Cross-derivatives in the corner points = x-derivatives of wide y-derivatives
-            const float fxy00 = (fy10 - fy_10)/2.0f;
-            const float fxy01 = (fy11 - fy_11)/2.0f;
-            const float fxy10 = (fy20 -  fy00)/2.0f;
-            const float fxy11 = (fy21 -  fy01)/2.0f;
-
+                // Cross-derivatives in the corner points = x-derivatives of wide y-derivatives
+                f_matrix.m_row2.z = (f_matrix.m_row1.z - fy_10)/2.0f; // fxy00
+                f_matrix.m_row2.w = (f_matrix.m_row1.w - fy_11)/2.0f; // fxy01
+                f_matrix.m_row3.z = (fy20 -  f_matrix.m_row0.z)/2.0f; // fxy10
+                f_matrix.m_row3.w = (fy21 -  f_matrix.m_row0.w)/2.0f; // fxy11
+            }
 
             // Map cell center position (x,y) onto the unit square
             const float rel_x = (x - coarse_x)/coarse_dx_;
@@ -625,13 +633,6 @@ __global__ void bicubicInterpolation(
 
             //Bilinear interpolation (kept for future reference)
             //const float bi_linear_eta = f00*(1.0f-rel_x)*(1.0f-rel_y) + f10*rel_x*(1.0f-rel_y) + f01*(1.0f-rel_x)*rel_y + f11*rel_x*rel_y;
-
-            // Structure the values and derivatives in a matrix
-            Matrix4x4_d f_matrix;
-            f_matrix.m_row[0] = make_float4( f00,  f01,  fy00,  fy01);
-            f_matrix.m_row[1] = make_float4( f10,  f11,  fy10,  fy11);
-            f_matrix.m_row[2] = make_float4(fx00, fx01, fxy00, fxy01);
-            f_matrix.m_row[3] = make_float4(fx10, fx11, fxy10, fxy11);
 
             // Obtain the coefficients for the bicubic surface
             Matrix4x4_d a_matrix = bicubic_interpolation_coefficients(f_matrix);

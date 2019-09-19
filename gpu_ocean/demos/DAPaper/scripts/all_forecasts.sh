@@ -1,4 +1,4 @@
-!/bin/bash
+#!/bin/bash
 
 #output_dir="/media/havahol/Seagate Backup Plus Drive/gpu_ocean/all_forecasts_$(date +%Y_%m_%d-%H_%M_%S)"
 output_dir="/data/gpu_ocean/demos/DAPaper/scripts/all_forecasts_$(date +%Y_%m_%d-%H_%M_%S)"
