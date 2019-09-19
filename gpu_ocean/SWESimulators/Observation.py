@@ -437,7 +437,16 @@ class Observation:
         Creates a list of paths for the given drifter in the given time interval,
         so that the drift trajectory can be plotted.
         We create a list of paths rather than a single path, as the path is disconnected 
-        when the drifter passes through the boundary.
+        when the drifter passes through the periodic boundary.
+        Parameters:
+        - drifter_id:       Index of the drifter of interest
+        - start_t:          Simulation time at the start of the path
+        - end_t:            Simulation time at the end of the path
+        - in_km:            Boolean - True if the path should be described in km, False if meter
+        - keepDomainSize:   Boolean - True split paths when crossing the boundary
+                                      False creates a single continous path, in which drifters going through the 
+                                      boundary at e.g., x=10 gets x values [..., 9.8, 9.9, 10.0, 10.1, 10.2, ...]
+                                      instaed of [..., 9.8, 9.9, 0.0, 0.1, 0.2, ...]
         """
         paths = []
         observation_times = self.get_observation_times()
