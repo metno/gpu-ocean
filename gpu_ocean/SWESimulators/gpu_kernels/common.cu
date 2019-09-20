@@ -1,26 +1,6 @@
 #ifndef COMMON_CU
 #define COMMON_CU
 
-#define _180_OVER_PI 57.29578f
-#define PI_OVER_180 0.01745329f
-
-
-/*  The ocean simulators and the swashes cases are defined
- *  on completely different scales. We therefore specify
- *  a different desingularization parameter if we run a 
- *  swashes case.
- */
-//#ifndef SWASHES
-//    #define KPSIMULATOR_FLUX_SLOPE_EPS   1e-1f
-//    #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-4f
-//#else
-//    #define KPSIMULATOR_FLUX_SLOPE_EPS   1.0e-4f
-//    #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-16f
-//#endif
-
-//#define KPSIMULATOR_DEPTH_CUTOFF 1.0e-5f
-#define SQRT_OF_TWO 1.41421356237309504880f
-
 /*
 This software is part of GPU Ocean. 
 
@@ -44,6 +24,10 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#define _180_OVER_PI 57.29578f
+#define PI_OVER_180 0.01745329f
+#define SQRT_OF_TWO 1.41421356237309504880f
 
 
 inline __device__ float3 operator*(const float &a, const float3 &b) {
@@ -780,6 +764,12 @@ __device__ float bicubic_evaluation(const float4 x,
                                    dotProduct(coeff.m_row[3], y) );
                                    
     return dotProduct(x, tmp);
+}
+
+
+
+__device__ float desingularize(const float& h, const float& hu, const float& eps) {
+    return hu / fmaxf(fminf(h*h/(2.0f*eps)+0.5*eps, eps), fabsf(h));
 }
 
 

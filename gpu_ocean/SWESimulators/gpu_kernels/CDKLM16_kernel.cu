@@ -600,7 +600,7 @@ __global__ void cdklm_swe_2D(
                 R[2][j][i] = 0.0f;
             }
             // Check if the cell is almost dry
-            else if (h < KPSIMULATOR_FLUX_SLOPE_EPS) {
+            else if (h < KPSIMULATOR_DESING_EPS) {
                 
                 if (h <= KPSIMULATOR_DEPTH_CUTOFF) {
                     R[0][j][i] = -local_Hm + KPSIMULATOR_DEPTH_CUTOFF;
@@ -609,10 +609,9 @@ __global__ void cdklm_swe_2D(
                 }
                 else {                
                     // Desingularizing u and v
-                    float h4 = h*h; h4 *= h4;
                     //R[0][j][i] = h - local_Hm;
-                    R[1][j][i] = SQRT_OF_TWO*h*R[1][j][i]/sqrtf(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
-                    R[2][j][i] = SQRT_OF_TWO*h*R[2][j][i]/sqrtf(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+                    R[1][j][i] = desingularize(h, R[1][j][i], KPSIMULATOR_DESING_EPS); 
+                    R[2][j][i] = desingularize(h, R[2][j][i], KPSIMULATOR_DESING_EPS); 
                 }
             }
             // Wet cells
@@ -851,13 +850,6 @@ __global__ void cdklm_swe_2D(
                 float H_x = RHxp - RHxm;
                 float H_y = RHyp - RHym;
                 
-                
-                float h4 = h*h; h4 *= h4;
-                if (h4 < KPSIMULATOR_FLUX_SLOPE_EPS) {
-                    H_x = SQRT_OF_TWO*h*h*H_x/sqrtf(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
-                    H_y = SQRT_OF_TWO*h*h*H_y/sqrtf(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
-                }
-                
                 const float eta_sn = 0.5f*(eta_north + eta_south);
                 const float eta_we = 0.5f*(eta_west  + eta_east);
 
@@ -896,7 +888,23 @@ __global__ void cdklm_swe_2D(
         
         if (rk_order < 3) {
 
+#ifdef use_linear_friction
             const float C = 2.0f*r_*dt_/(R[0][j][i] + Hm);
+#else
+            float C = 0.0;
+            if (r_ > 0.0) {
+                if (h < KPSIMULATOR_DESING_EPS) {
+                    const float u = desingularize(h, hu, KPSIMULATOR_DESING_EPS);
+                    const float v = desingularize(h, hv, KPSIMULATOR_DESING_EPS);
+                    C = dt_*g_*sqrt(u*u+v*v)/(h*r_*r_);
+                }
+                else {
+                    const float u = hu/h;
+                    const float v = hv/h;
+                    C = dt_*g_*sqrt(u*u+v*v)/(h*r_*r_);                
+                }
+            }
+#endif
             
             if  (step_ == 0) {
                 //First step of RK2 ODE integrator
