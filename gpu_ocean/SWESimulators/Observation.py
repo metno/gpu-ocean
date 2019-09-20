@@ -51,6 +51,9 @@ class Observation:
         If the domain is considered to have periodic boundary conditions, the
         size of the domain should be provided to ensure correct estimated 
         velocities.
+        
+        All observations are based on velocities (u, v) and equilibrium ocean
+        depth H. There are therefore no observations of eta.
         """
         
         self.observation_type = observation_type
@@ -128,7 +131,8 @@ class Observation:
     
     def add_observation_from_sim(self, sim):
         """
-        Adds the current drifter positions to the observation DataFrame.
+        Adds the current drifter positions to the observation DataFrame, or H*u and H*v 
+        at the buoy positions.
         """
         
         # The timestamp is rounded to nearest integer, so that it is possible to compare to 
@@ -149,9 +153,17 @@ class Observation:
                 buoy_positions = self.buoy_positions
             buoy_observations = np.zeros_like(self.buoy_positions)
             eta, hu, hv = sim.download(interior_domain_only=True)
+            H = sim.downloadBathymetry()[1][2:-2, 2:-2] # H in cell centers
+            
             for i in range(len(buoy_observations)):
-                buoy_observations[i, 0] = hu[self.buoy_indices[i,1], self.buoy_indices[i,0]]
-                buoy_observations[i, 1] = hv[self.buoy_indices[i,1], self.buoy_indices[i,0]]
+                # buoy index
+                x = self.buoy_indices[i, 0]
+                y = self.buoy_indices[i, 1]
+                
+                # Observe current, and we know the depth, but not eta
+                eta_ignorance_factor = H[y, x] / (H[y, x] + eta[y, x])
+                buoy_observations[i, 0] = hu[y, x] * eta_ignorance_factor
+                buoy_observations[i, 1] = hv[y, x] * eta_ignorance_factor
             
             buoy_obs_errors = np.random.normal(size=buoy_observations.shape)
             
@@ -420,12 +432,21 @@ class Observation:
             return True
         return False
 
-    def get_drifter_path(self, drifter_id, start_t, end_t): #, flexiframe=False):
+    def get_drifter_path(self, drifter_id, start_t, end_t, in_km=True, keepDomainSize=True):
         """
         Creates a list of paths for the given drifter in the given time interval,
         so that the drift trajectory can be plotted.
         We create a list of paths rather than a single path, as the path is disconnected 
-        when the drifter passes through the boundary.
+        when the drifter passes through the periodic boundary.
+        Parameters:
+        - drifter_id:       Index of the drifter of interest
+        - start_t:          Simulation time at the start of the path
+        - end_t:            Simulation time at the end of the path
+        - in_km:            Boolean - True if the path should be described in km, False if meter
+        - keepDomainSize:   Boolean - True split paths when crossing the boundary
+                                      False creates a single continous path, in which drifters going through the 
+                                      boundary at e.g., x=10 gets x values [..., 9.8, 9.9, 10.0, 10.1, 10.2, ...]
+                                      instaed of [..., 9.8, 9.9, 0.0, 0.1, 0.2, ...]
         """
         paths = []
         observation_times = self.get_observation_times()
@@ -446,18 +467,45 @@ class Observation:
         
         path = np.zeros((total_num_observations, 2))
         path_index = 0
+        boundary_correction = np.array([0, 0])
+        
         for i in range(start_obs_index, end_obs_index):
             obs_t = observation_times[i]
             if obs_t < start_t or obs_t > end_t:
                 continue
             current_pos = all_drifter_positions[i, :]
             if path_index > 0:
-                if self._detect_jump(path[path_index-1,:], current_pos):
-                    paths.append(path[:path_index,:])
-                    
-                    path_index = 0
-                    path = np.zeros((total_num_observations, 2))
-            path[path_index,:] = current_pos
+                if self._detect_jump(path[path_index-1,:], current_pos + boundary_correction):
+                    if keepDomainSize:
+                        paths.append(path[:path_index,:])
+                        
+                        path_index = 0
+                        path = np.zeros((total_num_observations, 2))
+                    else:
+                        xdiff = current_pos[0] + boundary_correction[0] - path[path_index-1, 0] 
+                        ydiff = current_pos[1] + boundary_correction[1] - path[path_index-1, 1] 
+                        
+                        if min(abs(xdiff - self.domain_size_x), abs(xdiff + self.domain_size_x)) < abs(xdiff):
+                            # The jump is in x
+                            if abs(xdiff - self.domain_size_x) < abs(xdiff + self.domain_size_x):
+                                boundary_correction[0] -= self.domain_size_x
+                            else:
+                                boundary_correction[0] += self.domain_size_x
+                        
+                        if min(abs(ydiff - self.domain_size_y), abs(ydiff + self.domain_size_y)) < abs(ydiff):
+                            if abs(ydiff - self.domain_size_y) < abs(ydiff + self.domain_size_y):
+                                boundary_correction[1] -= self.domain_size_y
+                            else:
+                                boundary_correction[1] += self.domain_size_y
+                                
+            path[path_index,:] = current_pos + boundary_correction
+                
             path_index += 1
         paths.append(path[:path_index, :])
+        if in_km:
+            for p in range(len(paths)):
+                paths[p] /= 1000
+                
+        
+        
         return paths

@@ -72,7 +72,8 @@ class CDKLM16(Simulator.Simulator):
                  flux_slope_eps = 1.0e-1, \
                  desingularization_eps = 1.0e-1, \
                  depth_cutoff = 1.0e-5, \
-                 block_width=32, block_height=8, num_threads_dt=256):
+                 block_width=32, block_height=8, num_threads_dt=256,
+                 block_width_model_error=16, block_height_model_error=16):
         """
         Initialization routine
         eta0: Initial deviation from mean sea level incl ghost cells, (nx+2)*(ny+2) cells
@@ -256,12 +257,16 @@ class CDKLM16(Simulator.Simulator):
             if small_scale_perturbation_amplitude is None:
                 self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self,
                                                                                        interpolation_factor=small_scale_perturbation_interpolation_factor,
-                                                                                       use_lcg=use_lcg)
+                                                                                       use_lcg=use_lcg,
+                                                                                       block_width=block_width_model_error, 
+                                                                                       block_height=block_height_model_error)
             else:
                 self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, 
                                                                                        soar_q0=small_scale_perturbation_amplitude,
                                                                                        interpolation_factor=small_scale_perturbation_interpolation_factor,
-                                                                                       use_lcg=use_lcg)
+                                                                                       use_lcg=use_lcg,
+                                                                                       block_width=block_width_model_error, 
+                                                                                       block_height=block_height_model_error)
         
         
         # Data assimilation model step size
