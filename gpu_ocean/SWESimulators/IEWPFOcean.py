@@ -811,11 +811,11 @@ class IEWPFOcean:
             self.log("Input params:")
             self.log(params)
 
-            alpha_newton = newton(lambda x: self._implicitEquation_no_limit(x, gamma, self.Nx, c_star),
-                                  0.5, maxiter=2000, tol=1e-6)
-                                  #fprime=lambda x: self._implicitEquation_no_limit_derivative(x, gamma, self.Nx, c_star))
-            self.log("alpha_newton from Newton's method: " + str(alpha_newton))
-            self.log("Discrepancy with alpha_newton: "+ str(self._implicitEquation_no_limit(alpha_newton, gamma, self.Nx, c_star)))
+            #alpha_newton = newton(lambda x: self._implicitEquation_no_limit(x, gamma, self.Nx, c_star),
+            #                      0.5, maxiter=2000, tol=1e-6)
+            #                      #fprime=lambda x: self._implicitEquation_no_limit_derivative(x, gamma, self.Nx, c_star))
+            #self.log("alpha_newton from Newton's method: " + str(alpha_newton))
+            #self.log("Discrepancy with alpha_newton: "+ str(self._implicitEquation_no_limit(alpha_newton, gamma, self.Nx, c_star)))
 
             self.log("")
             self.log("Using the Lambert W:")

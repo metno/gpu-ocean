@@ -3,7 +3,7 @@
 """
 This software is part of GPU Ocean. 
 
-Copyright (C) 2018 SINTEF Digital
+Copyright (C) 2018, 2019 SINTEF Digital
 Copyright (C) 2018 Norwegian Meteorological Institute
 
 This python program runs a short program while reporting execution
