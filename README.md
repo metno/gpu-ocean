@@ -2,7 +2,9 @@
 [![Coverage Status](https://coveralls.io/repos/github/metno/gpu-ocean/badge.svg?branch=master)](https://coveralls.io/github/metno/gpu-ocean?branch=master)
 
 # gpu-ocean
-GPU Ocean codebase.
+GPU Ocean codebase. This version is tailored as supplementary material for the paper *Massively Parallel Implicit Equal-Weights Particle Filter for Ocean Drift Trajectory Forecasting* by Håvard Heitlo Holm, Martin Lilleeng Sætra, and Peter Jan van Leeuwen. 
+
+The content of this version is outlined in the Notebook [Introduction](Introduction.ipynb)
 
 # Installation
 In order to run this code, you need to have access to a CUDA enabled GPU, with CUDA toolkit and appropriate drivers installed. If you are on Windows, you also need to have installed Visual Studios and add the path to its bin folder in PATH. This is so that pycuda can find a C++ compiler.
