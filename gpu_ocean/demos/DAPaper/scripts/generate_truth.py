@@ -6,11 +6,11 @@ This software is part of GPU Ocean.
 Copyright (C) 2018-2019 SINTEF Digital
 Copyright (C) 2018-2019 Norwegian Meteorological Institute
 
-This python program generate a truth simulation that will be the subject for 
-data assimilation experiments. It is based on the DoubleJetCase parameters 
-and initial conditions, and is spun up for 3 days before starting to write
-its state to file. The generated data set should cover time range from
-day 3 to day 13.
+This python program generate a truth simulation and related observations 
+that will be the subject for data-assimilation experiments. It is based on
+the DoubleJetCase parameters and initial conditions, and is spun up for 
+3 days before starting to write its state to file. The generated data set
+should cover time range from day 3 to day 13. 
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
