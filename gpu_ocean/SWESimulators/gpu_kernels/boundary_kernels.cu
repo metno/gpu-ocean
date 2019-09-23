@@ -224,7 +224,7 @@ __global__ void closed_boundary_intersections_NS(
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if ( tj == 0 && ti < ny_ + (2*halo_y_) +1) {
+    if ( tj == 0 && ti < nx_ + (2*halo_y_) +1) {
 	// Southern boundary:
 	for (int j = 0; j < halo_y_; ++j) {
 	    const int inner_index = 2*halo_y_ - j;
@@ -398,19 +398,32 @@ __global__ void linearInterpolation_EW(
  *
  *  This is true regardless if the boundary on the opposite side is a sponge or not.
  */
+
+
+texture<float4, cudaTextureType2D> bc_tex_NS_current;
+texture<float4, cudaTextureType2D> bc_tex_NS_next;
+
+texture<float4, cudaTextureType2D> bc_tex_EW_current;
+texture<float4, cudaTextureType2D> bc_tex_EW_next;
+
+
+
  extern "C" {
 __global__ void flowRelaxationScheme_NS(
-	// Discretization parameters
-	int boundary_condition_north_, int boundary_condition_south_,
-	int nx_, int ny_,
-	int halo_x_, int halo_y_,
-	int sponge_cells_north_,
-	int sponge_cells_south_,
-	
+        // Discretization parameters
+        int boundary_condition_north_, int boundary_condition_south_,
+        int nx_, int ny_,
+        int halo_x_, int halo_y_,
+        int sponge_cells_north_,
+        int sponge_cells_south_,
+
         // Data
         float* h_ptr_, int h_pitch_,
         float* u_ptr_, int u_pitch_,
-	float* v_ptr_, int v_pitch_) {
+        float* v_ptr_, int v_pitch_,
+        
+        //Boundary condition time ([0, 1])
+        float t_) {
 
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -418,39 +431,44 @@ __global__ void flowRelaxationScheme_NS(
 
     // Extrapolate on northern and southern boundary:
     // Keep outer edge as is!
-    if (( ((boundary_condition_south_ == 3)
-	   &&(tj < sponge_cells_south_) && (tj > 0)) ||
-	  ((boundary_condition_north_ == 3)
-	   &&(tj > ny_ + 2*halo_y_ - 1 - sponge_cells_north_) && (tj < ny_ + 2*halo_y_ -1)) )
-	&& (ti > 0) && (ti < nx_ + 2*halo_x_-1) ) {
+    if (( ((boundary_condition_south_ == 3) 
+        && (tj < sponge_cells_south_) 
+        && (tj >= 0)) 
+        ||
+          ((boundary_condition_north_ == 3) 
+        && (tj > ny_ + 2*halo_y_ - 1 - sponge_cells_north_) 
+        && (tj < ny_ + 2*halo_y_)) )
+        && 
+        ((ti >= 0) && (ti < nx_ + 2*halo_x_)) 
+        ) {
 
-	int exterior_row = 0;
-	int j = tj;
-	if (tj > sponge_cells_south_) {
-	    exterior_row = ny_ + 2*halo_y_ - 1;
-	    j = (ny_ + 2*halo_y_ -1) - tj;
-	}
+	const float j = (tj <= sponge_cells_south_) ? tj-1 : ((ny_ + 2*halo_y_ -2) - tj);
+    
 	//int current_col = ti;
-	float alpha = 1.0f - tanh((j-1.0f)/2.0f);
+	const float alpha = 1.0f - tanh(fmaxf(0.0f, j)/2.0f);
 	
+    //Normalize coordinates (to [0, 1])
+    const float s = ti / float(nx_);
+    const float t = (tj < ny_ / 2.0) ? 0.25f : 0.75f; // choose north/south
 	
 	// Get exterior value
-	float* exterior_row_h = (float*) ((char*) h_ptr_ + h_pitch_*exterior_row);
-	float* exterior_row_u = (float*) ((char*) u_ptr_ + u_pitch_*exterior_row);
-	float* exterior_row_v = (float*) ((char*) v_ptr_ + v_pitch_*exterior_row);
-	float exterior_value_h = exterior_row_h[ti];
-	float exterior_value_u = exterior_row_u[ti];
-	float exterior_value_v = exterior_row_v[ti];
+    const float4 current = tex2D(bc_tex_NS_current, s, t);
+    const float4 next = tex2D(bc_tex_NS_next, s, t);
+    
+    //Compute interpolated exterior value
+	const float exterior_value_h = t_*next.x + (1.0f - t_)*current.x;
+	const float exterior_value_u = t_*next.y + (1.0f - t_)*current.y;
+	const float exterior_value_v = t_*next.z + (1.0f - t_)*current.z;
 
 	// Find target cell
-	float* target_row_h = (float*) ((char*) h_ptr_ + h_pitch_*tj);
-	float* target_row_u = (float*) ((char*) u_ptr_ + u_pitch_*tj);
-	float* target_row_v = (float*) ((char*) v_ptr_ + v_pitch_*tj);
-	
-	// Interpolate:
-	target_row_h[ti] = (1.0f-alpha)*target_row_h[ti] + alpha*exterior_value_h;
-	target_row_u[ti] = (1.0f-alpha)*target_row_u[ti] + alpha*exterior_value_u;	
-	target_row_v[ti] = (1.0f-alpha)*target_row_v[ti] + alpha*exterior_value_v;
+	float* row_h = (float*) ((char*) h_ptr_ + h_pitch_*tj);
+	float* row_u = (float*) ((char*) u_ptr_ + u_pitch_*tj);
+	float* row_v = (float*) ((char*) v_ptr_ + v_pitch_*tj);
+    
+	// Interpolate in space internally
+	row_h[ti] = (1.0f-alpha)*row_h[ti] + alpha*exterior_value_h;
+	row_u[ti] = (1.0f-alpha)*row_u[ti] + alpha*exterior_value_u;	
+	row_v[ti] = (1.0f-alpha)*row_v[ti] + alpha*exterior_value_v;
 	
     }
 }
@@ -459,17 +477,20 @@ __global__ void flowRelaxationScheme_NS(
 
 extern "C" {
 __global__ void flowRelaxationScheme_EW(
-	// Discretization parameters
-	int boundary_condition_east_, int boundary_condition_west_,
+        // Discretization parameters
+        int boundary_condition_east_, int boundary_condition_west_,
         int nx_, int ny_,
-	int halo_x_, int halo_y_,
-	int sponge_cells_east_,
-	int sponge_cells_west_,
-	
+        int halo_x_, int halo_y_,
+        int sponge_cells_east_,
+        int sponge_cells_west_,
+
         // Data
         float* h_ptr_, int h_pitch_,
         float* u_ptr_, int u_pitch_,
-	float* v_ptr_, int v_pitch_) {
+        float* v_ptr_, int v_pitch_,
+        
+        //Boundary condition time ([0, 1])
+        float t_) {
     
     // Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
@@ -477,35 +498,42 @@ __global__ void flowRelaxationScheme_EW(
 
     // Extrapolate on northern and southern boundary:
     // Keep outer edge as is!
-    if (( ((boundary_condition_west_ == 3)
-	   &&(ti < sponge_cells_west_) && (ti > 0)) ||
-	  ((boundary_condition_east_ == 3)
-	   &&(ti > nx_ + 2*halo_x_ - 1 - sponge_cells_east_) && (ti < nx_ + 2*halo_x_ -1)) )
-	&& (tj > 0) && (tj < ny_ + 2*halo_y_-1) ) {
+    if (( ((boundary_condition_west_ == 3) 
+        && (ti < sponge_cells_west_) 
+        && (ti >= 0)) 
+        || 
+          ((boundary_condition_east_ == 3) 
+        && (ti > nx_ + 2*halo_x_ - 1 - sponge_cells_east_) 
+        && (ti < nx_ + 2*halo_x_)) )
+        && 
+        (tj >= 0) && (tj < ny_ + 2*halo_y_) ) {
 
-	int exterior_col = 0;
-	int j = ti;
-	if (ti > sponge_cells_west_) {
-	    exterior_col = nx_ + 2*halo_x_ - 1;
-	    j = (nx_ + 2*halo_x_ -1) - ti;
-	}
-	//int current_col = ti;
-	float alpha = 1.0f - tanh((j-1.0f)/2.0f);
-	
-	// Get rows
-	float* h_row = (float*) ((char*) h_ptr_ + h_pitch_*tj);
-	float* u_row = (float*) ((char*) u_ptr_ + u_pitch_*tj);
-	float* v_row = (float*) ((char*) v_ptr_ + v_pitch_*tj);
+        const float j = (ti <= sponge_cells_west_) ? ti-1 : ((nx_ + 2*halo_x_ -2) - ti);
 
-	// Get exterior value
-	float exterior_value_h = h_row[exterior_col];
-	float exterior_value_u = u_row[exterior_col];
-	float exterior_value_v = v_row[exterior_col];
+        //int current_col = ti;
+        const float alpha = 1.0f - tanh(fmaxf(0.0f, j)/2.0f);
 
-	// Interpolate:
-	h_row[ti] = (1.0f-alpha)*h_row[ti] + alpha*exterior_value_h;
-	u_row[ti] = (1.0f-alpha)*u_row[ti] + alpha*exterior_value_u;
-	v_row[ti] = (1.0f-alpha)*v_row[ti] + alpha*exterior_value_v;
+        //Normalize coordinates (to [0, 1])
+        const float s = (ti < nx_ / 2.0) ? 0.25f : 0.75f; // choose east/west
+        const float t = tj / float(ny_);
+
+        // Get exterior value
+        const float4 current = tex2D(bc_tex_EW_current, s, t);
+        const float4 next = tex2D(bc_tex_EW_next, s, t);
+
+        //Compute interpolated exterior value
+        const float exterior_value_h = t_*next.x + (1.0f - t_)*current.x;
+        const float exterior_value_u = t_*next.y + (1.0f - t_)*current.y;
+        const float exterior_value_v = t_*next.z + (1.0f - t_)*current.z;
+
+        float* h_row = (float*) ((char*) h_ptr_ + h_pitch_*tj);
+        float* u_row = (float*) ((char*) u_ptr_ + u_pitch_*tj);
+        float* v_row = (float*) ((char*) v_ptr_ + v_pitch_*tj);
+        
+        // Interpolate:
+        h_row[ti] = (1.0f-alpha)*h_row[ti] + alpha*exterior_value_h;
+        u_row[ti] = (1.0f-alpha)*u_row[ti] + alpha*exterior_value_u;
+        v_row[ti] = (1.0f-alpha)*v_row[ti] + alpha*exterior_value_v;
     }
 }
 } // extern "C" 

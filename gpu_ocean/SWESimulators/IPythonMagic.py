@@ -32,6 +32,9 @@ from SWESimulators import Common
 
 
 
+
+    
+
 @magics_class
 class MyIPythonMagic(Magics): 
     @line_magic
