@@ -6,8 +6,10 @@ This software is part of GPU Ocean.
 Copyright (C) 2018-2019 SINTEF Digital
 Copyright (C) 2018-2019 Norwegian Meteorological Institute
 
-This python program initializes a given number of ensemble members
+This python program generate an ensemble of initial states
 based on the DoubleJetCase parameters and initial conditions.
+This ensemble of initial states can then further be used for 
+data-assimilation and forecasting experiments.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
