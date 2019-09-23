@@ -27,9 +27,3 @@ We recommend that you set up your python environment using Conda as follows:
 You should now be able to start a jupyter notebook server, open one of our notebooks, select the conda environment 'gpuocean' as kernel, and run the code. 
 
 Have fun!
-
-# Download all data files
-```
-cd <project root directory>
-wget -r -np -nH -R "index.html*" http://gpu-ocean.met.no:9000/gpu_ocean
-```
