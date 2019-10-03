@@ -22,6 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import logging
+import gc
 
 import argparse
 from IPython.core import magic_arguments
@@ -164,10 +165,27 @@ class MyIPythonMagic(Magics):
         logger.info("Python version %s", sys.version)
 
 
-        
-        
-        
+@magics_class
+class MagicMPI(Magics): 
+    
+    @line_magic
+    @magic_arguments.magic_arguments()
+    @magic_arguments.argument(
+        'name', type=str, help='Name of context to create')
+    @magic_arguments.argument(
+        '--num_engines', '-n', type=int, default=4, help='Number of engines to start')
+    def setup_mpi(self, line):
+        args = magic_arguments.parse_argstring(self.setup_mpi, line)
+        logger = logging.getLogger('SWESimulators')
+        if args.name in self.shell.user_ns.keys():
+            logger.warning("MPI alreay set up, resetting")
+            self.shell.user_ns[args.name].shutdown()
+            self.shell.user_ns[args.name] = None
+            gc.collect()
+        self.shell.user_ns[args.name] = Common.IPEngine(args.num_engines)
+
+
 # Register 
 ip = get_ipython()
 ip.register_magics(MyIPythonMagic)
-
+ip.register_magics(MagicMPI)

@@ -54,6 +54,7 @@ class KP07(Simulator.Simulator):
                  wind_stress=WindStress.WindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
                  write_netcdf=False, \
+                 comm=None, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0, \
                  flux_slope_eps = 1.0e-1, \
@@ -81,6 +82,7 @@ class KP07(Simulator.Simulator):
         wind_stress: Wind stress parameters
         boundary_conditions: Boundary condition object
         write_netcdf: Write the results after each superstep to a netCDF file
+        comm: MPI communicator
         depth_cutoff: Used for defining dry cells
         flux_slope_eps: Used for desingularization with dry cells
         """
@@ -117,6 +119,7 @@ class KP07(Simulator.Simulator):
                                    write_netcdf, \
                                    ignore_ghostcells, \
                                    offset_x, offset_y, \
+                                   comm, \
                                    block_width, block_height)
             
         # Index range for interior domain (north, east, south, west)

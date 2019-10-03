@@ -25,13 +25,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import sys, os
+from mpi4py import MPI
 current_dir = os.path.dirname(os.path.realpath(__file__))
 
 
 if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../SWESimulators'))):
         sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../')))
-if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../../python/SWESimulators'))):
-        sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../../python/')))
 
 import argparse
 parser = argparse.ArgumentParser(description='Benchmark a simulator.')
@@ -112,7 +111,7 @@ def initKP():
         # Initialize simulator
         tic = time.time()
         
-        kwargs = {'boundary_conditions': boundaryConditions, 'use_rk2': True}
+        kwargs = {'boundary_conditions': boundaryConditions, 'use_rk2': True, 'write_netcdf': True, 'comm': MPI.COMM_WORLD}
         if (args.block_width != None):
                 kwargs['block_width'] = args.block_width
         if (args.block_height != None):
@@ -150,7 +149,7 @@ def initCDKLM():
         # Initialize simulator
         tic = time.time()
         
-        kwargs = {'boundary_conditions': boundaryConditions, 'rk_order': 2}
+        kwargs = {'boundary_conditions': boundaryConditions, 'rk_order': 2, 'write_netcdf': True, 'comm': MPI.COMM_WORLD}
         if (args.block_width != None):
                 kwargs['block_width'] = args.block_width
         if (args.block_height != None):
@@ -185,7 +184,7 @@ def initFBL():
         # Initialize simulator
         tic = time.time()
         
-        kwargs = {'boundary_conditions': boundaryConditions}
+        kwargs = {'boundary_conditions': boundaryConditions, 'write_netcdf': True, 'comm': MPI.COMM_WORLD}
         if (args.block_width != None):
                 kwargs['block_width'] = args.block_width
         if (args.block_height != None):
@@ -226,7 +225,7 @@ def initCTCS():
         tic = time.time()
         
         A = 0.1*dx
-        kwargs = {'boundary_conditions': boundaryConditions}
+        kwargs = {'boundary_conditions': boundaryConditions, 'write_netcdf': True, 'comm': MPI.COMM_WORLD}
         if (args.block_width != None):
                 kwargs['block_width'] = args.block_width
         if (args.block_height != None):

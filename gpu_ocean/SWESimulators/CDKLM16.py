@@ -65,6 +65,7 @@ class CDKLM16(Simulator.Simulator):
                  reportGeostrophicEquilibrium=False, \
                  use_lcg=False, \
                  write_netcdf=False, \
+                 comm=None, \
                  netcdf_filename=None, \
                  ignore_ghostcells=False, \
                  courant_number=0.8, \
@@ -103,6 +104,7 @@ class CDKLM16(Simulator.Simulator):
         reportGeostrophicEquilibrium: Calculate the Geostrophic Equilibrium variables for each superstep
         use_lcg: Use LCG as the random number generator. Default is False, which means using curand.
         write_netcdf: Write the results after each superstep to a netCDF file
+        comm: MPI communicator
         desingularization_eps: Used for desingularizing hu/h
         flux_slope_eps: Used for setting zero flux for symmetric Riemann fan
         depth_cutoff: Used for defining dry cells
@@ -157,6 +159,7 @@ class CDKLM16(Simulator.Simulator):
                                       write_netcdf, \
                                       ignore_ghostcells, \
                                       offset_x, offset_y, \
+                                      comm, \
                                       block_width, block_height)
         
         # Index range for interior domain (north, east, south, west)
