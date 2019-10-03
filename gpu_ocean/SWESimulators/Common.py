@@ -30,6 +30,7 @@ import time
 import signal
 import subprocess
 import tempfile
+import sys
 import re
 import io
 import hashlib
@@ -47,10 +48,12 @@ from SWESimulators import WindStress
 
 
 
-"""
-Class which keeps track of time spent for a section of code
-"""
+
+
 class Timer(object):
+    """
+    Class which keeps track of time spent for a section of code
+    """
     def __init__(self, tag, log_level=logging.DEBUG):
         self.tag = tag
         self.log_level = log_level
@@ -65,7 +68,6 @@ class Timer(object):
         self.secs = self.end - self.start
         self.msecs = self.secs * 1000 # millisecs
         self.logger.log(self.log_level, "%s: %f ms", self.tag, self.msecs)
-
 
 class PopenFileBuffer(object):
     """
@@ -181,6 +183,79 @@ class IPEngine(object):
             self.c_buff = None
         
             gc.collect()
+        
+    def elapsed(self):
+        return time.time() - self.start
+            
+        
+        
+        
+class ProgressPrinter(object):
+    """
+    Small helper class for 
+    """
+    def __init__(self, print_every=5):
+        self.logger = logging.getLogger(__name__)
+        self.start = time.time()
+        self.print_every = print_every
+        self.next_print_time = print_every
+        self.print_string = ProgressPrinter.formatString(0, 0, 0)
+        self.last_x = 0
+        self.secs_per_iter = None
+        
+    def __enter__(self):
+        return self
+        
+    def __exit__(self, *args):
+        pass
+        
+    def getPrintString(self, x):
+        elapsed =  time.time() - self.start
+        
+        if (elapsed >= self.next_print_time or x == 1.0):
+            dt = elapsed - (self.next_print_time - self.print_every)
+            dx = x - self.last_x
+                        
+            if (dt <= 0):
+                return
+                
+            self.last_x = x
+            self.next_print_time = max(elapsed, self.next_print_time + self.print_every)
+            
+            # A kind of floating average
+            if not self.secs_per_iter:
+                self.secs_per_iter = dt / dx
+            self.secs_per_iter = 0.2*self.secs_per_iter + 0.8*(dt / dx)
+            
+            remaining_time = (1-x) * self.secs_per_iter
+            
+            self.print_string = ProgressPrinter.formatString(x, elapsed, remaining_time)
+            
+        return self.print_string
+            
+
+    def formatString(t, elapsed, remaining_time):
+        return "{:s}. Total: {:s}, elapsed: {:s}, remaining: {:s}".format(
+            ProgressPrinter.progressBar(t), 
+            ProgressPrinter.timeString(elapsed + remaining_time), 
+            ProgressPrinter.timeString(elapsed), 
+            ProgressPrinter.timeString(remaining_time))
+                
+
+    def timeString(seconds):
+        seconds = int(max(seconds, 0))
+        minutes, seconds = divmod(seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        periods = [('h', hours), ('m', minutes), ('s', seconds + sys.float_info.epsilon)]
+        time_string = ' '.join('{:d}{:s}'.format(int(value), name)
+                                for name, value in periods
+                                if value)
+        return time_string
+
+    def progressBar(t, width=30):
+        progress = int(round(width * t))
+        progressbar = "0% [" + "#"*(progress) + "="*(width-progress) + "] 100%"
+        return progressbar
 
 
 def deprecated(func):
@@ -798,6 +873,83 @@ class BoundaryConditions:
         msg = msg + ", spongeCells: " + str(self.spongeCells)
         return msg
     
+    
+    
+    
+    
+    
+    
+    
+    
+class SingleBoundaryConditionData():
+    """
+    This class holds the external solution for a single boundary over time.
+    """
+    def __init__(self, h=None, hu=None, hv=None):
+        self.h = [np.zeros((1,1), dtype=np.float32, order='C')]
+        self.hu = [np.zeros((1,1), dtype=np.float32, order='C')]
+        self.hv = [np.zeros((1,1), dtype=np.float32, order='C')]
+        self.numSteps = 1
+        
+        if h is not None:
+            self.shape = h[0].shape
+            self.numSteps = len(h)
+            
+            self.h = h
+            self.hu = hu
+            self.hv = hv
+        
+            for i in range(len(h)):
+                assert( h[i].shape == self.shape), str(self.shape) + " vs " + str(h[i].shape)
+                assert(hu[i].shape == self.shape), str(self.shape) + " vs " + str(hu[i].shape)
+                assert(hv[i].shape == self.shape), str(self.shape) + " vs " + str(hv[i].shape)
+                
+                assert (h[i].dtype == 'float32'), "h data needs to be of type np.float32"
+                assert (hu[i].dtype == 'float32'), "hu data needs to be of type np.float32"
+                assert (hv[i].dtype == 'float32'), "hv data needs to be of type np.float32"
+                
+    def __str__(self):
+        return str(self.numSteps) + " steps, each " + str(self.shape)
+    
+class BoundaryConditionsData():
+    """
+    This class holds external solution for all boundaries over time.
+    """
+    
+    def __init__(self, 
+                    t=None, \
+                    north=SingleBoundaryConditionData(), \
+                    south=SingleBoundaryConditionData(), \
+                    east=SingleBoundaryConditionData(), \
+                    west=SingleBoundaryConditionData()):
+
+        self.t = [0]
+        self.numSteps = 1
+        self.north = north
+        self.south = south
+        self.east = east
+        self.west = west
+                
+        if t is not None:
+            self.t = t
+            self.numSteps = len(t)
+            
+        for data in [north, south, east, west]:
+            assert(data.numSteps == self.numSteps), "Wrong timesteps " + str(data.numSteps) + " vs " + str(self.numSteps)
+            
+        assert (north.h[0].shape == south.h[0].shape), "Wrong shape of north vs south " + str(north.h[0].shape) + " vs " + str(south.h[0].shape)
+        assert (east.h[0].shape == west.h[0].shape), "Wrong shape of east vs west " + str(east.h[0].shape) + " vs " + str(west.h[0].shape)
+
+    def __str__(self):
+        return "Steps=" + str(self.numSteps) \
+            + ", [north=" + str(self.north) + "]" \
+            + ", [south=" + str(self.south) + "]" \
+            + ", [east=" + str(self.east) + "]" \
+            + ", [west=" + str(self.west) + "]"
+    
+    
+    
+    
 class BoundaryConditionsArakawaA:
     """
     Class that checks boundary conditions and calls the required kernels for Arakawa A type grids.
@@ -806,7 +958,9 @@ class BoundaryConditionsArakawaA:
     def __init__(self, gpu_ctx, nx, ny, \
                  halo_x, halo_y, \
                  boundary_conditions, \
+                 bc_data=BoundaryConditionsData(), \
                  block_width = 16, block_height = 16):
+        self.logger = logging.getLogger(__name__)
 
         self.boundary_conditions = boundary_conditions
         
@@ -814,6 +968,7 @@ class BoundaryConditionsArakawaA:
         self.ny = np.int32(ny) 
         self.halo_x = np.int32(halo_x)
         self.halo_y = np.int32(halo_y)
+        self.bc_data = bc_data;
         #print("boundary (ny, nx: ", (self.ny, self.nx))
         #print("boundary (halo_y, halo_x): ", (self.halo_y, self.halo_x))
         #print("numerical sponge cells (n,e,s,w): ", self.boundary_conditions.spongeCells)
@@ -831,9 +986,12 @@ class BoundaryConditionsArakawaA:
         self.linearInterpolation_EW = self.boundaryKernels.get_function("linearInterpolation_EW")
         self.linearInterpolation_EW.prepare("iiiiiiiiPiPiPi")
         self.flowRelaxationScheme_NS = self.boundaryKernels.get_function("flowRelaxationScheme_NS")
-        self.flowRelaxationScheme_NS.prepare("iiiiiiiiPiPiPi")
+        self.flowRelaxationScheme_NS.prepare("iiiiiiiiPiPiPif")
         self.flowRelaxationScheme_EW = self.boundaryKernels.get_function("flowRelaxationScheme_EW")
-        self.flowRelaxationScheme_EW.prepare("iiiiiiiiPiPiPi")
+        self.flowRelaxationScheme_EW.prepare("iiiiiiiiPiPiPif")
+        
+        self.bc_timestamps = [None, None]
+        self.bc_textures = None
        
         # Set kernel launch parameters
         self.local_size = (block_width, block_height, 1)
@@ -842,6 +1000,155 @@ class BoundaryConditionsArakawaA:
                              int(np.ceil((self.ny + 2*self.halo_y + 1)/float(self.local_size[1]))) )
 
 
+        
+    """
+    Function which updates the external solution for the boundary conditions
+    """
+    def update_bc_values(self, gpu_stream, t):
+        #Only if we use flow relaxation
+        if not (self.boundary_conditions.north == 3 or \
+                self.boundary_conditions.south == 3 or \
+                self.boundary_conditions.east == 3 or \
+                self.boundary_conditions.west == 3):
+            return
+    
+    
+        #Compute new t0 and t1
+        t_max_index = len(self.bc_data.t)-1
+        t0_index = max(0, np.searchsorted(self.bc_data.t, t)-1)
+        t1_index = min(t_max_index, np.searchsorted(self.bc_data.t, t))
+        new_t0 = self.bc_data.t[t0_index]
+        new_t1 = self.bc_data.t[t1_index]
+        
+        #Find the old (and update)
+        old_t0 = self.bc_timestamps[0]
+        old_t1 = self.bc_timestamps[1]
+        self.bc_timestamps = [new_t0, new_t1]
+        
+        #Log some debug info
+        self.logger.debug("Times: %s", str(self.bc_data.t))
+        self.logger.debug("Time indices: [%d, %d]", t0_index, t1_index)
+        self.logger.debug("Time: %s  New interval is [%s, %s], old was [%s, %s]", \
+                    t, new_t0, new_t1, old_t0, old_t1)
+                
+        #Get texture references
+        if (self.bc_textures):
+            NS0_texref, NS1_texref, EW0_texref, EW1_texref = self.bc_textures;
+        else:
+            NS0_texref = self.boundaryKernels.get_texref("bc_tex_NS_current")
+            EW0_texref = self.boundaryKernels.get_texref("bc_tex_EW_current")
+            NS1_texref = self.boundaryKernels.get_texref("bc_tex_NS_next")
+            EW1_texref = self.boundaryKernels.get_texref("bc_tex_EW_next")
+        
+        #Helper function to upload data to the GPU as a texture
+        def setTexture(texref, numpy_array):       
+            #Upload data to GPU and bind to texture reference
+            #shape is interpreted as height, width, num_channels for order == “C”,
+            data = np.ascontiguousarray(numpy_array)
+            texref.set_array(cuda.make_multichannel_2d_array(data, order="C"))
+            #cuda.bind_array_to_texref(cuda.make_multichannel_2d_array(numpy_array, order="C"), texref)
+                        
+            # Set texture parameters
+            texref.set_filter_mode(cuda.filter_mode.LINEAR) #bilinear interpolation
+            texref.set_address_mode(0, cuda.address_mode.CLAMP) #no indexing outside domain
+            texref.set_address_mode(1, cuda.address_mode.CLAMP)
+            texref.set_flags(cuda.TRSF_NORMALIZED_COORDINATES) #Use [0, 1] indexing
+            
+        def packDataNS(data, t_index):
+            h = data.h[t_index]
+            hu = data.hu[t_index]
+            hv = data.hv[t_index]
+            
+            h = np.squeeze(h)
+            hu = np.squeeze(hu)
+            hv = np.squeeze(hv)
+            zeros = np.zeros_like(h)
+            assert(len(h.shape) == 1), "NS-data must be one row"
+            nx = h.shape[0]
+            
+            components = 4
+            NS_data = np.vstack((h, hu, hv, zeros))
+            NS_data = np.transpose(NS_data);
+            NS_data = np.reshape(NS_data, (1, nx, components))
+            NS_data = np.ascontiguousarray(NS_data)
+            #print(NS_data)
+            
+            return NS_data
+            
+        def packDataEW(data, t_index):
+            h = data.h[t_index]
+            hu = data.hu[t_index]
+            hv = data.hv[t_index]
+            
+            h = np.squeeze(h)
+            hu = np.squeeze(hu)
+            hv = np.squeeze(hv)
+            zeros = np.zeros_like(h)
+            assert(len(h.shape) == 1), "EW-data must be one column"
+            ny = h.shape[0]
+            
+            components = 4
+            EW_data = np.vstack((h, hu, hv, zeros))
+            EW_data = np.transpose(EW_data);
+            EW_data = np.reshape(EW_data, (ny, 1, components))
+            EW_data = np.ascontiguousarray(EW_data)
+            
+            return EW_data
+
+            
+        #If time interval has changed, upload new data
+        if (new_t0 != old_t0):
+            gpu_stream.synchronize()
+            self.logger.debug("Updating T0")
+            
+            N_data = packDataNS(self.bc_data.north, t0_index)
+            S_data = packDataNS(self.bc_data.south, t0_index)
+            NS_data = np.vstack((S_data, N_data))
+            setTexture(NS0_texref, NS_data)
+            self.flowRelaxationScheme_NS.param_set_texref(NS0_texref)
+            
+            
+            E_data = packDataEW(self.bc_data.east, t0_index)
+            W_data = packDataEW(self.bc_data.west, t0_index)
+            EW_data = np.hstack((W_data, E_data)) 
+            setTexture(EW0_texref, EW_data)
+            self.flowRelaxationScheme_EW.param_set_texref(EW0_texref)
+            
+            self.logger.debug("NS-Data is set to " + str(NS_data) + ", " + str(NS_data.shape))
+            self.logger.debug("EW-Data is set to " + str(EW_data) + ", " + str(EW_data.shape))
+            
+            gpu_stream.synchronize()
+
+        if (new_t1 != old_t1):
+            gpu_stream.synchronize()
+            self.logger.debug("Updating T1")
+            
+            N_data = packDataNS(self.bc_data.north, t1_index)
+            S_data = packDataNS(self.bc_data.south, t1_index)
+            NS_data = np.vstack((S_data, N_data))
+            setTexture(NS1_texref, NS_data)
+            self.flowRelaxationScheme_NS.param_set_texref(NS1_texref)
+            
+            E_data = packDataEW(self.bc_data.east, t1_index)
+            W_data = packDataEW(self.bc_data.west, t1_index)
+            EW_data = np.hstack((W_data, E_data)) 
+            setTexture(EW1_texref, EW_data)
+            self.flowRelaxationScheme_EW.param_set_texref(EW1_texref)
+            
+            self.logger.debug("NS-Data is set to " + str(NS_data) + ", " + str(NS_data.shape))
+            self.logger.debug("EW-Data is set to " + str(EW_data) + ", " + str(EW_data.shape))
+            
+            gpu_stream.synchronize()
+                
+        # Store texture references (they are deleted if collected by python garbage collector)
+        self.logger.debug("Textures: \n[%s, %s, %s, %s]", NS0_texref, NS1_texref, EW0_texref, EW1_texref)
+        self.bc_textures = [NS0_texref, NS1_texref, EW0_texref, EW1_texref]
+        
+        # Update the bc_t linear interpolation coefficient
+        elapsed_since_t0 = (t-new_t0)
+        time_interval = max(1.0e-10, (new_t1-new_t0))
+        self.bc_t = np.float32(max(0.0, min(1.0, elapsed_since_t0 / time_interval)))
+        self.logger.debug("Interpolation t is %f", self.bc_t)
         
     def boundaryCondition(self, gpu_stream, h, u, v):
         if self.boundary_conditions.north == 2:
@@ -919,7 +1226,8 @@ class BoundaryConditionsArakawaA:
             self.boundary_conditions.spongeCells[2], \
             h.data.gpudata, h.pitch, \
             u.data.gpudata, u.pitch, \
-            v.data.gpudata, v.pitch)   
+            v.data.gpudata, v.pitch, \
+            self.bc_t)
 
     def flow_relaxation_EW(self, gpu_stream, h, u, v):
         self.flowRelaxationScheme_EW.prepared_async_call( \
@@ -931,7 +1239,8 @@ class BoundaryConditionsArakawaA:
             self.boundary_conditions.spongeCells[3], \
             h.data.gpudata, h.pitch, \
             u.data.gpudata, u.pitch, \
-            v.data.gpudata, v.pitch)
+            v.data.gpudata, v.pitch, \
+            self.bc_t)
 
 
         
@@ -953,6 +1262,13 @@ class Bathymetry:
         self.halo_nx = np.int32(nx + 2*halo_x)
         self.halo_ny = np.int32(ny + 2*halo_y)
         self.boundary_conditions = boundary_conditions
+        
+        # Set land value (if masked array)
+        self.mask_value = np.float32(1.0e20)
+        self.use_mask = False
+        if (np.ma.is_masked(Bi_host)):
+            Bi_host = Bi_host.copy().filled(self.mask_value).astype(np.float32)
+            self.use_mask = True
              
         # Check that Bi has the size corresponding to number of cell intersections
         BiShapeY, BiShapeX = Bi_host.shape
@@ -995,7 +1311,7 @@ class Bathymetry:
 
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.initBm = self.initBm_kernel.get_function("initBm")
-        self.initBm.prepare("iiPiPi")
+        self.initBm.prepare("iiPifPi")
         self.waterElevationToDepth = self.initBm_kernel.get_function("waterElevationToDepth")
         self.waterElevationToDepth.prepare("iiPiPi")
 
@@ -1003,6 +1319,7 @@ class Bathymetry:
         self.initBm.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                                    self.halo_nx, self.halo_ny, \
                                    self.Bi.data.gpudata, self.Bi.pitch, \
+                                   self.mask_value, \
                                    self.Bm.data.gpudata, self.Bm.pitch)
 
                  
@@ -1010,6 +1327,11 @@ class Bathymetry:
         Bm_cpu = self.Bm.download(gpu_stream)
         Bi_cpu = self.Bi.download(gpu_stream)
 
+        #Mask land values in output
+        if (self.use_mask):
+            Bi_cpu = np.ma.array(data=Bi_cpu, mask=(Bi_cpu == self.mask_value), fill_value=0.0)
+            Bm_cpu = np.ma.array(data=Bm_cpu, mask=(Bm_cpu == self.mask_value), fill_value=0.0)
+            
         return Bi_cpu, Bm_cpu
 
     def release(self):

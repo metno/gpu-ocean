@@ -57,6 +57,8 @@ class KP07(Simulator.Simulator):
                  comm=None, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0, \
+                 flux_slope_eps = 1.0e-1, \
+                 depth_cutoff = 1.0e-5, \
                  block_width=32, block_height=16):
         """
         Initialization routine
@@ -81,16 +83,10 @@ class KP07(Simulator.Simulator):
         boundary_conditions: Boundary condition object
         write_netcdf: Write the results after each superstep to a netCDF file
         comm: MPI communicator
+        depth_cutoff: Used for defining dry cells
+        flux_slope_eps: Used for desingularization with dry cells
         """
        
-        ## After changing from (h, B) to (eta, H), several of the simulator settings used are wrong. This check will help detect that.
-        if ( np.sum(eta0 - H[:-1, :-1] > 0) > nx):
-            assert(False), "It seems you are using water depth/elevation h and bottom topography B, while you should use water level eta and equillibrium depth H."
-
-        
-
-        
-        
         
         ghost_cells_x = 2
         ghost_cells_y = 2
@@ -133,9 +129,26 @@ class KP07(Simulator.Simulator):
         self.interior_domain_indices = np.array([-2,-2,2,2])
         self._set_interior_domain_from_sponge_cells()
         
+        # The ocean simulators and the swashes cases are defined on
+        # completely different scales. We therefore specify a different
+        # desingularization parameter if we run a swashes case.
+        # Typical values:
+        #ifndef SWASHES
+            #define KPSIMULATOR_FLUX_SLOPE_EPS   1e-1f
+            #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-4f
+        #else
+            #define KPSIMULATOR_FLUX_SLOPE_EPS   1.0e-4f
+            #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-16f
+        #endif
+        defines = {'block_width': block_width, 'block_height': block_height,
+                   'KPSIMULATOR_FLUX_SLOPE_EPS': str(flux_slope_eps)+'f',
+                   'KPSIMULATOR_FLUX_SLOPE_EPS_4': str(flux_slope_eps**4)+'f',
+                   'KPSIMULATOR_DEPTH_CUTOFF': str(depth_cutoff)+'f'}
+     
+        
         #Get kernels
         self.kp07_kernel = gpu_ctx.get_kernel("KP07_kernel.cu", 
-                defines={'block_width': block_width, 'block_height': block_height},
+                defines=defines,
                 compile_args={                          # default, fast_math, optimal
                     'options' : ["--ftz=true",          # false,   true,      true
                                  "--prec-div=false",    # true,    false,     false,
@@ -158,13 +171,19 @@ class KP07(Simulator.Simulator):
         self.swe_2D.prepare("iifffffffffiPiPiPiPiPiPiPiPiiiiif")
         self.update_wind_stress(self.kp07_kernel, self.swe_2D)
         
+        
+        # Upload Bathymetry
+        self.bathymetry = Common.Bathymetry(self.gpu_ctx, self.gpu_stream, \
+                                            nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
+       
+        # Adjust eta for possible dry states
+        Hm = self.downloadBathymetry()[1]
+        eta0 = np.maximum(eta0, -Hm)
+        
         #Create data by uploading to device    
         self.gpu_data = Common.SWEDataArakawaA(self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, eta0, hu0, hv0)
         
-        #Bathymetry
-        self.bathymetry = Common.Bathymetry(self.gpu_ctx, self.gpu_stream, \
-                                            nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
-        
+         
         self.bc_kernel = Common.BoundaryConditionsArakawaA(gpu_ctx, \
                                                            self.nx, \
                                                            self.ny, \

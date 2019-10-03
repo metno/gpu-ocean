@@ -249,7 +249,8 @@ def plotDistanceInfo(ensemble, title=None, printInfo=False):
     Utility function for generating informative plots of the ensemble relative to the observation
     """
     if ensemble.observation_type == dautils.ObservationType.UnderlyingFlow or \
-       ensemble.observation_type == dautils.ObservationType.DirectUnderlyingFlow:
+       ensemble.observation_type == dautils.ObservationType.DirectUnderlyingFlow or \
+       ensemble.observation_type == dautils.ObservationType.StaticBuoys:
         return plotVelocityInfo(ensemble, title=title, printInfo=printInfo)
 
     fig = plt.figure(figsize=(10,6))

@@ -512,7 +512,11 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         return weights
     
     
-            
+    def setTrueDrifterPositions(self, newPositions):
+        """
+        Manipulate the position of the true drifters.
+        """
+        self.particles[self.obs_index].drifters.setDrifterPositions(newPositions)
 
     
     def findLargestPossibleTimeStep(self):
