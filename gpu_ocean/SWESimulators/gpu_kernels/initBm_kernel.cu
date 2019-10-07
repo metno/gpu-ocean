@@ -23,6 +23,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "common.cu"
 
+//WARNING: Must match CDKLM16_kernel.cu and max_dt.cu
+//WARNING: This is error prone - as comparison with floating point numbers is not accurate
+#define CDKLM_DRY_FLAG 1.0e-30f
+#define CDKLM_DRY_EPS 1.0e-3f
+
 /**
  * Initializing bottom bathymetry on cell mid-points (Bm) based on 
  * given bathymetry on cell intersections (Bi).
@@ -31,8 +36,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 extern "C" {
 __global__ void initBm(const int nx_, const int ny_,
-	    float* Bi_ptr_, int Bi_pitch_,
-	    float* Bm_ptr_, int Bm_pitch_ ) {
+        float* Bi_ptr_, int Bi_pitch_,
+        float land_value_,
+        float* Bm_ptr_, int Bm_pitch_) {
+            
+           
+    //const float land_value_ = 1.0e20;
 
     //Index of thread within block
     const int tx = threadIdx.x;
@@ -51,16 +60,21 @@ __global__ void initBm(const int nx_, const int ny_,
     
     // Read Bi into shared memory
     for (int j=ty; j<block_height+1; j+=blockDim.y) {
-	const int glob_j = by + j;
-	if (glob_j < ny_+1) {
-	    float* const Bi_row = (float*) ((char*) Bi_ptr_ + Bi_pitch_*glob_j);
-	    for (int i=tx; i<block_width+1; i+=blockDim.x) {
-		const int glob_i = bx + i;
-		if (glob_i < nx_+1) {
-		    Bi[j][i] = Bi_row[glob_i];
-		}
-	    }
-	}
+        const int glob_j = by + j;
+        if (glob_j < ny_+1) {
+            float* const Bi_row = (float*) ((char*) Bi_ptr_ + Bi_pitch_*glob_j);
+            for (int i=tx; i<block_width+1; i+=blockDim.x) {
+                const int glob_i = bx + i;
+                if (glob_i < nx_+1) {
+                    Bi[j][i] = Bi_row[glob_i];
+                    
+                    // Set dry intersections to "zero"
+                    if (fabsf(Bi[j][i] - land_value_) <= CDKLM_DRY_EPS) {
+                        Bi[j][i] = CDKLM_DRY_FLAG;
+                    }
+                }
+            }
+        }
     }
 
     // Sync so that all threads have written to shared memory
@@ -68,8 +82,25 @@ __global__ void initBm(const int nx_, const int ny_,
 
     // Calculate Bm and write to main memory
     if (ti < nx_ && tj < ny_) {
-	float* Bm_row = (float*) ((char*) Bm_ptr_ + Bm_pitch_*tj);
-	Bm_row[ti] = 0.25f*(Bi[ty][tx] + Bi[ty+1][tx] + Bi[ty][tx+1] + Bi[ty+1][tx+1]);
+        float* Bm_row = (float*) ((char*) Bm_ptr_ + Bm_pitch_*tj);
+        
+        const float a = Bi[ty][tx];
+        const float b = Bi[ty+1][tx];
+        const float c = Bi[ty][tx+1];
+        const float d = Bi[ty+1][tx+1];
+        
+        const bool masked = (a == CDKLM_DRY_FLAG) &&
+                            (b == CDKLM_DRY_FLAG) &&
+                            (c == CDKLM_DRY_FLAG) &&
+                            (d == CDKLM_DRY_FLAG);
+        
+        // Set completely dry cells to land_value_
+        if (masked) {
+            Bm_row[ti] = land_value_;
+        }
+        else {
+            Bm_row[ti] = 0.25f * (a+b+c+d);
+        }
     }
 }
 } // extern "C"
@@ -81,17 +112,17 @@ __global__ void initBm(const int nx_, const int ny_,
  */
 extern "C" {
 __global__ void waterElevationToDepth(const int nx_, const int ny_,
-				    float* h_ptr_, int h_pitch_,
-				    float* Bm_ptr_, int Bm_pitch_ ) {
+                    float* h_ptr_, int h_pitch_,
+                    float* Bm_ptr_, int Bm_pitch_ ) {
     
     //Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (ti < nx_ && tj < ny_) {
-	float* const h_row = (float*) ((char*) h_ptr_ + h_pitch_*tj);
-	float* const Bm_row = (float*) ((char*) Bm_ptr_ + Bm_pitch_*tj);
-	h_row[ti] -= Bm_row[ti];
+        float* const h_row = (float*) ((char*) h_ptr_ + h_pitch_*tj);
+        float* const Bm_row = (float*) ((char*) Bm_ptr_ + Bm_pitch_*tj);
+        h_row[ti] -= Bm_row[ti];
     }
     
 }
@@ -104,20 +135,20 @@ __global__ void waterElevationToDepth(const int nx_, const int ny_,
  */
 extern "C" {
 __global__ void waterDepthToElevation(const int nx_, const int ny_,
-				    float* w_ptr_, int w_pitch_,
-				    float* h_ptr_, int h_pitch_,
-				    float* Bm_ptr_, int Bm_pitch_ ) {
+                    float* w_ptr_, int w_pitch_,
+                    float* h_ptr_, int h_pitch_,
+                    float* Bm_ptr_, int Bm_pitch_ ) {
     
     //Index of cell within domain
     const int ti = blockIdx.x * blockDim.x + threadIdx.x;
     const int tj = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (ti < nx_ && tj < ny_) {
-	float* const h_row = (float*) ((char*) h_ptr_ + h_pitch_*tj);
-	float* const Bm_row = (float*) ((char*) Bm_ptr_ + Bm_pitch_*tj);
-	float* const w_row = (float*) ((char*) w_ptr_ + w_pitch_*tj);
-	
-	w_row[ti] = h_row[ti] + Bm_row[ti];
+        float* const h_row = (float*) ((char*) h_ptr_ + h_pitch_*tj);
+        float* const Bm_row = (float*) ((char*) Bm_ptr_ + Bm_pitch_*tj);
+        float* const w_row = (float*) ((char*) w_ptr_ + w_pitch_*tj);
+        
+        w_row[ti] = h_row[ti] + Bm_row[ti];
     }
     
 }

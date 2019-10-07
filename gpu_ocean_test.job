@@ -6,7 +6,7 @@
 #SBATCH --account=nn9550k
 #
 # Wall clock limit:
-#SBATCH --time=00:10:00
+#SBATCH --time=00:30:00
 #
 # Ask for 1 GPU (max is 2)
 # Note: The environment variable CUDA_VISIBLE_DEVICES will show which GPU 
@@ -33,8 +33,9 @@ export PATH=$HOME/.local/bin:$PATH
 
 ## Set up input and output files:
 cp -r gpu_ocean/ $SCRATCH
-chkfile "$SCRATCH/gpu_ocean/demos/testCasesDemos/run_benchmark.log"
+chkfile "$SCRATCH/gpu_ocean/prototypes/scripts/mpi_run_benchmark.log"
+chkfile "$SCRATCH/gpu_ocean/prototypes/scripts/netcdf*/*.nc"
 
-cd $SCRATCH/gpu_ocean/demos/testCasesDemos/
-mpirun python run_benchmark.py --nx 256 --ny 256 --iterations 10 --simulator CTCS > run_benchmark.log
+cd $SCRATCH/gpu_ocean/prototypes/scripts/
+mpirun python mpi_run_benchmark.py --nx 256 --ny 256 --iterations 200 --simulator CDKLM > mpi_run_benchmark.log
 

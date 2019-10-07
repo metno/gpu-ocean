@@ -1,0 +1,51 @@
+#!/bin/bash
+# Job name:
+#SBATCH --job-name=gpu_ocean_test
+#
+# Project:
+#SBATCH --account=nn9550k
+#
+# Wall clock limit:
+#SBATCH --time=00:30:00
+#
+# Ask for 1 GPU (max is 2)
+# Note: The environment variable CUDA_VISIBLE_DEVICES will show which GPU 
+# device(s) to use. It will have values '0', '1' or '0,1' corresponding to 
+# /dev/nvidia0, /dev/nvidia1 or both, respectively.
+#SBATCH --partition=accel --gres=gpu:1
+#
+# Max memory usage per task (core) - increasing this will cost more core hours:
+#SBATCH --mem-per-cpu=4G
+#
+# Number of tasks (for performance benchmarking, use --nodes switch):
+##SBATCH --nodes=16 --ntasks-per-node=2 # gives exclusive access to all GPU-nodes
+#SBATCH --nodes=4 --ntasks-per-node=1
+
+## Set up job environment: (this is done automatically behind the scenes)
+## (make sure to comment '#' or remove the following line 'source ...')
+# source /cluster/bin/jobsetup
+
+module restore system   # instead of 'module purge' rather set module environment to the system default
+module load Python/3.6.6-fosscuda-2018b #nb: 'Versions' is mandatory! There are no default versions of modules as on Abel!
+
+# It is also recommended to to list loaded modules, for easier debugging:
+module list  
+
+export PATH=$HOME/.local/bin:$PATH
+
+set -o errexit # exit on errors
+set -o nounset # Treat unset variables as errors (added for more easily discovering issues in your batch script)
+
+## Copy input files to the work directory:
+cp -r gpu_ocean/ $SCRATCH
+
+## Make sure the results are copied back to the submit directory (see Work Directory below):
+# chkfile MyResultFile
+# chkfile is replaced by 'savefile' on Saga
+savefile "$SCRATCH/gpu_ocean/prototypes/scripts/mpi_run_benchmark.log"
+savefile "$SCRATCH/gpu_ocean/prototypes/scripts/netcdf*/*.nc"
+
+## Do some work:
+cd $SCRATCH/gpu_ocean/prototypes/scripts/
+srun python mpi_run_benchmark.py --nx 256 --ny 256 --iterations 200 --simulator CDKLM > mpi_run_benchmark.log
+

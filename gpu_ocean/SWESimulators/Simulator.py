@@ -62,6 +62,7 @@ class Simulator(object):
                  write_netcdf, \
                  ignore_ghostcells, \
                  offset_x, offset_y, \
+                 comm, \
                  block_width, block_height):
         """
         Setting all parameters that are common for all simulators
@@ -123,6 +124,12 @@ class Simulator(object):
         self.offset_y = offset_y
         self.sim_writer = None
         
+        # Ensemble prediction system (EPS) parameters
+        self.comm = comm # MPI communicator
+        if comm is not None:
+            self.ensemble_size = comm.size
+            self.ensemble_member = comm.rank
+
         # Compute kernel launch parameters
         self.local_size = (block_width, block_height, 1) 
         self.global_size = ( \
@@ -214,6 +221,9 @@ class Simulator(object):
         self.logger.debug("Interpolation t is %f", wind_stress_t)
         
         return wind_stress_t
+        
+        
+        
             
     @abstractmethod
     def step(self, t_end=0.0):
@@ -337,6 +347,5 @@ class Simulator(object):
         if (self.boundary_conditions.isSponge()):
             self.interior_domain_indices = self.boundary_conditions.spongeCells.copy()
             self.interior_domain_indices[0:2] = -self.interior_domain_indices[0:2]
-            print("self.interior_domain_indices: " + str(self.interior_domain_indices))
     
     

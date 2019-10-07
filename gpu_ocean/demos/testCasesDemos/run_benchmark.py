@@ -244,7 +244,6 @@ def initCTCS():
         return sim
         
 
-
 sim = None
 
 if (args.simulator == "KP"):

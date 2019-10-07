@@ -30,6 +30,7 @@ from netCDF4 import Dataset
 import subprocess
 import matplotlib.pyplot as plt
 import os as os
+import time
 
 class SimNetCDFWriter:
     """Write simulator output to file in netCDF-format, following the CF convention.
@@ -47,6 +48,10 @@ class SimNetCDFWriter:
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0):
 
+        # Parallel netCDF4 write?
+        # TODO: Implement check/test for feature or take as an argument
+        self.write_parallel = False
+        
         # OpenCL queue:
         self.gpu_stream = sim.gpu_stream
 
@@ -138,9 +143,23 @@ class SimNetCDFWriter:
             
             
         # Organize directory and create file:
-        if not os.path.isdir(self.dir_name):
-            os.makedirs(self.dir_name)
-        self.ncfile = Dataset(self.output_file_name,'w', clobber=True) 
+        if(sim.ensemble_size):
+            if not os.path.isdir(self.dir_name) and not sim.ensemble_member:
+                os.makedirs(self.dir_name)
+            else:
+                while True:
+                    if os.path.isdir(self.dir_name):
+                        break
+                    time.sleep(1)
+            if(self.write_parallel):
+                self.ncfile = Dataset(self.output_file_name,'w', clobber=True, parallel=True)
+            else:
+                self.output_file_name = self.output_file_name.replace('.nc', '_' + str(sim.ensemble_member) + '.nc')
+                self.ncfile = Dataset(self.output_file_name,'w', clobber=True, parallel=False)
+        else:
+            if not os.path.isdir(self.dir_name):
+                os.makedirs(self.dir_name)
+            self.ncfile = Dataset(self.output_file_name,'w', clobber=True, parallel=False)
         self.ncfile.Conventions = "CF-1.4"
         
         # Write global attributes
@@ -218,6 +237,8 @@ class SimNetCDFWriter:
         if not self.staggered_grid: 
             self.ncfile.createDimension('x_Hi', nx + self.ghost_cells_tot_x + 1)
             self.ncfile.createDimension('y_Hi', ny + self.ghost_cells_tot_y + 1)
+        if (sim.ensemble_size and self.write_parallel):
+            self.ncfile.createDimension('ensemble_member', sim.ensemble_size)
         
         #Create axis
         self.nc_time = self.ncfile.createVariable('time', np.dtype('float32').char, 'time')
@@ -251,6 +272,13 @@ class SimNetCDFWriter:
             x_Hi.axis = "X"
             y_Hi.axis = "Y"
             
+        if (sim.ensemble_size and self.write_parallel):
+            ensemble_member = self.ncfile.createVariable('ensemble_member', np.dtype('float32').char, 'ensemble_member')
+            ensemble_member.long_name = "ensemble run number"
+            ensemble_member.standard_name = "realization"
+            ensemble_member._CoordinateAxisType = "Ensemble"
+            ensemble_member[:] = range(0, sim.ensemble_size)
+
         #Create bogus projection variable
         self.nc_proj = self.ncfile.createVariable('projection_stere', np.dtype('int32').char)
         self.nc_proj.grid_mapping_name = 'polar_stereographic'
@@ -342,13 +370,28 @@ class SimNetCDFWriter:
         else:
             self.nc_H[:] = self.H[1:-1, 1:-1]
         
-        self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
-        if not self.ignore_ghostcells and self.staggered_grid:
-            self.nc_hu = self.ncfile.createVariable('hu', np.dtype('float32').char, ('time', 'y_hu', 'x_hu'), zlib=True)
-            self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'y_hv', 'x_hv'), zlib=True)
+        if(sim.ensemble_size and self.write_parallel):
+            self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'ensemble_member', 'y', 'x'), zlib=True)
+            self.nc_eta.set_collective(True)
+            if not self.ignore_ghostcells and self.staggered_grid:
+                self.nc_hu = self.ncfile.createVariable('hu', np.dtype('float32').char, ('time', 'ensemble_member', 'y_hu', 'x_hu'), zlib=True)
+                self.nc_hu.set_collective(True)
+                self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'ensemble_member', 'y_hv', 'x_hv'), zlib=True)
+                self.nc_hv.set_collective(True)
+            else:
+                self.nc_hu = self.ncfile.createVariable('hu', np.dtype('float32').char, ('time', 'ensemble_member', 'y', 'x'), zlib=True)
+                self.nc_hu.set_collective(True)
+                self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'ensemble_member', 'y', 'x'), zlib=True)
+                self.nc_hv.set_collective(True)
         else:
-            self.nc_hu = self.ncfile.createVariable('hu', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
-            self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
+            self.ncfile.ensemble_member = sim.ensemble_member
+            self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
+            if not self.ignore_ghostcells and self.staggered_grid:
+                self.nc_hu = self.ncfile.createVariable('hu', np.dtype('float32').char, ('time', 'y_hu', 'x_hu'), zlib=True)
+                self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'y_hv', 'x_hv'), zlib=True)
+            else:
+                self.nc_hu = self.ncfile.createVariable('hu', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
+                self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
             
         self.nc_eta.standard_name = 'water_surface_height_above_reference_datum'
         self.nc_hu.standard_name = 'x_sea_water_velocity'
@@ -405,16 +448,27 @@ class SimNetCDFWriter:
     def writeTimestep(self, sim):
         eta, hu, hv = sim.download()
         if (self.ignore_ghostcells):
-            
-            self.nc_time[self.i] = sim.t
-            self.nc_eta[self.i, :] = eta[1:-1, 1:-1]
-            self.nc_hu[self.i, :] = hu[1:-1, 1:-2]
-            self.nc_hv[self.i, :] = hv[1:-2, 1:-1]
+            if(sim.ensemble_size and self.write_parallel):
+                self.nc_time[self.i] = sim.t
+                self.nc_eta[self.i, sim.ensemble_member, :] = eta[1:-1, 1:-1]
+                self.nc_hu[self.i, sim.ensemble_member, :] = hu[1:-1, 1:-2]
+                self.nc_hv[self.i, sim.ensemble_member, :] = hv[1:-2, 1:-1]
+            else:
+                self.nc_time[self.i] = sim.t
+                self.nc_eta[self.i, :] = eta[1:-1, 1:-1]
+                self.nc_hu[self.i, :] = hu[1:-1, 1:-2]
+                self.nc_hv[self.i, :] = hv[1:-2, 1:-1]
         else:
-            self.nc_time[self.i] = sim.t
-            self.nc_eta[self.i, :] = eta
-            self.nc_hu[self.i, :] = hu
-            self.nc_hv[self.i, :] = hv
+            if(sim.ensemble_size and self.write_parallel):
+                self.nc_time[self.i] = sim.t
+                self.nc_eta[self.i, sim.ensemble_member, :] = eta
+                self.nc_hu[self.i, sim.ensemble_member, :] = hu
+                self.nc_hv[self.i, sim.ensemble_member, :] = hv
+            else:
+                self.nc_time[self.i] = sim.t
+                self.nc_eta[self.i, :] = eta
+                self.nc_hu[self.i, :] = hu
+                self.nc_hv[self.i, :] = hv
                        
         self.i += 1
 

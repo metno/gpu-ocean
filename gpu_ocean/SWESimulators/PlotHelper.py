@@ -27,6 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from matplotlib import pyplot as plt
 import matplotlib.gridspec as gridspec
+from matplotlib.colors import Normalize
 import numpy as np
 import time
 
@@ -453,3 +454,53 @@ class EnsembleAnimator:
         
         plt.draw()
         time.sleep(0.001)
+        
+        
+        
+        
+
+
+def genVelocity(rho, rho_u, rho_v):
+    u = rho_u / rho
+    v = rho_v / rho
+    u = np.sqrt(u**2 + v**2)
+
+    return u
+    
+
+def genSchlieren(rho):
+    #Compute length of z-component of normalized gradient vector 
+    normal = np.gradient(rho) #[x, y, 1]
+    length = 1.0 / np.sqrt(normal[0]**2 + normal[1]**2 + 1.0)
+    schlieren = np.power(length, 128)
+    return schlieren
+
+
+def genVorticity(rho, rho_u, rho_v):
+    u = rho_u / rho
+    v = rho_v / rho
+    u = np.sqrt(u**2 + v**2)
+    u_max = u.max()
+    
+    du_dy, _ = np.gradient(u)
+    _, dv_dx = np.gradient(v)
+    
+    #Length of curl
+    curl = dv_dx - du_dy
+    return curl
+
+
+def genColors(rho, rho_u, rho_v, cmap, vmin, vmax, use_schlieren=False):
+    curl = genVorticity(rho, rho_u, rho_v)
+
+    colors = Normalize(vmin, vmax, clip=True)(curl)
+    colors = cmap(colors)
+    
+    if (use_schlieren):
+        schlieren = genSchlieren(rho)
+        for k in range(3):
+            colors[:,:,k] = colors[:,:,k]*schlieren
+
+    return colors
+
+    
