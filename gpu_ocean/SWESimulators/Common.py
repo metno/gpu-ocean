@@ -212,6 +212,10 @@ class ProgressPrinter(object):
     def getPrintString(self, x):
         elapsed =  time.time() - self.start
         
+        if (x == 0):
+            self.print_string = ProgressPrinter.formatString(0, 0, np.nan)
+            return self.print_string
+        
         if (elapsed >= self.next_print_time or x == 1.0):
             dt = elapsed - (self.next_print_time - self.print_every)
             dx = x - self.last_x
@@ -243,6 +247,9 @@ class ProgressPrinter(object):
                 
 
     def timeString(seconds):
+        if np.isnan(seconds):
+            return(str(seconds))
+        
         seconds = int(max(seconds, 0))
         minutes, seconds = divmod(seconds, 60)
         hours, minutes = divmod(minutes, 60)
