@@ -471,6 +471,8 @@ def genVelocity(rho, rho_u, rho_v):
     u = OceanographicUtilities.desingularise(rho, rho_u, 0.00001)
     v = OceanographicUtilities.desingularise(rho, rho_v, 0.00001)
     u = np.sqrt(u**2 + v**2)
+    if (np.ma.is_masked(rho)):
+        u = np.ma.array(u, mask=rho.mask)
 
     return u
     
@@ -492,7 +494,6 @@ def genVorticity(rho, rho_u, rho_v):
         rho_v = rho_v.filled(0.0)
     u = OceanographicUtilities.desingularise(rho, rho_u, 0.00001)
     v = OceanographicUtilities.desingularise(rho, rho_v, 0.00001)
-    u = np.sqrt(u**2 + v**2)
     u_max = u.max()
     
     du_dy, _ = np.gradient(u)
@@ -500,6 +501,8 @@ def genVorticity(rho, rho_u, rho_v):
     
     #Length of curl
     curl = dv_dx - du_dy
+    if (np.ma.is_masked(rho)):
+        curl = np.ma.array(curl, mask=rho.mask)
     return curl
 
 
