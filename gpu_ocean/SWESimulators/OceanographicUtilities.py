@@ -364,3 +364,6 @@ def calcGeostrophicBalance(eta, H_m, hu, hv, angle, f_beta, dx, dy, g=9.81, use_
     geos_y = -f_beta*hu_east - g*h*DetaDnorth
     
     return [geos_x, geos_y], [f_beta*hv_north, g*h*DetaDeast], [-f_beta*hu_east, g*h*DetaDnorth]
+
+def desingularise(h, hu, eps):
+    return hu / np.maximum(np.minimum(h*h/(2.0*eps)+0.5*eps, eps), np.abs(h))
