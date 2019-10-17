@@ -462,7 +462,9 @@ class EnsembleAnimator:
 
 
 def genVelocity(rho, rho_u, rho_v):
+    mask = None
     if (np.ma.is_masked(rho)):
+        mask = rho.mask
         rho = rho.filled(0.0)
     if (np.ma.is_masked(rho_u)):
         rho_u = rho_u.filled(0.0)
@@ -471,8 +473,9 @@ def genVelocity(rho, rho_u, rho_v):
     u = OceanographicUtilities.desingularise(rho, rho_u, 0.00001)
     v = OceanographicUtilities.desingularise(rho, rho_v, 0.00001)
     u = np.sqrt(u**2 + v**2)
-    if (np.ma.is_masked(rho)):
-        u = np.ma.array(u, mask=rho.mask)
+
+    if (mask is not None):
+        u = np.ma.array(u, mask=mask)
 
     return u
     
@@ -486,7 +489,9 @@ def genSchlieren(rho):
 
 
 def genVorticity(rho, rho_u, rho_v):
+    mask = None
     if (np.ma.is_masked(rho)):
+        mask = rho.mask
         rho = rho.filled(0.0)
     if (np.ma.is_masked(rho_u)):
         rho_u = rho_u.filled(0.0)
@@ -501,8 +506,8 @@ def genVorticity(rho, rho_u, rho_v):
     
     #Length of curl
     curl = dv_dx - du_dy
-    if (np.ma.is_masked(rho)):
-        curl = np.ma.array(curl, mask=rho.mask)
+    if (mask is not None):
+        curl = np.ma.array(curl, mask=mask)
     return curl
 
 

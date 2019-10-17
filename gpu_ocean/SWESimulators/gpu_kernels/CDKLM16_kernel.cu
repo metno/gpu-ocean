@@ -896,12 +896,12 @@ __global__ void cdklm_swe_2D(
                 if (h < KPSIMULATOR_DESING_EPS) {
                     const float u = desingularize(h, hu, KPSIMULATOR_DESING_EPS);
                     const float v = desingularize(h, hv, KPSIMULATOR_DESING_EPS);
-                    C = dt_*g_*sqrt(u*u+v*v)/(h*r_*r_);
+                    C = dt_*r_*sqrt(u*u+v*v)/h;
                 }
                 else {
                     const float u = hu/h;
                     const float v = hv/h;
-                    C = dt_*g_*sqrt(u*u+v*v)/(h*r_*r_);                
+                    C = dt_*r_*sqrt(u*u+v*v)/h;
                 }
             }
 #endif
