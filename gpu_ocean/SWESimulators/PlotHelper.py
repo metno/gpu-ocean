@@ -30,6 +30,7 @@ import matplotlib.gridspec as gridspec
 from matplotlib.colors import Normalize
 import numpy as np
 import time
+import re
 from SWESimulators import OceanographicUtilities
 
 """
@@ -525,3 +526,23 @@ def genColors(rho, rho_u, rho_v, cmap, vmin, vmax, use_schlieren=False):
     return colors
 
     
+
+
+def tex_escape(text):
+    """Escape text for LaTeX processing of figures"""
+    conv = {
+        '&': r'\&',
+        '%': r'\%',
+        '$': r'\$',
+        '#': r'\#',
+        '_': r'\_',
+        '{': r'\{',
+        '}': r'\}',
+        '~': r'\textasciitilde{}',
+        '^': r'\^{}',
+        '\\': r'\textbackslash{}',
+        '<': r'\textless{}',
+        '>': r'\textgreater{}',
+    }
+    regex = re.compile('|'.join(re.escape(str(key)) for key in sorted(conv.keys(), key = lambda item: - len(item))))
+    return regex.sub(lambda match: conv[match.group()], text)
