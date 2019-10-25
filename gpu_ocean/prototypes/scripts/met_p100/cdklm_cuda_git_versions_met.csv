@@ -16,4 +16,4 @@ git_commit,label,block_width,block_height
 "f6d1727d747b486203df91079b83a9e717668852", "Added logger to CDKLM",                    12, 16
 "40f9d4817fa084de7cebfd3cf6d20254b93e7393", "Added fast math compilation flag",         12, 16
 #Change blocksize here!
-"12536844bdc4459dcf4cc92776faea3a81d0a32c", "New optimal block size",                   32, 8
+"12536844bdc4459dcf4cc92776faea3a81d0a32c", "New optimal block size",                   32, 4
