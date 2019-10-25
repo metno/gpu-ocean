@@ -26,6 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 import numpy as np
+import datetime
 from netCDF4 import Dataset
 from SWESimulators import Common, WindStress, OceanographicUtilities
 
@@ -149,7 +150,7 @@ def getWindSourceterm(source_url, timestep_indices, timesteps, x0, x1, y0, y1):
     return wind_source
 
 
-def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land_value=0.0, iterations=10, sponge_cells=[80, 80, 80, 80]):
+def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land_value=5.0, iterations=10, sponge_cells=[80, 80, 80, 80]):
     ic = {}
     
     try:
@@ -159,6 +160,7 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
         u0 = ncfile.variables['ubar'][0, y0:y1, x0:x1]
         v0 = ncfile.variables['vbar'][0, y0:y1, x0:x1]
         angle = ncfile.variables['angle'][y0:y1, x0:x1]
+        latitude = ncfile.variables['lat'][y0, x0] #Latitude of first cell - used in beta plane
         x = ncfile.variables['X'][x0:x1]
         y = ncfile.variables['Y'][y0:y1]
         
@@ -189,8 +191,9 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     hu0 = h0*u0.filled(0)
     hv0 = h0*v0.filled(0)
     
-    #Initial reference time
+    #Initial reference time and all timesteps
     ic['t0'] = t0
+    ic['timesteps'] = timesteps
     
     #Number of cells
     ic['sponge_cells'] = sponge_cells
@@ -204,14 +207,20 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     ic['dx'] = np.average(x[1:] - x[:-1])
     ic['dy'] = np.average(y[1:] - y[:-1])
     
+    #Gravity and friction
+    #FIXME: Friction coeff from netcdf?
+    ic['g'] = 9.81
+    ic['r'] = 3.0e-3
+    
     #Physical variables
     ic['H'] = H_i
     ic['eta0'] = eta0
     ic['hu0'] = hu0
     ic['hv0'] = hv0
     
-    #Coriolis angle
+    #Coriolis angle and beta
     ic['angle'] = angle
+    ic['f'], ic['coriolis_beta'] = OceanographicUtilities.calcCoriolisParams(OceanographicUtilities.degToRad(latitude))
     
     #Boundary conditions
     ic['boundary_conditions_data'] = getBoundaryConditionsData(source_url, timestep_indices, timesteps, x0, x1, y0, y1)
@@ -219,5 +228,45 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     
     #Wind stress
     ic['wind_stress'] = getWindSourceterm(source_url, timestep_indices, timesteps, x0, x1, y0, y1)
+    
+    #Note
+    ic['note'] = datetime.datetime.now().isoformat() + ": Generated from " + source_url
+    
+    return ic
+
+
+def rescaleInitialConditions(old_ic, scale):
+    ic = old_ic.copy()
+    
+    ic['NX'] = int(old_ic['NX']*scale)
+    ic['NY'] = int(old_ic['NY']*scale)
+    ic['nx'] = ic['NX'] - old_ic['sponge_cells'][1] - old_ic['sponge_cells'][3]
+    ic['ny'] = ic['NY'] - old_ic['sponge_cells'][0] - old_ic['sponge_cells'][2]
+    ic['dx'] = old_ic['dx']/scale
+    ic['dy'] = old_ic['dy']/scale
+    _, _, ic['H'] = OceanographicUtilities.rescaleIntersections(old_ic['H'], ic['NX']+1, ic['NY']+1)
+    _, _, ic['eta0'] = OceanographicUtilities.rescaleMidpoints(old_ic['eta0'], ic['NX'], ic['NY'])
+    _, _, ic['hu0'] = OceanographicUtilities.rescaleMidpoints(old_ic['hu0'], ic['NX'], ic['NY'])
+    _, _, ic['hv0'] = OceanographicUtilities.rescaleMidpoints(old_ic['hv0'], ic['NX'], ic['NY'])
+    if (old_ic['angle'].shape == old_ic['eta0']):
+        ic['angle'] = OceanographicUtilities.rescaleMidpoints(old_ic['angle'], ic['NX'], ic['NY'])
+    #Not touched:
+    #"boundary_conditions": 
+    #"boundary_conditions_data": 
+    #"wind_stress": 
+    ic['note'] = old_ic['note'] + "\n" + datetime.datetime.now().isoformat() + ": Rescaled by factor " + str(scale)
+
+    return ic
+
+
+def removeMetadata(old_ic):
+    ic = old_ic.copy()
+    
+    ic.pop('note', None)
+    ic.pop('NX', None)
+    ic.pop('NY', None)
+    ic.pop('sponge_cells', None)
+    ic.pop('t0', None)
+    ic.pop('timesteps', None)
     
     return ic
