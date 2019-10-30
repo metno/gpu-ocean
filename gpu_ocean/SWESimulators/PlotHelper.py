@@ -30,6 +30,8 @@ import matplotlib.gridspec as gridspec
 from matplotlib.colors import Normalize
 import numpy as np
 import time
+import re
+from SWESimulators import OceanographicUtilities
 
 """
 Class that makes plotting faster by caching the plots instead of recreating them
@@ -461,9 +463,20 @@ class EnsembleAnimator:
 
 
 def genVelocity(rho, rho_u, rho_v):
-    u = rho_u / rho
-    v = rho_v / rho
+    mask = None
+    if (np.ma.is_masked(rho)):
+        mask = rho.mask
+        rho = rho.filled(0.0)
+    if (np.ma.is_masked(rho_u)):
+        rho_u = rho_u.filled(0.0)
+    if (np.ma.is_masked(rho_v)):
+        rho_v = rho_v.filled(0.0)
+    u = OceanographicUtilities.desingularise(rho, rho_u, 0.00001)
+    v = OceanographicUtilities.desingularise(rho, rho_v, 0.00001)
     u = np.sqrt(u**2 + v**2)
+
+    if (mask is not None):
+        u = np.ma.array(u, mask=mask)
 
     return u
     
@@ -477,9 +490,16 @@ def genSchlieren(rho):
 
 
 def genVorticity(rho, rho_u, rho_v):
-    u = rho_u / rho
-    v = rho_v / rho
-    u = np.sqrt(u**2 + v**2)
+    mask = None
+    if (np.ma.is_masked(rho)):
+        mask = rho.mask
+        rho = rho.filled(0.0)
+    if (np.ma.is_masked(rho_u)):
+        rho_u = rho_u.filled(0.0)
+    if (np.ma.is_masked(rho_v)):
+        rho_v = rho_v.filled(0.0)
+    u = OceanographicUtilities.desingularise(rho, rho_u, 0.00001)
+    v = OceanographicUtilities.desingularise(rho, rho_v, 0.00001)
     u_max = u.max()
     
     du_dy, _ = np.gradient(u)
@@ -487,6 +507,8 @@ def genVorticity(rho, rho_u, rho_v):
     
     #Length of curl
     curl = dv_dx - du_dy
+    if (mask is not None):
+        curl = np.ma.array(curl, mask=mask)
     return curl
 
 
@@ -504,3 +526,23 @@ def genColors(rho, rho_u, rho_v, cmap, vmin, vmax, use_schlieren=False):
     return colors
 
     
+
+
+def tex_escape(text):
+    """Escape text for LaTeX processing of figures"""
+    conv = {
+        '&': r'\&',
+        '%': r'\%',
+        '$': r'\$',
+        '#': r'\#',
+        '_': r'\_',
+        '{': r'\{',
+        '}': r'\}',
+        '~': r'\textasciitilde{}',
+        '^': r'\^{}',
+        '\\': r'\textbackslash{}',
+        '<': r'\textless{}',
+        '>': r'\textgreater{}',
+    }
+    regex = re.compile('|'.join(re.escape(str(key)) for key in sorted(conv.keys(), key = lambda item: - len(item))))
+    return regex.sub(lambda match: conv[match.group()], text)
