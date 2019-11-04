@@ -121,7 +121,7 @@ if (os.name == 'nt'):
     git_command = "git.exe"
 else:
     git_command = "git"
-   
+    
 # Create modified environment for git to execute in
 my_env = None
 if (len(args.add_exe_path) > 0):
