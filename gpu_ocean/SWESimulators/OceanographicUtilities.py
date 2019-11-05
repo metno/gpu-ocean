@@ -149,15 +149,14 @@ def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=Fal
     delta = np.zeros_like(a_m)
     u_mask = binary_dilation(a_i.mask)
     
-    convergence = []
+    convergence = {'l_1': [], 'l_2': [], 'l_inf': []}
     for i in range(iterations):    
         delta[1:-1,1:-1] = a_m.data[1:-1,1:-1] - intersectionsToMidpoints(a_i.data)
         delta = np.ma.array(delta, mask=a_m.mask.copy())
         
-        l_1 = np.sum(np.abs(delta))
-        l_2 = np.sum(np.abs(delta**2))**(1/2)
-        l_inf = np.max(np.abs(delta))
-        convergence += [[l_1, l_2, l_inf]]
+        convergence['l_1'] += [np.sum(np.abs(delta.filled(0.0)))/np.sum(~mask)]
+        convergence['l_2'] += [np.sum(np.abs(delta.filled(0.0)**2)**(1/2))/np.sum(~mask)]
+        convergence['l_inf'] += [np.max(np.abs(delta.filled(0.0)))]
         
         if (i%2 == 0):
             count = 4 - (np.int32(delta.mask[1:, 1:]) \
@@ -189,7 +188,7 @@ def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=Fal
         a_i = np.clip(a_i, vmin, vmax)
         
         #Stop criteria
-        if (convergence[i][0] / convergence[0][0] < tolerance):
+        if (convergence['l_1'][0] / convergence['l_1'][0] < tolerance):
             break        
 
     return a_i, convergence
