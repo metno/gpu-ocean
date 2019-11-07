@@ -36,7 +36,7 @@ class OceanModelEnsemble:
                  drifter_positions=[],
                  observation_variance = 0.01**2, 
                  initialization_variance_factor_ocean_field = 0.0,
-                 rank=0):
+                 netcdf_filename=None, rank=0):
         """
         Constructor which creates num_particles slighly different ocean models
         based on the same initial conditions
@@ -67,7 +67,7 @@ class OceanModelEnsemble:
         self.logger.debug("Creating %d particles (ocean models)", num_particles)
         self.particles = [None] * num_particles
         for i in range(num_particles):
-            self.particles[i] = CDKLM16.CDKLM16(self.gpu_ctx, **self.sim_args, **data_args)
+            self.particles[i] = CDKLM16.CDKLM16(self.gpu_ctx, **self.sim_args, **data_args, local_particle_id=i, netcdf_filename=netcdf_filename)
             
             if self.initialization_variance_factor_ocean_field != 0.0:
                 self.particles[i].perturbState(q0_scale=self.initialization_variance_factor_ocean_field)

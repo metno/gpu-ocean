@@ -305,7 +305,7 @@ if __name__ == "__main__":
         ensemble = MPIOceanModelEnsemble.MPIOceanModelEnsemble(MPI.COMM_WORLD, **kwargs)        
         
         #Run main loop
-        resampling_times = np.linspace(100, 2500, 5)*ensemble.sim_args['dt']
+        resampling_times = np.linspace(100, 2500, 2)*ensemble.sim_args['dt']
         if (ensemble.comm.rank == 0):
             print("Will resample at times: ", resampling_times)
         mainLoop(ensemble, resampling_times, args.outfile)
