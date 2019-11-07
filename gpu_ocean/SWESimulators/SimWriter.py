@@ -384,7 +384,8 @@ class SimNetCDFWriter:
                 self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'ensemble_member', 'y', 'x'), zlib=True)
                 self.nc_hv.set_collective(True)
         else:
-            self.ncfile.ensemble_member = sim.ensemble_member
+            if(sim.ensemble_size):
+                self.ncfile.ensemble_member = sim.ensemble_member
             self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
             if not self.ignore_ghostcells and self.staggered_grid:
                 self.nc_hu = self.ncfile.createVariable('hu', np.dtype('float32').char, ('time', 'y_hu', 'x_hu'), zlib=True)
