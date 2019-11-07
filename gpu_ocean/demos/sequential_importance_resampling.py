@@ -21,6 +21,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy as np
+from netCDF4 import Dataset
 from mpi4py import MPI
 import gc, os, sys
 
@@ -28,8 +29,7 @@ import gc, os, sys
 file_dir = os.path.dirname(os.path.realpath(__file__)) 
 sys.path.insert(0, os.path.abspath(os.path.join(file_dir, '../')))
 
-from SWESimulators import MPIOceanModelEnsemble
-
+from SWESimulators import CDKLM16, PlotHelper, Common, WindStress, OceanographicUtilities, MPIOceanModelEnsemble, NetCDFInitialization
 
 def testMPI():
     comm = MPI.COMM_WORLD
@@ -42,38 +42,8 @@ def testMPI():
     
     
     
-    
-    
-    
-def generateInitialConditions(sim_args, water_depth):
-    from SWESimulators import CDKLM16, Common
-    assert(MPI.COMM_WORLD.rank == 0)
 
-    dataShape = (sim_args['ny'] + 4, sim_args['nx'] + 4)
-    dataShapeHi = (sim_args['ny'] + 5, sim_args['nx'] + 5)
-    
-    sim_ic = {
-        'H': np.ones(dataShapeHi, dtype=np.float32)*water_depth,
-        'eta0': np.zeros(dataShape, dtype=np.float32),
-        'hu0': np.zeros(dataShape, dtype=np.float32),
-        'hv0': np.zeros(dataShape, dtype=np.float32)
-    }
-    
-    #Very inefficient way of creating perturbed initial state, but works
-    cuda_ctx = Common.CUDAContext()
-    sim = CDKLM16.CDKLM16(cuda_ctx, **sim_args, **sim_ic)
-    sim.perturbState(q0_scale=100) # Create a random initial state 
-    sim_ic['eta0'], sim_ic['hu0'], sim_ic['hv0'] = sim.download(interior_domain_only=False)
-    sim_ic['H'] = sim.downloadBathymetry()[0]
-    sim = None
-    gc.collect()
-    
-    return sim_ic
-    
-    
-    
-
-def generateDrifterPositions(sim_args, num_drifters):
+def generateDrifterPositions(data_args, num_drifters):
     assert(MPI.COMM_WORLD.rank == 0)
     
     # Define mid-points for the different drifters 
@@ -86,8 +56,8 @@ def generateDrifterPositions(sim_args, num_drifters):
             drifter_id = sub_y*sub_domains_x + sub_x
             if drifter_id >= num_drifters:
                 break
-            midPoints[drifter_id, 0]  = (sub_x + 0.5)*sim_args['nx']*sim_args['dx']/sub_domains_x
-            midPoints[drifter_id, 1]  = (sub_y + 0.5)*sim_args['ny']*sim_args['dy']/sub_domains_y
+            midPoints[drifter_id, 0]  = (sub_x + 0.5)*data_args['nx']*data_args['dx']/sub_domains_x
+            midPoints[drifter_id, 1]  = (sub_y + 0.5)*data_args['ny']*data_args['dy']/sub_domains_y
 
     return midPoints
     
@@ -182,7 +152,7 @@ def mainLoop(ensemble, resampling_times, outfilename):
             plotting_info.append([resampling_time, ensemble_stats_pre, ensemble_stats_post])
             
             
-        print(".", end="", flush=True)
+        print(str(ensemble.comm.rank) + ", ", end="", flush=True)
         
     print("Done!")
     
@@ -258,16 +228,8 @@ def makePlots(filename):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Run an MPI cluster for sequential importance resampling. Run this file using e.g., using mpiexec -n 4 python sequential_importance_resampling.py to run a simulation. Plot results using the --make_plots option (without MPI!)')
-    parser.add_argument('-nx', type=int, default=40)
-    parser.add_argument('-ny', type=int, default=60)
-    parser.add_argument('-dx', type=float, default=4.0)
-    parser.add_argument('-dy', type=float, default=4.0)
-    parser.add_argument('-dt', type=float, default=0.05)
-    parser.add_argument('-g', type=float, default=9.81)
-    parser.add_argument('-f', type=float, default=0.05)
-    parser.add_argument('-r', type=float, default=0.0)
+    parser.add_argument('-dt', type=float, default=0.01)
     parser.add_argument('--outfile', type=str, default="sir_" + str(MPI.COMM_WORLD.rank) + ".npz")
-    parser.add_argument('--water_depth', type=float, default=10.0)
     parser.add_argument('--num_drifters', type=int, default=3)
     parser.add_argument('--per_node_ensemble_size', type=int, default=15)
     parser.add_argument('--observation_variance', type=float, default=0.02**2)
@@ -297,61 +259,54 @@ if __name__ == "__main__":
             #Size of ensemble per node
             kwargs['local_ensemble_size'] = args.per_node_ensemble_size
             
-            #Arguments sent to the simulator (ocean model)
-            kwargs['sim_args'] = {
-                'nx': args.nx,
-                'ny': args.ny,
-
-                'dx': args.dx,
-                'dy': args.dy,
-                'dt': args.dt,
-
-                'g': args.g,
-                'r': args.r,
-                'f': args.f,
-
-                'write_netcdf': False,
-
-                # Choose a suitable amplitude for the model error.
-                # This expression does not make sense (dimensionwise), but it gives a number
-                # that fits well with all the other numbers (:
-                'small_scale_perturbation': True,
-                'small_scale_perturbation_amplitude': 0.5*args.dt*args.f/(args.g*args.water_depth),
+            #Initial conditions
+            # FIXME: Hardcoded parameters
+            source_url = norkyst800_url = 'https://thredds.met.no/thredds/dodsC/fou-hi/norkyst800m-1h/NorKyst-800m_ZDEPTHS_his.an.2019071600.nc'
+            x0 = 25
+            x1 = 2575
+            y0 = 25
+            y1 = 875
+            
+            dt = 0.5 #0.0
+            
+            data_args = NetCDFInitialization.removeMetadata(NetCDFInitialization.getInitialConditions(source_url, x0, x1, y0, y1))#, timestep_indices=timestep_indices)
+            sim_args = {
+                #"gpu_ctx": gpu_ctx,
+                "dt": dt,
+                "rk_order": 2,
+                "desingularization_eps": 1.0,
+                #"write_netcdf": True,
+                #"small_scale_perturbation": True,
+                #"small_scale_perturbation_amplitude": 0.000012742 #0.5*dt*data_args['f']/(data_args['g']*data_args['H'].max())
             }
+            
+            kwargs['data_args'] = data_args
+            kwargs['sim_args'] = sim_args
             
             #Arguments sent to the ensemble (OceanModelEnsemble)
             kwargs['ensemble_args'] = {
-                'observation_variance': args.observation_variance, 
-                'initialization_variance_factor_ocean_field': args.initialization_variance_factor_ocean_field
+                #'observation_variance': args.observation_variance, 
+                #'initialization_variance_factor_ocean_field': args.initialization_variance_factor_ocean_field
             }
             
-            #Arguments sent to BoundaryConditions
-            kwargs['sim_bc_args'] = {
-                'east': 2,
-                'west': 2,
-                'north': 2,
-                'south': 2
-            }
+            # FIXME: Does not work now. Needs some attention.
+            #kwargs['drifter_positions'] = generateDrifterPositions(kwargs['data_args'], args.num_drifters)
+            #print("kwargs['drifter_positions']: " + str(kwargs['drifter_positions']))
             
-            #Initial conditions
-            kwargs['sim_ic'] = generateInitialConditions(kwargs['sim_args'], args.water_depth)
-            kwargs['drifter_positions'] = generateDrifterPositions(kwargs['sim_args'], args.num_drifters)
-            
-            
-            
-            
-            
-            
+            #FIXME: Hardcoded two drifters
+            drifters = np.empty((2, 2))
+            drifters[0, 0] = 640000
+            drifters[0, 1] = 460000
+            drifters[1, 0] = 860000
+            drifters[1, 1] = 460000
+            kwargs['drifter_positions'] = drifters
             
         #Create ensemble on all nodes
-        ensemble = MPIOceanModelEnsemble.MPIOceanModelEnsemble(MPI.COMM_WORLD, **kwargs)
-        
-        
-        
-        
+        ensemble = MPIOceanModelEnsemble.MPIOceanModelEnsemble(MPI.COMM_WORLD, **kwargs)        
         
         #Run main loop
-        resampling_times = np.linspace(100, 500, 5)*ensemble.sim_args['dt']
+        resampling_times = np.linspace(100, 2500, 5)*ensemble.sim_args['dt']
         if (ensemble.comm.rank == 0):
             print("Will resample at times: ", resampling_times)
         mainLoop(ensemble, resampling_times, args.outfile)
+        
