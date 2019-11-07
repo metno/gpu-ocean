@@ -213,7 +213,9 @@ class CDKLM16(Simulator.Simulator):
         
             
         # Bathymetry
-        self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
+        self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, 
+                                            ghost_cells_x, ghost_cells_y, H, 
+                                            boundary_conditions)
                 
         # Adjust eta for possible dry states
         Hm = self.downloadBathymetry()[1]
@@ -293,7 +295,12 @@ class CDKLM16(Simulator.Simulator):
         self.angle_texref.set_address_mode(0, cuda.address_mode.CLAMP) #no indexing outside domain
         self.angle_texref.set_address_mode(1, cuda.address_mode.CLAMP)
         self.angle_texref.set_flags(cuda.TRSF_NORMALIZED_COORDINATES) #Use [0, 1] indexing
-    
+        
+        # Update timestep if dt is given as zero
+        if self.dt == 0:
+            self.updateDt()
+        
+        
     def cleanUp(self):
         """
         Clean up function
@@ -520,7 +527,7 @@ class CDKLM16(Simulator.Simulator):
                    h_in, hu_in, hv_in, \
                    h_out, hu_out, hv_out, \
                    local_dt, wind_stress_t, rk_step):
-            
+
         #"Beautify" code a bit by packing four int8s into a single int32
         #Note: Must match code in kernel!
         boundary_conditions = np.int32(0)
