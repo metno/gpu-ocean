@@ -212,6 +212,10 @@ class ProgressPrinter(object):
     def getPrintString(self, x):
         elapsed =  time.time() - self.start
         
+        if (x == 0):
+            self.print_string = ProgressPrinter.formatString(0, 0, np.nan)
+            return self.print_string
+        
         if (elapsed >= self.next_print_time or x == 1.0):
             dt = elapsed - (self.next_print_time - self.print_every)
             dx = x - self.last_x
@@ -243,6 +247,9 @@ class ProgressPrinter(object):
                 
 
     def timeString(seconds):
+        if np.isnan(seconds):
+            return(str(seconds))
+        
         seconds = int(max(seconds, 0))
         minutes, seconds = divmod(seconds, 60)
         hours, minutes = divmod(minutes, 60)
@@ -522,6 +529,10 @@ class CUDAArray2D:
         #Upload data to the device
         self.data = pycuda.gpuarray.to_gpu_async(host_data, stream=gpu_stream)
         self.holds_data = True
+
+        self.mask = None
+        if (np.ma.is_masked(data)):
+            self.mask = data.mask
         
         self.bytes_per_float = host_data.itemsize
         assert(self.bytes_per_float == 4 or
@@ -536,6 +547,9 @@ class CUDAArray2D:
         if not self.holds_data:
             raise RuntimeError('The buffer has been freed before upload is called')
         
+        if (np.ma.is_masked(data)):
+            self.mask = host_data.mask
+
         # Make sure that the input is of correct size:
         if self.double_precision:
             host_data = data
@@ -583,6 +597,9 @@ class CUDAArray2D:
         
         #Copy data from device to host
         host_data = self.data.get(stream=gpu_stream)
+
+        if (self.mask is not None):
+            host_data = np.ma.array(host_data, mask=self.mask)
         
         #Return
         return host_data

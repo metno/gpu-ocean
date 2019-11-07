@@ -129,6 +129,8 @@ class Simulator(object):
         if comm is not None:
             self.ensemble_size = comm.size
             self.ensemble_member = comm.rank
+        else:
+            self.ensemble_size = 0
 
         # Compute kernel launch parameters
         self.local_size = (block_width, block_height, 1) 
