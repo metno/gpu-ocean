@@ -23,6 +23,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import datetime
 import logging
 import numpy as np
 from mpi4py import MPI
@@ -66,6 +67,14 @@ class MPIOceanModelEnsemble:
         self.num_drifters = len(drifter_positions)
         self.num_drifters = self.comm.bcast(self.num_drifters, root=0)
         
+        # Ensure all particles in all processes use the same timestamp (common for each EPS run)
+        if (self.comm.rank == 0):
+            timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
+            timestamp_short = datetime.datetime.now().strftime("%Y_%m_%d")
+            netcdf_filename = timestamp + ".nc"
+        else:
+            netcdf_filename = None
+        netcdf_filename = self.comm.bcast(netcdf_filename, root=0)
         
         
         #Broadcast initial conditions for simulator
@@ -118,12 +127,13 @@ class MPIOceanModelEnsemble:
             num_ensemble_members = 1
         else:
             num_ensemble_members = self.local_ensemble_size
+        
         self.ensemble = OceanModelEnsemble.OceanModelEnsemble(
                             self.gpu_ctx, self.sim_args, self.data_args, 
                             num_ensemble_members, 
                             drifter_positions=drifter_positions, 
                             **ensemble_args,
-                            rank=self.comm.rank)
+                            netcdf_filename=netcdf_filename, rank=self.comm.rank)
         
         
         

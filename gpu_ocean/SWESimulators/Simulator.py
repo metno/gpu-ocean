@@ -63,7 +63,8 @@ class Simulator(object):
                  ignore_ghostcells, \
                  offset_x, offset_y, \
                  comm, \
-                 block_width, block_height):
+                 block_width, block_height, \
+                 local_particle_id=0):
         """
         Setting all parameters that are common for all simulators
         """
@@ -126,11 +127,8 @@ class Simulator(object):
         
         # Ensemble prediction system (EPS) parameters
         self.comm = comm # MPI communicator
-        if comm is not None:
-            self.ensemble_size = comm.size
-            self.ensemble_member = comm.rank
-        else:
-            self.ensemble_size = 0
+        
+        self.local_particle_id = local_particle_id
 
         # Compute kernel launch parameters
         self.local_size = (block_width, block_height, 1) 

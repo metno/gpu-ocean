@@ -66,6 +66,7 @@ class CDKLM16(Simulator.Simulator):
                  use_lcg=False, \
                  write_netcdf=False, \
                  comm=None, \
+                 local_particle_id=0, \
                  netcdf_filename=None, \
                  ignore_ghostcells=False, \
                  courant_number=0.8, \
@@ -105,6 +106,7 @@ class CDKLM16(Simulator.Simulator):
         use_lcg: Use LCG as the random number generator. Default is False, which means using curand.
         write_netcdf: Write the results after each superstep to a netCDF file
         comm: MPI communicator
+        local_particle_id: Local (for each MPI process) particle id
         desingularization_eps: Used for desingularizing hu/h
         flux_slope_eps: Used for setting zero flux for symmetric Riemann fan
         depth_cutoff: Used for defining dry cells
@@ -160,7 +162,8 @@ class CDKLM16(Simulator.Simulator):
                                       ignore_ghostcells, \
                                       offset_x, offset_y, \
                                       comm, \
-                                      block_width, block_height)
+                                      block_width, block_height,
+                                      local_particle_id=local_particle_id)
         
         # Index range for interior domain (north, east, south, west)
         # so that interior domain of eta is
