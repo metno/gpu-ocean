@@ -184,12 +184,12 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     H_m = np.ma.array(H_m, mask=eta0.mask.copy())
     H_i, _ = OceanographicUtilities.midpointsToIntersections(H_m, land_value=land_value, iterations=iterations)
     eta0 = eta0[1:-1, 1:-1]
-    h0 = OceanographicUtilities.intersectionsToMidpoints(H_i) + eta0
+    h0 = OceanographicUtilities.intersectionsToMidpoints(H_i).filled(land_value) + eta0.filled(0.0)
     
     #Generate physical variables
-    eta0 = eta0.filled(0)
-    hu0 = h0*u0.filled(0)
-    hv0 = h0*v0.filled(0)
+    eta0 = np.ma.array(eta0.filled(0), mask=eta0.mask)
+    hu0 = np.ma.array(h0*u0.filled(0), mask=eta0.mask.copy())
+    hv0 = np.ma.array(h0*v0.filled(0), mask=eta0.mask.copy())
     
     #Initial reference time and all timesteps
     ic['t0'] = t0
@@ -235,7 +235,7 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     return ic
 
 
-def rescaleInitialConditions(old_ic, scale):
+def rescaleInitialConditions(old_ic, scale):    
     ic = old_ic.copy()
     
     ic['NX'] = int(old_ic['NX']*scale)
@@ -248,8 +248,8 @@ def rescaleInitialConditions(old_ic, scale):
     _, _, ic['eta0'] = OceanographicUtilities.rescaleMidpoints(old_ic['eta0'], ic['NX'], ic['NY'])
     _, _, ic['hu0'] = OceanographicUtilities.rescaleMidpoints(old_ic['hu0'], ic['NX'], ic['NY'])
     _, _, ic['hv0'] = OceanographicUtilities.rescaleMidpoints(old_ic['hv0'], ic['NX'], ic['NY'])
-    if (old_ic['angle'].shape == old_ic['eta0']):
-        ic['angle'] = OceanographicUtilities.rescaleMidpoints(old_ic['angle'], ic['NX'], ic['NY'])
+    if (old_ic['angle'].shape == old_ic['eta0'].shape):
+        _, _, ic['angle'] = OceanographicUtilities.rescaleMidpoints(old_ic['angle'], ic['NX'], ic['NY'])
     #Not touched:
     #"boundary_conditions": 
     #"boundary_conditions_data": 
