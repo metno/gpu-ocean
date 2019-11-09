@@ -82,7 +82,7 @@ def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=Fal
     
     #Fill one cell boundary with land data
     mask = a_m.mask.copy()
-    mask = binary_erosion(mask)
+    #mask = binary_erosion(mask)
     a_m = np.ma.array(a_m.filled(land_value), mask=mask, fill_value=land_value)
         
     def genIntersections(midpoints, use_minmod):
@@ -132,9 +132,9 @@ def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=Fal
         values[count>0] = (a_a[count>0] + a_b[count>0] + a_c[count>0] + a_d[count>0]) / count[count>0]
 
         #Create mask
-        mask = (count == 0)
+        out_mask = (count == 0)
         
-        return np.ma.array(values, mask=mask, fill_value=midpoints.fill_value)
+        return np.ma.array(values, mask=out_mask, fill_value=midpoints.fill_value)
     
     vmax = a_m.max()
     vmin = a_m.min()
@@ -147,7 +147,7 @@ def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=Fal
     #Use kind of a heat equation explisit solver with a source term from the error
     gauss_sigma = 1
     delta = np.zeros_like(a_m)
-    u_mask = binary_dilation(a_i.mask)
+    u_mask = a_i.mask.copy() #binary_dilation(a_i.mask)
     
     convergence = {'l_1': [], 'l_2': [], 'l_inf': []}
     for i in range(iterations):    
@@ -186,6 +186,7 @@ def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=Fal
             a_i[~a_i.mask] = a_i[~a_i.mask] + genIntersections(delta, use_minmod=use_minmod)[~a_i.mask]
                 
         a_i = np.clip(a_i, vmin, vmax)
+        a_i.mask = u_mask
         
         #Stop criteria
         if (convergence['l_1'][0] / convergence['l_1'][0] < tolerance):
@@ -222,17 +223,22 @@ def minmodY(eta, theta=1.3):
     forward  = theta*(eta[2:,:] - eta[1:-1,:])
     central  = (eta[2:,:] - eta[:-2,:])/2
     
-    positive = np.minimum(np.minimum(forward, backward), central)
-    negative = np.maximum(np.maximum(forward, backward), central)
+    if np.ma.is_masked(eta):
+        backward[eta.mask[1:-1,:]] = 0.0
+        forward[eta.mask[1:-1,:]] = 0.0
+        central[eta.mask[1:-1,:]] = 0.0
     
-    positive = np.where((forward > 0) * (backward > 0) * (central > 0), positive, 0.0)
-    negative = np.where((forward < 0) * (backward < 0) * (central < 0), negative, 0.0)
+    positive = np.minimum(np.minimum(forward * (forward > 0), backward * (backward > 0)), (central * (central > 0)))
+    negative = np.maximum(np.maximum(forward * (forward < 0), backward * (backward < 0)), (central * (central < 0)))
     
     retval = np.zeros_like(eta)
     retval[1:-1,:] = positive + negative
     retval[0,:] = theta*(eta[1,:] - eta[0,:])
     retval[-1,:] = theta*(eta[-2,:] - eta[-1,:])
     
+    if np.ma.is_masked(eta):
+        retval = retval.filled(0.0)
+        
     return retval
 
 def minmodX(eta, theta=1.3):
