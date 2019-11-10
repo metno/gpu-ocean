@@ -68,7 +68,7 @@ def intersectionsToMidpoints(a_i):
     return values
 
     
-def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=False, dt=0.125, land_value=0.0, compute_convergence=False):
+def midpointsToIntersections(a_m, iterations=20, tolerance=5e-3, use_minmod=False, dt=0.125, land_value=0.0, compute_convergence=False):
     """
     Converts cell values at midpoints to cell values at midpoints using a cubic
     interpolating spline to generate first guess, followed by an iterative update. 
