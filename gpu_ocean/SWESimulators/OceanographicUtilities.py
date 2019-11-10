@@ -56,14 +56,11 @@ def intersectionsToMidpoints(a_i):
         mask = valid<4
         
         #Set values for all elements
-        masked_values = 0.25*(a_i.data[:-1, :-1] + a_i.data[:-1, 1:] + a_i.data[1:, :-1] + a_i.data[1:, 1:])
-        
-        #Set values for non-masked elements 
         values = a_i.filled(0)
-        unmasked_values = values[:-1, :-1] + values[:-1, 1:] + values[1:, :-1] + values[1:, 1:]
-        unmasked_values[~mask] = unmasked_values[~mask] / valid[~mask]
+        all_values = values[:-1, :-1] + values[:-1, 1:] + values[1:, :-1] + values[1:, 1:]
+        all_values[~mask] = all_values[~mask] / valid[~mask]
+        all_values[mask] = a_i.fill_value
         
-        all_values = mask*masked_values + ~mask*unmasked_values
         return np.ma.array(all_values, mask=mask, fill_value=a_i.fill_value)
     else:
         values = 0.25*(a_i[:-1, :-1] + a_i[:-1, 1:] + a_i[1:, :-1] + a_i[1:, 1:])
@@ -71,20 +68,11 @@ def intersectionsToMidpoints(a_i):
     return values
 
     
-def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=False, dt=0.125, land_value=0.0):
+def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=False, dt=0.125, land_value=0.0, compute_convergence=False):
     """
     Converts cell values at midpoints to cell values at midpoints using a cubic
     interpolating spline to generate first guess, followed by an iterative update. 
     """
-    from scipy import interpolate 
-    from scipy.ndimage.morphology import binary_dilation
-    from scipy.ndimage.morphology import binary_erosion
-    
-    #Fill one cell boundary with land data
-    mask = a_m.mask.copy()
-    #mask = binary_erosion(mask)
-    a_m = np.ma.array(a_m.filled(land_value), mask=mask, fill_value=land_value)
-        
     def genIntersections(midpoints, use_minmod):
         if (use_minmod):
             dx = minmodX(midpoints.data)
@@ -143,6 +131,10 @@ def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=Fal
     a_i = genIntersections(a_m, use_minmod=use_minmod)
     a_i = np.clip(a_i, vmin, vmax)
     
+    a_i_old = None
+    if (compute_convergence):
+        a_i_old = a_i.copy()
+    
     # Iteratively refine intersections estimate
     #Use kind of a heat equation explisit solver with a source term from the error
     gauss_sigma = 1
@@ -150,13 +142,9 @@ def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=Fal
     u_mask = a_i.mask.copy() #binary_dilation(a_i.mask)
     
     convergence = {'l_1': [], 'l_2': [], 'l_inf': []}
-    for i in range(iterations):    
+    for i in range(2*iterations+1):        
         delta[1:-1,1:-1] = a_m.data[1:-1,1:-1] - intersectionsToMidpoints(a_i.data)
         delta = np.ma.array(delta, mask=a_m.mask.copy())
-        
-        convergence['l_1'] += [np.sum(np.abs(delta.filled(0.0)))/np.sum(~mask)]
-        convergence['l_2'] += [np.sum(np.abs(delta.filled(0.0)**2)**(1/2))/np.sum(~mask)]
-        convergence['l_inf'] += [np.max(np.abs(delta.filled(0.0)))]
         
         if (i%2 == 0):
             count = 4 - (np.int32(delta.mask[1:, 1:]) \
@@ -189,8 +177,15 @@ def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=Fal
         a_i.mask = u_mask
         
         #Stop criteria
-        if (convergence['l_1'][0] / convergence['l_1'][0] < tolerance):
-            break        
+        if (compute_convergence and i % 2 == 1):
+            d = a_i - a_i_old
+            a_i_old = a_i.copy()
+            d[u_mask] = 0.0
+            convergence['l_1'] += [np.sum(np.abs(d))/np.sum(~u_mask)]
+            convergence['l_2'] += [np.sum(np.abs(d**2))**(1/2)/np.sum(~u_mask)]
+            convergence['l_inf'] += [np.max(np.abs(d))]
+            if (convergence['l_1'][0] / convergence['l_1'][0] < tolerance):
+                break
 
     return a_i, convergence
 
