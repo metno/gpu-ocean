@@ -71,14 +71,19 @@ def intersectionsToMidpoints(a_i):
     return values
 
     
-def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=False, dt=0.125):
+def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=False, dt=0.125, land_value=0.0):
     """
     Converts cell values at midpoints to cell values at midpoints using a cubic
     interpolating spline to generate first guess, followed by an iterative update. 
     """
     from scipy import interpolate 
     from scipy.ndimage.morphology import binary_dilation
-        
+    from scipy.ndimage.morphology import binary_erosion
+    
+    #Fill one cell boundary with land data
+    mask = a_m.mask.copy()
+    mask = binary_erosion(mask)
+    a_m = np.ma.array(a_m.filled(land_value), mask=mask, fill_value=land_value)
         
     def genIntersections(midpoints, use_minmod):
         if (use_minmod):
@@ -188,6 +193,8 @@ def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=Fal
             break        
 
     return a_i, convergence
+
+
     
     
 def calcCoriolisParams(lat):
@@ -364,3 +371,8 @@ def calcGeostrophicBalance(eta, H_m, hu, hv, angle, f_beta, dx, dy, g=9.81, use_
     geos_y = -f_beta*hu_east - g*h*DetaDnorth
     
     return [geos_x, geos_y], [f_beta*hv_north, g*h*DetaDeast], [-f_beta*hu_east, g*h*DetaDnorth]
+
+def desingularise(h, hu, eps):
+    return hu / np.maximum(np.minimum(h*h/(2.0*eps)+0.5*eps, eps), np.abs(h))
+
+

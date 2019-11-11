@@ -66,6 +66,7 @@ class CDKLM16(Simulator.Simulator):
                  use_lcg=False, \
                  write_netcdf=False, \
                  comm=None, \
+                 local_particle_id=0, \
                  netcdf_filename=None, \
                  ignore_ghostcells=False, \
                  courant_number=0.8, \
@@ -105,6 +106,7 @@ class CDKLM16(Simulator.Simulator):
         use_lcg: Use LCG as the random number generator. Default is False, which means using curand.
         write_netcdf: Write the results after each superstep to a netCDF file
         comm: MPI communicator
+        local_particle_id: Local (for each MPI process) particle id
         desingularization_eps: Used for desingularizing hu/h
         flux_slope_eps: Used for setting zero flux for symmetric Riemann fan
         depth_cutoff: Used for defining dry cells
@@ -160,7 +162,8 @@ class CDKLM16(Simulator.Simulator):
                                       ignore_ghostcells, \
                                       offset_x, offset_y, \
                                       comm, \
-                                      block_width, block_height)
+                                      block_width, block_height,
+                                      local_particle_id=local_particle_id)
         
         # Index range for interior domain (north, east, south, west)
         # so that interior domain of eta is
@@ -213,7 +216,9 @@ class CDKLM16(Simulator.Simulator):
         
             
         # Bathymetry
-        self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
+        self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, 
+                                            ghost_cells_x, ghost_cells_y, H, 
+                                            boundary_conditions)
                 
         # Adjust eta for possible dry states
         Hm = self.downloadBathymetry()[1]
@@ -293,7 +298,12 @@ class CDKLM16(Simulator.Simulator):
         self.angle_texref.set_address_mode(0, cuda.address_mode.CLAMP) #no indexing outside domain
         self.angle_texref.set_address_mode(1, cuda.address_mode.CLAMP)
         self.angle_texref.set_flags(cuda.TRSF_NORMALIZED_COORDINATES) #Use [0, 1] indexing
-    
+        
+        # Update timestep if dt is given as zero
+        if self.dt == 0:
+            self.updateDt()
+        
+        
     def cleanUp(self):
         """
         Clean up function
@@ -520,7 +530,7 @@ class CDKLM16(Simulator.Simulator):
                    h_in, hu_in, hv_in, \
                    h_out, hu_out, hv_out, \
                    local_dt, wind_stress_t, rk_step):
-            
+
         #"Beautify" code a bit by packing four int8s into a single int32
         #Note: Must match code in kernel!
         boundary_conditions = np.int32(0)

@@ -23,6 +23,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import datetime
 import logging
 import numpy as np
 from mpi4py import MPI
@@ -43,7 +44,7 @@ class MPIOceanModelEnsemble:
     
     def __init__(self, comm, 
                  local_ensemble_size=None, drifter_positions=[], 
-                 sim_args={}, sim_ic={}, sim_bc_args={}, 
+                 sim_args={}, data_args={},
                  ensemble_args={}):
         """
         Initialize the ensemble. Only rank 0 should receive the optional arguments.
@@ -66,6 +67,14 @@ class MPIOceanModelEnsemble:
         self.num_drifters = len(drifter_positions)
         self.num_drifters = self.comm.bcast(self.num_drifters, root=0)
         
+        # Ensure all particles in all processes use the same timestamp (common for each EPS run)
+        if (self.comm.rank == 0):
+            timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
+            timestamp_short = datetime.datetime.now().strftime("%Y_%m_%d")
+            netcdf_filename = timestamp + ".nc"
+        else:
+            netcdf_filename = None
+        netcdf_filename = self.comm.bcast(netcdf_filename, root=0)
         
         
         #Broadcast initial conditions for simulator
@@ -73,60 +82,64 @@ class MPIOceanModelEnsemble:
         self.sim_args = sim_args 
         self.sim_args = self.comm.bcast(self.sim_args, root=0)
         
-        self.data_shape = (self.sim_args['ny'] + 4, self.sim_args['nx'] + 4)
-        if (self.comm.rank == 0):
-            assert(sim_ic['H'].dtype == np.float32)
-            assert(sim_ic['eta0'].dtype == np.float32)
-            assert(sim_ic['hu0'].dtype == np.float32)
-            assert(sim_ic['hv0'].dtype == np.float32)
-            
-            assert(sim_ic['H'].shape == (self.data_shape[0]+1, self.data_shape[1]+1))
-            assert(sim_ic['eta0'].shape  == self.data_shape)
-            assert(sim_ic['hu0'].shape == self.data_shape)
-            assert(sim_ic['hv0'].shape == self.data_shape)
-        else:
-            #FIXME: hardcoded for CDKLM four ghost cells
-            sim_ic['H'] = np.empty((self.data_shape[0]+1, self.data_shape[1]+1), dtype=np.float32)
-            sim_ic['eta0'] = np.empty(self.data_shape, dtype=np.float32)
-            sim_ic['hu0'] = np.empty(self.data_shape, dtype=np.float32)
-            sim_ic['hv0'] = np.empty(self.data_shape, dtype=np.float32)
+        # FIXME: ! ! ! SLOW ! ! !
+        self.data_args = data_args 
+        self.data_args = self.comm.bcast(self.data_args, root=0)
+        
+        self.data_shape = (self.data_args['ny'], self.data_args['nx'])
+        
+        #if (self.comm.rank != 0):
+        #    #FIXME: Hardcoded to sponge_cells=[80, 80, 80, 80]
+        #    data_args['H'] = np.empty((self.data_shape[0]+161, self.data_shape[1]+161), dtype=np.float32)
+        #    data_args['eta0'] = np.empty((self.data_shape[0]+160, self.data_shape[1]+160), dtype=np.float32)
+        #    data_args['hu0'] = np.empty((self.data_shape[0]+160, self.data_shape[1]+160), dtype=np.float32)
+        #    data_args['hv0'] = np.empty((self.data_shape[0]+160, self.data_shape[1]+160), dtype=np.float32)
+        #else:
+        #    data_args['H'] = np.float32(sim_ic['H'])
+        #    data_args['eta0'] = np.float32(sim_ic['eta0'])
+        #    data_args['hu0'] = np.float32(sim_ic['hu0'])
+        #    data_args['hv0'] = np.float32(sim_ic['hv0'])
             
         #FIXME: Optimize this to one transfer by packing arrays?
-        self.comm.Bcast(sim_ic['H'], root=0)
-        self.comm.Bcast(sim_ic['eta0'], root=0)
-        self.comm.Bcast(sim_ic['hu0'], root=0)
-        self.comm.Bcast(sim_ic['hv0'], root=0)
-        self.logger.debug("eta0 is %s", str(sim_ic['eta0']))
+        #self.comm.Bcast(data_args['H'], root=0)
+        #self.comm.Bcast(data_args['eta0'], root=0)
+        #self.comm.Bcast(data_args['hu0'], root=0)
+        #self.comm.Bcast(data_args['hv0'], root=0)
+        
+        #self.logger.debug("eta0 is %s", str(data_args['eta0']))
         
         
         
         #Broadcast arguments that we do not store in self
         ##############################
         ensemble_args = self.comm.bcast(ensemble_args, root=0)
-        sim_bc_args = self.comm.bcast(sim_bc_args, root=0)
-        sim_ic['boundary_conditions'] = Common.BoundaryConditions(**sim_bc_args)
-        
         
         
         #Create ensemble on local node
         ##############################
         self.logger.info("Creating ensemble with %d members", self.local_ensemble_size)
         self.gpu_ctx = Common.CUDAContext()
+        
+        # DEBUG
+        self.sim_args["comm"] = self.comm
+        
         if (self.comm.rank == 0):
             num_ensemble_members = 1
         else:
             num_ensemble_members = self.local_ensemble_size
+        
         self.ensemble = OceanModelEnsemble.OceanModelEnsemble(
-                            self.gpu_ctx, self.sim_args, sim_ic, 
+                            self.gpu_ctx, self.sim_args, self.data_args, 
                             num_ensemble_members, 
                             drifter_positions=drifter_positions, 
-                            **ensemble_args)
+                            **ensemble_args,
+                            netcdf_filename=netcdf_filename, rank=self.comm.rank)
         
         
         
         
     def modelStep(self, dt):
-        return self.ensemble.modelStep(dt)
+        return self.ensemble.modelStep(dt, self.comm.rank)
         
         
         
@@ -206,7 +219,7 @@ class MPIOceanModelEnsemble:
                 #FIXME: hard coded ghost cells here
                 data = [local_dst]
                 for j in range(6):
-                    buffer = np.empty((self.ensemble.sim_args['ny']+4, self.ensemble.sim_args['nx']+4), dtype=np.float32)
+                    buffer = np.empty((self.ensemble.sim_args['ny']+160, self.ensemble.sim_args['nx']+160), dtype=np.float32)
                     mpi_requests += [self.comm.Irecv(buffer, source=src_node, tag=6*i+j)]
                     data += [buffer]
                 receive_data += [data]
@@ -321,7 +334,7 @@ class MPIOceanModelEnsemble:
             weightsTimesN = global_gaussian_weights*num_particles
             weightsTimesNInteger = np.int64(np.floor(weightsTimesN))
             deterministic = np.repeat(allIndices, weightsTimesNInteger)
-
+            
             # Stochastic resampling based on the decimal parts of N*weights:
             decimalWeights = np.mod(weightsTimesN, 1)
             decimalWeights = decimalWeights/np.sum(decimalWeights)
