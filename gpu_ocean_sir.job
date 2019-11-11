@@ -6,7 +6,7 @@
 #SBATCH --account=nn9550k
 #
 # Wall clock limit:
-#SBATCH --time=01:00:00
+#SBATCH --time=00:10:00
 #
 # Ask for 1 GPU (max is 2)
 # Note: The environment variable CUDA_VISIBLE_DEVICES will show which GPU 
@@ -19,23 +19,34 @@
 #
 # Number of tasks (for performance benchmarking, use --nodes switch):
 ##SBATCH --nodes=16 --ntasks-per-node=2 # gives exclusive access to all GPU-nodes
-#SBATCH --nodes=12 --ntasks-per-node=1
+#SBATCH --nodes=4 --ntasks-per-node=1
 
-## Set up job environment:
-source /cluster/bin/jobsetup
-module purge   # clear any inherited modules
-set -o errexit # exit on errors
+## Set up job environment: (this is done automatically behind the scenes)
+## (make sure to comment '#' or remove the following line 'source ...')
+# source /cluster/bin/jobsetup
 
-module load Python/3.5.2-foss-2016b
-module load openmpi.gnu/1.10.6
-module load cuda/9.1
+module restore system   # instead of 'module purge' rather set module environment to the system default
+module load Python/3.6.6-fosscuda-2018b #nb: 'Versions' is mandatory! There are no default versions of modules as on Abel!
+
+# It is also recommended to to list loaded modules, for easier debugging:
+module list
+
 export PATH=$HOME/.local/bin:$PATH
 
-## Set up input and output files:
-cp -r gpu_ocean/ $SCRATCH
-chkfile "$SCRATCH/gpu_ocean/demos/sequential_importance_resampling.log"
-chkfile "$SCRATCH/gpu_ocean/demos/*.npz"
+set -o errexit # exit on errors
+set -o nounset # Treat unset variables as errors (added for more easily discovering issues in your batch script)
 
+## Copy input files to the work directory:
+cp -r gpu_ocean/ $SCRATCH
+
+## Make sure the results are copied back to the submit directory (see Work Directory below):
+# chkfile MyResultFile
+# chkfile is replaced by 'savefile' on Saga
+savefile "$SCRATCH/gpu_ocean/demos/sequential_importance_resampling.log"
+savefile "$SCRATCH/gpu_ocean/demos/netcdf*/*.nc"
+#savefile "$SCRATCH/gpu_ocean/demos/*.npz"
+
+## Do some work:
 cd $SCRATCH/gpu_ocean/demos
-mpirun python sequential_importance_resampling.py > sequential_importance_resampling.log
+srun python sequential_importance_resampling.py > sequential_importance_resampling.log
 
