@@ -68,7 +68,7 @@ def intersectionsToMidpoints(a_i):
     return values
 
     
-def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=False, dt=0.125, land_value=0.0, compute_convergence=False):
+def midpointsToIntersections(a_m, iterations=20, tolerance=5e-3, use_minmod=False, dt=0.125, land_value=0.0, compute_convergence=False):
     """
     Converts cell values at midpoints to cell values at midpoints using a cubic
     interpolating spline to generate first guess, followed by an iterative update. 
@@ -79,10 +79,16 @@ def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=Fal
             dy = minmodY(midpoints.data)
         else:
             dx, dy = np.gradient(midpoints.data)
+            
+        mask = None
+        if (np.ma.is_masked(midpoints)):
+            mask = midpoints.mask
+        else:
+            mask = np.zeros(midpoints.shape, dtype=np.bool)
         
         #Set slope for masked cells to zero
-        dx[midpoints.mask] = 0.0
-        dy[midpoints.mask] = 0.0
+        dx[mask] = 0.0
+        dy[mask] = 0.0
         
         # d - c
         # | X |
@@ -103,17 +109,17 @@ def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=Fal
         # d - c   d - c
         # | X |   | X |
         # a - b   a - b
-        a_a = a_a[1:, 1:] * (1-midpoints.mask[1:, 1:])
-        a_b = a_b[:-1, 1:] * (1-midpoints.mask[:-1, 1:])
-        a_c = a_c[:-1, :-1] * (1-midpoints.mask[:-1, :-1])
-        a_d = a_d[1:, :-1] * (1-midpoints.mask[1:, :-1])
+        a_a = a_a[1:, 1:] * (1-mask[1:, 1:])
+        a_b = a_b[:-1, 1:] * (1-mask[:-1, 1:])
+        a_c = a_c[:-1, :-1] * (1-mask[:-1, :-1])
+        a_d = a_d[1:, :-1] * (1-mask[1:, :-1])
         
         # First count number of valid cells 
         # for each intersection
-        count = 4 - (np.int32(midpoints.mask[1:, 1:]) \
-                + np.int32(midpoints.mask[:-1, 1:]) \
-                + np.int32(midpoints.mask[:-1, :-1]) \
-                + np.int32(midpoints.mask[1:, :-1]))
+        count = 4 - (np.int32(mask[1:, 1:]) \
+                + np.int32(mask[:-1, 1:]) \
+                + np.int32(mask[:-1, :-1]) \
+                + np.int32(mask[1:, :-1]))
 
         # Then set the average
         values = midpoints.data[1:, 1:] + midpoints.data[:-1, 1:] + midpoints.data[:-1, :-1] + midpoints.data[1:, :-1]
@@ -144,7 +150,11 @@ def midpointsToIntersections(a_m, iterations=100, tolerance=1e-6, use_minmod=Fal
     convergence = {'l_1': [], 'l_2': [], 'l_inf': []}
     for i in range(2*iterations+1):        
         delta[1:-1,1:-1] = a_m.data[1:-1,1:-1] - intersectionsToMidpoints(a_i.data)
-        delta = np.ma.array(delta, mask=a_m.mask.copy())
+        
+        if (np.ma.is_masked(a_m)):
+            delta = np.ma.array(delta, mask=a_m.mask.copy())
+        else:
+            delta = np.ma.array(delta, mask=np.zeros(a_m.shape, dtype=np.bool))
         
         if (i%2 == 0):
             count = 4 - (np.int32(delta.mask[1:, 1:]) \
