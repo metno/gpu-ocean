@@ -22,7 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "common.cu"
-
+#include "angle_texture.cu"
 
 /**
   *  Generates two uniform random numbers based on the ANSIC Linear Congruential 
@@ -452,6 +452,8 @@ __global__ void geostrophicBalance(
 
 
 
+//texture<float, cudaTextureType2D> angle_tex;
+
 /**
   * Kernel that adds a perturbation to the input fields eta, hu and hv.
   * The kernel use a bicubic interpolation to transfer values from the coarse grid to the
@@ -673,16 +675,24 @@ __global__ void bicubicInterpolation(
         const int eta_tx = tx + 1;
         const int eta_ty = ty + 1;
         
-        const float coriolis = f_ + beta_*(tj - y0_reference_cell_)*dy_;
+        // Find Coriolis parameter
+        const float s = ti / (float) nx_;
+        const float t = tj / (float) ny_;
+        const float angle = tex2D(angle_tex, s, t);
         
-         // Slope of perturbation of eta
+        // Decompose north into x and y
+        const float north_x = sinf(angle);
+        const float north_y = cosf(angle);
+        
+        const float coriolis = f_ + beta_ * ((ti+0.5f)*dx_*north_x + (tj+0.5f)*dy_*north_y);
+        
+        // Slope of perturbation of eta
         const float eta_diff_x = (d_eta[eta_ty  ][eta_tx+1] - d_eta[eta_ty  ][eta_tx-1]) / (2.0f*dx_);
         const float eta_diff_y = (d_eta[eta_ty+1][eta_tx  ] - d_eta[eta_ty-1][eta_tx  ]) / (2.0f*dy_);
 
         // perturbation of hu and hv
         float d_hu = -(g_/coriolis)*(H_mid + d_eta[eta_ty][eta_tx])*eta_diff_y;
         float d_hv =  (g_/coriolis)*(H_mid + d_eta[eta_ty][eta_tx])*eta_diff_x;        
-
         
         
         //Compute pointer to current row in the U array

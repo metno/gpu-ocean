@@ -25,6 +25,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "common.cu"
+#include "angle_texture.cu"
+
 
 // KPSIMULATOR
 
@@ -400,7 +402,7 @@ inline float2 matMul(float4 M, float2 v) {
 }
 
 
-texture<float, cudaTextureType2D> angle_tex;
+//texture<float, cudaTextureType2D> angle_tex;
 
 extern "C" {
 __global__ void cdklm_swe_2D(
