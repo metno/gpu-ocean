@@ -198,10 +198,10 @@ class OceanStateNoise(object):
         self.soarKernel.prepare("iifffffiiPiPii")
         
         self.geostrophicBalanceKernel = self.kernels.get_function("geostrophicBalance")
-        self.geostrophicBalanceKernel.prepare("iiffiiffffPiPiPiPiPi")
+        self.geostrophicBalanceKernel.prepare("iiffiiffffPiPiPiPiPif")
         
         self.bicubicInterpolationKernel = self.kernels.get_function("bicubicInterpolation")
-        self.bicubicInterpolationKernel.prepare("iiiiffiiiiffiiffffPiPiPiPiPi")
+        self.bicubicInterpolationKernel.prepare("iiiiffiiiiffiiffffPiPiPiPiPif")
         
         #Compute kernel launch parameters
         self.local_size = (block_width, block_height, 1)
@@ -343,14 +343,16 @@ class OceanStateNoise(object):
                                perturbation_scale=perturbation_scale,
                                perpendicular_scale=perpendicular_scale,
                                align_with_cell_i=align_with_cell_i,
-                               align_with_cell_j=align_with_cell_j)
+                               align_with_cell_j=align_with_cell_j,
+                               land_mask_value=sim.bathymetry.mask_value)
                                
     
     def perturbOceanState(self, eta, hu, hv, H, f, beta=0.0, g=9.81, 
                           y0_reference_cell=0, ghost_cells_x=0, ghost_cells_y=0,
                           q0_scale=1.0, update_random_field=True, 
                           perturbation_scale=1.0, perpendicular_scale=0.0,
-                          align_with_cell_i=None, align_with_cell_j=None):
+                          align_with_cell_i=None, align_with_cell_j=None,
+                          land_mask_value=np.float32(1.0e20)):
         """
         Apply the SOAR Q covariance matrix on the random ocean field which is
         added to the provided buffers eta, hu and hv.
@@ -420,7 +422,8 @@ class OceanStateNoise(object):
                                                                 eta.data.gpudata, eta.pitch,
                                                                 hu.data.gpudata, hu.pitch,
                                                                 hv.data.gpudata, hv.pitch,
-                                                                H.data.gpudata, H.pitch)
+                                                                H.data.gpudata, H.pitch,
+                                                                land_mask_value)
 
         else:
             self.geostrophicBalanceKernel.prepared_async_call(self.global_size_geo_balance, self.local_size, self.gpu_stream,
@@ -435,7 +438,8 @@ class OceanStateNoise(object):
                                                               eta.data.gpudata, eta.pitch,
                                                               hu.data.gpudata, hu.pitch,
                                                               hv.data.gpudata, hv.pitch,
-                                                              H.data.gpudata, H.pitch)
+                                                              H.data.gpudata, H.pitch,
+                                                              land_mask_value)
     
     def _obtain_coarse_grid_offset(self, fine_index_i, fine_index_j):
         
