@@ -138,8 +138,8 @@ class MPIOceanModelEnsemble:
         
         
         
-    def modelStep(self, dt):
-        return self.ensemble.modelStep(dt, self.comm.rank)
+    def modelStep(self, sub_t):
+        return self.ensemble.modelStep(sub_t, self.comm.rank)
         
         
         
@@ -201,13 +201,13 @@ class MPIOceanModelEnsemble:
             local_dst = dst - (self.comm.rank-1)*self.local_ensemble_size
 
             if (self.comm.rank == src_node and src_node == dst_node):
-                self.logger.debug("Node {:d} copying internally {:d} to {:d}".format(src_node, src, dst))
+                self.logger.info("Node {:d} copying internally {:d} to {:d}".format(src_node, src, dst))
                 eta0, hu0, hv0 = self.ensemble.particles[local_src].download()
                 eta1, hu1, hv1 = self.ensemble.particles[local_src].downloadPrevTimestep()
                 receive_data += [[local_dst, eta0, hu0, hv0, eta1, hu1, hv1]]
 
             elif (self.comm.rank == src_node):
-                self.logger.debug("Node {:d} sending {:d} to node {:d}".format(src_node, src, dst_node))
+                self.logger.info("Node {:d} sending {:d} to node {:d}".format(src_node, src, dst_node))
                 eta0, hu0, hv0 = self.ensemble.particles[local_src].download()
                 eta1, hu1, hv1 = self.ensemble.particles[local_src].downloadPrevTimestep()
                 send_data += [[eta0, hu0, hv0, eta1, hu1, hv1]]
@@ -215,11 +215,11 @@ class MPIOceanModelEnsemble:
                     mpi_requests += [self.comm.Isend(send_data[-1][j], dest=dst_node, tag=6*i+j)]
 
             elif (self.comm.rank == dst_node):
-                self.logger.debug("Node {:d} receiving {:d} from node {:d}".format(dst_node, src, src_node))
+                self.logger.info("Node {:d} receiving {:d} from node {:d}".format(dst_node, src, src_node))
                 #FIXME: hard coded ghost cells here
                 data = [local_dst]
                 for j in range(6):
-                    buffer = np.empty((self.ensemble.sim_args['ny']+160, self.ensemble.sim_args['nx']+160), dtype=np.float32)
+                    buffer = np.empty((self.ensemble.data_args['ny']+160, self.ensemble.data_args['nx']+160), dtype=np.float32)
                     mpi_requests += [self.comm.Irecv(buffer, source=src_node, tag=6*i+j)]
                     data += [buffer]
                 receive_data += [data]
@@ -234,7 +234,7 @@ class MPIOceanModelEnsemble:
 
         # Upload new data to the GPU for the right particle
         for local_dst, eta0, hu0, hv0, eta1, hu1, hv1 in receive_data:
-            self.logger.debug("Resetting " + str(local_dst))
+            self.logger.info("Resetting " + str(local_dst))
             stream = self.ensemble.particles[local_dst].gpu_stream
             self.ensemble.particles[local_dst].gpu_data.h0.upload(stream, eta0)
             self.ensemble.particles[local_dst].gpu_data.hu0.upload(stream, hu0)
