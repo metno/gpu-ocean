@@ -66,6 +66,7 @@ class CDKLM16(Simulator.Simulator):
                  use_lcg=False, \
                  write_netcdf=False, \
                  comm=None, \
+                 local_particle_id=0, \
                  netcdf_filename=None, \
                  ignore_ghostcells=False, \
                  courant_number=0.8, \
@@ -89,7 +90,7 @@ class CDKLM16(Simulator.Simulator):
         g: Gravitational accelleration (9.81 m/s^2)
         f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
         r: Bottom friction coefficient (2.4e-3 m/s)
-        angle: Angle of rotation from North to y-axis
+        angle: Angle of rotation from North to y-axis as a texture (cuda.Array) or numpy array
         t: Start simulation at time t
         theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
         rk_order: Order of Runge Kutta method {1,2*,3}
@@ -105,6 +106,7 @@ class CDKLM16(Simulator.Simulator):
         use_lcg: Use LCG as the random number generator. Default is False, which means using curand.
         write_netcdf: Write the results after each superstep to a netCDF file
         comm: MPI communicator
+        local_particle_id: Local (for each MPI process) particle id
         desingularization_eps: Used for desingularizing hu/h
         flux_slope_eps: Used for setting zero flux for symmetric Riemann fan
         depth_cutoff: Used for defining dry cells
@@ -160,7 +162,8 @@ class CDKLM16(Simulator.Simulator):
                                       ignore_ghostcells, \
                                       offset_x, offset_y, \
                                       comm, \
-                                      block_width, block_height)
+                                      block_width, block_height,
+                                      local_particle_id=local_particle_id)
         
         # Index range for interior domain (north, east, south, west)
         # so that interior domain of eta is
@@ -213,7 +216,9 @@ class CDKLM16(Simulator.Simulator):
         
             
         # Bathymetry
-        self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, ghost_cells_x, ghost_cells_y, H, boundary_conditions)
+        self.bathymetry = Common.Bathymetry(gpu_ctx, self.gpu_stream, nx, ny, 
+                                            ghost_cells_x, ghost_cells_y, H, 
+                                            boundary_conditions)
                 
         # Adjust eta for possible dry states
         Hm = self.downloadBathymetry()[1]
@@ -252,25 +257,37 @@ class CDKLM16(Simulator.Simulator):
                                                            boundary_conditions_data, \
         )
 
+
+                                            
+                                    
+        # Texture for angle
+        self.angle_texref = self.kernel.get_texref("angle_tex")
+        if isinstance(angle, cuda.Array):
+            # angle is already a texture, so we just set the texture reference
+            self.angle_texref.set_array(angle)
+        else:
+            #Upload data to GPU and bind to texture reference
+            self.angle_texref.set_array(cuda.np_to_array(np.ascontiguousarray(angle, dtype=np.float32), order="C"))
+                    
+        # Set texture parameters
+        self.angle_texref.set_filter_mode(cuda.filter_mode.LINEAR) #bilinear interpolation
+        self.angle_texref.set_address_mode(0, cuda.address_mode.CLAMP) #no indexing outside domain
+        self.angle_texref.set_address_mode(1, cuda.address_mode.CLAMP)
+        self.angle_texref.set_flags(cuda.TRSF_NORMALIZED_COORDINATES) #Use [0, 1] indexing
+        
+
         # Small scale perturbation:
         self.small_scale_perturbation = small_scale_perturbation
         self.small_scale_model_error = None
         self.small_scale_perturbation_interpolation_factor = small_scale_perturbation_interpolation_factor
         if small_scale_perturbation:
-            if small_scale_perturbation_amplitude is None:
-                self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self,
-                                                                                       interpolation_factor=small_scale_perturbation_interpolation_factor,
-                                                                                       use_lcg=use_lcg,
-                                                                                       block_width=block_width_model_error, 
-                                                                                       block_height=block_height_model_error)
-            else:
-                self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, 
-                                                                                       soar_q0=small_scale_perturbation_amplitude,
-                                                                                       interpolation_factor=small_scale_perturbation_interpolation_factor,
-                                                                                       use_lcg=use_lcg,
-                                                                                       block_width=block_width_model_error, 
-                                                                                       block_height=block_height_model_error)
-        
+            self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, 
+                                                                                   soar_q0=small_scale_perturbation_amplitude,
+                                                                                   interpolation_factor=small_scale_perturbation_interpolation_factor,
+                                                                                   use_lcg=use_lcg,
+                                                                                   block_width=block_width_model_error, 
+                                                                                   block_height=block_height_model_error)
+    
         
         # Data assimilation model step size
         self.model_time_step = model_time_step
@@ -282,18 +299,12 @@ class CDKLM16(Simulator.Simulator):
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, filename=netcdf_filename, ignore_ghostcells=self.ignore_ghostcells, \
                                     offset_x=self.offset_x, offset_y=self.offset_y)
-                                    
-                                    
-        #Upload data to GPU and bind to texture reference
-        self.angle_texref = self.kernel.get_texref("angle_tex")
-        self.angle_texref.set_array(cuda.np_to_array(np.ascontiguousarray(angle, dtype=np.float32), order="C"))
-                    
-        # Set texture parameters
-        self.angle_texref.set_filter_mode(cuda.filter_mode.LINEAR) #bilinear interpolation
-        self.angle_texref.set_address_mode(0, cuda.address_mode.CLAMP) #no indexing outside domain
-        self.angle_texref.set_address_mode(1, cuda.address_mode.CLAMP)
-        self.angle_texref.set_flags(cuda.TRSF_NORMALIZED_COORDINATES) #Use [0, 1] indexing
-    
+
+        # Update timestep if dt is given as zero
+        if self.dt == 0:
+            self.updateDt()
+        
+        
     def cleanUp(self):
         """
         Clean up function
@@ -520,7 +531,7 @@ class CDKLM16(Simulator.Simulator):
                    h_in, hu_in, hv_in, \
                    h_out, hu_out, hv_out, \
                    local_dt, wind_stress_t, rk_step):
-            
+
         #"Beautify" code a bit by packing four int8s into a single int32
         #Note: Must match code in kernel!
         boundary_conditions = np.int32(0)
@@ -675,7 +686,7 @@ class CDKLM16(Simulator.Simulator):
         
         if interior_domain_only:
             Bi = Bi[self.interior_domain_indices[2]:self.interior_domain_indices[0]+1,  
-               self.interior_domain_indices[3]:self.interior_domain_indices[1]]+1, 
+               self.interior_domain_indices[3]:self.interior_domain_indices[1]+1] 
             Bm = Bm[self.interior_domain_indices[2]:self.interior_domain_indices[0],  
                self.interior_domain_indices[3]:self.interior_domain_indices[1]]
                

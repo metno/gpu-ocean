@@ -22,7 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "common.cu"
-
+#include "angle_texture.cu"
 
 /**
   *  Generates two uniform random numbers based on the ANSIC Linear Congruential 
@@ -298,7 +298,7 @@ __global__ void SOAR(
             Qxi += Q*xi[b_y][b_x];
         }
     }
-
+    
     // Write eta to global memory
     if ((ti < nx_+4) && (tj < ny_+4)) {
 
@@ -345,7 +345,8 @@ __global__ void geostrophicBalance(
         float* hv_ptr_, const int hv_pitch_,
 
         // Ocean data parameter - size [nx + 5, ny + 5]
-        float* Hi_ptr_, const int Hi_pitch_
+        float* Hi_ptr_, const int Hi_pitch_,
+        const float land_value_
     ) {
 
     //Index of cell within block
@@ -363,7 +364,6 @@ __global__ void geostrophicBalance(
     // Shared memory for d_eta (also used for H)
     __shared__ float d_eta[block_height+2][block_width+2];
 
-
     // Use shared memory for d_eta to compute H_mid for given thread id
     // Read H on cell intersections 
     for (int j = ty; j < block_height+1; j += blockDim.y) {
@@ -377,6 +377,12 @@ __global__ void geostrophicBalance(
     
     __syncthreads();
     
+    // Check if cell is zero
+    const bool dry_cell = (d_eta[ty  ][tx  ] == land_value_) ||
+                          (d_eta[ty  ][tx+1] == land_value_) ||
+                          (d_eta[ty+1][tx  ] == land_value_) ||
+                          (d_eta[ty+1][tx+1] == land_value_);
+                          
     // Reconstruct H in cell center
     const float H_mid = 0.25f*(d_eta[ty  ][tx] + d_eta[ty  ][tx+1] +
                                d_eta[ty+1][tx] + d_eta[ty+1][tx+1]   );
@@ -410,8 +416,17 @@ __global__ void geostrophicBalance(
         const int eta_tx = tx+1;
         const int eta_ty = ty+1;
 
-        const float coriolis = f_ + beta_*(tj - y0_reference_cell_)*dy_;
-
+        // Find Coriolis parameter
+        const float s = ti / (float) nx_;
+        const float t = tj / (float) ny_;
+        const float angle = tex2D(angle_tex, s, t);
+        
+        // Decompose north into x and y
+        const float north_x = sinf(angle);
+        const float north_y = cosf(angle);
+        
+        const float coriolis = f_ + beta_ * ((ti+0.5f)*dx_*north_x + (tj+0.5f)*dy_*north_y);
+        
         // Total water depth in the given cell (H + eta + d_eta)
         const float h_mid = d_eta[eta_ty][eta_tx] + H_mid + eta_row[ti];
 
@@ -432,12 +447,21 @@ __global__ void geostrophicBalance(
             hu_row[ti] = d_hu;
             hv_row[ti] = d_hv;
         }
+        
+        if (dry_cell) {
+            eta_row[ti] = 0.0f;
+            hu_row[ti]  = 0.0f;
+            hv_row[ti]  = 0.0f;
+            
+        }
     }
 }
 } // extern "C"
 
 
 
+
+//texture<float, cudaTextureType2D> angle_tex;
 
 /**
   * Kernel that adds a perturbation to the input fields eta, hu and hv.
@@ -471,7 +495,8 @@ __global__ void bicubicInterpolation(
         float* hv_ptr_, const int hv_pitch_,
 
         // Ocean data parameter - size [nx + 5, ny + 5]
-        float* Hi_ptr_, const int Hi_pitch_
+        float* Hi_ptr_, const int Hi_pitch_,
+        const float land_value_
     ) {
     
     // Each thread is responsible for one grid point in the computational grid.
@@ -506,6 +531,12 @@ __global__ void bicubicInterpolation(
     }
     
     __syncthreads();
+    
+    // Check if cell is zero
+    const bool dry_cell = (coarse[ty  ][tx  ] == land_value_) ||
+                          (coarse[ty  ][tx+1] == land_value_) ||
+                          (coarse[ty+1][tx  ] == land_value_) ||
+                          (coarse[ty+1][tx+1] == land_value_);
     
     // reconstruct H at cell center
     const float H_mid = 0.25f*(coarse[ty  ][tx] + coarse[ty  ][tx+1] +
@@ -653,16 +684,24 @@ __global__ void bicubicInterpolation(
         const int eta_tx = tx + 1;
         const int eta_ty = ty + 1;
         
-        const float coriolis = f_ + beta_*(tj - y0_reference_cell_)*dy_;
+        // Find Coriolis parameter
+        const float s = ti / (float) nx_;
+        const float t = tj / (float) ny_;
+        const float angle = tex2D(angle_tex, s, t);
         
-         // Slope of perturbation of eta
+        // Decompose north into x and y
+        const float north_x = sinf(angle);
+        const float north_y = cosf(angle);
+        
+        const float coriolis = f_ + beta_ * ((ti+0.5f)*dx_*north_x + (tj+0.5f)*dy_*north_y);
+        
+        // Slope of perturbation of eta
         const float eta_diff_x = (d_eta[eta_ty  ][eta_tx+1] - d_eta[eta_ty  ][eta_tx-1]) / (2.0f*dx_);
         const float eta_diff_y = (d_eta[eta_ty+1][eta_tx  ] - d_eta[eta_ty-1][eta_tx  ]) / (2.0f*dy_);
 
         // perturbation of hu and hv
-        const float d_hu = -(g_/coriolis)*(H_mid + d_eta[eta_ty][eta_tx])*eta_diff_y;
-        const float d_hv =  (g_/coriolis)*(H_mid + d_eta[eta_ty][eta_tx])*eta_diff_x;        
-
+        float d_hu = -(g_/coriolis)*(H_mid + d_eta[eta_ty][eta_tx])*eta_diff_y;
+        float d_hv =  (g_/coriolis)*(H_mid + d_eta[eta_ty][eta_tx])*eta_diff_x;        
         
         
         //Compute pointer to current row in the U array
@@ -670,9 +709,17 @@ __global__ void bicubicInterpolation(
         float* const hu_row  = (float*) ((char*) hu_ptr_  + hu_pitch_*(tj));
         float* const hv_row = (float*) ((char*)  hv_ptr_ + hv_pitch_*(tj));
         
+        // Set the perturbation to zero if the cell is on land
+        if (dry_cell) {
+            d_eta[eta_ty][eta_tx] = 0.0f;
+            d_hu = 0.0f;
+            d_hv = 0.0f;
+        }
+        
         eta_row[ti] += d_eta[eta_ty][eta_tx];
          hu_row[ti] += d_hu; 
          hv_row[ti] += d_hv;
+              
     }
 }
 } // extern "C"
