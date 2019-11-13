@@ -26,7 +26,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from matplotlib import pyplot as plt
 import numpy as np
+
+import pycuda.driver as cuda
 from pycuda.curandom import XORWOWRandomNumberGenerator
+
 import gc
 
 from SWESimulators import Common
@@ -47,6 +50,7 @@ class OceanStateNoise(object):
                  soar_q0=None, soar_L=None,
                  interpolation_factor = 1,
                  use_lcg=False,
+                 angle=np.array([[0]], dtype=np.float32),
                  block_width=16, block_height=16):
         """
         Initiates a class that generates small scale geostrophically balanced perturbations of
@@ -59,6 +63,7 @@ class OceanStateNoise(object):
             and then interpolated down to the computational mesh. The coarse mesh will then have
             (nx/interpolation_factor, ny/interpolation_factor) grid cells.
         use_lcg: LCG is a linear algorithm for generating a serie of pseudo-random numbers
+        angle: Angle of rotation from North to y-axis as a texture (cuda.Array) or numpy array
         (block_width, block_height): The size of each GPU block
         """
 
@@ -235,6 +240,20 @@ class OceanStateNoise(object):
                     int(np.ceil( (self.ny)/float(self.local_size[1]))) \
                    )
         
+        # Texture for angle towards north
+        self.angle_texref = self.kernels.get_texref("angle_tex")        
+        if isinstance(angle, cuda.Array):
+            # angle is already a texture, so we just set the reference
+            self.angle_texref.set_array(angle)
+        else:
+            #Upload data to GPU and bind to texture reference
+            self.angle_texref.set_array(cuda.np_to_array(np.ascontiguousarray(angle, dtype=np.float32), order="C"))
+          
+        # Set texture parameters
+        self.angle_texref.set_filter_mode(cuda.filter_mode.LINEAR) #bilinear interpolation
+        self.angle_texref.set_address_mode(0, cuda.address_mode.CLAMP) #no indexing outside domain
+        self.angle_texref.set_address_mode(1, cuda.address_mode.CLAMP)
+        self.angle_texref.set_flags(cuda.TRSF_NORMALIZED_COORDINATES) #Use [0, 1] indexing
         
         
     def __del__(self):
@@ -265,6 +284,7 @@ class OceanStateNoise(object):
                    sim.boundary_conditions, staggered,
                    soar_q0=soar_q0, soar_L=soar_L,
                    interpolation_factor=interpolation_factor,
+                   angle=sim.angle_texref.get_array(),
                    use_lcg=use_lcg,
                    block_width=block_width, block_height=block_height)
 
