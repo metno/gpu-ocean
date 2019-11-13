@@ -416,8 +416,17 @@ __global__ void geostrophicBalance(
         const int eta_tx = tx+1;
         const int eta_ty = ty+1;
 
-        const float coriolis = f_ + beta_*(tj - y0_reference_cell_)*dy_;
-
+        // Find Coriolis parameter
+        const float s = ti / (float) nx_;
+        const float t = tj / (float) ny_;
+        const float angle = tex2D(angle_tex, s, t);
+        
+        // Decompose north into x and y
+        const float north_x = sinf(angle);
+        const float north_y = cosf(angle);
+        
+        const float coriolis = f_ + beta_ * ((ti+0.5f)*dx_*north_x + (tj+0.5f)*dy_*north_y);
+        
         // Total water depth in the given cell (H + eta + d_eta)
         const float h_mid = d_eta[eta_ty][eta_tx] + H_mid + eta_row[ti];
 
