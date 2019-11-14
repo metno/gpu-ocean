@@ -548,7 +548,7 @@ class CUDAArray2D:
             raise RuntimeError('The buffer has been freed before upload is called')
         
         if (np.ma.is_masked(data)):
-            self.mask = host_data.mask
+            self.mask = data.mask
 
         # Make sure that the input is of correct size:
         if self.double_precision:

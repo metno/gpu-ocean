@@ -301,7 +301,7 @@ class CDKLM16(Simulator.Simulator):
                                     offset_x=self.offset_x, offset_y=self.offset_y)
 
         # Update timestep if dt is given as zero
-        if self.dt == 0:
+        if self.dt <= 0:
             self.updateDt()
         
         
@@ -443,7 +443,7 @@ class CDKLM16(Simulator.Simulator):
                 cuda.memcpy_htod_async(int(self.wind_stress_dev), new_wind_stress.tostruct(), stream=self.gpu_stream)
                 
             # Calculate dt if using automatic dt
-            if (self.dt <= 0 or update_dt):
+            if (update_dt):
                 self.updateDt()
             local_dt = np.float32(min(self.dt, np.float32(t_end - t_now)))
             
