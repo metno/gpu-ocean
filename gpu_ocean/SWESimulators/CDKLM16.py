@@ -292,9 +292,9 @@ class CDKLM16(Simulator.Simulator):
         # Data assimilation model step size
         self.model_time_step = model_time_step
         if model_time_step is None:
+            self.total_time_steps = 0
             self.model_time_step = self.dt
-        self.total_time_steps = 0
-        
+            
         
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, filename=netcdf_filename, ignore_ghostcells=self.ignore_ghostcells, \
@@ -378,7 +378,7 @@ class CDKLM16(Simulator.Simulator):
             'theta': sim_reader.get("minmod_theta"),
             'rk_order': sim_reader.get("time_integrator"),
             'coriolis_beta': sim_reader.get("coriolis_beta"),
-            'y_zero_reference_cell': sim_reader.get("y_zero_reference_cell"),
+            # 'y_zero_reference_cell': sim_reader.get("y_zero_reference_cell"), # TODO - UPDATE WITH NEW API
             'write_netcdf': cont_write_netcdf,
             'use_lcg': use_lcg,
             'netcdf_filename': new_netcdf_filename
@@ -510,13 +510,8 @@ class CDKLM16(Simulator.Simulator):
                         self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
             
             # Evolve drifters
-            if self.hasDrifters:
-                self.drifters.drift(self.gpu_data.h0, self.gpu_data.hu0, \
-                                    self.gpu_data.hv0, \
-                                    np.float32(self.constant_equilibrium_depth), \
-                                    self.nx, self.ny, self.dx, self.dy, \
-                                    local_dt, \
-                                    np.int32(2), np.int32(2))
+            self.drifterStep(local_dt)
+            
             self.t += np.float64(local_dt)
             t_now += np.float64(local_dt)
             self.num_iterations += 1
@@ -526,6 +521,18 @@ class CDKLM16(Simulator.Simulator):
             
         return self.t
 
+    def drifterStep(self, dt):
+        # Evolve drifters
+        if self.hasDrifters:
+            self.drifters.drift(self.gpu_data.h0, self.gpu_data.hu0, \
+                                self.gpu_data.hv0, \
+                                self.bathymetry.Bm, \
+                                self.nx, self.ny, self.dx, self.dy, \
+                                dt, \
+                                np.int32(2), np.int32(2))
+            self.drifter_t += dt
+        return self.drifter_t
+        
 
     def callKernel(self, \
                    h_in, hu_in, hv_in, \
