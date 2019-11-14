@@ -24,6 +24,10 @@ import numpy as np
 from netCDF4 import Dataset
 from mpi4py import MPI
 import gc, os, sys
+import time
+
+# Needed for clean exit with logging enabled
+import pycuda.driver as cuda
 
 #Import our simulator
 file_dir = os.path.dirname(os.path.realpath(__file__)) 
@@ -44,24 +48,25 @@ def testMPI():
     
 
 def generateDrifterPositions(data_args, num_drifters):
+    """Randomly placed drifters, avoiding land."""
     assert(MPI.COMM_WORLD.rank == 0)
     
-    # Define mid-points for the different drifters 
-    # Decompose the domain, so that we spread the drifters as much as possible
-    sub_domains_y = np.int(np.round(np.sqrt(num_drifters)))
-    sub_domains_x = np.int(np.ceil(1.0*num_drifters/sub_domains_y))
-    midPoints = np.empty((num_drifters, 2))
-    for sub_y in range(sub_domains_y):
-        for sub_x in range(sub_domains_x):
-            drifter_id = sub_y*sub_domains_x + sub_x
-            if drifter_id >= num_drifters:
-                break
-            midPoints[drifter_id, 0]  = (sub_x + 0.5)*data_args['nx']*data_args['dx']/sub_domains_x
-            midPoints[drifter_id, 1]  = (sub_y + 0.5)*data_args['ny']*data_args['dy']/sub_domains_y
+    drifters = np.empty((num_drifters, 2))
+    
+    for id in range(num_drifters):
+        land = True
+        while(land is True):
+            x = np.random.randint(0, data_args['nx'])
+            y = np.random.randint(0, data_args['ny'])
+            
+            if(data_args['hu0'][y][x] is not np.ma.masked and
+               data_args['hu0'][y-1][x] is not np.ma.masked and data_args['hu0'][y+1][x] is not np.ma.masked and
+               data_args['hu0'][y][x-1] is not np.ma.masked and data_args['hu0'][y][x+1] is not np.ma.masked):
+                drifters[id, 0]  = x * data_args['dx']
+                drifters[id, 1]  = y * data_args['dy']
+                land = False
 
-    return midPoints
-    
-    
+    return drifters
     
     
     
@@ -130,7 +135,7 @@ def mainLoop(ensemble, resampling_times, outfilename):
         
         # Get info before step for plotting
         # FIXME: Expensive and only for plotting
-        ensemble_stats_pre = gatherPlottingInfo(ensemble)
+        ##ensemble_stats_pre = gatherPlottingInfo(ensemble)
             
             
             
@@ -147,19 +152,17 @@ def mainLoop(ensemble, resampling_times, outfilename):
         
         #Get info for plotting
         #FIXME: Expensive and only for plotting
-        ensemble_stats_post = gatherPlottingInfo(ensemble)
-        if ensemble.comm.rank == 0:
-            plotting_info.append([resampling_time, ensemble_stats_pre, ensemble_stats_post])
+        ##ensemble_stats_post = gatherPlottingInfo(ensemble)
+        ##if ensemble.comm.rank == 0:
+        ##    plotting_info.append([resampling_time, ensemble_stats_pre, ensemble_stats_post])
             
             
         print(str(ensemble.comm.rank) + ", ", end="", flush=True)
-        
-    print("Done!")
     
     #Save to file
-    if (ensemble.comm.rank == 0):
-        print("Saving data to " + outfilename)
-        np.savez(outfilename, plotting_info=plotting_info)
+    ##if (ensemble.comm.rank == 0):
+    ##    print("Saving data to " + outfilename)
+    ##    np.savez(outfilename, plotting_info=plotting_info)
         
     
     
@@ -223,22 +226,86 @@ def makePlots(filename):
             plt.suptitle("t=" + str(time) + " before (top) and after (bottom) resampling")
         plt.show()
 
+def getInitialConditions(source_url, x0, x1, y0, y1):
+    cache_folder = 'netcdf_cache'
+    os.makedirs(cache_folder, exist_ok=True)
+
+    filename = os.path.abspath(os.path.join(cache_folder, os.path.basename(source_url)))
+
+    if (os.path.isfile(filename)):
+        source_url = filename
+
+    else:
+        import requests
+        download_url = source_url.replace("dodsC", "fileServer")
+
+        req = requests.get(download_url, stream = True)
+        filesize = int(req.headers.get('content-length'))
+
+        progress = Common.ProgressPrinter()
+        print(progress.getPrintString(0) + "\r")
+
+        print("Downloading data to local file (" + str(filesize // (1024*1024)) + " MB)")
+        with open(filename, "wb") as outfile:
+            for chunk in req.iter_content(chunk_size = 10*1024*1024):
+                if chunk:
+                    outfile.write(chunk)
+                    print(progress.getPrintString(outfile.tell() / filesize) + "\r")
+                    print("")
+
+        source_url = filename
+
+    print("Source is: " + source_url)
+    
+    return NetCDFInitialization.removeMetadata(NetCDFInitialization.getInitialConditions(source_url, x0, x1, y0, y1))
+    
+    
+def setupLogger(args):
+    import logging
+
+    #Get root logger
+    logger = logging.getLogger('')
+    logger.setLevel(args.log_level)
+
+    #Add log to screen
+    ch = logging.StreamHandler()
+    ch.setLevel(args.log_level)
+    logger.addHandler(ch)
+    logger.log(args.log_level, "Console logger using level %s", logging.getLevelName(args.log_level))
+            
+    #Get the logfilename (try to evaluate if Python expression...)
+    try:
+        log_file = eval(args.logfile, self.shell.user_global_ns, self.shell.user_ns)
+    except:
+        log_file = args.log_file
+            
+    #Add log to file
+    logger.log(args.log_level, "File logger using level %s to %s", logging.getLevelName(args.log_level), log_file)
+    fh = logging.FileHandler(log_file)
+    formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s: %(message)s')
+    fh.setFormatter(formatter)
+    fh.setLevel(args.log_level)
+    logger.addHandler(fh)
+        
+    logger.info("Python version %s", sys.version)
     
     
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Run an MPI cluster for sequential importance resampling. Run this file using e.g., using mpiexec -n 4 python sequential_importance_resampling.py to run a simulation. Plot results using the --make_plots option (without MPI!)')
-    parser.add_argument('-dt', type=float, default=0.01)
+    parser.add_argument('-dt', type=float, default=0.0)
     parser.add_argument('--outfile', type=str, default="sir_" + str(MPI.COMM_WORLD.rank) + ".npz")
-    parser.add_argument('--num_drifters', type=int, default=3)
+    parser.add_argument('--num_drifters', type=int, default=2)
     parser.add_argument('--per_node_ensemble_size', type=int, default=15)
-    parser.add_argument('--observation_variance', type=float, default=0.02**2)
-    parser.add_argument('--initialization_variance_factor_ocean_field', type=float, default=50)
+    parser.add_argument('--observation_variance', type=float, default=0.01**2)
+    parser.add_argument('--initialization_variance_factor_ocean_field', type=float, default=0.0)
     parser.add_argument('--make_plots', action='store_true', default=False)
+    parser.add_argument('--log_file', type=str, default="sequential_importance_resampling.log")
+    parser.add_argument('--log_level', type=int, default=20)
     
     args = parser.parse_args()
     
-    
+    logger = setupLogger(args)
     
     
     if (args.make_plots):
@@ -267,17 +334,22 @@ if __name__ == "__main__":
             y0 = 25
             y1 = 875
             
-            dt = 0.5 #0.0
+            dt = args.dt
             
-            data_args = NetCDFInitialization.removeMetadata(NetCDFInitialization.getInitialConditions(source_url, x0, x1, y0, y1))#, timestep_indices=timestep_indices)
+            t0 = time.time()
+            data_args = getInitialConditions(source_url, x0, x1, y0, y1)
+            t1 = time.time()
+            total = t1-t0
+            print("Fetched initial conditions in " + str(total) + " s")
+            
             sim_args = {
-                #"gpu_ctx": gpu_ctx,
                 "dt": dt,
                 "rk_order": 2,
                 "desingularization_eps": 1.0,
-                #"write_netcdf": True,
-                #"small_scale_perturbation": True,
-                #"small_scale_perturbation_amplitude": 0.000012742 #0.5*dt*data_args['f']/(data_args['g']*data_args['H'].max())
+                "small_scale_perturbation": True,
+                "small_scale_perturbation_amplitude": 1.0e-5, #1.0e-5,
+                "small_scale_perturbation_interpolation_factor": 1,
+                "write_netcdf": True,
             }
             
             kwargs['data_args'] = data_args
@@ -285,28 +357,41 @@ if __name__ == "__main__":
             
             #Arguments sent to the ensemble (OceanModelEnsemble)
             kwargs['ensemble_args'] = {
-                #'observation_variance': args.observation_variance, 
-                #'initialization_variance_factor_ocean_field': args.initialization_variance_factor_ocean_field
+                'observation_variance': args.observation_variance, 
+                'initialization_variance_factor_ocean_field': args.initialization_variance_factor_ocean_field
             }
             
-            # FIXME: Does not work now. Needs some attention.
-            #kwargs['drifter_positions'] = generateDrifterPositions(kwargs['data_args'], args.num_drifters)
-            #print("kwargs['drifter_positions']: " + str(kwargs['drifter_positions']))
-            
-            #FIXME: Hardcoded two drifters
-            drifters = np.empty((2, 2))
-            drifters[0, 0] = 640000
-            drifters[0, 1] = 460000
-            drifters[1, 0] = 860000
-            drifters[1, 1] = 460000
-            kwargs['drifter_positions'] = drifters
+            kwargs['drifter_positions'] = generateDrifterPositions(kwargs['data_args'], args.num_drifters)
             
         #Create ensemble on all nodes
-        ensemble = MPIOceanModelEnsemble.MPIOceanModelEnsemble(MPI.COMM_WORLD, **kwargs)        
+        t0 = time.time()
+        ensemble = MPIOceanModelEnsemble.MPIOceanModelEnsemble(MPI.COMM_WORLD, **kwargs)
+        t1 = time.time()
+        total = t1-t0
+        print("Initialized MPI ensemble on rank " + str(MPI.COMM_WORLD.rank) + " in " + str(total) + " s")
         
         #Run main loop
-        resampling_times = np.linspace(100, 2500, 2)*ensemble.sim_args['dt']
+        resampling_times = np.linspace(100, 2500, 2)*0.5
         if (ensemble.comm.rank == 0):
             print("Will resample at times: ", resampling_times)
+            
+        t0 = time.time()
         mainLoop(ensemble, resampling_times, args.outfile)
+        t1 = time.time()
+        total = t1-t0
+        print("Main loop on rank " + str(MPI.COMM_WORLD.rank) + " finished in " + str(total) + " s")
         
+        # Handle CUDA context when exiting python
+        import atexit
+        def exitfunc():
+            import logging
+            logger =  logging.getLogger(__name__)
+            logger.info("[" + str(MPI.COMM_WORLD.rank) + "]: Exitfunc: Resetting CUDA context stack")
+            while (cuda.Context.get_current() != None):
+                context = cuda.Context.get_current()
+                logger.info("`-> Popping <%s>", str(context.handle))
+                cuda.Context.pop()
+            logger.debug("==================================================================")
+            logging.shutdown()
+            
+        atexit.register(exitfunc)

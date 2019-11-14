@@ -811,11 +811,11 @@ class IEWPFOcean:
             self.log("Input params:")
             self.log(params)
 
-            alpha_newton = newton(lambda x: self._implicitEquation_no_limit(x, gamma, self.Nx, c_star),
-                                  0.5, maxiter=2000, tol=1e-6)
-                                  #fprime=lambda x: self._implicitEquation_no_limit_derivative(x, gamma, self.Nx, c_star))
-            self.log("alpha_newton from Newton's method: " + str(alpha_newton))
-            self.log("Discrepancy with alpha_newton: "+ str(self._implicitEquation_no_limit(alpha_newton, gamma, self.Nx, c_star)))
+            #alpha_newton = newton(lambda x: self._implicitEquation_no_limit(x, gamma, self.Nx, c_star),
+            #                      0.5, maxiter=2000, tol=1e-6)
+            #                      #fprime=lambda x: self._implicitEquation_no_limit_derivative(x, gamma, self.Nx, c_star))
+            #self.log("alpha_newton from Newton's method: " + str(alpha_newton))
+            #self.log("Discrepancy with alpha_newton: "+ str(self._implicitEquation_no_limit(alpha_newton, gamma, self.Nx, c_star)))
 
             self.log("")
             self.log("Using the Lambert W:")
@@ -1433,7 +1433,7 @@ class IEWPFOcean:
             self.showMatrices(q_eta[1:-1, 1:-1], q_hu, "Equivalent sample from Q", q_hv)
             self.showMatrices(p_eta[1:-1, 1:-1] - q_eta[1:-1, 1:-1], p_hu - q_hu, "diff sample from P and sample from Q", p_hv - q_hv)
 
-        return p_eta[1:-1, 1:-1], p_hu, p_hv, gamma
+        return p_eta[2:-2, 2:-2], p_hu, p_hv, gamma
     
     
     
@@ -1606,7 +1606,8 @@ class IEWPFOcean:
         if self.debug: print ("Obtained (lambert_ans k=0, lambert_ans k=-1): ", (lambertw(lambert_W_arg), lambertw(lambert_W_arg, k=-1)))
         if self.debug: print ("Obtained (alpha k=0, alpha k=-1): ", (alpha_zero, alpha_min1))
         if self.debug: print ("Checking implicit equation with alpha (k=0, k=-1): ", \
-            (self._implicitEquation(alpha_zero, gamma, self.Nx, a, c), self._implicitEquation(alpha_min1, gamma, self.Nx, a, c)))
+            (self._old_implicitEquation(alpha_zero, gamma, self.Nx, a, c), 
+             self._old_implicitEquation(alpha_min1, gamma, self.Nx, a, c)))
         
         alpha = np.sqrt(alpha)
         if self.debug: print ("alpha = np.sqrt(alpha) ->  ", alpha)
@@ -1616,8 +1617,9 @@ class IEWPFOcean:
         # 7.2) alpha*xi
         if self.debug: self.showMatrices(alpha*xi[0], alpha*xi[1], "alpha * xi", alpha*xi[2])
 
+            
         # 8) Final nudge!
-        eta_a += alpha*xi[0]
+        eta_a += alpha*xi[0][1:-1,1:-1]
         hu_a  += alpha*xi[1]
         hv_a  += alpha*xi[2]
         if self.debug: self.showMatrices(eta_a, hu_a, "final x = x_a + alpha*xi", hv_a)

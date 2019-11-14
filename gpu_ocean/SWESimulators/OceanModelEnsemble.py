@@ -92,13 +92,18 @@ class OceanModelEnsemble:
     
     
     
-    def modelStep(self, sub_t, rank):
+    def modelStep(self, sub_t, rank, update_dt=True):
         self.logger.debug("Stepping all particles (ocean models) %f in time", sub_t)
         """
         Function which makes all particles step until time t.
         """
+        particle = 0
         for p in self.particles:
             self.t = p.step(sub_t)
+            if(update_dt):
+                p.updateDt()
+                self.logger.debug("[" + str(rank) + "]: Particle " + str(particle) + " has dt " + str(p.dt))
+            particle += 1
         return self.t
     
     
