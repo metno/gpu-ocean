@@ -32,10 +32,11 @@ class OceanModelEnsemble:
     Class which holds a set of simulators on a single node, possibly with drifters attached
     """
     
-    def __init__(self, gpu_ctx, sim_args, sim_ic, num_particles,
+    def __init__(self, gpu_ctx, sim_args, data_args, num_particles,
                  drifter_positions=[],
                  observation_variance = 0.01**2, 
-                 initialization_variance_factor_ocean_field = 0.0):
+                 initialization_variance_factor_ocean_field = 0.0,
+                 netcdf_filename=None, rank=0):
         """
         Constructor which creates num_particles slighly different ocean models
         based on the same initial conditions
@@ -44,6 +45,7 @@ class OceanModelEnsemble:
         self.logger = logging.getLogger(__name__)
         self.gpu_ctx = gpu_ctx
         self.sim_args = sim_args
+        self.data_args = data_args
         self.observation_variance = observation_variance
         self.initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field
         
@@ -65,7 +67,7 @@ class OceanModelEnsemble:
         self.logger.debug("Creating %d particles (ocean models)", num_particles)
         self.particles = [None] * num_particles
         for i in range(num_particles):
-            self.particles[i] = CDKLM16.CDKLM16(self.gpu_ctx, **sim_ic, **self.sim_args)
+            self.particles[i] = CDKLM16.CDKLM16(self.gpu_ctx, **self.sim_args, **data_args, local_particle_id=i, netcdf_filename=netcdf_filename)
             
             if self.initialization_variance_factor_ocean_field != 0.0:
                 self.particles[i].perturbState(q0_scale=self.initialization_variance_factor_ocean_field)
@@ -75,13 +77,11 @@ class OceanModelEnsemble:
             if (len(drifter_positions) > 0):
                 drifters = GPUDrifterCollection.GPUDrifterCollection(self.gpu_ctx, len(drifter_positions),
                                                                      observation_variance=self.observation_variance,
-                                                                     boundaryConditions=sim_ic['boundary_conditions'],
-                                                                     domain_size_x=sim_args['nx']*sim_args['dx'], 
-                                                                     domain_size_y=sim_args['ny']*sim_args['dy'])
+                                                                     boundaryConditions=data_args['boundary_conditions'],
+                                                                     domain_size_x=data_args['nx']*data_args['dx'], 
+                                                                     domain_size_y=data_args['ny']*data_args['dy'])
                 drifters.setDrifterPositions(drifter_positions)
                 self.particles[i].attachDrifters(drifters)
-            
-    
     
     
     def cleanUp(self):
@@ -92,7 +92,7 @@ class OceanModelEnsemble:
     
     
     
-    def modelStep(self, sub_t):
+    def modelStep(self, sub_t, rank):
         self.logger.debug("Stepping all particles (ocean models) %f in time", sub_t)
         """
         Function which makes all particles step until time t.
@@ -133,20 +133,19 @@ class OceanModelEnsemble:
         velocities = np.empty((num_particles, num_drifters, 2))
 
         # Assumes that all particles use the same bathymetry
-        H = self.particles[0].downloadBathymetry()[1]
+        H = self.particles[0].downloadBathymetry(interior_domain_only=True)[1]
         
         for p in range(num_particles):
             # Downloading ocean state without ghost cells
             eta, hu, hv = self.particles[p].download(interior_domain_only=True)
 
             for d in range(num_drifters):
-                id_x = np.int(np.floor(drifter_positions[d, 0]/self.sim_args['dx']))
-                id_y = np.int(np.floor(drifter_positions[d, 1]/self.sim_args['dy']))
-
+                id_x = np.int(np.floor(drifter_positions[d, 0]/self.data_args['dx']))
+                id_y = np.int(np.floor(drifter_positions[d, 1]/self.data_args['dy']))
+                
                 depth = H[id_y, id_x]
                 velocities[p,d,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
                 velocities[p,d,1] = hv[id_y, id_x]/(depth + eta[id_y, id_x])
                 
         return velocities
         
-
