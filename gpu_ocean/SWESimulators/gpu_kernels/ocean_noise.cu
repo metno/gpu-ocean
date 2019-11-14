@@ -417,15 +417,17 @@ __global__ void geostrophicBalance(
         const int eta_ty = ty+1;
 
         // Find Coriolis parameter
-        const float s = ti / (float) nx_;
-        const float t = tj / (float) ny_;
+        // Discarding ghost cells, and 0.5 offset to reach the corner of the domain
+        const float s = (ti+2.0f-0.5f) / (float) nx_;
+        const float t = (tj+2.0f-0.5f) / (float) ny_;
         const float angle = tex2D(angle_tex, s, t);
         
         // Decompose north into x and y
         const float north_x = sinf(angle);
         const float north_y = cosf(angle);
         
-        const float coriolis = f_ + beta_ * ((ti+0.5f)*dx_*north_x + (tj+0.5f)*dy_*north_y);
+        const float coriolis = f_ + beta_ * ((ti+0.5f-2.0f)*dx_*north_x + (tj+0.5f-2.0f)*dy_*north_y);
+        
         
         // Total water depth in the given cell (H + eta + d_eta)
         const float h_mid = d_eta[eta_ty][eta_tx] + H_mid + eta_row[ti];
@@ -685,15 +687,16 @@ __global__ void bicubicInterpolation(
         const int eta_ty = ty + 1;
         
         // Find Coriolis parameter
-        const float s = ti / (float) nx_;
-        const float t = tj / (float) ny_;
+        // Discarding ghost cells, and 0.5 offset to reach the corner of the domain
+        const float s = (ti+2.0f-0.5f) / (float) nx_;
+        const float t = (tj+2.0f-0.5f) / (float) ny_;
         const float angle = tex2D(angle_tex, s, t);
         
         // Decompose north into x and y
         const float north_x = sinf(angle);
         const float north_y = cosf(angle);
         
-        const float coriolis = f_ + beta_ * ((ti+0.5f)*dx_*north_x + (tj+0.5f)*dy_*north_y);
+        const float coriolis = f_ + beta_ * ((ti+0.5f-2.0f)*dx_*north_x + (tj+0.5f-2.0f)*dy_*north_y);
         
         // Slope of perturbation of eta
         const float eta_diff_x = (d_eta[eta_ty  ][eta_tx+1] - d_eta[eta_ty  ][eta_tx-1]) / (2.0f*dx_);
