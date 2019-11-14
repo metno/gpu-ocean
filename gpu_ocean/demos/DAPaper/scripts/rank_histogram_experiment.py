@@ -44,7 +44,7 @@ if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../../SWESimulato
 import argparse
 parser = argparse.ArgumentParser(description='Generate an ensemble.')
 parser.add_argument('--experiments', type=int, default=None)
-parser.add_argument('--output_folder', type=str, default="/media/havahol/Seagate Backup Plus Drive/gpu_ocean")
+parser.add_argument('--output_folder', type=str, default="rank_histogram_experiments")
 parser.add_argument('--method', type=str, default='iewpf2')
 parser.add_argument('--observation_variance', type=float, default=1)
 
@@ -73,19 +73,15 @@ elif args.experiments < 1:
 ###-----------------------------------------
 ## Define files for ensemble and truth.
 ##
-ensemble_init_path = os.path.abspath('double_jet_ensemble_init/')
-assert len(os.listdir(ensemble_init_path)) == 102, "Ensemble init folder has wrong number of files"
+ensemble_init_path = os.path.abspath('../presented_data/ensemble_init/')
+assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101, \
+    "Ensemble init folder has wrong number of files: " + str(len(os.listdir(ensemble_init_path)))
 
-#truth_path = os.path.abspath('double_jet_truth/')
-truth_path = os.path.abspath('truth_2019_06_06-09_23_41/')
-assert len(os.listdir(truth_path)) == 4, "Truth folder has wrong number of files"
-
+truth_path = os.path.abspath('../presented_data/true_state/')
+assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3, \
+    "Truth folder has wrong number of files"
 
 media_dir = args.output_folder
-if not os.path.isdir(media_dir):
-    print("Output directory does not exist. Please provide an existing folder as --output_folder argument.")
-    sys.exit(-1)
-
 timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
 destination_dir = os.path.join(media_dir, "rank_histogram_experiments_" +  timestamp + "/")
 os.makedirs(destination_dir)
