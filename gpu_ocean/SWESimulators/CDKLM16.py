@@ -54,6 +54,7 @@ class CDKLM16(Simulator.Simulator):
                  t=0.0, \
                  theta=1.3, rk_order=2, \
                  coriolis_beta=0.0, \
+                 coriolis_x0 = 0.0, coriolis_y0 = 0.0, \
                  max_wind_direction_perturbation = 0, \
                  wind_stress=WindStress.WindStress(), \
                  boundary_conditions=Common.BoundaryConditions(), \
@@ -94,7 +95,8 @@ class CDKLM16(Simulator.Simulator):
         t: Start simulation at time t
         theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
         rk_order: Order of Runge Kutta method {1,2*,3}
-        coriolis_beta: Coriolis linear factor -> f = f + beta*(y-y_0)
+        coriolis_beta: Coriolis linear factor -> f = f + beta*((x-coriolis_x0)*sin(angle) + (y-coriolis_y0)*cos(angle))
+        coriolis_x0, coriolis_y0: Reference point for coriolis linearization (in terms of x and y, not grid cells)
         max_wind_direction_perturbation: Large-scale model error emulation by per-time-step perturbation of wind direction by +/- max_wind_direction_perturbation (degrees)
         wind_stress: Wind stress parameters
         boundary_conditions: Boundary condition object
@@ -125,24 +127,26 @@ class CDKLM16(Simulator.Simulator):
         ghost_cells_x = 2
         ghost_cells_y = 2
         
-        #Coriolis at "first" cell
-        x_zero_reference_cell = ghost_cells_x
-        y_zero_reference_cell = ghost_cells_y # In order to pass it to the super constructor
-        
         # Boundary conditions
         self.boundary_conditions = boundary_conditions
         if (boundary_conditions.isSponge()):
+            
             nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*ghost_cells_x
             ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*ghost_cells_y
-            
-            x_zero_reference_cell += boundary_conditions.spongeCells[3]
-            y_zero_reference_cell += boundary_conditions.spongeCells[2]
-
-        #Compensate f for reference cell (first cell in internal of domain)
-        north = np.array([np.sin(angle[0,0]), np.cos(angle[0,0])])
-        f = f - coriolis_beta * (x_zero_reference_cell*dx*north[0] + y_zero_reference_cell*dy*north[1])
         
-        x_zero_reference_cell = 0
+        #Compensate f for reference cell (first cell in internal of domain)
+        #
+        # High-level FIXME (havahol 2019-11-14): This definition of the Coriolis beta plane assumes that spongecells are to
+        # be considere as "in the interior domain", even though the download function does not.
+        # We should therefore properly define what is the interior domain and ensure that this is 
+        # consistent throughout the code base.
+        # (suggestion: sponge cells are interior domain, but ghost cells (always 2) are not)
+        north = np.array([np.sin(angle[0,0]), np.cos(angle[0,0])])
+        f = f - coriolis_beta * (coriolis_x0*north[0] + coriolis_y0*north[1])
+        
+        
+        
+        # For the super constructor
         y_zero_reference_cell = 0
         
         A = None
