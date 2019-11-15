@@ -25,7 +25,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "common.cu"
-#include "angle_texture.cu"
+
+
+texture<float, cudaTextureType2D> angle_tex;
+texture<float, cudaTextureType2D> coriolis_f_tex;
 
 
 // KPSIMULATOR
@@ -34,6 +37,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //WARNING: This is error prone - as comparison with floating point numbers is not accurate
 #define CDKLM_DRY_FLAG 1.0e-30f
 #define CDKLM_DRY_EPS 1.0e-3f
+
+
+
+__device__
+inline float coriolisF(const int i, const int j, const int nx, const int ny) {
+    const float s = i / (float) nx;
+    const float t = j / (float) ny;
+    return tex2D(coriolis_f_tex, s, t);
+}
 
 
 
@@ -138,8 +150,7 @@ void adjustSlopes_x(const int bx, const int by,
                     float R[3][block_height+4][block_width+4],
                     float Qx[3][block_height+2][block_width+2], // used as if Qx[3][block_height][block_width + 2]
                     float Hi[block_height+3][block_width+3],
-                    const float g_, 
-                    const float f_, const float beta_, 
+                    const float g_,
                     const int& bc_east_, const int& bc_west_) {
     
     // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
@@ -164,8 +175,8 @@ void adjustSlopes_x(const int bx, const int by,
         if ((bc_east_ == 1) && (bx + k > nx_+2)) { v = -v; }
         
         // Coriolis in this cell
-        const float2 north = getNorth(bx+k, by+l, nx_, ny_);
-        const float coriolis_f = f_ + beta_ * ((bx + k + 0.5f)*dx_*north.x + (by + l + 0.5f)*dy_*north.y);
+        
+        const float coriolis_f = coriolisF(bx+k, by+l, nx_, ny_);
         
         const float dxfv = dx_*coriolis_f*v;
         
@@ -192,8 +203,7 @@ void adjustSlopes_y(const int bx, const int by,
                     float R[3][block_height+4][block_width+4],
                     float Qx[3][block_height+2][block_width+2], // used as if Qx[3][block_height+2][block_width]
                     float Hi[block_height+3][block_width+3],
-                    const float g_, 
-                    const float f_, const float beta_,
+                    const float g_,
                     const int& bc_north_, const int& bc_south_) {
     
     // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
@@ -218,8 +228,7 @@ void adjustSlopes_y(const int bx, const int by,
         if ((bc_north_ == 1) && (by + l > ny_+2)) { u = -u; }
         
         // Coriolis in this cell
-        const float2 north = getNorth(bx+k, by+l, nx_, ny_);
-        const float coriolis_f = f_ + beta_ * ((bx + k + 0.5f)*dx_*north.x + (by + l + 0.5f)*dy_*north.y);
+        const float coriolis_f = coriolisF(bx+k, by+l, nx_, ny_);
 
         const float dyfu = dy_*coriolis_f*u;
         
@@ -440,10 +449,7 @@ __global__ void cdklm_swe_2D(
         const float dx_, const float dy_, const float dt_,
         const float g_,
 
-        const float theta_,
-
-        const float f_, //< Coriolis coefficient (f_ - beta_*y0)
-        const float beta_, //< Coriolis force f_ + beta_*y
+        const float theta_, //< minmod theta
 
         const float r_, //< Bottom friction coefficient
 
@@ -506,26 +512,16 @@ __global__ void cdklm_swe_2D(
     __shared__ float  Hi[block_height+3][block_width+3];
 
     // Get the angle towards north and create the matrices for the basis transformation
-    const float s = ti / (float) nx_;
-    const float t = tj / (float) ny_;
+    const float s = (ti-2.0f+0.5f) / (float) nx_;
+    const float t = (tj-2.0f+0.5f) / (float) ny_;
     const float angle = tex2D(angle_tex, s, t);
-    const float cos_a = cosf(angle);
-    const float sin_a = sinf(angle);
-    
-    // B transforms from [x, y] to [n, e] (rotates by theta)
-    // B = np.array([[cos(theta), -sin(theta)], [sin(theta), cos(theta)]])
-    const float4 B = make_float4(cos_a, -sin_a, sin_a, cos_a);
-    
-    // BT transforms from [e, n] to [x, y] (rotates by -theta)
-    // BT = np.array([[cos(theta), sin(theta)], [-sin(theta), cos(theta)]])
-    const float4 BT = make_float4(cos_a, sin_a, -sin_a, cos_a);
     
     // North and east vector in xy-coordinate system
     // Given x and y-aligned vectors, simply compute the dot product, 
     // i.e., 
     // hu_north = north.x*hu + north.y*hv
     // hu_east = east.x*hu + east.y*hv
-    const float2 north = matMul(BT, make_float2(0.0, 1.0));
+    const float2 north = make_float2(sinf(angle), cosf(angle));
     const float2 east = make_float2(north.y, -north.x);
     
     //Up vector in east-north coordinate system
@@ -533,11 +529,8 @@ __global__ void cdklm_swe_2D(
     // i.e., 
     // hu = right.x*hu_north + right.y*hu_east
     // hv = up.x*hu_north + up.y*hu_east
-    const float2 up = matMul(B, make_float2(0.0, 1.0));
+    const float2 up = make_float2(-north.x, north.y);
     const float2 right = make_float2(up.y, -up.x);
-
-
-    // theta_ = 1.5f;
 
     //Read into shared memory
     for (int j=ty; j<block_height+4; j+=blockDim.y) {
@@ -588,11 +581,11 @@ __global__ void cdklm_swe_2D(
     //        Coriolis should be f at (ti, tj) = (?, ?) (because we don't know number of sponge cells here...)
     //        - havahol, 2019-11-13
     //beta * (i*dx, j*dy)*(north.x, north.y)
-    const float coriolis_f_lower   = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (tj-0.5f)*dy_*north.y);
-    const float coriolis_f_central = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (tj+0.5f)*dy_*north.y);
-    const float coriolis_f_upper   = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (tj+1.5f)*dy_*north.y);
-    const float coriolis_f_left    = f_ + beta_ * ((ti-0.5f)*dx_*north.x + (tj+0.5f)*dy_*north.y);
-    const float coriolis_f_right   = f_ + beta_ * ((ti+1.5f)*dx_*north.x + (tj+0.5f)*dy_*north.y);
+    const float coriolis_f_lower   = coriolisF(ti+0.5f, tj-0.5f, nx_, ny_);
+    const float coriolis_f_central = coriolisF(ti+0.5f, tj+0.5f, nx_, ny_);
+    const float coriolis_f_upper   = coriolisF(ti+0.5f, tj+1.5f, nx_, ny_);
+    const float coriolis_f_left    = coriolisF(ti-0.5f, tj+0.5f, nx_, ny_);
+    const float coriolis_f_right   = coriolisF(ti+1.5f, tj+0.5f, nx_, ny_);
 
 
     //Fix boundary conditions
@@ -714,9 +707,9 @@ __global__ void cdklm_swe_2D(
             // Get north vector for thread (bx + k, by +l)
             const float2 local_north = getNorth(bx+k, by+l, nx_, ny_);
             
-            const float left_coriolis_f   = f_ + beta_ * ((bx + k - 0.5f)*dx_*local_north.x + (by + l + 0.5f)*dy_*local_north.y);
-            const float center_coriolis_f = f_ + beta_ * ((bx + k + 0.5f)*dx_*local_north.x + (by + l + 0.5f)*dy_*local_north.y);
-            const float right_coriolis_f  = f_ + beta_ * ((bx + k + 1.5f)*dx_*local_north.x + (by + l + 0.5f)*dy_*local_north.y);
+            const float left_coriolis_f   = coriolisF(bx+k-0.5f, by+l+0.5f, nx_, ny_);
+            const float center_coriolis_f = coriolisF(bx+k+0.5f, by+l+0.5f, nx_, ny_);
+            const float right_coriolis_f  = coriolisF(bx+k+1.5f, by+l+0.5f, nx_, ny_);
             
             const float left_fv  = (local_north.x*left_u + local_north.y*left_v)*left_coriolis_f;
             const float center_fv = (local_north.x*center_u + local_north.y*center_v)*center_coriolis_f;
@@ -740,7 +733,7 @@ __global__ void cdklm_swe_2D(
     // Need K_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), v (R[2]), H (Hi), g, dx
     adjustSlopes_x(bx, by, nx_, ny_, dx_, dy_,
                    R, Qx, Hi,
-                   g_, f_, beta_, 
+                   g_,
                    bc_east, bc_west);
     __syncthreads();
     
@@ -810,9 +803,9 @@ __global__ void cdklm_swe_2D(
             const float2 local_north = getNorth(bx+k, by+l, nx_, ny_);
             const float2 local_east = getEast(bx+k, by+l, nx_, ny_);
             
-            const float lower_coriolis_f  = f_ + beta_ * ((bx + k + 0.5f)*dx_*local_north.x + (by + l - 0.5f)*dy_*local_north.y);
-            const float center_coriolis_f = f_ + beta_ * ((bx + k + 0.5f)*dx_*local_north.x + (by + l + 0.5f)*dy_*local_north.y);
-            const float upper_coriolis_f  = f_ + beta_ * ((bx + k + 0.5f)*dx_*local_north.x + (by + l + 1.5f)*dy_*local_north.y);
+            const float lower_coriolis_f  = coriolisF(bx+k+0.5f, by+l-0.5f, nx_, ny_);
+            const float center_coriolis_f = coriolisF(bx+k+0.5f, by+l+0.5f, nx_, ny_);
+            const float upper_coriolis_f  = coriolisF(bx+k+0.5f, by+l+1.5f, nx_, ny_);
 
             const float lower_fu  = (local_east.x*lower_u  + local_east.y*lower_v )*lower_coriolis_f;
             const float center_fu = (local_east.x*center_u + local_east.y*center_v)*center_coriolis_f;
@@ -834,7 +827,7 @@ __global__ void cdklm_swe_2D(
     // Need L_x (Qx[2]), coriolis parameter (f, beta), eta (R[0]), u (R[1]), H (Hi), g, dx
     adjustSlopes_y(bx, by, nx_, ny_, dx_, dy_,
                    R, Qx, Hi,
-                   g_, f_, beta_, 
+                   g_, 
                    bc_north, bc_south);
     __syncthreads();
     

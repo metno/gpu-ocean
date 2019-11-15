@@ -29,11 +29,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import gc
 import logging
+from scipy.interpolate import interp2d
 
 from SWESimulators import Common, SimWriter, SimReader
 from SWESimulators import Simulator
 from SWESimulators import WindStress
 from SWESimulators import OceanStateNoise
+from SWESimulators import OceanographicUtilities
 
 # Needed for the random perturbation of the wind forcing:
 import pycuda.driver as cuda
@@ -50,7 +52,11 @@ class CDKLM16(Simulator.Simulator):
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
+                 subsample_f=10, \
                  angle=np.array([[0]], dtype=np.float32), \
+                 subsample_angle=10, \
+                 latitude=None, \
+                 subsample_latitude=10, \
                  t=0.0, \
                  theta=1.3, rk_order=2, \
                  coriolis_beta=0.0, \
@@ -90,7 +96,11 @@ class CDKLM16(Simulator.Simulator):
         g: Gravitational accelleration (9.81 m/s^2)
         f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
         r: Bottom friction coefficient (2.4e-3 m/s)
+        subsample_f: Subsample the coriolis f when creating texture by factor (for beta plane)
         angle: Angle of rotation from North to y-axis as a texture (cuda.Array) or numpy array
+        subsample_angle: Subsample the angles given as input when creating texture by factor
+        latitude: Specify latitude. This will override any f and beta plane already set
+        subsample_latitude: Subsample the latitudes given as input when creating texture by factor
         t: Start simulation at time t
         theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
         rk_order: Order of Runge Kutta method {1,2*,3}
@@ -192,7 +202,7 @@ class CDKLM16(Simulator.Simulator):
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.cdklm_swe_2D = self.kernel.get_function("cdklm_swe_2D")
-        self.cdklm_swe_2D.prepare("iiffffffffiiPiPiPiPiPiPiPiPiffi")
+        self.cdklm_swe_2D.prepare("iiffffffiiPiPiPiPiPiPiPiPiffi")
         self.update_wind_stress(self.kernel, self.cdklm_swe_2D)
         
         # CUDA functions for finding max time step size:
@@ -251,6 +261,13 @@ class CDKLM16(Simulator.Simulator):
         )
 
 
+        def subsample(data, factor):
+            I = interp2d(np.linspace(0, 1, data.shape[0]), 
+                         np.linspace(0, 1, data.shape[1]), 
+                         data, kind='linear')
+            x_new = np.linspace(0, 1, max(2, data.shape[0]//10))
+            y_new = np.linspace(0, 1, max(2, data.shape[1]//10))
+            return I(x_new, y_new)
                                             
                                     
         # Texture for angle
@@ -260,6 +277,9 @@ class CDKLM16(Simulator.Simulator):
             self.angle_texref.set_array(angle)
         else:
             #Upload data to GPU and bind to texture reference
+            if (subsample_angle and angle.shape == eta0.shape):
+                angle = subsample(angle, subsample_angle)
+                
             self.angle_texref.set_array(cuda.np_to_array(np.ascontiguousarray(angle, dtype=np.float32), order="C"))
                     
         # Set texture parameters
@@ -267,6 +287,41 @@ class CDKLM16(Simulator.Simulator):
         self.angle_texref.set_address_mode(0, cuda.address_mode.CLAMP) #no indexing outside domain
         self.angle_texref.set_address_mode(1, cuda.address_mode.CLAMP)
         self.angle_texref.set_flags(cuda.TRSF_NORMALIZED_COORDINATES) #Use [0, 1] indexing
+        
+        
+        
+        # Texture for coriolis f
+        self.coriolis_texref = self.kernel.get_texref("coriolis_f_tex")
+        
+        # Create the CPU coriolis
+        if (latitude is not None):
+            if (subsample_latitude and latitude.shape == eta0.shape):
+                latitude = subsample(latitude, subsample_latitude)
+            coriolis_f, _ = OceanographicUtilities.calcCoriolisParams(latitude)
+            coriolis_f = coriolis_f.astype(np.float32)
+        else:
+            if (self.coriolis_beta != 0.0):
+                if (angle.size != 1):
+                    raise RuntimeError("non-constant angle cannot be combined with beta plane model (makes no sense)")
+                #coriolis_f = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (tj-0.5f)*dy_*north.y);
+                x = np.linspace(0, self.nx*self.dx, self.nx//subsample_f)
+                y = np.linspace(0, self.ny*self.dy, self.ny//subsample_f)
+                self.logger.info("Using {:f}x{:f} cells for coriolis texture".format(x.size, y.size))
+                x, y = np.meshgrid(x, y)
+                n = x*np.sin(angle[0, 0]) + y*np.cos(angle[0, 0])
+                coriolis_f = self.f + self.coriolis_beta*(n)
+            else:
+                coriolis_f = np.array([[self.f]], dtype=np.float32)
+        
+        #Upload data to GPU and bind to texture reference
+        self.coriolis_texref.set_array(cuda.np_to_array(np.ascontiguousarray(coriolis_f, dtype=np.float32), order="C"))
+                    
+        # Set texture parameters
+        self.coriolis_texref.set_filter_mode(cuda.filter_mode.LINEAR) #bilinear interpolation
+        self.coriolis_texref.set_address_mode(0, cuda.address_mode.CLAMP) #no indexing outside domain
+        self.coriolis_texref.set_address_mode(1, cuda.address_mode.CLAMP)
+        self.coriolis_texref.set_flags(cuda.TRSF_NORMALIZED_COORDINATES) #Use [0, 1] indexing
+        
         
 
         # Small scale perturbation:
@@ -545,8 +600,6 @@ class CDKLM16(Simulator.Simulator):
                            self.dx, self.dy, local_dt, \
                            self.g, \
                            self.theta, \
-                           self.f, \
-                           self.coriolis_beta, \
                            self.r, \
                            self.rk_order, \
                            np.int32(rk_step), \

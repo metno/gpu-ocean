@@ -22,7 +22,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "common.cu"
-#include "angle_texture.cu"
+
+texture<float, cudaTextureType2D> angle_tex;
 
 /**
   *  Generates two uniform random numbers based on the ANSIC Linear Congruential 
