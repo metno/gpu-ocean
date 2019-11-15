@@ -418,8 +418,8 @@ __global__ void geostrophicBalance(
 
         // Find Coriolis parameter
         // Discarding ghost cells, and 0.5 offset to reach the corner of the domain
-        const float s = (ti+2.0f-0.5f) / (float) nx_;
-        const float t = (tj+2.0f-0.5f) / (float) ny_;
+        const float s = (ti-2.0f+0.5f) / (float) nx_;
+        const float t = (tj-2.0f+0.5f) / (float) ny_;
         const float angle = tex2D(angle_tex, s, t);
         
         // Decompose north into x and y
