@@ -28,6 +28,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import datetime
 from netCDF4 import Dataset
+from scipy.ndimage.morphology import binary_erosion, grey_dilation
+
 from SWESimulators import Common, WindStress, OceanographicUtilities
 
 
@@ -150,7 +152,7 @@ def getWindSourceterm(source_url, timestep_indices, timesteps, x0, x1, y0, y1):
     return wind_source
 
 
-def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land_value=5.0, iterations=10, sponge_cells=[80, 80, 80, 80]):
+def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land_value=5.0, iterations=10, sponge_cells=[80, 80, 80, 80], erode_land=0):
     ic = {}
     
     try:
@@ -181,15 +183,23 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     timesteps = timesteps - t0
     
     #Generate intersections bathymetry
-    H_m = np.ma.array(H_m, mask=eta0.mask.copy())
+    H_m_mask = eta0.mask.copy()
+    H_m = np.ma.array(H_m, mask=H_m_mask)
+    for i in range(erode_land):
+        new_water = H_m.mask ^ binary_erosion(H_m.mask)
+        eps = 1.0e-5 #Make new Hm slighlyt different from land_value
+        eta0_dil = grey_dilation(eta0.filled(0.0), size=(3,3))
+        H_m[new_water] = land_value+eps
+        eta0[new_water] = eta0_dil[new_water]
+        
     H_i, _ = OceanographicUtilities.midpointsToIntersections(H_m, land_value=land_value, iterations=iterations)
     eta0 = eta0[1:-1, 1:-1]
-    h0 = OceanographicUtilities.intersectionsToMidpoints(H_i) + eta0
+    h0 = OceanographicUtilities.intersectionsToMidpoints(H_i).filled(land_value) + eta0.filled(0.0)
     
     #Generate physical variables
-    eta0 = eta0.filled(0)
-    hu0 = h0*u0.filled(0)
-    hv0 = h0*v0.filled(0)
+    eta0 = np.ma.array(eta0.filled(0), mask=eta0.mask.copy())
+    hu0 = np.ma.array(h0*u0.filled(0), mask=eta0.mask.copy())
+    hv0 = np.ma.array(h0*v0.filled(0), mask=eta0.mask.copy())
     
     #Initial reference time and all timesteps
     ic['t0'] = t0
@@ -235,7 +245,7 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     return ic
 
 
-def rescaleInitialConditions(old_ic, scale):
+def rescaleInitialConditions(old_ic, scale):    
     ic = old_ic.copy()
     
     ic['NX'] = int(old_ic['NX']*scale)
@@ -248,8 +258,8 @@ def rescaleInitialConditions(old_ic, scale):
     _, _, ic['eta0'] = OceanographicUtilities.rescaleMidpoints(old_ic['eta0'], ic['NX'], ic['NY'])
     _, _, ic['hu0'] = OceanographicUtilities.rescaleMidpoints(old_ic['hu0'], ic['NX'], ic['NY'])
     _, _, ic['hv0'] = OceanographicUtilities.rescaleMidpoints(old_ic['hv0'], ic['NX'], ic['NY'])
-    if (old_ic['angle'].shape == old_ic['eta0']):
-        ic['angle'] = OceanographicUtilities.rescaleMidpoints(old_ic['angle'], ic['NX'], ic['NY'])
+    if (old_ic['angle'].shape == old_ic['eta0'].shape):
+        _, _, ic['angle'] = OceanographicUtilities.rescaleMidpoints(old_ic['angle'], ic['NX'], ic['NY'])
     #Not touched:
     #"boundary_conditions": 
     #"boundary_conditions_data": 
