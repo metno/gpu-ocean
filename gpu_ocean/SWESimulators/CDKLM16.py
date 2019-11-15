@@ -278,6 +278,7 @@ class CDKLM16(Simulator.Simulator):
         else:
             #Upload data to GPU and bind to texture reference
             if (subsample_angle and angle.shape == eta0.shape):
+                self.logger.info("Subsampling angle texture by factor " + str(subsample_angle))
                 angle = subsample(angle, subsample_angle)
                 
             self.angle_texref.set_array(cuda.np_to_array(np.ascontiguousarray(angle, dtype=np.float32), order="C"))
@@ -295,7 +296,10 @@ class CDKLM16(Simulator.Simulator):
         
         # Create the CPU coriolis
         if (latitude is not None):
+            if (self.f != 0.0):
+                raise RuntimeError("Cannot specify both latitude and f. Make your mind up.")
             if (subsample_latitude and latitude.shape == eta0.shape):
+                self.logger.info("Subsampling latitude texture by factor " + str(subsample_latitude))
                 latitude = subsample(latitude, subsample_latitude)
             coriolis_f, _ = OceanographicUtilities.calcCoriolisParams(latitude)
             coriolis_f = coriolis_f.astype(np.float32)
@@ -303,14 +307,15 @@ class CDKLM16(Simulator.Simulator):
             if (self.coriolis_beta != 0.0):
                 if (angle.size != 1):
                     raise RuntimeError("non-constant angle cannot be combined with beta plane model (makes no sense)")
-                #coriolis_f = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (tj-0.5f)*dy_*north.y);
                 x = np.linspace(0, self.nx*self.dx, self.nx//subsample_f)
                 y = np.linspace(0, self.ny*self.dy, self.ny//subsample_f)
-                self.logger.info("Using {:f}x{:f} cells for coriolis texture".format(x.size, y.size))
+                self.logger.info("Using latitude to create Coriolis f texture ({:f}x{:f} cells)".format(x.size, y.size))
                 x, y = np.meshgrid(x, y)
                 n = x*np.sin(angle[0, 0]) + y*np.cos(angle[0, 0])
                 coriolis_f = self.f + self.coriolis_beta*(n)
             else:
+                if (self.f.size != 1):
+                    raise NotImplementedError("(User specified) varying f is not implemented yet, but is trivial to implement. Use varying lat instead")
                 coriolis_f = np.array([[self.f]], dtype=np.float32)
         
         #Upload data to GPU and bind to texture reference
