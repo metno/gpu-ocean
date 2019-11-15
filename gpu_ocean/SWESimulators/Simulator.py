@@ -346,7 +346,5 @@ class Simulator(object):
         variable self.interior_domain_incides
         """
         if (self.boundary_conditions.isSponge()):
-            self.interior_domain_indices = self.boundary_conditions.spongeCells.copy()
-            self.interior_domain_indices[0:2] = -self.interior_domain_indices[0:2]
-    
+            assert(False), 'This function is deprecated - sponge cells should now be considered part of the interior domain'
     

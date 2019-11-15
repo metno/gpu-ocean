@@ -131,13 +131,7 @@ class CDKLM16(Simulator.Simulator):
         
         # Boundary conditions
         self.boundary_conditions = boundary_conditions
-        if (boundary_conditions.isSponge()):
-            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*ghost_cells_x
-            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*ghost_cells_y
-            
-            x_zero_reference_cell += boundary_conditions.spongeCells[3]
-            y_zero_reference_cell += boundary_conditions.spongeCells[2]
-
+        
         #Compensate f for reference cell (first cell in internal of domain)
         north = np.array([np.sin(angle[0,0]), np.cos(angle[0,0])])
         f = f - coriolis_beta * (x_zero_reference_cell*dx*north[0] + y_zero_reference_cell*dy*north[1])
@@ -170,7 +164,6 @@ class CDKLM16(Simulator.Simulator):
         # eta[self.interior_domain_indices[2]:self.interior_domain_indices[0], \
         #     self.interior_domain_indices[3]:self.interior_domain_indices[1] ]
         self.interior_domain_indices = np.array([-2,-2,2,2])
-        self._set_interior_domain_from_sponge_cells()
         
         defines={'block_width': block_width, 'block_height': block_height,
                    'KPSIMULATOR_DESING_EPS': str(desingularization_eps)+'f',
@@ -291,8 +284,8 @@ class CDKLM16(Simulator.Simulator):
         
         # Data assimilation model step size
         self.model_time_step = model_time_step
+        self.total_time_steps = 0
         if model_time_step is None:
-            self.total_time_steps = 0
             self.model_time_step = self.dt
             
         
@@ -531,7 +524,7 @@ class CDKLM16(Simulator.Simulator):
                                 dt, \
                                 np.int32(2), np.int32(2))
             self.drifter_t += dt
-        return self.drifter_t
+            return self.drifter_t
         
 
     def callKernel(self, \
@@ -571,7 +564,8 @@ class CDKLM16(Simulator.Simulator):
             
     
     def perturbState(self, q0_scale=1):
-        self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
+        if self.small_scale_perturbation:
+            self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
     def applyBoundaryConditions(self):
         self.bc_kernel.boundaryCondition(self.gpu_stream, \
@@ -698,6 +692,15 @@ class CDKLM16(Simulator.Simulator):
                self.interior_domain_indices[3]:self.interior_domain_indices[1]]
                
         return [Bi, Bm]
+    
+    def getLandMask(self, interior_domain_only=True):
+        if self.gpu_data.h0.mask is None:
+            return None
+        
+        if interior_domain_only:
+            return self.gpu_data.h0.mask[2:-2,2:-2]
+        else:
+            return self.gpu_data.h0.mask
     
     def downloadDt(self):
         return self.device_dt.download(self.gpu_stream)
