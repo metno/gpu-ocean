@@ -96,9 +96,9 @@ class SimNetCDFWriter:
         
         self.dt = sim.dt
         if self.staggered_grid:
-            self.H = sim.H.download(self.gpu_stream)
+            self.Hm = sim.H.download(self.gpu_stream)
         else:
-            self.H = sim.bathymetry.download(self.gpu_stream)[0] # Hi
+            self.Hi, self.Hm = sim.bathymetry.download(self.gpu_stream) # Hi
         
         if (sim.__class__.__name__ == "KP07"):
             if (sim.use_rk2):
@@ -143,7 +143,7 @@ class SimNetCDFWriter:
             
             
         # Organize directory and create file:
-        if(sim.comm.size):
+        if(sim.comm):
             if not os.path.isdir(self.dir_name) and sim.comm.rank == 0:
                 os.makedirs(self.dir_name)
             else:
@@ -238,7 +238,7 @@ class SimNetCDFWriter:
         if not self.staggered_grid: 
             self.ncfile.createDimension('x_Hi', nx + self.ghost_cells_tot_x + 1)
             self.ncfile.createDimension('y_Hi', ny + self.ghost_cells_tot_y + 1)
-        if (sim.comm.size and self.write_parallel):
+        if (sim.comm and self.write_parallel):
             # FIXME: Needs to be updated to handle more than one member/particle per MPI process
             self.ncfile.createDimension('ensemble_member', sim.comm.size)
         
@@ -274,7 +274,7 @@ class SimNetCDFWriter:
             x_Hi.axis = "X"
             y_Hi.axis = "Y"
             
-        if (sim.comm.size and self.write_parallel):
+        if (sim.comm and self.write_parallel):
             # FIXME: Needs to be updated to handle more than one member/particle per MPI process
             ensemble_member = self.ncfile.createVariable('ensemble_member', np.dtype('float32').char, 'ensemble_member')
             ensemble_member.long_name = "ensemble run number"
@@ -360,21 +360,23 @@ class SimNetCDFWriter:
         self.nc_land[:] = 0
 
         # Create info about bathymetry / equilibrium depth
-        if self.staggered_grid:
-            self.nc_H = self.ncfile.createVariable('H', np.dtype('float32').char, ('y', 'x'), zlib=True)
-        else:
-            self.nc_H = self.ncfile.createVariable('H', np.dtype('float32').char, ('y_Hi', 'x_Hi'), zlib=True)
-        self.nc_H.standard_name = 'water_surface_reference_datum_altitude'
-        self.nc_H.grid_mapping = 'projection_stere'
-        self.nc_H.coordinates = 'y x'
-        self.nc_H.units = 'meter'
-        if not self.ignore_ghostcells:
-            self.nc_H[:] = self.H
-        else:
-            self.nc_H[:] = self.H[1:-1, 1:-1]
+        self.nc_Hm = self.ncfile.createVariable('Hm', np.dtype('float32').char, ('y', 'x'), zlib=True)
+        self.nc_Hm.standard_name = 'water_surface_reference_datum_altitude'
+        self.nc_Hm.grid_mapping = 'projection_stere'
+        self.nc_Hm.coordinates = 'y x'
+        self.nc_Hm.units = 'meter'
+        self.nc_Hm[:] = self.Hm
+        
+        if not self.staggered_grid:
+            self.nc_Hi = self.ncfile.createVariable('Hi', np.dtype('float32').char, ('y_Hi', 'x_Hi'), zlib=True)
+            self.nc_Hi.standard_name = 'water_surface_reference_datum_altitude'
+            self.nc_Hi.grid_mapping = 'projection_stere'
+            self.nc_Hi.coordinates = 'y x'
+            self.nc_Hi.units = 'meter'
+            self.nc_Hi[:] = self.Hi
         
         # FIXME: Needs to be updated to handle more than one member/particle per MPI process
-        if(sim.comm.size and self.write_parallel):
+        if(sim.comm and self.write_parallel):
             self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'ensemble_member', 'y', 'x'), zlib=True)
             self.nc_eta.set_collective(True)
             if not self.ignore_ghostcells and self.staggered_grid:
@@ -388,7 +390,7 @@ class SimNetCDFWriter:
                 self.nc_hv = self.ncfile.createVariable('hv', np.dtype('float32').char, ('time', 'ensemble_member', 'y', 'x'), zlib=True)
                 self.nc_hv.set_collective(True)
         else:
-            if(sim.comm.size):
+            if(sim.comm):
                 self.ncfile.ensemble_member = sim.comm.rank
             self.nc_eta = self.ncfile.createVariable('eta', np.dtype('float32').char, ('time', 'y', 'x'), zlib=True)
             if not self.ignore_ghostcells and self.staggered_grid:
@@ -454,7 +456,7 @@ class SimNetCDFWriter:
         eta, hu, hv = sim.download()
         if (self.ignore_ghostcells):
             # FIXME: Needs to be updated to handle more than one member/particle per MPI process
-            if(sim.comm.size and self.write_parallel):
+            if(sim.comm and self.write_parallel):
                 self.nc_time[self.i] = sim.t
                 self.nc_eta[self.i, sim.ensemble_member, :] = eta[1:-1, 1:-1]
                 self.nc_hu[self.i, sim.ensemble_member, :] = hu[1:-1, 1:-2]
@@ -466,7 +468,7 @@ class SimNetCDFWriter:
                 self.nc_hv[self.i, :] = hv[1:-2, 1:-1]
         else:
             # FIXME: Needs to be updated to handle more than one member/particle per MPI process
-            if(sim.comm.size and self.write_parallel):
+            if(sim.comm and self.write_parallel):
                 self.nc_time[self.i] = sim.t
                 self.nc_eta[self.i, sim.ensemble_member, :] = eta
                 self.nc_hu[self.i, sim.ensemble_member, :] = hu
