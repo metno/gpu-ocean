@@ -24,6 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "common.cu"
 
 texture<float, cudaTextureType2D> angle_tex;
+// FIXME! Use coriolis_f_tex to store and read the Coriolis force (see cdklm_kernel.cu)
 
 /**
   *  Generates two uniform random numbers based on the ANSIC Linear Congruential 

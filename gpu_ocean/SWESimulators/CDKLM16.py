@@ -56,7 +56,6 @@ class CDKLM16(Simulator.Simulator):
                  angle=np.array([[0]], dtype=np.float32), \
                  subsample_angle=10, \
                  latitude=None, \
-                 subsample_latitude=10, \
                  t=0.0, \
                  theta=1.3, rk_order=2, \
                  coriolis_beta=0.0, \
@@ -96,11 +95,10 @@ class CDKLM16(Simulator.Simulator):
         g: Gravitational accelleration (9.81 m/s^2)
         f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
         r: Bottom friction coefficient (2.4e-3 m/s)
-        subsample_f: Subsample the coriolis f when creating texture by factor (for beta plane)
-        angle: Angle of rotation from North to y-axis as a texture (cuda.Array) or numpy array
+        subsample_f: Subsample the coriolis f when creating texture by factor
+        angle: Angle of rotation from North to y-axis as a texture (cuda.Array) or numpy array (in radians)
         subsample_angle: Subsample the angles given as input when creating texture by factor
-        latitude: Specify latitude. This will override any f and beta plane already set
-        subsample_latitude: Subsample the latitudes given as input when creating texture by factor
+        latitude: Specify latitude. This will override any f and beta plane already set (in radians)
         t: Start simulation at time t
         theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
         rk_order: Order of Runge Kutta method {1,2*,3}
@@ -261,12 +259,17 @@ class CDKLM16(Simulator.Simulator):
         )
 
 
-        def subsample(data, factor):
-            I = interp2d(np.linspace(0, 1, data.shape[1]), 
-                         np.linspace(0, 1, data.shape[0]), 
+        def subsample_texture(data, factor):
+            ny, nx = data.shape 
+            dx, dy = 1/nx, 1/ny
+            I = interp2d(np.linspace(0.5*dx, 1-0.5*dx, nx), 
+                         np.linspace(0.5*dy, 1-0.5*dy, ny), 
                          data, kind='linear')
-            x_new = np.linspace(0, 1, max(2, data.shape[1]//factor))
-            y_new = np.linspace(0, 1, max(2, data.shape[0]//factor))
+            
+            new_nx, new_ny = max(2, nx//factor), max(2, ny//factor)
+            new_dx, new_dy = 1/new_nx, 1/new_ny
+            x_new = np.linspace(0.5*new_dx, 1-0.5*new_dx, new_nx)
+            y_new = np.linspace(0.5*new_dy, 1-0.5*new_dy, new_ny)
             return I(x_new, y_new)
                                             
                                     
@@ -279,7 +282,8 @@ class CDKLM16(Simulator.Simulator):
             #Upload data to GPU and bind to texture reference
             if (subsample_angle and angle.size >= eta0.size):
                 self.logger.info("Subsampling angle texture by factor " + str(subsample_angle))
-                angle = subsample(angle, subsample_angle)
+                self.logger.warning("This will give inaccurate angle along the border!")
+                angle = subsample_texture(angle, subsample_angle)
                 
             self.angle_texref.set_array(cuda.np_to_array(np.ascontiguousarray(angle, dtype=np.float32), order="C"))
                     
@@ -298,25 +302,32 @@ class CDKLM16(Simulator.Simulator):
         if (latitude is not None):
             if (self.f != 0.0):
                 raise RuntimeError("Cannot specify both latitude and f. Make your mind up.")
-            if (subsample_latitude and latitude.size >= eta0.size):
-                self.logger.info("Subsampling latitude texture by factor " + str(subsample_latitude))
-                latitude = subsample(latitude, subsample_latitude)
             coriolis_f, _ = OceanographicUtilities.calcCoriolisParams(latitude)
             coriolis_f = coriolis_f.astype(np.float32)
         else:
             if (self.coriolis_beta != 0.0):
                 if (angle.size != 1):
                     raise RuntimeError("non-constant angle cannot be combined with beta plane model (makes no sense)")
-                x = np.linspace(0, self.nx*self.dx, self.nx//subsample_f)
-                y = np.linspace(0, self.ny*self.dy, self.ny//subsample_f)
+                #Generate coordinates for all cells, including ghost cells from center to center
+                # [-3/2dx, nx+3/2dx] for ghost_cells_x == 2
+                x = np.linspace((-self.ghost_cells_x+0.5)*self.dx, (self.nx+self.ghost_cells_x-0.5)*self.dx, self.nx+2*self.ghost_cells_x)
+                y = np.linspace((-self.ghost_cells_y+0.5)*self.dy, (self.ny+self.ghost_cells_y-0.5)*self.dy, self.ny+2*self.ghost_cells_x)
                 self.logger.info("Using latitude to create Coriolis f texture ({:f}x{:f} cells)".format(x.size, y.size))
                 x, y = np.meshgrid(x, y)
-                n = x*np.sin(angle[0, 0]) + y*np.cos(angle[0, 0])
-                coriolis_f = self.f + self.coriolis_beta*(n)
+                n = x*np.sin(angle[0, 0]) + y*np.cos(angle[0, 0]) #North vector
+                coriolis_f = self.f + self.coriolis_beta*n
             else:
-                if (self.f.size != 1):
-                    raise NotImplementedError("(User specified) varying f is not implemented yet, but is trivial to implement. Use varying lat instead")
-                coriolis_f = np.array([[self.f]], dtype=np.float32)
+                if (self.f.size == 1):
+                    coriolis_f = np.array([[self.f]], dtype=np.float32)
+                elif (self.f.shape == eta0.shape):
+                    coriolis_f = np.array(self.f, dtype=np.float32)
+                else:
+                    raise RuntimeError("The shape of f should match up with eta or be scalar.")
+                
+        if (subsample_f and coriolis_f.size >= eta0.size):
+            self.logger.info("Subsampling coriolis texture by factor " + str(subsample_f))
+            self.logger.warning("This will give inaccurate coriolis along the border!")
+            coriolis_f = subsample_texture(coriolis_f, subsample_f)
         
         #Upload data to GPU and bind to texture reference
         self.coriolis_texref.set_array(cuda.np_to_array(np.ascontiguousarray(coriolis_f, dtype=np.float32), order="C"))
