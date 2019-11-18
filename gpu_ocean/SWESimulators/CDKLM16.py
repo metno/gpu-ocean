@@ -262,11 +262,11 @@ class CDKLM16(Simulator.Simulator):
 
 
         def subsample(data, factor):
-            I = interp2d(np.linspace(0, 1, data.shape[0]), 
-                         np.linspace(0, 1, data.shape[1]), 
+            I = interp2d(np.linspace(0, 1, data.shape[1]), 
+                         np.linspace(0, 1, data.shape[0]), 
                          data, kind='linear')
-            x_new = np.linspace(0, 1, max(2, data.shape[0]//10))
-            y_new = np.linspace(0, 1, max(2, data.shape[1]//10))
+            x_new = np.linspace(0, 1, max(2, data.shape[1]//factor))
+            y_new = np.linspace(0, 1, max(2, data.shape[0]//factor))
             return I(x_new, y_new)
                                             
                                     
@@ -277,7 +277,7 @@ class CDKLM16(Simulator.Simulator):
             self.angle_texref.set_array(angle)
         else:
             #Upload data to GPU and bind to texture reference
-            if (subsample_angle and angle.shape == eta0.shape):
+            if (subsample_angle and angle.size >= eta0.size):
                 self.logger.info("Subsampling angle texture by factor " + str(subsample_angle))
                 angle = subsample(angle, subsample_angle)
                 
@@ -298,7 +298,7 @@ class CDKLM16(Simulator.Simulator):
         if (latitude is not None):
             if (self.f != 0.0):
                 raise RuntimeError("Cannot specify both latitude and f. Make your mind up.")
-            if (subsample_latitude and latitude.shape == eta0.shape):
+            if (subsample_latitude and latitude.size >= eta0.size):
                 self.logger.info("Subsampling latitude texture by factor " + str(subsample_latitude))
                 latitude = subsample(latitude, subsample_latitude)
             coriolis_f, _ = OceanographicUtilities.calcCoriolisParams(latitude)
