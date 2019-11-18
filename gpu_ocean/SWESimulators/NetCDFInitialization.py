@@ -26,7 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 import numpy as np
-import datetime
+import datetime, os
 from netCDF4 import Dataset
 from scipy.ndimage.morphology import binary_erosion, grey_dilation
 
@@ -151,10 +151,43 @@ def getWindSourceterm(source_url, timestep_indices, timesteps, x0, x1, y0, y1):
     
     return wind_source
 
+def getInitialConditionsNorKystCases(source_url, casename, **kwargs):
+    """
+    Initial conditions for pre-defined areas within the NorKyst-800 model domain. 
+    """
+    cases = [
+        {'name': 'norwegian_sea',  'x0':  900, 'x1': 1400, 'y0':  600, 'y1':  875 },
+        {'name': 'lofoten',        'x0': 1400, 'x1': 1900, 'y0':  450, 'y1':  750 },
+        {'name': 'complete_coast', 'x0':   25, 'x1': 2575, 'y0':   25, 'y1':  875 },
+        {'name': 'skagerak',       'x0':  300, 'x1':  600, 'y0':   50, 'y1':  250 },
+        {'name': 'oslo',           'x0':  500, 'x1':  550, 'y0':  160, 'y1':  210 },
+        {'name': 'denmark',        'x0':    2, 'x1':  300, 'y0':    2, 'y1':  300 }
+    ]
+    use_case = None
+    for case in cases:
+        if case['name'] == casename:
+            use_case = case
+            break
 
-def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land_value=5.0, iterations=10, sponge_cells=[80, 80, 80, 80], erode_land=0):
+    assert(use_case is not None), 'Invalid case. Please choose between:\n'+str([case['name'] for case in cases])
+
+    return getInitialConditions(source_url,  use_case['x0'], use_case['x1'], use_case['y0'], use_case['y1'], **kwargs)
+
+def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land_value=5.0, iterations=10, sponge_cells=[10, 10, 10, 10], erode_land=0):
     ic = {}
     
+    ### Check if local file exists:
+    filename = os.path.abspath(os.path.basename(source_url))
+    cache_folder='netcdf_cache'
+    cache_filename = os.path.abspath(os.path.join(cache_folder,
+                                                  os.path.basename(source_url)))
+    
+    if (os.path.isfile(filename)):
+        source_url = filename
+        
+    elif (os.path.isfile(cache_filename)):
+        source_url = cache_filename
+        
     try:
         ncfile = Dataset(source_url)
         H_m = ncfile.variables['h'][y0-1:y1+1, x0-1:x1+1]
@@ -209,8 +242,9 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     ic['sponge_cells'] = sponge_cells
     ic['NX'] = x1 - x0
     ic['NY'] = y1 - y0
-    ic['nx'] = ic['NX'] - sponge_cells[1] - sponge_cells[3]
-    ic['ny'] = ic['NY'] - sponge_cells[0] - sponge_cells[2]
+    # Domain size without ghost cells
+    ic['nx'] = ic['NX']-4
+    ic['ny'] = ic['NY']-4
     
     #Dx and dy
     #FIXME: Assumes equal for all.. .should check

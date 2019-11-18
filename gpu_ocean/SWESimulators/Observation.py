@@ -41,7 +41,8 @@ class Observation:
     
     def __init__(self, observation_type=dautils.ObservationType.UnderlyingFlow,
                  domain_size_x=None, domain_size_y=None, nx=None, ny=None,
-                 observation_variance=0.0):
+                 observation_variance=0.0,
+                 land_mask=None):
         """
         Class for facilitating drifter observations in files.
         The pandas DataFrame contains drifter positions only for 
@@ -106,6 +107,7 @@ class Observation:
         self.nx = nx
         self.ny = ny
         
+        self.land_mask = land_mask
         
     def get_num_observations(self):
         """
@@ -209,31 +211,36 @@ class Observation:
         
         self.register_buoys = True
         
-    def setBuoyCellsByFrequency(self, frequency_x, frequency_y):
+    def setBuoyCellsByFrequency(self, frequency_x, frequency_y, avoid_boundary=False):
         """
         Defines placements of buoys in the domain based on a given cell-frequency.
-        
+
         E.g, if frequency_x = frequency_y = 25, and the domain is of size (500 x 300),
         (12 x 20) = 240 buoys are defined equally spaced throughout the domain.
-        
+
         This cover slightly more than 0.1% of the state space.
         """
-        static_y, static_x = int(self.ny/frequency_y), int(self.nx/frequency_x)
-        num_buoys = static_y*static_x 
+        buoy_indices = []
 
-        buoy_indices = np.zeros((num_buoys, 2), dtype=np.int32)
+        y = 0
+        x0 = 0
+        if avoid_boundary:
+            y = int(frequency_y/2)
+            x0 = int(frequency_x/2)
 
-        buoy_cell_id = 0
-        for y in range(static_y):
-            cell_y = y*frequency_y
-            for x in range(static_x):
-                cell_x = x*frequency_x
+        while y < self.ny:
 
-                buoy_indices[buoy_cell_id, :] = [cell_x, cell_y]
+            x = x0
+            while x < self.nx:
+                if self.land_mask is None:
+                    buoy_indices.append([x, y])
+                if not self.land_mask[y, x]:
+                    buoy_indices.append([x, y])
 
-                buoy_cell_id += 1
-                
-        self.setBuoyCells(buoy_indices)
+                x = x + frequency_x
+            y = y + frequency_y
+
+        self.setBuoyCells(np.array(buoy_indices, dtype=np.int32))
     
     def setBuoyReadingArea(self, area='all'):
         if self.observation_type == dautils.ObservationType.StaticBuoys:

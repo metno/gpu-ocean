@@ -17,7 +17,10 @@ def plotSolution(fig,
                  uv_min=-0.05, uv_max=0.05, 
                  add_extra=0,
                  ax=None, sp=None,
-                 rotate=False, downsample=None):    
+                 rotate=False, downsample=None,
+                 drifter_locations=None,
+                 drifter_locations_original=None,
+                 buoy_indices=None):    
     from datetime import timedelta
     
     fig.suptitle("Time = {:0>8} ({:s})".format(str(timedelta(seconds=int(t))), comment), 
@@ -52,12 +55,39 @@ def plotSolution(fig,
         R = PlotHelper.genColors(h, hu, hv, plt.cm.seismic, R_min, R_max)
             
     ny, nx = eta.shape
+    
+    # scale drifter and buoy locations according to the domain
+    # 
+    if drifter_locations is not None:
+        drifter_locations = drifter_locations/1000
+    if drifter_locations_original is not None:
+        drifter_locations_original = drifter_locations_original/1000
+    if buoy_indices is not None:
+        buoy_indices[:, 0] = buoy_indices[:, 0]*dx/1000
+        buoy_indices[:, 1] = buoy_indices[:, 1]*dy/1000
+        
+        
     if (rotate):
         domain_extent = [0, ny*dy/1000, 0, nx*dx/1000]
         eta = np.rot90(eta, 3)
         h = np.rot90(h, 3)
         hu = np.rot90(hu, 3)
         hv = np.rot90(hv, 3)
+        
+        # Locations in the domain must be alteret as well
+        # x values becomes ny-y, and y values becomes x 
+        if drifter_locations is not None:
+            drifter_locations_copy = drifter_locations.copy()
+            drifter_locations[:,0] = ny*dy/1000 - drifter_locations_copy[:, 1]
+            drifter_locations[:,1] = drifter_locations_copy[:,0]
+        if drifter_locations_original is not None:
+            drifter_locations_original_copy = drifter_locations_original.copy()
+            drifter_locations_original[:,0] = ny*dy/1000 - drifter_locations_original_copy[:, 1]
+            drifter_locations_original[:,1] = drifter_locations_original_copy[:,0]
+        if buoy_indices is not None:
+            buoy_indices_copy = buoy_indices.copy()
+            buoy_indices[:,0] = ny*dx/1000 - buoy_indices_copy[:, 1]
+            buoy_indices[:,1] = buoy_indices_copy[:,0]
         
         if (add_extra == 2):
             V = np.rot90(V, 3)
@@ -66,7 +96,6 @@ def plotSolution(fig,
         domain_extent = [0, nx*dx/1000, 0, ny*dy/1000]
     
     
-
     if (ax is None):
         ax = [None]*x_plots*y_plots
         sp = [None]*x_plots*y_plots
@@ -76,10 +105,19 @@ def plotSolution(fig,
                              cmap=plt.cm.coolwarm, 
                              vmin=h_min, vmax=h_max, 
                              extent=domain_extent)
+        
         plt.colorbar(sp[0], shrink=0.9)
         plt.axis('image')
         plt.title("$\eta{}$")
         
+        # Show drifters
+        if drifter_locations is not None:
+            ax[0].scatter(x=drifter_locations[:,0], y=drifter_locations[:,1], color='xkcd:lime green')    
+        if drifter_locations_original is not None:
+            ax[0].scatter(x=drifter_locations_original[:,0], y=drifter_locations_original[:,1], color='xkcd:lime green', marker='x')    
+        if buoy_indices is not None:
+            ax[0].scatter(x=buoy_indices[:,0], y=buoy_indices[:,1], color='xkcd:black', marker='^')  # yellow  
+            
         if (add_extra > 0):
             ax[1] = plt.subplot(y_plots, x_plots, 2)
             sp[1] = ax[1].imshow(hu, interpolation="none", origin='bottom', 
