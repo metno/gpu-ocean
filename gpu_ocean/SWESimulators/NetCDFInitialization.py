@@ -287,8 +287,10 @@ def rescaleInitialConditions(old_ic, scale):
     
     ic['NX'] = int(old_ic['NX']*scale)
     ic['NY'] = int(old_ic['NY']*scale)
-    ic['nx'] = ic['NX'] - old_ic['sponge_cells'][1] - old_ic['sponge_cells'][3]
-    ic['ny'] = ic['NY'] - old_ic['sponge_cells'][0] - old_ic['sponge_cells'][2]
+    gc_x = old_ic['NX'] - old_ic['nx']
+    gc_y = old_ic['NY'] - old_ic['ny']
+    ic['nx'] = ic['NX'] - gc_x
+    ic['ny'] = ic['NY'] - gc_y
     ic['dx'] = old_ic['dx']/scale
     ic['dy'] = old_ic['dy']/scale
     _, _, ic['H'] = OceanographicUtilities.rescaleIntersections(old_ic['H'], ic['NX']+1, ic['NY']+1)
