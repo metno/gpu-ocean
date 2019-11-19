@@ -41,8 +41,7 @@ class Observation:
     
     def __init__(self, observation_type=dautils.ObservationType.UnderlyingFlow,
                  domain_size_x=None, domain_size_y=None, nx=None, ny=None,
-                 observation_variance=0.0,
-                 land_mask=None):
+                 observation_variance=0.0):
         """
         Class for facilitating drifter observations in files.
         The pandas DataFrame contains drifter positions only for 
@@ -107,7 +106,6 @@ class Observation:
         self.nx = nx
         self.ny = ny
         
-        self.land_mask = land_mask
         
     def get_num_observations(self):
         """
@@ -211,36 +209,31 @@ class Observation:
         
         self.register_buoys = True
         
-    def setBuoyCellsByFrequency(self, frequency_x, frequency_y, avoid_boundary=False):
+    def setBuoyCellsByFrequency(self, frequency_x, frequency_y):
         """
         Defines placements of buoys in the domain based on a given cell-frequency.
-
+        
         E.g, if frequency_x = frequency_y = 25, and the domain is of size (500 x 300),
         (12 x 20) = 240 buoys are defined equally spaced throughout the domain.
-
+        
         This cover slightly more than 0.1% of the state space.
         """
-        buoy_indices = []
+        static_y, static_x = int(self.ny/frequency_y), int(self.nx/frequency_x)
+        num_buoys = static_y*static_x 
 
-        y = 0
-        x0 = 0
-        if avoid_boundary:
-            y = int(frequency_y/2)
-            x0 = int(frequency_x/2)
+        buoy_indices = np.zeros((num_buoys, 2), dtype=np.int32)
 
-        while y < self.ny:
+        buoy_cell_id = 0
+        for y in range(static_y):
+            cell_y = y*frequency_y
+            for x in range(static_x):
+                cell_x = x*frequency_x
 
-            x = x0
-            while x < self.nx:
-                if self.land_mask is None:
-                    buoy_indices.append([x, y])
-                if not self.land_mask[y, x]:
-                    buoy_indices.append([x, y])
+                buoy_indices[buoy_cell_id, :] = [cell_x, cell_y]
 
-                x = x + frequency_x
-            y = y + frequency_y
-
-        self.setBuoyCells(np.array(buoy_indices, dtype=np.int32))
+                buoy_cell_id += 1
+                
+        self.setBuoyCells(buoy_indices)
     
     def setBuoyReadingArea(self, area='all'):
         if self.observation_type == dautils.ObservationType.StaticBuoys:
@@ -340,7 +333,7 @@ class Observation:
     
 
         
-    def get_observation(self, t, waterDepth):
+    def get_observation(self, t, waterDepth=None, Hm=None):
         """
         Makes an observation of the underlying current for the provided time.
         Transforms the drifter positions to an observation relative to the previous
@@ -393,28 +386,42 @@ class Observation:
             prev_pos = prev_pos[self.drifterSet, :]
         
         num_drifters = prev_pos.shape[0]
-        hu_hv = (current_pos - prev_pos)*waterDepth/dt        
+        u_v = (current_pos - prev_pos)/dt        
         
         
         observation = np.zeros((num_drifters, 4))
         observation[:,:2] = current_pos
-        observation[:,2:] = hu_hv 
+        
+        waterDepths = np.ones(num_drifters)*waterDepth
+        if Hm is not None:
+            # Find cell for current_pos and read Hm[current_pos_cell_y, current_pos_cell_x]
+            # instead of waterDepth.
+            dx = self.domain_size_x/self.nx
+            dy = self.domain_size_y/self.ny
+            for d in range(num_drifters):
+                cell_id_x = np.int(np.floor(curent_pos[i,0]/dx))
+                cell_id_y = np.int(np.floor(curent_pos[i,1]/dy))
+                waterDepths[d] = Hm[cell_id_y, cell_id_x]
+                observation[:,2:]= u_v*Hm[cell_id_y, cell_id_x]
+                
+        for d in range(num_drifters):
+            observation[d,2:] = u_v[d,2:]*waterDepths[d]
         
         # Correct velocities for drifters that travel through the domain boundary
         if self.domain_size_x or self.domain_size_y:
             for d in range(observation.shape[0]):
                 
                 if self.domain_size_x:
-                    velocity_x_p = (current_pos[d,0] - prev_pos[d,0] + self.domain_size_x)*waterDepth/dt
-                    velocity_x_m = (current_pos[d,0] - prev_pos[d,0] - self.domain_size_x)*waterDepth/dt
+                    velocity_x_p = (current_pos[d,0] - prev_pos[d,0] + self.domain_size_x)*waterDepths[d]/dt
+                    velocity_x_m = (current_pos[d,0] - prev_pos[d,0] - self.domain_size_x)*waterDepths[d]/dt
                     if abs(velocity_x_p) < abs(observation[d,2]):
                         observation[d,2] = velocity_x_p
                     if abs(velocity_x_m) < abs(observation[d,2]):
                         observation[d,2] = velocity_x_m
                 
                 if self.domain_size_y:
-                    velocity_y_p = (current_pos[d,1] - prev_pos[d,1] + self.domain_size_y)*waterDepth/dt
-                    velocity_y_m = (current_pos[d,1] - prev_pos[d,1] - self.domain_size_y)*waterDepth/dt
+                    velocity_y_p = (current_pos[d,1] - prev_pos[d,1] + self.domain_size_y)*waterDepths[d]/dt
+                    velocity_y_m = (current_pos[d,1] - prev_pos[d,1] - self.domain_size_y)*waterDepths[d]/dt
                     if abs(velocity_y_p) < abs(observation[d,3]):
                         observation[d,3] = velocity_y_p
                     if abs(velocity_y_m) < abs(observation[d,3]):
