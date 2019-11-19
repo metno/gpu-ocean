@@ -64,17 +64,6 @@ inline float2 getNorth(const float i, const float j,
     return make_float2(sinf(angle), cosf(angle));
 }
 
-/**
-  * Decompose the east vector to x and y coordinates
-  */
-__device__
-inline float2 getEast(const float i, const float j,
-                      const int nx, const int ny) {
-
-    const float2 north = getNorth(i, j, nx, ny);
-    return make_float2(north.y, -north.x);
-}
-
 
 __device__ float3 CDKLM16_F_func(const float3 Q, const float g) {
     float3 F;
@@ -440,7 +429,6 @@ inline float2 matMul(float4 M, float2 v) {
 }
 
 
-//texture<float, cudaTextureType2D> angle_tex;
 
 extern "C" {
 __global__ void cdklm_swe_2D(
@@ -509,27 +497,15 @@ __global__ void cdklm_swe_2D(
     // Need to find H on all faces for the cells in the block (block_height+1, block_width+1)
     // and for one face further out to adjust for the Kx and Ly slope outside of the block
     __shared__ float  Hi[block_height+3][block_width+3];
-
-    // Get the angle towards north and create the matrices for the basis transformation
-    const float s = (ti-2.0f+0.5f) / (float) nx_;
-    const float t = (tj-2.0f+0.5f) / (float) ny_;
-    const float angle = tex2D(angle_tex, s, t);
     
     // North and east vector in xy-coordinate system
     // Given x and y-aligned vectors, simply compute the dot product, 
     // i.e., 
     // hu_north = north.x*hu + north.y*hv
     // hu_east = east.x*hu + east.y*hv
-    const float2 north = make_float2(sinf(angle), cosf(angle));
+    const float2 north = getNorth(ti+0.5f, tj+0.5f, nx_, ny_);
     const float2 east = make_float2(north.y, -north.x);
     
-    //Up vector in east-north coordinate system
-    // Given n and e-aligned vectors, simply compute the dot product,
-    // i.e., 
-    // hu = right.x*hu_north + right.y*hu_east
-    // hv = up.x*hu_north + up.y*hu_east
-    const float2 up = make_float2(-north.x, north.y);
-    const float2 right = make_float2(up.y, -up.x);
 
     //Read into shared memory
     for (int j=ty; j<block_height+4; j+=blockDim.y) {
@@ -572,11 +548,11 @@ __global__ void cdklm_swe_2D(
     
     
     // Get Coriolis terms needed for fluxes etc.
-    const float coriolis_f_lower   = coriolisF(ti-2.0f+0.5f, tj-2.0f-0.5f, nx_, ny_);
-    const float coriolis_f_central = coriolisF(ti-2.0f+0.5f, tj-2.0f+0.5f, nx_, ny_);
-    const float coriolis_f_upper   = coriolisF(ti-2.0f+0.5f, tj-2.0f+1.5f, nx_, ny_);
-    const float coriolis_f_left    = coriolisF(ti-2.0f-0.5f, tj-2.0f+0.5f, nx_, ny_);
-    const float coriolis_f_right   = coriolisF(ti-2.0f+1.5f, tj-2.0f+0.5f, nx_, ny_);
+    const float coriolis_f_lower   = coriolisF(ti+0.5f, tj-0.5f, nx_, ny_);
+    const float coriolis_f_central = coriolisF(ti+0.5f, tj+0.5f, nx_, ny_);
+    const float coriolis_f_upper   = coriolisF(ti+0.5f, tj+1.5f, nx_, ny_);
+    const float coriolis_f_left    = coriolisF(ti-0.5f, tj+0.5f, nx_, ny_);
+    const float coriolis_f_right   = coriolisF(ti+1.5f, tj+0.5f, nx_, ny_);
 
     //Fix boundary conditions
     //This must match code in CDKLM16.py:callKernel(...)
@@ -697,9 +673,9 @@ __global__ void cdklm_swe_2D(
             // Get north vector for thread (bx + k, by +l)
             const float2 local_north = getNorth(bx+k+0.5f, by+l+0.5f, nx_, ny_);
             
-            const float left_coriolis_f   = coriolisF(bx+i-0.5f, by+j+0.5f, nx_, ny_);
-            const float center_coriolis_f = coriolisF(bx+i+0.5f, by+j+0.5f, nx_, ny_);
-            const float right_coriolis_f  = coriolisF(bx+i+1.5f, by+j+0.5f, nx_, ny_);
+            const float left_coriolis_f   = coriolisF(bx+k-0.5f, by+l+0.5f, nx_, ny_);
+            const float center_coriolis_f = coriolisF(bx+k+0.5f, by+l+0.5f, nx_, ny_);
+            const float right_coriolis_f  = coriolisF(bx+k+1.5f, by+l+0.5f, nx_, ny_);
             
             const float left_fv  = (local_north.x*left_u + local_north.y*left_v)*left_coriolis_f;
             const float center_fv = (local_north.x*center_u + local_north.y*center_v)*center_coriolis_f;
@@ -791,7 +767,7 @@ __global__ void cdklm_swe_2D(
             
             // Get north and east vectors for thread (bx + k, by +l)
             const float2 local_north = getNorth(bx+k+0.5f, by+l+0.5f, nx_, ny_);
-            const float2 local_east = getEast(bx+k+0.5f, by+l+0.5f, nx_, ny_);
+            const float2 local_east = make_float2(local_north.y, -local_north.x);
             
             const float lower_coriolis_f  = coriolisF(bx+k+0.5f, by+l-0.5f, nx_, ny_);
             const float center_coriolis_f = coriolisF(bx+k+0.5f, by+l+0.5f, nx_, ny_);
@@ -890,6 +866,10 @@ __global__ void cdklm_swe_2D(
                 //Find north-going and east-going coriolis force
                 const float hu_east =  coriolis_f_central*(hu*east.x + hv*east.y);
                 const float hv_north = coriolis_f_central*(hu*north.x + hv*north.y);
+                
+                //Up vector in east-north coordinate system
+                const float2 up = make_float2(-north.x, north.y);
+                const float2 right = make_float2(up.y, -up.x);
                 
                 //Convert back to xy coordinate system
                 const float hu_cor = right.x*hu_east + right.y*hv_north;
