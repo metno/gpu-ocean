@@ -161,7 +161,7 @@ tic = time.time()
 # For GPU contex:
 from SWESimulators import Common
 # For the ensemble:
-from SWESimulators import EnsembleFromFiles, Observation, ParticleInfo
+from SWESimulators import EnsembleFromFiles, Observation
 # For data assimilation:
 from SWESimulators import IEWPFOcean
 # For forcasting:
