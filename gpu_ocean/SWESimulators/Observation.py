@@ -248,6 +248,13 @@ class Observation:
                 self.read_buoy = [True]*self.buoy_indices.shape[0]
             else:
                 assert(area == 'all'), 'Invalid area. Must be all, south or west'
+                
+    def setBuoySet(self, buoySet):
+        assert(self.observation_type == dautils.ObservationType.StaticBuoys)
+         
+        self.read_buoy = [False]*self.buoy_indices.shape[0]
+        for i in buoySet:
+            self.read_buoy[i] = True
             
             
     ############################

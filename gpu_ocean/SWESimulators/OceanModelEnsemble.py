@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import logging
 
-from SWESimulators import CDKLM16, Common, GPUDrifterCollection, BaseOceanStateEnsemble, ParticleInfo
+from SWESimulators import CDKLM16, Common, GPUDrifterCollection, BaseOceanStateEnsemble, ParticleInfo, Observation
 
 class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     """
@@ -67,6 +67,7 @@ class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.logger.debug("Creating %d particles (ocean models)", numParticles)
         self.particles = [None] * numParticles
         self.particleInfos = [None] * numParticles
+        self.drifterForecast = [None] * numParticles
         for i in range(numParticles):
             self.particles[i] = CDKLM16.CDKLM16(self.gpu_ctx, **self.sim_args, **data_args, local_particle_id=i, netcdf_filename=netcdf_filename)
             self.particleInfos[i] = ParticleInfo.ParticleInfo()
@@ -76,17 +77,20 @@ class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             
     
     def attachDrifters(self, drifter_positions):
-        for i in range(numParticles):
+        for i in range(self.numParticles):
         # Attach drifters if requested
             self.logger.debug("Attaching %d drifters", len(drifter_positions))
             if (len(drifter_positions) > 0):
                 drifters = GPUDrifterCollection.GPUDrifterCollection(self.gpu_ctx, len(drifter_positions),
                                                                      observation_variance=self.observation_variance,
-                                                                     boundaryConditions=data_args['boundary_conditions'],
-                                                                     domain_size_x=data_args['nx']*data_args['dx'], 
-                                                                     domain_size_y=data_args['ny']*data_args['dy'])
+                                                                     boundaryConditions=self.data_args['boundary_conditions'],
+                                                                     domain_size_x=self.data_args['nx']*self.data_args['dx'], 
+                                                                     domain_size_y=self.data_args['ny']*self.data_args['dy'])
                 drifters.setDrifterPositions(drifter_positions)
                 self.particles[i].attachDrifters(drifters)
+                
+                self.drifterForecast[i] = Observation.Observation()
+                self.drifterForecast[i].add_observation_from_sim(self.particles[i])
     
     def cleanUp(self):
         for oceanState in self.particles:
@@ -110,9 +114,13 @@ class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             particle += 1
         return self.t
     
-    def dumpStateSample(self, drifter_cells):
+    def dumpParticleSample(self, drifter_cells):
         for i in range(self.numParticles):
             self.particleInfos[i].add_state_sample_from_sim(self.particles[i], drifter_cells)
+            
+    def dumpForecastParticleSample(self):
+        for i in range(self.numParticles):
+            self.drifterForecast[i].add_observation_from_sim(self.particles[i])
 
     def observeParticles(self, drifter_positions):
         self.logger.debug("Computing velocities at given positions")
@@ -153,4 +161,12 @@ class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         for p in range(self.getNumParticles()):
             filename = filename_prefix + "_" + str(p) + ".bz2"
             self.particleInfos[p].to_pickle(filename)
+            
+    def dumpDrifterForecastToFiles(self, filename_prefix):
+        """
+        File name of dump will be {path_prefix}_{local_particle_id}.bz2
+        """
+        for p in range(self.getNumParticles()):
+            filename = filename_prefix + "_" + str(p) + ".bz2"
+            self.drifterForecast[p].to_pickle(filename)
         
