@@ -40,10 +40,20 @@ texture<float, cudaTextureType2D> coriolis_f_tex;
 
 
 
+/**
+  * Returns the coriolis parameter f from the coriolis texture. 
+  * @param i Cell number along x-axis, starting from (0, 0) corresponding to first cell in domain after global ghost cells
+  * @param j Cell number along y-axis
+  * @param nx_ Number of cells in internal domain (excluding the four ghost cells)
+  * @param ny_ Number of cells in internal domain (excluding the four ghost cells)
+  * The texture is assumed to also cover the ghost cells (same shape/extent as eta)
+  */
 __device__
-inline float coriolisF(const float i, const float j, const int nx, const int ny) {
-    const float s = i / (float) nx;
-    const float t = j / (float) ny;
+inline float coriolisF(const int i, const int j, const int nx_, const int ny_) {
+    //nx+4 to account for ghost cells
+    //+0.5f to go to center of texel
+    const float s = (i+0.5f) / (nx_+4.0f); 
+    const float t = (j+0.5f) / (ny_+4.0f);
     return tex2D(coriolis_f_tex, s, t);
 }
 
@@ -51,16 +61,18 @@ inline float coriolisF(const float i, const float j, const int nx, const int ny)
 
 /**
   * Decompose the north vector to x and y coordinates
+  * @param i Cell number along x-axis, starting from (0, 0) corresponding to first cell in domain after global ghost cells
+  * @param j Cell number along y-axis
+  * @param nx_ Number of cells in internal domain (excluding the four ghost cells)
+  * @param ny_ Number of cells in internal domain (excluding the four ghost cells)
   */
 __device__
-inline float2 getNorth(const float i, const float j,
-                       const int nx, const int ny) {
-    // Get the angle towards north from the y-axis
-    const float s = i / (float) nx;
-    const float t = j / (float) ny;
+inline float2 getNorth(const int i, const int j, const int nx_, const int ny_) {
+    //nx+4 to account for ghost cells
+    //+0.5f to go to center of texel
+    const float s = (i+0.5f) / (nx_+4.0f);
+    const float t = (j+0.5f) / (ny_+4.0f);
     const float angle = tex2D(angle_tex, s, t);
-    
-    // Decompose (code inspired from the cdklm_swe_2D kernel)
     return make_float2(sinf(angle), cosf(angle));
 }
 
@@ -216,7 +228,7 @@ void adjustSlopes_y(const int bx, const int by,
         if ((bc_north_ == 1) && (by + l > ny_+2)) { u = -u; }
         
         // Coriolis in this cell
-        const float coriolis_f = coriolisF(bx+k+0.5f, by+l+0.5f, nx_, ny_);
+        const float coriolis_f = coriolisF(bx+k, by+l, nx_, ny_);
 
         const float dyfu = dy_*coriolis_f*u;
         
@@ -503,7 +515,7 @@ __global__ void cdklm_swe_2D(
     // i.e., 
     // hu_north = north.x*hu + north.y*hv
     // hu_east = east.x*hu + east.y*hv
-    const float2 north = getNorth(ti+0.5f, tj+0.5f, nx_, ny_);
+    const float2 north = getNorth(ti, tj, nx_, ny_);
     const float2 east = make_float2(north.y, -north.x);
     
 
@@ -548,11 +560,11 @@ __global__ void cdklm_swe_2D(
     
     
     // Get Coriolis terms needed for fluxes etc.
-    const float coriolis_f_lower   = coriolisF(ti+0.5f, tj-0.5f, nx_, ny_);
-    const float coriolis_f_central = coriolisF(ti+0.5f, tj+0.5f, nx_, ny_);
-    const float coriolis_f_upper   = coriolisF(ti+0.5f, tj+1.5f, nx_, ny_);
-    const float coriolis_f_left    = coriolisF(ti-0.5f, tj+0.5f, nx_, ny_);
-    const float coriolis_f_right   = coriolisF(ti+1.5f, tj+0.5f, nx_, ny_);
+    const float coriolis_f_lower   = coriolisF(  ti, tj-1, nx_, ny_);
+    const float coriolis_f_central = coriolisF(  ti,   tj, nx_, ny_);
+    const float coriolis_f_upper   = coriolisF(  ti, tj+1, nx_, ny_);
+    const float coriolis_f_left    = coriolisF(ti-1,   tj, nx_, ny_);
+    const float coriolis_f_right   = coriolisF(ti+1,   tj, nx_, ny_);
 
     //Fix boundary conditions
     //This must match code in CDKLM16.py:callKernel(...)
@@ -671,11 +683,11 @@ __global__ void cdklm_swe_2D(
             }
             
             // Get north vector for thread (bx + k, by +l)
-            const float2 local_north = getNorth(bx+k+0.5f, by+l+0.5f, nx_, ny_);
+            const float2 local_north = getNorth(bx+k, by+l, nx_, ny_);
             
-            const float left_coriolis_f   = coriolisF(bx+k-0.5f, by+l+0.5f, nx_, ny_);
-            const float center_coriolis_f = coriolisF(bx+k+0.5f, by+l+0.5f, nx_, ny_);
-            const float right_coriolis_f  = coriolisF(bx+k+1.5f, by+l+0.5f, nx_, ny_);
+            const float left_coriolis_f   = coriolisF(bx+k-1, by+l, nx_, ny_);
+            const float center_coriolis_f = coriolisF(  bx+k, by+l, nx_, ny_);
+            const float right_coriolis_f  = coriolisF(bx+k+1, by+l, nx_, ny_);
             
             const float left_fv  = (local_north.x*left_u + local_north.y*left_v)*left_coriolis_f;
             const float center_fv = (local_north.x*center_u + local_north.y*center_v)*center_coriolis_f;
@@ -766,12 +778,12 @@ __global__ void cdklm_swe_2D(
             }
             
             // Get north and east vectors for thread (bx + k, by +l)
-            const float2 local_north = getNorth(bx+k+0.5f, by+l+0.5f, nx_, ny_);
+            const float2 local_north = getNorth(bx+k, by+l, nx_, ny_);
             const float2 local_east = make_float2(local_north.y, -local_north.x);
             
-            const float lower_coriolis_f  = coriolisF(bx+k+0.5f, by+l-0.5f, nx_, ny_);
-            const float center_coriolis_f = coriolisF(bx+k+0.5f, by+l+0.5f, nx_, ny_);
-            const float upper_coriolis_f  = coriolisF(bx+k+0.5f, by+l+1.5f, nx_, ny_);
+            const float lower_coriolis_f  = coriolisF(bx+k, by+l-1, nx_, ny_);
+            const float center_coriolis_f = coriolisF(bx+k,   by+l, nx_, ny_);
+            const float upper_coriolis_f  = coriolisF(bx+k, by+l+1, nx_, ny_);
 
             const float lower_fu  = (local_east.x*lower_u  + local_east.y*lower_v )*lower_coriolis_f;
             const float center_fu = (local_east.x*center_u + local_east.y*center_v)*center_coriolis_f;
