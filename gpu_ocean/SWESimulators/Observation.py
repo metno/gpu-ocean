@@ -41,7 +41,8 @@ class Observation:
     
     def __init__(self, observation_type=dautils.ObservationType.UnderlyingFlow,
                  domain_size_x=None, domain_size_y=None, nx=None, ny=None,
-                 observation_variance=0.0):
+                 observation_variance=0.0,
+                 land_mask=None):
         """
         Class for facilitating drifter observations in files.
         The pandas DataFrame contains drifter positions only for 
@@ -94,6 +95,7 @@ class Observation:
         self.observationInterval = 1
         self.obs_var = observation_variance
         self.obs_stddev = np.sqrt(observation_variance)
+        self.land_mask = land_mask
         
         if observation_type == dautils.ObservationType.StaticBuoys:
             assert(nx is not None), 'nx must be provided if observation_type is StaticBuoys'
