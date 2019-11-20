@@ -266,7 +266,10 @@ class MPIOceanModelEnsemble:
         
     def observeTrueDrifters(self):
         return self.observations.get_observation(self.t, 12414) # FIXME: Use Hm as second arg
-        
+    
+    def setBuoySet(self, buoy_set):
+        self.observations.setBuoySet(buoy_set)
+        self.num_drifters = self.observations.get_num_drifters()
         
     def _localGetInnovations(self): 
         #observations is a numpy array with D drifter positions and drifter velocities
@@ -388,11 +391,16 @@ class MPIOceanModelEnsemble:
         
         return resampling_pairs
     
-    def dumpStateSample(self, drifter_cells):
-        self.ensemble.dumpStateSample(drifter_cells)
+    def dumpParticleSample(self, drifter_cells):
+        self.ensemble.dumpParticleSample(drifter_cells)
         
-    def getDrifterCells(self):
-        drifter_positions = self.observations.get_drifter_position(self.t, applyDrifterSet=False)
+    def dumpForecastParticleSample(self):
+        self.ensemble.dumpForecastParticleSample()
+        
+    def getDrifterCells(self, t=None):
+        if t is None:
+            t = self.t
+        drifter_positions = self.observations.get_drifter_position(t, applyDrifterSet=False)
         drifter_positions[:,0] = np.floor(drifter_positions[:,0]/self.data_args["dx"])
         drifter_positions[:,1] = np.floor(drifter_positions[:,1]/self.data_args["dy"])
         return drifter_positions.astype(np.int32)
@@ -401,9 +409,22 @@ class MPIOceanModelEnsemble:
         """
         File name of dump will be {path_prefix}_{rank}_{local_particle_id}.bz2
         """
-        assert(self.ensemble.particleInfos is not None), 'particle info is None, and dumpParticleInfosToFile was called... This should not happend.'
+        assert(self.ensemble.particleInfos[0] is not None), 'particleInfos[0] is None, and dumpParticleInfosToFile was called... This should not happend.'
         
         filename_prefix = filename_prefix + "_" + str(self.comm.rank)
         
         self.ensemble.dumpParticleInfosToFiles(filename_prefix)
+        
+    def dumpDrifterForecastToFiles(self, filename_prefix):
+        """
+        File name of dump will be {path_prefix}_{rank}_{local_particle_id}.bz2
+        """
+        assert(self.ensemble.drifterForecast[0] is not None), ' drifterForecast[0] is None, and dumpDrifterForecastToFiles was called... This should not happend.'
+        
+        filename_prefix = filename_prefix + "_" + str(self.comm.rank)
+        
+        self.ensemble.dumpDrifterForecastToFiles(filename_prefix)
+        
+    def initDriftersFromObservations(self):
+        self.ensemble.attachDrifters(self.observations.get_drifter_position(self.t, applyDrifterSet=False, ignoreBuoys=True))
         
