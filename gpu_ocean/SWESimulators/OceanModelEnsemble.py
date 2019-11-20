@@ -25,20 +25,19 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import logging
 
-from SWESimulators import CDKLM16, Common, GPUDrifterCollection
+from SWESimulators import CDKLM16, Common, GPUDrifterCollection, BaseOceanStateEnsemble, ParticleInfo
 
-class OceanModelEnsemble:
+class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     """
     Class which holds a set of simulators on a single node, possibly with drifters attached
     """
     
-    def __init__(self, gpu_ctx, sim_args, data_args, num_particles,
-                 drifter_positions=[],
+    def __init__(self, gpu_ctx, sim_args, data_args, numParticles,
                  observation_variance = 0.01**2, 
                  initialization_variance_factor_ocean_field = 0.0,
                  netcdf_filename=None, rank=0):
         """
-        Constructor which creates num_particles slighly different ocean models
+        Constructor which creates numParticles slighly different ocean models
         based on the same initial conditions
         """
         
@@ -46,6 +45,7 @@ class OceanModelEnsemble:
         self.gpu_ctx = gpu_ctx
         self.sim_args = sim_args
         self.data_args = data_args
+        self.numParticles = numParticles
         self.observation_variance = observation_variance
         self.initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field
         
@@ -64,15 +64,20 @@ class OceanModelEnsemble:
             
             
         # Generate ensemble members
-        self.logger.debug("Creating %d particles (ocean models)", num_particles)
-        self.particles = [None] * num_particles
-        for i in range(num_particles):
+        self.logger.debug("Creating %d particles (ocean models)", numParticles)
+        self.particles = [None] * numParticles
+        self.particleInfos = [None] * numParticles
+        for i in range(numParticles):
             self.particles[i] = CDKLM16.CDKLM16(self.gpu_ctx, **self.sim_args, **data_args, local_particle_id=i, netcdf_filename=netcdf_filename)
-            
+            self.particleInfos[i] = ParticleInfo.ParticleInfo()
+                    
             if self.initialization_variance_factor_ocean_field != 0.0:
                 self.particles[i].perturbState(q0_scale=self.initialization_variance_factor_ocean_field)
             
-            # Attach drifters if requested
+    
+    def attachDrifters(self, drifter_positions):
+        for i in range(numParticles):
+        # Attach drifters if requested
             self.logger.debug("Attaching %d drifters", len(drifter_positions))
             if (len(drifter_positions) > 0):
                 drifters = GPUDrifterCollection.GPUDrifterCollection(self.gpu_ctx, len(drifter_positions),
@@ -82,7 +87,6 @@ class OceanModelEnsemble:
                                                                      domain_size_y=data_args['ny']*data_args['dy'])
                 drifters.setDrifterPositions(drifter_positions)
                 self.particles[i].attachDrifters(drifters)
-    
     
     def cleanUp(self):
         for oceanState in self.particles:
@@ -106,41 +110,30 @@ class OceanModelEnsemble:
             particle += 1
         return self.t
     
-    
-    
-    
-    
-    def getDrifterPositions(self, particle_index):
-        self.logger.debug("Returning drifter positions")
-        return self.particles[particle_index].drifters.getDrifterPositions()
-    
-    
-    
-    
+    def dumpStateSample(self, drifter_cells):
+        for i in range(self.numParticles):
+            self.particleInfos[i].add_state_sample_from_sim(self.particles[i], drifter_cells)
 
-    def getVelocity(self, drifter_positions):
+    def observeParticles(self, drifter_positions):
         self.logger.debug("Computing velocities at given positions")
         """
         Applying the observation operator on each particle.
 
         Structure on the output:
         [
-        particle 1:  [u_1, v_1], ... , [u_D, v_D],
-        particle 2:  [u_1, v_1], ... , [u_D, v_D],
-        particle Ne: [u_1, v_1], ... , [u_D, v_D]
+        particle 1:  [hu_1, hv_1], ... , [hu_D, hv_D],
+        particle 2:  [hu_1, hv_1], ... , [hu_D, hv_D],
+        particle Ne: [hu_1, hv_1], ... , [hu_D, hv_D]
         ]
-        numpy array with dimensions (num_particles, num_drifters, 2)
+        numpy array with dimensions (numParticles, num_drifters, 2)
         
         """
-        num_particles = len(self.particles)
+        numParticles = len(self.particles)
         num_drifters = len(drifter_positions)
         
-        velocities = np.empty((num_particles, num_drifters, 2))
-
-        # Assumes that all particles use the same bathymetry
-        H = self.particles[0].downloadBathymetry(interior_domain_only=True)[1]
+        observed_values = np.empty((numParticles, num_drifters, 2))
         
-        for p in range(num_particles):
+        for p in range(numParticles):
             # Downloading ocean state without ghost cells
             eta, hu, hv = self.particles[p].download(interior_domain_only=True)
 
@@ -148,9 +141,16 @@ class OceanModelEnsemble:
                 id_x = np.int(np.floor(drifter_positions[d, 0]/self.data_args['dx']))
                 id_y = np.int(np.floor(drifter_positions[d, 1]/self.data_args['dy']))
                 
-                depth = H[id_y, id_x]
-                velocities[p,d,0] = hu[id_y, id_x]/(depth + eta[id_y, id_x])
-                velocities[p,d,1] = hv[id_y, id_x]/(depth + eta[id_y, id_x])
+                observed_values[p,d,0] = hu[id_y, id_x]
+                observed_values[p,d,1] = hv[id_y, id_x]
                 
-        return velocities
+        return observed_values
+        
+    def dumpParticleInfosToFiles(self, filename_prefix):
+        """
+        File name of dump will be {path_prefix}_{local_particle_id}.bz2
+        """
+        for p in range(self.getNumParticles()):
+            filename = filename_prefix + "_" + str(p) + ".bz2"
+            self.particleInfos[p].to_pickle(filename)
         

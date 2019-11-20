@@ -34,6 +34,7 @@ file_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.abspath(os.path.join(file_dir, '../')))
 
 from SWESimulators import CDKLM16, PlotHelper, Common, WindStress, OceanographicUtilities, MPIOceanModelEnsemble, NetCDFInitialization
+from SWESimulators import DataAssimilationUtils as dautils
 
 def testMPI():
     comm = MPI.COMM_WORLD
@@ -128,7 +129,17 @@ def mainLoop(ensemble, resampling_times, outfilename):
     for i, resampling_time in enumerate(resampling_times):
         #Step all nodes in time to next assimilation stage
         assimilation_dt = resampling_time - t
-        t = ensemble.modelStep(assimilation_dt)
+        
+        step_size = 60
+        #FIXME: Assert: assimilation_dt divisable with step_size
+        sub_steps = int(assimilation_dt // step_size)
+        
+        drifter_cells = ensemble.getDrifterCells()
+        
+        for j in range(sub_steps):
+            t = ensemble.modelStep(step_size)
+            #Make ParticleInfo for writing to file 
+            ensemble.dumpStateSample(drifter_cells)
 
         
         
@@ -147,9 +158,6 @@ def mainLoop(ensemble, resampling_times, outfilename):
         #Resample the particles
         ensemble.resampleParticles(global_normalized_weights)
         
-        
-        
-        
         #Get info for plotting
         #FIXME: Expensive and only for plotting
         ##ensemble_stats_post = gatherPlottingInfo(ensemble)
@@ -163,7 +171,8 @@ def mainLoop(ensemble, resampling_times, outfilename):
     ##if (ensemble.comm.rank == 0):
     ##    print("Saving data to " + outfilename)
     ##    np.savez(outfilename, plotting_info=plotting_info)
-        
+    
+    ensemble.dumpParticleInfosToFiles("particle_info")
     
     
     
@@ -295,10 +304,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run an MPI cluster for sequential importance resampling. Run this file using e.g., using mpiexec -n 4 python sequential_importance_resampling.py to run a simulation. Plot results using the --make_plots option (without MPI!)')
     parser.add_argument('-dt', type=float, default=0.0)
     parser.add_argument('--outfile', type=str, default="sir_" + str(MPI.COMM_WORLD.rank) + ".npz")
-    parser.add_argument('--num_drifters', type=int, default=2)
-    parser.add_argument('--per_node_ensemble_size', type=int, default=15)
-    parser.add_argument('--observation_variance', type=float, default=0.01**2)
+    parser.add_argument('--num_drifters', type=int, default=-1) #TODO: Use only num_drifters of the entries in observation_file
+    parser.add_argument('--per_node_ensemble_size', type=int, default=5)
+    parser.add_argument('--observation_variance', type=float, default=1)#0.01**2)
     parser.add_argument('--initialization_variance_factor_ocean_field', type=float, default=0.0)
+    parser.add_argument('--observation_file', type=str, default=None)
     parser.add_argument('--make_plots', action='store_true', default=False)
     parser.add_argument('--log_file', type=str, default="sequential_importance_resampling.log")
     parser.add_argument('--log_level', type=int, default=20)
@@ -317,7 +327,8 @@ if __name__ == "__main__":
         #Test that MPI works
         testMPI()
         
-        
+        # FIXME: Hardcoded parameters
+        observation_type = dautils.ObservationType.StaticBuoys
         
         kwargs = {}
         #Generate initial conditions on rank 0
@@ -355,23 +366,23 @@ if __name__ == "__main__":
             kwargs['data_args'] = data_args
             kwargs['sim_args'] = sim_args
             
-            #Arguments sent to the ensemble (OceanModelEnsemble)
-            kwargs['ensemble_args'] = {
-                'observation_variance': args.observation_variance, 
-                'initialization_variance_factor_ocean_field': args.initialization_variance_factor_ocean_field
-            }
-            
-            kwargs['drifter_positions'] = generateDrifterPositions(kwargs['data_args'], args.num_drifters)
+        #Arguments sent to the ensemble (OceanModelEnsemble)
+        kwargs['ensemble_args'] = {
+            'observation_variance': args.observation_variance, 
+            'initialization_variance_factor_ocean_field': args.initialization_variance_factor_ocean_field
+        }            
             
         #Create ensemble on all nodes
         t0 = time.time()
-        ensemble = MPIOceanModelEnsemble.MPIOceanModelEnsemble(MPI.COMM_WORLD, **kwargs)
+        ensemble = MPIOceanModelEnsemble.MPIOceanModelEnsemble(MPI.COMM_WORLD, args.observation_file, observation_type, **kwargs)
         t1 = time.time()
         total = t1-t0
         print("Initialized MPI ensemble on rank " + str(MPI.COMM_WORLD.rank) + " in " + str(total) + " s")
         
         #Run main loop
-        resampling_times = np.linspace(100, 2500, 2)*0.5
+        resampling_times = np.array([1, 2, 3, 4]) * 15*60
+        #resampling_times[0] = 5*60
+        
         if (ensemble.comm.rank == 0):
             print("Will resample at times: ", resampling_times)
             
