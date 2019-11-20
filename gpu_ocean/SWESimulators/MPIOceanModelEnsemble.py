@@ -29,7 +29,8 @@ import numpy as np
 from mpi4py import MPI
 import gc
 
-from SWESimulators import OceanModelEnsemble, Common
+from SWESimulators import OceanModelEnsemble, Common, Observation
+from SWESimulators import DataAssimilationUtils as dautils
 
 
 class MPIOceanModelEnsemble:
@@ -43,7 +44,8 @@ class MPIOceanModelEnsemble:
     """
     
     def __init__(self, comm, 
-                 local_ensemble_size=None, drifter_positions=[], 
+                 observation_file, observation_type=dautils.ObservationType.UnderlyingFlow,
+                 local_ensemble_size=None, 
                  sim_args={}, data_args={},
                  ensemble_args={}):
         """
@@ -53,6 +55,10 @@ class MPIOceanModelEnsemble:
         self.logger = logging.getLogger(__name__ + "_rank=" + str(comm.rank))
         self.logger.debug("Initializing")
         
+        self.t = 0
+        
+        assert(observation_file is not None)
+        assert('observation_variance' in ensemble_args.keys())
         
         
         #Broadcast general information about ensemble
@@ -63,9 +69,6 @@ class MPIOceanModelEnsemble:
         
         self.local_ensemble_size = local_ensemble_size
         self.local_ensemble_size = self.comm.bcast(self.local_ensemble_size, root=0)
-        
-        self.num_drifters = len(drifter_positions)
-        self.num_drifters = self.comm.bcast(self.num_drifters, root=0)
         
         # Ensure all particles in all processes use the same timestamp (common for each EPS run)
         if (self.comm.rank == 0):
@@ -123,6 +126,16 @@ class MPIOceanModelEnsemble:
         # DEBUG
         self.sim_args["comm"] = self.comm
         
+        #Read observations from file
+        self.observations = Observation.Observation(observation_type=observation_type,
+                                                    domain_size_x=self.data_args["nx"]*self.data_args["dx"], 
+                                                    domain_size_y=self.data_args["ny"]*self.data_args["dy"],
+                                                    nx=self.data_args["nx"], ny=self.data_args["ny"],
+                                                    observation_variance=ensemble_args["observation_variance"])
+        self.observations.read_pickle(observation_file)
+        
+        self.num_drifters = self.observations.get_num_drifters()
+        
         if (self.comm.rank == 0):
             num_ensemble_members = 1
         else:
@@ -130,8 +143,7 @@ class MPIOceanModelEnsemble:
         
         self.ensemble = OceanModelEnsemble.OceanModelEnsemble(
                             self.gpu_ctx, self.sim_args, self.data_args, 
-                            num_ensemble_members, 
-                            drifter_positions=drifter_positions, 
+                            num_ensemble_members,
                             **ensemble_args,
                             netcdf_filename=netcdf_filename, rank=self.comm.rank)
         
@@ -139,7 +151,8 @@ class MPIOceanModelEnsemble:
         
         
     def modelStep(self, sub_t):
-        return self.ensemble.modelStep(sub_t, self.comm.rank)
+        self.t = self.ensemble.modelStep(sub_t, self.comm.rank)
+        return self.t
         
         
         
@@ -154,23 +167,27 @@ class MPIOceanModelEnsemble:
         local_innovations = self._localGetInnovations()
 
         #Compute the gaussian pdf from the innovations
-        local_gaussian_pdf = self._localGetGaussianPDF(local_innovations)
+        local_gaussian_log_weights = self._localGetGaussianLogWeights(local_innovations)
+        if(np.isnan(local_gaussian_log_weights).any()):
+            print("local_gaussian_log_weights contains NaN")
     
         #Gather the gaussian weights from all nodes to a global vector on rank 0
-        global_gaussian_pdf = None
+        global_gaussian_log_weights = None
         if (self.comm.rank == 0):
-            global_gaussian_pdf = np.empty(((self.num_nodes+1), self.local_ensemble_size))
-        self.comm.Gather(local_gaussian_pdf, global_gaussian_pdf, root=0)
+            global_gaussian_log_weights = np.empty(((self.num_nodes+1), self.local_ensemble_size))
+        self.comm.Gather(local_gaussian_log_weights, global_gaussian_log_weights, root=0)
 
         #Compute the normalized weights on rank 0
         global_normalized_weights = None
         if (self.comm.rank == 0):
             #Remove ourselves (rank=0)
-            global_gaussian_pdf = global_gaussian_pdf[1:].ravel()
+            global_gaussian_log_weights = global_gaussian_log_weights[1:].ravel()
 
             #Normalize
-            global_sum = np.sum(global_gaussian_pdf)
-            global_normalized_weights = global_gaussian_pdf/global_sum
+            # see https://timvieira.github.io/blog/post/2014/02/11/exp-normalize-trick/'
+            max_log_weight = global_gaussian_log_weights.max()
+            global_normalized_weights = np.exp(global_gaussian_log_weights - max_log_weight)/np.exp(global_gaussian_log_weights-max_log_weight).sum()
+        
         return global_normalized_weights
     
     
@@ -179,6 +196,8 @@ class MPIOceanModelEnsemble:
     
 
     def resampleParticles(self, global_normalized_weights):
+        # FIXME: Do we need to exhange more data (than eta, hu, hv)
+        
         #Get the vector of "new" particles representing which particles should be copied etc
         resampling_indices = self._globalGetResamplingIndices(global_normalized_weights)
 
@@ -204,7 +223,7 @@ class MPIOceanModelEnsemble:
                 self.logger.info("Node {:d} copying internally {:d} to {:d}".format(src_node, src, dst))
                 eta0, hu0, hv0 = self.ensemble.particles[local_src].download()
                 eta1, hu1, hv1 = self.ensemble.particles[local_src].downloadPrevTimestep()
-                receive_data += [[local_dst, eta0, hu0, hv0, eta1, hu1, hv1]]
+                receive_data += [[local_dst, eta0, hu0, hv0, eta1, hu1, hv1]] # FIXME: Don't send prev ts (for CDKLM)
 
             elif (self.comm.rank == src_node):
                 self.logger.info("Node {:d} sending {:d} to node {:d}".format(src_node, src, dst_node))
@@ -219,7 +238,7 @@ class MPIOceanModelEnsemble:
                 #FIXME: hard coded ghost cells here
                 data = [local_dst]
                 for j in range(6):
-                    buffer = np.empty((self.ensemble.data_args['ny']+160, self.ensemble.data_args['nx']+160), dtype=np.float32)
+                    buffer = np.empty((self.ensemble.data_args['ny']+4, self.ensemble.data_args['nx']+4), dtype=np.float32)
                     mpi_requests += [self.comm.Irecv(buffer, source=src_node, tag=6*i+j)]
                     data += [buffer]
                 receive_data += [data]
@@ -245,36 +264,27 @@ class MPIOceanModelEnsemble:
             self.ensemble.particles[local_dst].gpu_data.hv1.upload(stream, hv1)
         receive_data = None
         
-    
+    def observeTrueDrifters(self):
+        return self.observations.get_observation(self.t, 12414) # FIXME: Use Hm as second arg
+        
         
     def _localGetInnovations(self): 
-        #First, broadcast the drifter positions from "truth"
-        if (self.comm.rank == 0):
-            truth_drifter_positions = self.ensemble.getDrifterPositions(0)
-        else:
-            truth_drifter_positions = np.empty((self.num_drifters, 2), dtype=np.float32)
-        self.comm.Bcast(truth_drifter_positions, root=0)
-
+        #observations is a numpy array with D drifter positions and drifter velocities
+        #[[x_1, y_1, hu_1, hv_1], ... , [x_D, y_D, hu_D, hv_D]]
+        observations = self.observeTrueDrifters()
+            
+        truth_drifter_positions = observations[:,:2]
+        observed_truth = observations[:,2:]
+        
         #Then get the velocity at the drifter positions at each local ensemble member
-        local_velocities = self.ensemble.getVelocity(truth_drifter_positions)
-
-        #Broadcast the truth to all nodes
-        if (self.comm.rank == 0):
-            truth = local_velocities[0]
-        else:
-            truth = np.empty((self.num_drifters, 2))
-        self.comm.Bcast(truth, root=0)
+        local_observed_particles = self.ensemble.observeParticles(truth_drifter_positions)
 
         #Compute the innovations for each particle
-        local_innovations = truth - local_velocities
+        local_innovations = observed_truth - local_observed_particles
         
         return local_innovations
         
-        
-        
-        
-    
-    def _localGetGaussianPDF(self, local_innovations):
+    def _localGetGaussianLogWeights(self, local_innovations):
         """
         Computes the Gaussian probability density function based on the innovations
         """
@@ -285,26 +295,15 @@ class MPIOceanModelEnsemble:
         global_num_particles = self.num_nodes * self.local_ensemble_size
         local_num_particles = local_innovations.shape[0] #should be equal self.local_ensemble_size for all except root/master
 
-        local_gaussian_pdf = np.zeros(local_num_particles)
-        if global_num_particles == 1:
-            #local_gaussian_pdf = (1.0/np.sqrt(2.0*np.pi*obs_var))*np.exp(-(innovationsF**2/(2.0*obs_var)))
-            local_gaussian_pdf = np.exp(-(local_innovations**2/(2*obs_var))) / np.sqrt(2*np.pi*obs_var)
-        else:
-            for i in range(local_num_particles):
-                w = 0.0
-                for d in range(self.num_drifters):
-                    innovation = local_innovations[i,d,:]
-                    w += np.dot(innovation, np.dot(obs_cov_inv, innovation.transpose()))
-
-                ## TODO: Restructure to do the normalization before applying
-                # the exponential function. The current version is sensitive to overflows.
-                #local_gaussian_pdf[i] = np.exp(-0.5*w) / ((2*np.pi) * np.sqrt(np.linalg.det(obs_cov)))**self.num_drifters
-                #weights[i] = (1.0/((2*np.pi)**Nd*np.linalg.det(R)**(Nd/2.0)))*np.exp(-0.5*w)
-                local_gaussian_pdf[i] = (1.0/((2*np.pi)**self.num_drifters * np.linalg.det(obs_cov)**(self.num_drifters/2.0))) * np.exp(-0.5*w)
+        local_gaussian_log_weights = np.zeros(local_num_particles)
+        for p in range(local_num_particles):
+            w = 0.0
+            for d in range(self.num_drifters):
+                innovation = local_innovations[p,d,:]
+                w += np.dot(innovation, np.dot(obs_cov_inv, innovation.transpose()))
+            local_gaussian_log_weights[p] = -0.5*w
                 
-        return local_gaussian_pdf
-    
-    
+        return local_gaussian_log_weights
     
     def _globalGetResamplingIndices(self, global_gaussian_weights):
         """
@@ -338,9 +337,6 @@ class MPIOceanModelEnsemble:
             # Stochastic resampling based on the decimal parts of N*weights:
             decimalWeights = np.mod(weightsTimesN, 1)
             decimalWeights = decimalWeights/np.sum(decimalWeights)
-
-            #FIXME: This makes the stochastic process deterministic for debugging
-            #np.random.seed(seed=(42 + comm.rank))
 
             stochastic = np.random.choice(allIndices, num_particles - len(deterministic), p=decimalWeights)
 
@@ -392,5 +388,22 @@ class MPIOceanModelEnsemble:
         
         return resampling_pairs
     
+    def dumpStateSample(self, drifter_cells):
+        self.ensemble.dumpStateSample(drifter_cells)
+        
+    def getDrifterCells(self):
+        drifter_positions = self.observations.get_drifter_position(self.t, applyDrifterSet=False)
+        drifter_positions[:,0] = np.floor(drifter_positions[:,0]/self.data_args["dx"])
+        drifter_positions[:,1] = np.floor(drifter_positions[:,1]/self.data_args["dy"])
+        return drifter_positions.astype(np.int32)
     
-    
+    def dumpParticleInfosToFiles(self, filename_prefix):
+        """
+        File name of dump will be {path_prefix}_{rank}_{local_particle_id}.bz2
+        """
+        assert(self.ensemble.particleInfos is not None), 'particle info is None, and dumpParticleInfosToFile was called... This should not happend.'
+        
+        filename_prefix = filename_prefix + "_" + str(self.comm.rank)
+        
+        self.ensemble.dumpParticleInfosToFiles(filename_prefix)
+        
