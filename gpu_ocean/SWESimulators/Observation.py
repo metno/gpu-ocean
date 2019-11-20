@@ -403,10 +403,9 @@ class Observation:
                 cell_id_x = np.int(np.floor(curent_pos[i,0]/dx))
                 cell_id_y = np.int(np.floor(curent_pos[i,1]/dy))
                 waterDepths[d] = Hm[cell_id_y, cell_id_x]
-                observation[:,2:]= u_v*Hm[cell_id_y, cell_id_x]
                 
         for d in range(num_drifters):
-            observation[d,2:] = u_v[d,2:]*waterDepths[d]
+            observation[d,2:] = u_v[d,:]*waterDepths[d]
         
         # Correct velocities for drifters that travel through the domain boundary
         if self.domain_size_x or self.domain_size_y:
