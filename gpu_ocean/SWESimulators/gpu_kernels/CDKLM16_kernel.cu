@@ -54,6 +54,8 @@ inline float coriolisF(const int i, const int j, const int nx_, const int ny_) {
     //+0.5f to go to center of texel
     const float s = (i+0.5f) / (nx_+4.0f); 
     const float t = (j+0.5f) / (ny_+4.0f);
+    //FIXME: Should implement so that subsampling does not get border issues, see
+    //https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#table-lookup
     return tex2D(coriolis_f_tex, s, t);
 }
 
@@ -73,6 +75,8 @@ inline float2 getNorth(const int i, const int j, const int nx_, const int ny_) {
     const float s = (i+0.5f) / (nx_+4.0f);
     const float t = (j+0.5f) / (ny_+4.0f);
     const float angle = tex2D(angle_tex, s, t);
+    //FIXME: Should implement so that subsampling does not get border issues, see
+    //https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#table-lookup
     return make_float2(sinf(angle), cosf(angle));
 }
 
