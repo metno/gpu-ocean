@@ -176,7 +176,7 @@ void adjustSlopes_x(const int bx, const int by,
         if ((bc_east_ == 1) && (bx + k > nx_+2)) { v = -v; }
         
         // Coriolis in this cell
-        const float coriolis_f = coriolisF(bx+k+0.5f, by+l+0.5f, nx_, ny_);
+        const float coriolis_f = coriolisF(bx+k, by+l, nx_, ny_);
         
         const float dxfv = dx_*coriolis_f*v;
         
