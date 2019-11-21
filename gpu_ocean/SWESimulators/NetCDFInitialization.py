@@ -195,7 +195,7 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
         u0 = ncfile.variables['ubar'][0, y0:y1, x0:x1]
         v0 = ncfile.variables['vbar'][0, y0:y1, x0:x1]
         angle = ncfile.variables['angle'][y0:y1, x0:x1]
-        latitude = ncfile.variables['lat'][y0, x0] #Latitude of first cell - used in beta plane
+        latitude = ncfile.variables['lat'][y0:y1, x0:x1]
         x = ncfile.variables['X'][x0:x1]
         y = ncfile.variables['Y'][y0:y1]
         
@@ -264,7 +264,10 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     
     #Coriolis angle and beta
     ic['angle'] = angle
-    ic['f'], ic['coriolis_beta'] = OceanographicUtilities.calcCoriolisParams(OceanographicUtilities.degToRad(latitude))
+    ic['latitude'] = OceanographicUtilities.degToRad(latitude)
+    ic['f'] = 0.0 #Set using latitude instead
+    # The beta plane of doing it:
+    # ic['f'], ic['coriolis_beta'] = OceanographicUtilities.calcCoriolisParams(OceanographicUtilities.degToRad(latitude[0, 0]))
     
     #Boundary conditions
     ic['boundary_conditions_data'] = getBoundaryConditionsData(source_url, timestep_indices, timesteps, x0, x1, y0, y1)
@@ -284,8 +287,10 @@ def rescaleInitialConditions(old_ic, scale):
     
     ic['NX'] = int(old_ic['NX']*scale)
     ic['NY'] = int(old_ic['NY']*scale)
-    ic['nx'] = ic['NX'] - old_ic['sponge_cells'][1] - old_ic['sponge_cells'][3]
-    ic['ny'] = ic['NY'] - old_ic['sponge_cells'][0] - old_ic['sponge_cells'][2]
+    gc_x = old_ic['NX'] - old_ic['nx']
+    gc_y = old_ic['NY'] - old_ic['ny']
+    ic['nx'] = ic['NX'] - gc_x
+    ic['ny'] = ic['NY'] - gc_y
     ic['dx'] = old_ic['dx']/scale
     ic['dy'] = old_ic['dy']/scale
     _, _, ic['H'] = OceanographicUtilities.rescaleIntersections(old_ic['H'], ic['NX']+1, ic['NY']+1)
@@ -294,6 +299,8 @@ def rescaleInitialConditions(old_ic, scale):
     _, _, ic['hv0'] = OceanographicUtilities.rescaleMidpoints(old_ic['hv0'], ic['NX'], ic['NY'])
     if (old_ic['angle'].shape == old_ic['eta0'].shape):
         _, _, ic['angle'] = OceanographicUtilities.rescaleMidpoints(old_ic['angle'], ic['NX'], ic['NY'])
+    if (old_ic['latitude'].shape == old_ic['eta0'].shape):
+        _, _, ic['latitude'] = OceanographicUtilities.rescaleMidpoints(old_ic['latitude'], ic['NX'], ic['NY'])
     #Not touched:
     #"boundary_conditions": 
     #"boundary_conditions_data": 
