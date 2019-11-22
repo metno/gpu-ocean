@@ -174,9 +174,18 @@ class CDKLM16(Simulator.Simulator):
         self.interior_domain_indices = np.array([-2,-2,2,2])
         
         defines={'block_width': block_width, 'block_height': block_height,
-                   'KPSIMULATOR_DESING_EPS': str(desingularization_eps)+'f',
-                   'KPSIMULATOR_FLUX_SLOPE_EPS': str(flux_slope_eps)+'f',
-                   'KPSIMULATOR_DEPTH_CUTOFF': str(depth_cutoff)+'f'}
+                         'KPSIMULATOR_DESING_EPS': "{:.12f}f".format(desingularization_eps),
+                         'KPSIMULATOR_FLUX_SLOPE_EPS': "{:.12f}f".format(flux_slope_eps),
+                         'KPSIMULATOR_DEPTH_CUTOFF': "{:.12f}f".format(depth_cutoff),
+                         'THETA': "{:.12f}f".format(self.theta),
+                         'RK_ORDER': int(self.rk_order),
+                         'NX': int(self.nx),
+                         'NY': int(self.ny),
+                         'DX': "{:.12f}f".format(self.dx),
+                         'DY': "{:.12f}f".format(self.dy),
+                         'GRAV': "{:.12f}f".format(self.g),
+                         'FRIC': "{:.12f}f".format(self.r)
+        }
         
         #Get kernels
         self.kernel = gpu_ctx.get_kernel("CDKLM16_kernel.cu", 
@@ -200,7 +209,7 @@ class CDKLM16(Simulator.Simulator):
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.cdklm_swe_2D = self.kernel.get_function("cdklm_swe_2D")
-        self.cdklm_swe_2D.prepare("iiffffffiiPiPiPiPiPiPiPiPiffi")
+        self.cdklm_swe_2D.prepare("fiPiPiPiPiPiPiPiPiffi")
         self.update_wind_stress(self.kernel, self.cdklm_swe_2D)
         
         # CUDA functions for finding max time step size:
@@ -612,12 +621,7 @@ class CDKLM16(Simulator.Simulator):
         boundary_conditions = boundary_conditions | np.int8(self.boundary_conditions.west) << 0
 
         self.cdklm_swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
-                           self.nx, self.ny, \
-                           self.dx, self.dy, local_dt, \
-                           self.g, \
-                           self.theta, \
-                           self.r, \
-                           self.rk_order, \
+                           local_dt, \
                            np.int32(rk_step), \
                            h_in.data.gpudata, h_in.pitch, \
                            hu_in.data.gpudata, hu_in.pitch, \
