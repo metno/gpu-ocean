@@ -23,8 +23,56 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "common.cu"
 
+texture<float, cudaTextureType2D> coriolis_f_tex;
 texture<float, cudaTextureType2D> angle_tex;
-// FIXME! Use coriolis_f_tex to store and read the Coriolis force (see cdklm_kernel.cu)
+
+
+/**
+  * Returns the coriolis parameter f from the coriolis texture. 
+  * @param i Cell number along x-axis, starting from (0, 0) corresponding to first cell in domain after global ghost cells
+  * @param j Cell number along y-axis
+  * @param nx_ Number of cells in internal domain (excluding the four ghost cells)
+  * @param ny_ Number of cells in internal domain (excluding the four ghost cells)
+  * The texture is assumed to also cover the ghost cells (same shape/extent as eta)
+  */
+__device__
+inline float coriolisF(const int i, const int j, const int nx_, const int ny_) {
+    //nx+4 to account for ghost cells
+    //+0.5f to go to center of texel
+    const float s = (i+0.5f) / (nx_+4.0f); 
+    const float t = (j+0.5f) / (ny_+4.0f);
+    //FIXME: Should implement so that subsampling does not get border issues, see
+    //https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#table-lookup
+    return tex2D(coriolis_f_tex, s, t);
+}
+
+
+
+/**
+  * Decompose the north vector to x and y coordinates
+  * @param i Cell number along x-axis, starting from (0, 0) corresponding to first cell in domain after global ghost cells
+  * @param j Cell number along y-axis
+  * @param nx_ Number of cells in internal domain (excluding the four ghost cells)
+  * @param ny_ Number of cells in internal domain (excluding the four ghost cells)
+  */
+__device__
+inline float2 getNorth(const int i, const int j, const int nx_, const int ny_) {
+    //nx+4 to account for ghost cells
+    //+0.5f to go to center of texel
+    const float s = (i+0.5f) / (nx_+4.0f);
+    const float t = (j+0.5f) / (ny_+4.0f);
+    const float angle = tex2D(angle_tex, s, t);
+    //FIXME: Should implement so that subsampling does not get border issues, see
+    //https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#table-lookup
+    return make_float2(sinf(angle), cosf(angle));
+}
+// FIXME: coriolisF and getNorth are both copied from cdklm_kernel.cu. These should
+//        be implemented only once and included - but be careful to ensure that 
+//        the textures are defined to avoid compilation errors!
+
+
+
+
 
 /**
   *  Generates two uniform random numbers based on the ANSIC Linear Congruential 
@@ -428,6 +476,8 @@ __global__ void geostrophicBalance(
         const float north_y = cosf(angle);
         
         const float coriolis = f_ + beta_ * ((ti+0.5f)*dx_*north_x + (tj+0.5f)*dy_*north_y);
+        // FIXME! Do the same as in the geobalance in the interpolation!
+        
         
         // Total water depth in the given cell (H + eta + d_eta)
         const float h_mid = d_eta[eta_ty][eta_tx] + H_mid + eta_row[ti];
@@ -686,16 +736,14 @@ __global__ void bicubicInterpolation(
         const int eta_tx = tx + 1;
         const int eta_ty = ty + 1;
         
-        // Find Coriolis parameter
-        const float s = ti / (float) nx_;
-        const float t = tj / (float) ny_;
-        const float angle = tex2D(angle_tex, s, t);
+        // Get vector towards north.
+        const float2 north = getNorth(ti, tj, nx_, ny_);
         
-        // Decompose north into x and y
-        const float north_x = sinf(angle);
-        const float north_y = cosf(angle);
-        
-        const float coriolis = f_ + beta_ * ((ti+0.5f)*dx_*north_x + (tj+0.5f)*dy_*north_y);
+        // FIXME: Read from correct texture always
+        float coriolis = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (tj+0.5f)*dy_*north.y);
+        if (f_ == 0) {
+            coriolis = coriolisF(ti, tj, nx_, ny_);
+        }
         
         // Slope of perturbation of eta
         const float eta_diff_x = (d_eta[eta_ty  ][eta_tx+1] - d_eta[eta_ty  ][eta_tx-1]) / (2.0f*dx_);
@@ -704,7 +752,7 @@ __global__ void bicubicInterpolation(
         // perturbation of hu and hv
         float d_hu = -(g_/coriolis)*(H_mid + d_eta[eta_ty][eta_tx])*eta_diff_y;
         float d_hv =  (g_/coriolis)*(H_mid + d_eta[eta_ty][eta_tx])*eta_diff_x;        
-        
+        // FIXME: Do we need to multiply with north.x and north.y here? Check CDKLM kernel.        
         
         //Compute pointer to current row in the U array
         float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*(tj));
