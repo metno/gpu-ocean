@@ -36,9 +36,9 @@ from SWESimulators import DataAssimilationUtils as dautils
 class MPIOceanModelEnsemble:
     """
     Class which holds a set of OceanModelEnsembles on different nodes. 
-    Rank 0 holds the truth, and orchistrates the simulation
-    Rank 1 to n-1 holds per_node_ensemble_size ocean models, so that the total
-    number of ensemble members is (comm.size-1)*per_node_ensemble_size
+    Rank 0 to n-1 holds per_node_ensemble_size ocean models, so that the total
+    number of ensemble members is comm.size * per_node_ensemble_size
+    Rank 0 also orchistrates the simulation
     
     All ocean models are initialized using the same initial conditions
     """
@@ -64,8 +64,8 @@ class MPIOceanModelEnsemble:
         #Broadcast general information about ensemble
         ##########################
         self.comm = comm
-        self.num_nodes = self.comm.size - 1 #Root does not participate
-        assert self.comm.size >= 2, "You appear to not be using enough MPI nodes (at least two required)"
+        self.num_nodes = self.comm.size
+        assert self.comm.size >= 1, "You appear to not be using enough MPI nodes (at least one required)"
         
         self.local_ensemble_size = local_ensemble_size
         self.local_ensemble_size = self.comm.bcast(self.local_ensemble_size, root=0)
@@ -136,14 +136,9 @@ class MPIOceanModelEnsemble:
         
         self.num_drifters = self.observations.get_num_drifters()
         
-        if (self.comm.rank == 0):
-            num_ensemble_members = 1
-        else:
-            num_ensemble_members = self.local_ensemble_size
-        
         self.ensemble = OceanModelEnsemble.OceanModelEnsemble(
                             self.gpu_ctx, self.sim_args, self.data_args, 
-                            num_ensemble_members,
+                            self.local_ensemble_size,
                             **ensemble_args,
                             netcdf_filename=netcdf_filename, rank=self.comm.rank)
         
@@ -174,14 +169,14 @@ class MPIOceanModelEnsemble:
         #Gather the gaussian weights from all nodes to a global vector on rank 0
         global_gaussian_log_weights = None
         if (self.comm.rank == 0):
-            global_gaussian_log_weights = np.empty(((self.num_nodes+1), self.local_ensemble_size))
+            global_gaussian_log_weights = np.empty((self.num_nodes, self.local_ensemble_size))
         self.comm.Gather(local_gaussian_log_weights, global_gaussian_log_weights, root=0)
 
         #Compute the normalized weights on rank 0
         global_normalized_weights = None
         if (self.comm.rank == 0):
             #Remove ourselves (rank=0)
-            global_gaussian_log_weights = global_gaussian_log_weights[1:].ravel()
+            global_gaussian_log_weights = global_gaussian_log_weights.ravel()
 
             #Normalize
             # see https://timvieira.github.io/blog/post/2014/02/11/exp-normalize-trick/'
@@ -216,8 +211,8 @@ class MPIOceanModelEnsemble:
             src_node = resampling_pairs[i,3]
             
             #Compute the local index of the src/dst particle
-            local_src = src - (self.comm.rank-1)*self.local_ensemble_size
-            local_dst = dst - (self.comm.rank-1)*self.local_ensemble_size
+            local_src = src - self.comm.rank * self.local_ensemble_size
+            local_dst = dst - self.comm.rank * self.local_ensemble_size
 
             if (self.comm.rank == src_node and src_node == dst_node):
                 self.logger.info("Node {:d} copying internally {:d} to {:d}".format(src_node, src, dst))
@@ -275,6 +270,9 @@ class MPIOceanModelEnsemble:
         #observations is a numpy array with D drifter positions and drifter velocities
         #[[x_1, y_1, hu_1, hv_1], ... , [x_D, y_D, hu_D, hv_D]]
         observations = self.observeTrueDrifters()
+        
+        #for particle in self.ensemble.particles:
+        #    particle.writeState()
             
         truth_drifter_positions = observations[:,:2]
         observed_truth = observations[:,2:]
@@ -296,7 +294,7 @@ class MPIOceanModelEnsemble:
         obs_cov_inv = self.ensemble.observation_cov_inverse
         
         global_num_particles = self.num_nodes * self.local_ensemble_size
-        local_num_particles = local_innovations.shape[0] #should be equal self.local_ensemble_size for all except root/master
+        local_num_particles = local_innovations.shape[0] #should be equal self.local_ensemble_size
 
         local_gaussian_log_weights = np.zeros(local_num_particles)
         for p in range(local_num_particles):
@@ -355,7 +353,7 @@ class MPIOceanModelEnsemble:
         if self.comm.rank == 0:
             num_particles = self.num_nodes*self.local_ensemble_size
             particle_ids = np.arange(num_particles, dtype=np.int32)
-            particle_id_to_node_id = 1 + np.floor(particle_ids // self.local_ensemble_size).astype(np.int32)
+            particle_id_to_node_id = np.floor(particle_ids // self.local_ensemble_size).astype(np.int32)
             #print("Weights=", global_normalized_weights)
             #print("Remapping indices=", indices)
 

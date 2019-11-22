@@ -208,6 +208,8 @@ if __name__ == "__main__":
                 "small_scale_perturbation": True,
                 "small_scale_perturbation_amplitude": 1.0e-5, #1.0e-5,
                 "small_scale_perturbation_interpolation_factor": 1,
+                "subsample_angle": None,
+                "subsample_f": None,
                 "write_netcdf": True,
             }
             
