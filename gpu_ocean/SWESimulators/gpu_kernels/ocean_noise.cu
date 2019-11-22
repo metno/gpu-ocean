@@ -466,17 +466,14 @@ __global__ void geostrophicBalance(
         const int eta_tx = tx+1;
         const int eta_ty = ty+1;
 
-        // Find Coriolis parameter
-        const float s = ti / (float) nx_;
-        const float t = tj / (float) ny_;
-        const float angle = tex2D(angle_tex, s, t);
+        // Get vector towards north.
+        const float2 north = getNorth(ti, tj, nx_, ny_);
         
-        // Decompose north into x and y
-        const float north_x = sinf(angle);
-        const float north_y = cosf(angle);
-        
-        const float coriolis = f_ + beta_ * ((ti+0.5f)*dx_*north_x + (tj+0.5f)*dy_*north_y);
-        // FIXME! Do the same as in the geobalance in the interpolation!
+        // FIXME: Read from correct texture always
+        float coriolis = f_ + beta_ * ((ti+0.5f)*dx_*north.x + (tj+0.5f)*dy_*north.y);
+        if (f_ == 0) {
+            coriolis = coriolisF(ti, tj, nx_, ny_);
+        }
         
         
         // Total water depth in the given cell (H + eta + d_eta)
