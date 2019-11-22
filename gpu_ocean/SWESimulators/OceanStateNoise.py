@@ -51,6 +51,7 @@ class OceanStateNoise(object):
                  interpolation_factor = 1,
                  use_lcg=False,
                  angle=np.array([[0]], dtype=np.float32),
+                 coriolis_f=np.array([[0]], dtype=np.float32),
                  block_width=16, block_height=16):
         """
         Initiates a class that generates small scale geostrophically balanced perturbations of
@@ -240,6 +241,24 @@ class OceanStateNoise(object):
                     int(np.ceil( (self.ny)/float(self.local_size[1]))) \
                    )
         
+        # Texture for coriolis field
+        self.coriolis_texref = self.kernels.get_texref("coriolis_f_tex")        
+        if isinstance(coriolis_f, cuda.Array):
+            # coriolis_f is already a texture, so we just set the reference
+            self.coriolis_texref.set_array(coriolis_f)
+        else:
+            #Upload data to GPU and bind to texture reference
+            self.coriolis_texref.set_array(cuda.np_to_array(np.ascontiguousarray(coriolis_f, dtype=np.float32), order="C"))
+          
+        # Set texture parameters
+        self.coriolis_texref.set_filter_mode(cuda.filter_mode.LINEAR) #bilinear interpolation
+        self.coriolis_texref.set_address_mode(0, cuda.address_mode.CLAMP) #no indexing outside domain
+        self.coriolis_texref.set_address_mode(1, cuda.address_mode.CLAMP)
+        self.coriolis_texref.set_flags(cuda.TRSF_NORMALIZED_COORDINATES) #Use [0, 1] indexing
+        # FIXME! Allow different versions of coriolis, similar to CDKLM
+        
+        
+        
         # Texture for angle towards north
         self.angle_texref = self.kernels.get_texref("angle_tex")        
         if isinstance(angle, cuda.Array):
@@ -285,6 +304,7 @@ class OceanStateNoise(object):
                    soar_q0=soar_q0, soar_L=soar_L,
                    interpolation_factor=interpolation_factor,
                    angle=sim.angle_texref.get_array(),
+                   coriolis_f=sim.coriolis_texref.get_array(),
                    use_lcg=use_lcg,
                    block_width=block_width, block_height=block_height)
 
@@ -354,7 +374,8 @@ class OceanStateNoise(object):
         
         self.perturbOceanState(sim.gpu_data.h0, sim.gpu_data.hu0, sim.gpu_data.hv0,
                                sim.bathymetry.Bi,
-                               sim.f, beta=sim.coriolis_beta, g=sim.g, 
+                               sim.f, beta=sim.coriolis_beta, 
+                               g=sim.g, 
                                y0_reference_cell=sim.y_zero_reference_cell,
                                ghost_cells_x=sim.ghost_cells_x,
                                ghost_cells_y=sim.ghost_cells_y,
