@@ -79,7 +79,7 @@ class CDKLM16(Simulator.Simulator):
                  flux_slope_eps = 1.0e-1, \
                  desingularization_eps = 1.0e-1, \
                  depth_cutoff = 1.0e-5, \
-                 block_width=32, block_height=8, num_threads_dt=256,
+                 block_width=12, block_height=32, num_threads_dt=256,
                  block_width_model_error=16, block_height_model_error=16):
         """
         Initialization routine
