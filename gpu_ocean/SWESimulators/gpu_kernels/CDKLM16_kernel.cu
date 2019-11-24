@@ -846,21 +846,23 @@ __global__ void cdklm_swe_2D(
                 const float bathymetry1 = GRAV*(eta_we + Hm)*H_x;
                 const float bathymetry2 = GRAV*(eta_sn + Hm)*H_y;
                 
-                //Find north-going and east-going coriolis force
-                const float hu_east =  coriolis_f_central*(hu*east.x + hv*east.y);
-                const float hv_north = coriolis_f_central*(hu*north.x + hv*north.y);
+                //Project momenta onto north/east axes
+                const float hu_east =  hu*east.x + hv*east.y;
+                const float hv_north = hu*north.x + hv*north.y;
                 
-                //Up vector in east-north coordinate system
+                //Convert momentums between east/north due to Coriolis
+                const float hu_east_cor = coriolis_f_central*hv_north;
+                const float hv_north_cor = -coriolis_f_central*hu_east;
+                
+                //Project back to x/y-coordinate system
                 const float2 up = make_float2(-north.x, north.y);
                 const float2 right = make_float2(up.y, -up.x);
-                
-                //Convert back to xy coordinate system
-                const float hu_cor = right.x*hu_east + right.y*hv_north;
-                const float hv_cor = up.x*hu_east + up.y*hv_north;
+                const float hu_cor = right.x*hu_east_cor + right.y*hv_north_cor;
+                const float hv_cor = up.x*hu_east_cor + up.y*hv_north_cor;
 
                 // Total source terms
-                st1 = X + hv_cor + bathymetry1/DX;
-                st2 = Y - hu_cor + bathymetry2/DY;
+                st1 = X + hu_cor + bathymetry1/DX;
+                st2 = Y + hv_cor + bathymetry2/DY;
             }
         }
 
