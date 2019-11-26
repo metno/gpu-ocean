@@ -439,8 +439,7 @@ def refAnimation(source_url_list, case, movie_frames=None, timestep_indices=None
     def animate(i):
         t_now = timesteps[0] + (i / (movie_frames-1)) * (timesteps[-1] - timesteps[0]) 
         
-        print('t_now: ', t_now/3600)
-        
+
         k = np.searchsorted(timesteps, t_now)
         if (k >= eta.shape[0]):
             k = eta.shape[0] - 1
