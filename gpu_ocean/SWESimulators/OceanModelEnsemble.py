@@ -156,7 +156,7 @@ class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
     def dumpParticleInfosToFiles(self, filename_prefix):
         """
-        File name of dump will be {path_prefix}_{local_particle_id}.bz2
+        Default file name of dump will be particle_info_YYYY_mm_dd-HH_MM_SS_{rank}_{local_particle_id}.bz2
         """
         for p in range(self.getNumParticles()):
             filename = filename_prefix + "_" + str(p) + ".bz2"
@@ -164,7 +164,7 @@ class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             
     def dumpDrifterForecastToFiles(self, filename_prefix):
         """
-        File name of dump will be {path_prefix}_{local_particle_id}.bz2
+        Default file name of dump will be forecast_particle_info_YYYY_mm_dd-HH_MM_SS_{rank}_{local_particle_id}.bz2
         """
         for p in range(self.getNumParticles()):
             filename = filename_prefix + "_" + str(p) + ".bz2"

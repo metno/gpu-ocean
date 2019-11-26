@@ -27,7 +27,7 @@ import datetime
 import logging
 import numpy as np
 from mpi4py import MPI
-import gc
+import gc, os, time
 
 from SWESimulators import OceanModelEnsemble, Common, Observation
 from SWESimulators import DataAssimilationUtils as dautils
@@ -403,25 +403,51 @@ class MPIOceanModelEnsemble:
         drifter_positions[:,1] = np.floor(drifter_positions[:,1]/self.data_args["dy"])
         return drifter_positions.astype(np.int32)
     
-    def dumpParticleInfosToFiles(self, filename_prefix):
+    def dumpParticleInfosToFiles(self, prefix="particle_info"):
         """
-        File name of dump will be {path_prefix}_{rank}_{local_particle_id}.bz2
+        Default file name of dump will be particle_info_YYYY_mm_dd-HH_MM_SS_{rank}_{local_particle_id}.bz2
         """
         assert(self.ensemble.particleInfos[0] is not None), 'particleInfos[0] is None, and dumpParticleInfosToFile was called... This should not happend.'
         
-        filename_prefix = filename_prefix + "_" + str(self.comm.rank)
+        timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
+        timestamp_short = datetime.datetime.now().strftime("%Y_%m_%d")
+
+        dir_name = prefix + "_" + timestamp_short
         
-        self.ensemble.dumpParticleInfosToFiles(filename_prefix)
+        if not os.path.isdir(dir_name) and self.comm.rank == 0:
+            os.makedirs(dir_name)
+        else:
+            while True:
+                if os.path.isdir(dir_name):
+                    break
+                time.sleep(1)
         
-    def dumpDrifterForecastToFiles(self, filename_prefix):
+        filename_prefix = prefix + "_" + timestamp + "_" + str(self.comm.rank)
+        
+        self.ensemble.dumpParticleInfosToFiles(os.path.join(dir_name, filename_prefix))
+        
+    def dumpDrifterForecastToFiles(self, prefix="forecast_particle_info"):
         """
-        File name of dump will be {path_prefix}_{rank}_{local_particle_id}.bz2
+        Default file name of dump will be forecast_particle_info_YYYY_mm_dd-HH_MM_SS_{rank}_{local_particle_id}.bz2
         """
         assert(self.ensemble.drifterForecast[0] is not None), ' drifterForecast[0] is None, and dumpDrifterForecastToFiles was called... This should not happend.'
         
-        filename_prefix = filename_prefix + "_" + str(self.comm.rank)
+        timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
+        timestamp_short = datetime.datetime.now().strftime("%Y_%m_%d")
+
+        dir_name = prefix + "_" + timestamp_short
         
-        self.ensemble.dumpDrifterForecastToFiles(filename_prefix)
+        if not os.path.isdir(dir_name) and self.comm.rank == 0:
+            os.makedirs(dir_name)
+        else:
+            while True:
+                if os.path.isdir(dir_name):
+                    break
+                time.sleep(1)
+        
+        filename_prefix = prefix + "_" + timestamp + "_" + str(self.comm.rank)
+        
+        self.ensemble.dumpDrifterForecastToFiles(os.path.join(dir_name, filename_prefix))
         
     def initDriftersFromObservations(self):
         self.ensemble.attachDrifters(self.observations.get_drifter_position(self.t, applyDrifterSet=False, ignoreBuoys=True))
