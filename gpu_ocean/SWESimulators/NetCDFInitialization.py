@@ -26,8 +26,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 import numpy as np
-import datetime
+import datetime, os
 from netCDF4 import Dataset
+from scipy.ndimage.morphology import binary_erosion, grey_dilation
+
 from SWESimulators import Common, WindStress, OceanographicUtilities
 
 
@@ -149,10 +151,43 @@ def getWindSourceterm(source_url, timestep_indices, timesteps, x0, x1, y0, y1):
     
     return wind_source
 
+def getInitialConditionsNorKystCases(source_url, casename, **kwargs):
+    """
+    Initial conditions for pre-defined areas within the NorKyst-800 model domain. 
+    """
+    cases = [
+        {'name': 'norwegian_sea',  'x0':  900, 'x1': 1400, 'y0':  600, 'y1':  875 },
+        {'name': 'lofoten',        'x0': 1400, 'x1': 1900, 'y0':  450, 'y1':  750 },
+        {'name': 'complete_coast', 'x0':   25, 'x1': 2575, 'y0':   25, 'y1':  875 },
+        {'name': 'skagerak',       'x0':  300, 'x1':  600, 'y0':   50, 'y1':  250 },
+        {'name': 'oslo',           'x0':  500, 'x1':  550, 'y0':  160, 'y1':  210 },
+        {'name': 'denmark',        'x0':    2, 'x1':  300, 'y0':    2, 'y1':  300 }
+    ]
+    use_case = None
+    for case in cases:
+        if case['name'] == casename:
+            use_case = case
+            break
 
-def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land_value=5.0, iterations=10, sponge_cells=[80, 80, 80, 80]):
+    assert(use_case is not None), 'Invalid case. Please choose between:\n'+str([case['name'] for case in cases])
+
+    return getInitialConditions(source_url,  use_case['x0'], use_case['x1'], use_case['y0'], use_case['y1'], **kwargs)
+
+def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land_value=5.0, iterations=10, sponge_cells=[10, 10, 10, 10], erode_land=0):
     ic = {}
     
+    ### Check if local file exists:
+    filename = os.path.abspath(os.path.basename(source_url))
+    cache_folder='netcdf_cache'
+    cache_filename = os.path.abspath(os.path.join(cache_folder,
+                                                  os.path.basename(source_url)))
+    
+    if (os.path.isfile(filename)):
+        source_url = filename
+        
+    elif (os.path.isfile(cache_filename)):
+        source_url = cache_filename
+        
     try:
         ncfile = Dataset(source_url)
         H_m = ncfile.variables['h'][y0-1:y1+1, x0-1:x1+1]
@@ -160,7 +195,7 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
         u0 = ncfile.variables['ubar'][0, y0:y1, x0:x1]
         v0 = ncfile.variables['vbar'][0, y0:y1, x0:x1]
         angle = ncfile.variables['angle'][y0:y1, x0:x1]
-        latitude = ncfile.variables['lat'][y0, x0] #Latitude of first cell - used in beta plane
+        latitude = ncfile.variables['lat'][y0:y1, x0:x1]
         x = ncfile.variables['X'][x0:x1]
         y = ncfile.variables['Y'][y0:y1]
         
@@ -181,15 +216,23 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     timesteps = timesteps - t0
     
     #Generate intersections bathymetry
-    H_m = np.ma.array(H_m, mask=eta0.mask.copy())
+    H_m_mask = eta0.mask.copy()
+    H_m = np.ma.array(H_m, mask=H_m_mask)
+    for i in range(erode_land):
+        new_water = H_m.mask ^ binary_erosion(H_m.mask)
+        eps = 1.0e-5 #Make new Hm slighlyt different from land_value
+        eta0_dil = grey_dilation(eta0.filled(0.0), size=(3,3))
+        H_m[new_water] = land_value+eps
+        eta0[new_water] = eta0_dil[new_water]
+        
     H_i, _ = OceanographicUtilities.midpointsToIntersections(H_m, land_value=land_value, iterations=iterations)
     eta0 = eta0[1:-1, 1:-1]
-    h0 = OceanographicUtilities.intersectionsToMidpoints(H_i) + eta0
+    h0 = OceanographicUtilities.intersectionsToMidpoints(H_i).filled(land_value) + eta0.filled(0.0)
     
     #Generate physical variables
-    eta0 = eta0.filled(0)
-    hu0 = h0*u0.filled(0)
-    hv0 = h0*v0.filled(0)
+    eta0 = np.ma.array(eta0.filled(0), mask=eta0.mask.copy())
+    hu0 = np.ma.array(h0*u0.filled(0), mask=eta0.mask.copy())
+    hv0 = np.ma.array(h0*v0.filled(0), mask=eta0.mask.copy())
     
     #Initial reference time and all timesteps
     ic['t0'] = t0
@@ -199,8 +242,9 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     ic['sponge_cells'] = sponge_cells
     ic['NX'] = x1 - x0
     ic['NY'] = y1 - y0
-    ic['nx'] = ic['NX'] - sponge_cells[1] - sponge_cells[3]
-    ic['ny'] = ic['NY'] - sponge_cells[0] - sponge_cells[2]
+    # Domain size without ghost cells
+    ic['nx'] = ic['NX']-4
+    ic['ny'] = ic['NY']-4
     
     #Dx and dy
     #FIXME: Assumes equal for all.. .should check
@@ -220,7 +264,10 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     
     #Coriolis angle and beta
     ic['angle'] = angle
-    ic['f'], ic['coriolis_beta'] = OceanographicUtilities.calcCoriolisParams(OceanographicUtilities.degToRad(latitude))
+    ic['latitude'] = OceanographicUtilities.degToRad(latitude)
+    ic['f'] = 0.0 #Set using latitude instead
+    # The beta plane of doing it:
+    # ic['f'], ic['coriolis_beta'] = OceanographicUtilities.calcCoriolisParams(OceanographicUtilities.degToRad(latitude[0, 0]))
     
     #Boundary conditions
     ic['boundary_conditions_data'] = getBoundaryConditionsData(source_url, timestep_indices, timesteps, x0, x1, y0, y1)
@@ -235,21 +282,25 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     return ic
 
 
-def rescaleInitialConditions(old_ic, scale):
+def rescaleInitialConditions(old_ic, scale):    
     ic = old_ic.copy()
     
     ic['NX'] = int(old_ic['NX']*scale)
     ic['NY'] = int(old_ic['NY']*scale)
-    ic['nx'] = ic['NX'] - old_ic['sponge_cells'][1] - old_ic['sponge_cells'][3]
-    ic['ny'] = ic['NY'] - old_ic['sponge_cells'][0] - old_ic['sponge_cells'][2]
+    gc_x = old_ic['NX'] - old_ic['nx']
+    gc_y = old_ic['NY'] - old_ic['ny']
+    ic['nx'] = ic['NX'] - gc_x
+    ic['ny'] = ic['NY'] - gc_y
     ic['dx'] = old_ic['dx']/scale
     ic['dy'] = old_ic['dy']/scale
     _, _, ic['H'] = OceanographicUtilities.rescaleIntersections(old_ic['H'], ic['NX']+1, ic['NY']+1)
     _, _, ic['eta0'] = OceanographicUtilities.rescaleMidpoints(old_ic['eta0'], ic['NX'], ic['NY'])
     _, _, ic['hu0'] = OceanographicUtilities.rescaleMidpoints(old_ic['hu0'], ic['NX'], ic['NY'])
     _, _, ic['hv0'] = OceanographicUtilities.rescaleMidpoints(old_ic['hv0'], ic['NX'], ic['NY'])
-    if (old_ic['angle'].shape == old_ic['eta0']):
-        ic['angle'] = OceanographicUtilities.rescaleMidpoints(old_ic['angle'], ic['NX'], ic['NY'])
+    if (old_ic['angle'].shape == old_ic['eta0'].shape):
+        _, _, ic['angle'] = OceanographicUtilities.rescaleMidpoints(old_ic['angle'], ic['NX'], ic['NY'])
+    if (old_ic['latitude'].shape == old_ic['eta0'].shape):
+        _, _, ic['latitude'] = OceanographicUtilities.rescaleMidpoints(old_ic['latitude'], ic['NX'], ic['NY'])
     #Not touched:
     #"boundary_conditions": 
     #"boundary_conditions_data": 

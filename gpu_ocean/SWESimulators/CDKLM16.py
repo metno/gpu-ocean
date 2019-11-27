@@ -29,11 +29,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import gc
 import logging
+from scipy.interpolate import interp2d
 
 from SWESimulators import Common, SimWriter, SimReader
 from SWESimulators import Simulator
 from SWESimulators import WindStress
 from SWESimulators import OceanStateNoise
+from SWESimulators import OceanographicUtilities
 
 # Needed for the random perturbation of the wind forcing:
 import pycuda.driver as cuda
@@ -50,7 +52,10 @@ class CDKLM16(Simulator.Simulator):
                  nx, ny, \
                  dx, dy, dt, \
                  g, f, r, \
+                 subsample_f=10, \
                  angle=np.array([[0]], dtype=np.float32), \
+                 subsample_angle=10, \
+                 latitude=None, \
                  t=0.0, \
                  theta=1.3, rk_order=2, \
                  coriolis_beta=0.0, \
@@ -74,7 +79,7 @@ class CDKLM16(Simulator.Simulator):
                  flux_slope_eps = 1.0e-1, \
                  desingularization_eps = 1.0e-1, \
                  depth_cutoff = 1.0e-5, \
-                 block_width=32, block_height=8, num_threads_dt=256,
+                 block_width=12, block_height=32, num_threads_dt=256,
                  block_width_model_error=16, block_height_model_error=16):
         """
         Initialization routine
@@ -90,7 +95,10 @@ class CDKLM16(Simulator.Simulator):
         g: Gravitational accelleration (9.81 m/s^2)
         f: Coriolis parameter (1.2e-4 s^1), effectively as f = f + beta*y
         r: Bottom friction coefficient (2.4e-3 m/s)
-        angle: Angle of rotation from North to y-axis as a texture (cuda.Array) or numpy array
+        subsample_f: Subsample the coriolis f when creating texture by factor
+        angle: Angle of rotation from North to y-axis as a texture (cuda.Array) or numpy array (in radians)
+        subsample_angle: Subsample the angles given as input when creating texture by factor
+        latitude: Specify latitude. This will override any f and beta plane already set (in radians)
         t: Start simulation at time t
         theta: MINMOD theta used the reconstructions of the derivatives in the numerical scheme
         rk_order: Order of Runge Kutta method {1,2*,3}
@@ -131,13 +139,7 @@ class CDKLM16(Simulator.Simulator):
         
         # Boundary conditions
         self.boundary_conditions = boundary_conditions
-        if (boundary_conditions.isSponge()):
-            nx = nx + boundary_conditions.spongeCells[1] + boundary_conditions.spongeCells[3] - 2*ghost_cells_x
-            ny = ny + boundary_conditions.spongeCells[0] + boundary_conditions.spongeCells[2] - 2*ghost_cells_y
-            
-            x_zero_reference_cell += boundary_conditions.spongeCells[3]
-            y_zero_reference_cell += boundary_conditions.spongeCells[2]
-
+        
         #Compensate f for reference cell (first cell in internal of domain)
         north = np.array([np.sin(angle[0,0]), np.cos(angle[0,0])])
         f = f - coriolis_beta * (x_zero_reference_cell*dx*north[0] + y_zero_reference_cell*dy*north[1])
@@ -170,12 +172,20 @@ class CDKLM16(Simulator.Simulator):
         # eta[self.interior_domain_indices[2]:self.interior_domain_indices[0], \
         #     self.interior_domain_indices[3]:self.interior_domain_indices[1] ]
         self.interior_domain_indices = np.array([-2,-2,2,2])
-        self._set_interior_domain_from_sponge_cells()
         
         defines={'block_width': block_width, 'block_height': block_height,
-                   'KPSIMULATOR_DESING_EPS': str(desingularization_eps)+'f',
-                   'KPSIMULATOR_FLUX_SLOPE_EPS': str(flux_slope_eps)+'f',
-                   'KPSIMULATOR_DEPTH_CUTOFF': str(depth_cutoff)+'f'}
+                         'KPSIMULATOR_DESING_EPS': "{:.12f}f".format(desingularization_eps),
+                         'KPSIMULATOR_FLUX_SLOPE_EPS': "{:.12f}f".format(flux_slope_eps),
+                         'KPSIMULATOR_DEPTH_CUTOFF': "{:.12f}f".format(depth_cutoff),
+                         'THETA': "{:.12f}f".format(self.theta),
+                         'RK_ORDER': int(self.rk_order),
+                         'NX': int(self.nx),
+                         'NY': int(self.ny),
+                         'DX': "{:.12f}f".format(self.dx),
+                         'DY': "{:.12f}f".format(self.dy),
+                         'GRAV': "{:.12f}f".format(self.g),
+                         'FRIC': "{:.12f}f".format(self.r)
+        }
         
         #Get kernels
         self.kernel = gpu_ctx.get_kernel("CDKLM16_kernel.cu", 
@@ -199,7 +209,7 @@ class CDKLM16(Simulator.Simulator):
         
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.cdklm_swe_2D = self.kernel.get_function("cdklm_swe_2D")
-        self.cdklm_swe_2D.prepare("iiffffffffiiPiPiPiPiPiPiPiPiffi")
+        self.cdklm_swe_2D.prepare("fiPiPiPiPiPiPiPiPiffi")
         self.update_wind_stress(self.kernel, self.cdklm_swe_2D)
         
         # CUDA functions for finding max time step size:
@@ -258,6 +268,18 @@ class CDKLM16(Simulator.Simulator):
         )
 
 
+        def subsample_texture(data, factor):
+            ny, nx = data.shape 
+            dx, dy = 1/nx, 1/ny
+            I = interp2d(np.linspace(0.5*dx, 1-0.5*dx, nx), 
+                         np.linspace(0.5*dy, 1-0.5*dy, ny), 
+                         data, kind='linear')
+            
+            new_nx, new_ny = max(2, nx//factor), max(2, ny//factor)
+            new_dx, new_dy = 1/new_nx, 1/new_ny
+            x_new = np.linspace(0.5*new_dx, 1-0.5*new_dx, new_nx)
+            y_new = np.linspace(0.5*new_dy, 1-0.5*new_dy, new_ny)
+            return I(x_new, y_new)
                                             
                                     
         # Texture for angle
@@ -267,6 +289,11 @@ class CDKLM16(Simulator.Simulator):
             self.angle_texref.set_array(angle)
         else:
             #Upload data to GPU and bind to texture reference
+            if (subsample_angle and angle.size >= eta0.size):
+                self.logger.info("Subsampling angle texture by factor " + str(subsample_angle))
+                self.logger.warning("This will give inaccurate angle along the border!")
+                angle = subsample_texture(angle, subsample_angle)
+                
             self.angle_texref.set_array(cuda.np_to_array(np.ascontiguousarray(angle, dtype=np.float32), order="C"))
                     
         # Set texture parameters
@@ -274,6 +301,52 @@ class CDKLM16(Simulator.Simulator):
         self.angle_texref.set_address_mode(0, cuda.address_mode.CLAMP) #no indexing outside domain
         self.angle_texref.set_address_mode(1, cuda.address_mode.CLAMP)
         self.angle_texref.set_flags(cuda.TRSF_NORMALIZED_COORDINATES) #Use [0, 1] indexing
+        
+        
+        
+        # Texture for coriolis f
+        self.coriolis_texref = self.kernel.get_texref("coriolis_f_tex")
+        
+        # Create the CPU coriolis
+        if (latitude is not None):
+            if (self.f != 0.0):
+                raise RuntimeError("Cannot specify both latitude and f. Make your mind up.")
+            coriolis_f, _ = OceanographicUtilities.calcCoriolisParams(latitude)
+            coriolis_f = coriolis_f.astype(np.float32)
+        else:
+            if (self.coriolis_beta != 0.0):
+                if (angle.size != 1):
+                    raise RuntimeError("non-constant angle cannot be combined with beta plane model (makes no sense)")
+                #Generate coordinates for all cells, including ghost cells from center to center
+                # [-3/2dx, nx+3/2dx] for ghost_cells_x == 2
+                x = np.linspace((-self.ghost_cells_x+0.5)*self.dx, (self.nx+self.ghost_cells_x-0.5)*self.dx, self.nx+2*self.ghost_cells_x)
+                y = np.linspace((-self.ghost_cells_y+0.5)*self.dy, (self.ny+self.ghost_cells_y-0.5)*self.dy, self.ny+2*self.ghost_cells_x)
+                self.logger.info("Using latitude to create Coriolis f texture ({:f}x{:f} cells)".format(x.size, y.size))
+                x, y = np.meshgrid(x, y)
+                n = x*np.sin(angle[0, 0]) + y*np.cos(angle[0, 0]) #North vector
+                coriolis_f = self.f + self.coriolis_beta*n
+            else:
+                if (self.f.size == 1):
+                    coriolis_f = np.array([[self.f]], dtype=np.float32)
+                elif (self.f.shape == eta0.shape):
+                    coriolis_f = np.array(self.f, dtype=np.float32)
+                else:
+                    raise RuntimeError("The shape of f should match up with eta or be scalar.")
+                
+        if (subsample_f and coriolis_f.size >= eta0.size):
+            self.logger.info("Subsampling coriolis texture by factor " + str(subsample_f))
+            self.logger.warning("This will give inaccurate coriolis along the border!")
+            coriolis_f = subsample_texture(coriolis_f, subsample_f)
+        
+        #Upload data to GPU and bind to texture reference
+        self.coriolis_texref.set_array(cuda.np_to_array(np.ascontiguousarray(coriolis_f, dtype=np.float32), order="C"))
+                    
+        # Set texture parameters
+        self.coriolis_texref.set_filter_mode(cuda.filter_mode.LINEAR) #bilinear interpolation
+        self.coriolis_texref.set_address_mode(0, cuda.address_mode.CLAMP) #no indexing outside domain
+        self.coriolis_texref.set_address_mode(1, cuda.address_mode.CLAMP)
+        self.coriolis_texref.set_flags(cuda.TRSF_NORMALIZED_COORDINATES) #Use [0, 1] indexing
+        
         
 
         # Small scale perturbation:
@@ -291,17 +364,17 @@ class CDKLM16(Simulator.Simulator):
         
         # Data assimilation model step size
         self.model_time_step = model_time_step
+        self.total_time_steps = 0
         if model_time_step is None:
             self.model_time_step = self.dt
-        self.total_time_steps = 0
-        
+            
         
         if self.write_netcdf:
             self.sim_writer = SimWriter.SimNetCDFWriter(self, filename=netcdf_filename, ignore_ghostcells=self.ignore_ghostcells, \
                                     offset_x=self.offset_x, offset_y=self.offset_y)
 
         # Update timestep if dt is given as zero
-        if self.dt == 0:
+        if self.dt <= 0:
             self.updateDt()
         
         
@@ -378,7 +451,7 @@ class CDKLM16(Simulator.Simulator):
             'theta': sim_reader.get("minmod_theta"),
             'rk_order': sim_reader.get("time_integrator"),
             'coriolis_beta': sim_reader.get("coriolis_beta"),
-            'y_zero_reference_cell': sim_reader.get("y_zero_reference_cell"),
+            # 'y_zero_reference_cell': sim_reader.get("y_zero_reference_cell"), # TODO - UPDATE WITH NEW API
             'write_netcdf': cont_write_netcdf,
             'use_lcg': use_lcg,
             'netcdf_filename': new_netcdf_filename
@@ -443,7 +516,7 @@ class CDKLM16(Simulator.Simulator):
                 cuda.memcpy_htod_async(int(self.wind_stress_dev), new_wind_stress.tostruct(), stream=self.gpu_stream)
                 
             # Calculate dt if using automatic dt
-            if (self.dt <= 0 or update_dt):
+            if (update_dt):
                 self.updateDt()
             local_dt = np.float32(min(self.dt, np.float32(t_end - t_now)))
             
@@ -510,13 +583,8 @@ class CDKLM16(Simulator.Simulator):
                         self.gpu_data.h0, self.gpu_data.hu0, self.gpu_data.hv0)
             
             # Evolve drifters
-            if self.hasDrifters:
-                self.drifters.drift(self.gpu_data.h0, self.gpu_data.hu0, \
-                                    self.gpu_data.hv0, \
-                                    np.float32(self.constant_equilibrium_depth), \
-                                    self.nx, self.ny, self.dx, self.dy, \
-                                    local_dt, \
-                                    np.int32(2), np.int32(2))
+            self.drifterStep(local_dt)
+            
             self.t += np.float64(local_dt)
             t_now += np.float64(local_dt)
             self.num_iterations += 1
@@ -526,6 +594,18 @@ class CDKLM16(Simulator.Simulator):
             
         return self.t
 
+    def drifterStep(self, dt):
+        # Evolve drifters
+        if self.hasDrifters:
+            self.drifters.drift(self.gpu_data.h0, self.gpu_data.hu0, \
+                                self.gpu_data.hv0, \
+                                self.bathymetry.Bm, \
+                                self.nx, self.ny, self.dx, self.dy, \
+                                dt, \
+                                np.int32(2), np.int32(2))
+            self.drifter_t += dt
+            return self.drifter_t
+        
 
     def callKernel(self, \
                    h_in, hu_in, hv_in, \
@@ -541,14 +621,7 @@ class CDKLM16(Simulator.Simulator):
         boundary_conditions = boundary_conditions | np.int8(self.boundary_conditions.west) << 0
 
         self.cdklm_swe_2D.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
-                           self.nx, self.ny, \
-                           self.dx, self.dy, local_dt, \
-                           self.g, \
-                           self.theta, \
-                           self.f, \
-                           self.coriolis_beta, \
-                           self.r, \
-                           self.rk_order, \
+                           local_dt, \
                            np.int32(rk_step), \
                            h_in.data.gpudata, h_in.pitch, \
                            hu_in.data.gpudata, hu_in.pitch, \
@@ -564,7 +637,8 @@ class CDKLM16(Simulator.Simulator):
             
     
     def perturbState(self, q0_scale=1):
-        self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
+        if self.small_scale_perturbation:
+            self.small_scale_model_error.perturbSim(self, q0_scale=q0_scale)
     
     def applyBoundaryConditions(self):
         self.bc_kernel.boundaryCondition(self.gpu_stream, \
@@ -691,6 +765,15 @@ class CDKLM16(Simulator.Simulator):
                self.interior_domain_indices[3]:self.interior_domain_indices[1]]
                
         return [Bi, Bm]
+    
+    def getLandMask(self, interior_domain_only=True):
+        if self.gpu_data.h0.mask is None:
+            return None
+        
+        if interior_domain_only:
+            return self.gpu_data.h0.mask[2:-2,2:-2]
+        else:
+            return self.gpu_data.h0.mask
     
     def downloadDt(self):
         return self.device_dt.download(self.gpu_stream)

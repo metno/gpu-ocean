@@ -112,7 +112,7 @@ class MyIPythonMagic(Magics):
     @magic_arguments.argument(
         '--level', '-l', type=int, default=20, help='The level of logging to screen [0, 50]')
     @magic_arguments.argument(
-        '--file_level', '-f', type=int, default=10, help='The level of logging to file [0, 50]')
+        '--file_level', '-f', type=int, default=51, help='The level of logging to file [0, 50]')
     def setup_logging(self, line):
         """
         The following logging levels are defined by the logging library:
@@ -149,18 +149,21 @@ class MyIPythonMagic(Magics):
             logger.log(args.level, "Console logger using level %s", logging.getLevelName(args.level))
             
             #Get the outfilename (try to evaluate if Python expression...)
-            try:
-                outfile = eval(args.out, self.shell.user_global_ns, self.shell.user_ns)
-            except:
-                outfile = args.out
-            
-            #Add log to file
-            logger.log(args.level, "File logger using level %s to %s", logging.getLevelName(args.file_level), outfile)
-            fh = logging.FileHandler(outfile)
-            formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s: %(message)s')
-            fh.setFormatter(formatter)
-            fh.setLevel(args.file_level)
-            logger.addHandler(fh)
+            if (args.file_level <= 50):
+                try:
+                    outfile = eval(args.out, self.shell.user_global_ns, self.shell.user_ns)
+                except:
+                    outfile = args.out
+
+                #Add log to file
+                logger.log(args.level, "File logger using level %s to %s", logging.getLevelName(args.file_level), outfile)
+                fh = logging.FileHandler(outfile)
+                formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s: %(message)s')
+                fh.setFormatter(formatter)
+                fh.setLevel(args.file_level)
+                logger.addHandler(fh)
+            else:
+                logger.log(args.level, "File logger disabled")
         
         logger.info("Python version %s", sys.version)
 

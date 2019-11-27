@@ -165,7 +165,14 @@ class BaseOceanStateEnsemble(object):
         Observing the drifters in the syntetic true state.
         """
         raise NotImplementedError("This function must be implemented in child class")
-    
+        
+        
+    def setTrueDrifterPositions(self, newPositions):
+        """
+        Manipulate the position of the true drifters.
+        """
+        #self.particles[self.obs_index].drifters.setDrifterPositions(newPositions)
+        raise NotImplementedError("This function must be implemented in child class")
         
                              
     @abc.abstractmethod        

@@ -5,7 +5,8 @@ This software is part of GPU Ocean.
 
 Copyright (C) 2019 SINTEF Digital
 
-This python program is used to set up data assimilation experiments.
+This python program is used to set up and run a data-assimilation 
+and drift trajectory forecasting experiment.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -45,7 +46,7 @@ parser.add_argument('--observation_interval', type=int, default=1)
 parser.add_argument('--observation_variance', type=float, default=1.0)
 parser.add_argument('--observation_type', type=str, default='drifters')
 parser.add_argument('--buoy_area', type=str, default='all')
-parser.add_argument('--media_dir', type=str, default='/media/havahol/Seagate Backup Plus Drive/gpu_ocean/')
+parser.add_argument('--media_dir', type=str, default='forecasting_results/')
 
 parser.add_argument('--num_days', type=int, default=7) 
 parser.add_argument('--num_hours', type=int, default=24) 
@@ -67,13 +68,13 @@ profiling = args.profiling
 ###-----------------------------------------
 ## Define files for ensemble and truth.
 ##
-ensemble_init_path = os.path.abspath('double_jet_ensemble_init/')
-assert len(os.listdir(ensemble_init_path)) == 102, "Ensemble init folder has wrong number of files: " + str(len(os.listdir(ensemble_init_path)))
+ensemble_init_path = os.path.abspath('../presented_data/ensemble_init/')
+assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101, \
+    "Ensemble init folder has wrong number of files: " + str(len(os.listdir(ensemble_init_path)))
 
-#truth_path = os.path.abspath('double_jet_truth/')
-truth_path = os.path.abspath('truth_2019_06_25-10_53_32/')
-#truth_path = os.path.abspath('truth_2019_05_29-13_49_08/')
-assert len(os.listdir(truth_path)) == 4, "Truth folder has wrong number of files"
+truth_path = os.path.abspath('../presented_data/true_state/')
+assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3, \
+    "Truth folder has wrong number of files"
 
 
 timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
@@ -139,6 +140,7 @@ end_time        = 13*24*60*60 # 13 days
 # Based on truth from June 25th 2019
 drifterSet = [ 2,  7, 12, 24, 29, 35, 41, 48, 53, 60]
 
+# Log extra information for the ensemble state for the following cells:
 extraCells = np.array([[254, 241], # Cross with two trajectories
                        [249, 246], # northwest of above
                        [259, 236], # southeast of above
@@ -159,7 +161,7 @@ tic = time.time()
 # For GPU contex:
 from SWESimulators import Common
 # For the ensemble:
-from SWESimulators import EnsembleFromFiles, Observation, ParticleInfo
+from SWESimulators import EnsembleFromFiles, Observation
 # For data assimilation:
 from SWESimulators import IEWPFOcean
 # For forcasting:

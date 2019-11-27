@@ -89,17 +89,18 @@ __global__ void initBm(const int nx_, const int ny_,
         const float c = Bi[ty][tx+1];
         const float d = Bi[ty+1][tx+1];
         
-        const bool masked = (a == CDKLM_DRY_FLAG) &&
-                            (b == CDKLM_DRY_FLAG) &&
-                            (c == CDKLM_DRY_FLAG) &&
+        const float wet_count = 4.0f - 
+                            (a == CDKLM_DRY_FLAG) -
+                            (b == CDKLM_DRY_FLAG) -
+                            (c == CDKLM_DRY_FLAG) -
                             (d == CDKLM_DRY_FLAG);
         
         // Set completely dry cells to land_value_
-        if (masked) {
+        if (wet_count == 0.0) {
             Bm_row[ti] = land_value_;
         }
         else {
-            Bm_row[ti] = 0.25f * (a+b+c+d);
+            Bm_row[ti] = (a+b+c+d) / (wet_count);
         }
     }
 }
