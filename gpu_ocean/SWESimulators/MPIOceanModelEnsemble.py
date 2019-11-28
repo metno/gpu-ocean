@@ -60,7 +60,6 @@ class MPIOceanModelEnsemble:
         assert(observation_file is not None)
         assert('observation_variance' in ensemble_args.keys())
         
-        
         #Broadcast general information about ensemble
         ##########################
         self.comm = comm
@@ -70,14 +69,27 @@ class MPIOceanModelEnsemble:
         self.local_ensemble_size = local_ensemble_size
         self.local_ensemble_size = self.comm.bcast(self.local_ensemble_size, root=0)
         
-        # Ensure all particles in all processes use the same timestamp (common for each EPS run)
+        # Ensure all particles in all processes use the same timestamp and writes to the same super dir (common for each EPS run)
         if (self.comm.rank == 0):
-            timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
-            timestamp_short = datetime.datetime.now().strftime("%Y_%m_%d")
-            netcdf_filename = timestamp + ".nc"
+            self.timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
+            self.timestamp_short = datetime.datetime.now().strftime("%Y_%m_%d")
+            netcdf_filename = self.timestamp + ".nc"
+            
+            if "SLURM_JOB_ID" in os.environ:
+                job_id = int(os.environ["SLURM_JOB_ID"])
+                self.super_dir_name = "EPS_" + str(job_id) + "_" + self.timestamp
+            else:
+                self.super_dir_name = "EPS_" + self.timestamp
+            os.makedirs(self.super_dir_name, exist_ok=True)
         else:
+            self.timestamp = None
+            self.timestamp_short = None
             netcdf_filename = None
+            self.super_dir_name = None
+        self.timestamp = self.comm.bcast(self.timestamp, root=0)
+        self.timestamp_short = self.comm.bcast(self.timestamp_short, root=0)
         netcdf_filename = self.comm.bcast(netcdf_filename, root=0)
+        self.super_dir_name = self.comm.bcast(self.super_dir_name, root=0)
         
         
         #Broadcast initial conditions for simulator
@@ -140,7 +152,8 @@ class MPIOceanModelEnsemble:
                             self.gpu_ctx, self.sim_args, self.data_args, 
                             self.local_ensemble_size,
                             **ensemble_args,
-                            netcdf_filename=netcdf_filename, rank=self.comm.rank)
+                            super_dir_name=self.super_dir_name, netcdf_filename=netcdf_filename, 
+                            rank=self.comm.rank)
         
         
         
@@ -409,20 +422,12 @@ class MPIOceanModelEnsemble:
         """
         assert(self.ensemble.particleInfos[0] is not None), 'particleInfos[0] is None, and dumpParticleInfosToFile was called... This should not happend.'
         
-        timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
-        timestamp_short = datetime.datetime.now().strftime("%Y_%m_%d")
-
-        dir_name = prefix + "_" + timestamp_short
+        dir_name = prefix + "_" + self.timestamp_short
+        dir_name = os.path.join(self.super_dir_name, dir_name)
         
-        if not os.path.isdir(dir_name) and self.comm.rank == 0:
-            os.makedirs(dir_name)
-        else:
-            while True:
-                if os.path.isdir(dir_name):
-                    break
-                time.sleep(1)
+        os.makedirs(dir_name, exist_ok=True)
         
-        filename_prefix = prefix + "_" + timestamp + "_" + str(self.comm.rank)
+        filename_prefix = prefix + "_" + self.timestamp + "_" + str(self.comm.rank)
         
         self.ensemble.dumpParticleInfosToFiles(os.path.join(dir_name, filename_prefix))
         
@@ -431,21 +436,13 @@ class MPIOceanModelEnsemble:
         Default file name of dump will be forecast_particle_info_YYYY_mm_dd-HH_MM_SS_{rank}_{local_particle_id}.bz2
         """
         assert(self.ensemble.drifterForecast[0] is not None), ' drifterForecast[0] is None, and dumpDrifterForecastToFiles was called... This should not happend.'
-        
-        timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
-        timestamp_short = datetime.datetime.now().strftime("%Y_%m_%d")
 
-        dir_name = prefix + "_" + timestamp_short
+        dir_name = prefix + "_" + self.timestamp_short
+        dir_name = os.path.join(self.super_dir_name, dir_name)
         
-        if not os.path.isdir(dir_name) and self.comm.rank == 0:
-            os.makedirs(dir_name)
-        else:
-            while True:
-                if os.path.isdir(dir_name):
-                    break
-                time.sleep(1)
+        os.makedirs(dir_name, exist_ok=True)
         
-        filename_prefix = prefix + "_" + timestamp + "_" + str(self.comm.rank)
+        filename_prefix = prefix + "_" + self.timestamp + "_" + str(self.comm.rank)
         
         self.ensemble.dumpDrifterForecastToFiles(os.path.join(dir_name, filename_prefix))
         
