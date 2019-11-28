@@ -35,7 +35,8 @@ class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     def __init__(self, gpu_ctx, sim_args, data_args, numParticles,
                  observation_variance = 0.01**2, 
                  initialization_variance_factor_ocean_field = 0.0,
-                 netcdf_filename=None, rank=0):
+                 super_dir_name=None, netcdf_filename=None,
+                 rank=0):
         """
         Constructor which creates numParticles slighly different ocean models
         based on the same initial conditions
@@ -69,7 +70,8 @@ class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.particleInfos = [None] * numParticles
         self.drifterForecast = [None] * numParticles
         for i in range(numParticles):
-            self.particles[i] = CDKLM16.CDKLM16(self.gpu_ctx, **self.sim_args, **data_args, local_particle_id=i, netcdf_filename=netcdf_filename)
+            self.particles[i] = CDKLM16.CDKLM16(self.gpu_ctx, **self.sim_args, **data_args, local_particle_id=i, 
+                                                super_dir_name=super_dir_name, netcdf_filename=netcdf_filename)
             self.particleInfos[i] = ParticleInfo.ParticleInfo()
                     
             if self.initialization_variance_factor_ocean_field != 0.0:
@@ -156,7 +158,7 @@ class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
     def dumpParticleInfosToFiles(self, filename_prefix):
         """
-        File name of dump will be {path_prefix}_{local_particle_id}.bz2
+        Default file name of dump will be particle_info_YYYY_mm_dd-HH_MM_SS_{rank}_{local_particle_id}.bz2
         """
         for p in range(self.getNumParticles()):
             filename = filename_prefix + "_" + str(p) + ".bz2"
@@ -164,7 +166,7 @@ class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             
     def dumpDrifterForecastToFiles(self, filename_prefix):
         """
-        File name of dump will be {path_prefix}_{local_particle_id}.bz2
+        Default file name of dump will be forecast_particle_info_YYYY_mm_dd-HH_MM_SS_{rank}_{local_particle_id}.bz2
         """
         for p in range(self.getNumParticles()):
             filename = filename_prefix + "_" + str(p) + ".bz2"

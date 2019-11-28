@@ -210,7 +210,7 @@ if __name__ == "__main__":
                 "small_scale_perturbation_interpolation_factor": 1,
                 "subsample_angle": None,
                 "subsample_f": None,
-                "write_netcdf": True,
+                "write_netcdf": False,
             }
             
             kwargs['data_args'] = data_args
@@ -254,8 +254,8 @@ if __name__ == "__main__":
         print("Forecast loop on rank " + str(MPI.COMM_WORLD.rank) + " finished in " + str(total) + " s")
         
         # Write to files
-        ensemble.dumpParticleInfosToFiles("particle_info")
-        ensemble.dumpDrifterForecastToFiles("forecast_particle_info")
+        ensemble.dumpParticleInfosToFiles()
+        ensemble.dumpDrifterForecastToFiles()
         
         # Handle CUDA context when exiting python
         import atexit
