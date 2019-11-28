@@ -422,7 +422,7 @@ class MPIOceanModelEnsemble:
         """
         assert(self.ensemble.particleInfos[0] is not None), 'particleInfos[0] is None, and dumpParticleInfosToFile was called... This should not happend.'
         
-        dir_name = prefix + "_" + self.timestamp_short
+        dir_name = prefix #+ "_" + self.timestamp_short
         dir_name = os.path.join(self.super_dir_name, dir_name)
         
         os.makedirs(dir_name, exist_ok=True)
@@ -431,13 +431,13 @@ class MPIOceanModelEnsemble:
         
         self.ensemble.dumpParticleInfosToFiles(os.path.join(dir_name, filename_prefix))
         
-    def dumpDrifterForecastToFiles(self, prefix="forecast_particle_info"):
+    def dumpDrifterForecastToFiles(self, prefix="forecast_observation_files"):
         """
         Default file name of dump will be forecast_particle_info_YYYY_mm_dd-HH_MM_SS_{rank}_{local_particle_id}.bz2
         """
         assert(self.ensemble.drifterForecast[0] is not None), ' drifterForecast[0] is None, and dumpDrifterForecastToFiles was called... This should not happend.'
 
-        dir_name = prefix + "_" + self.timestamp_short
+        dir_name = prefix #+ "_" + self.timestamp_short
         dir_name = os.path.join(self.super_dir_name, dir_name)
         
         os.makedirs(dir_name, exist_ok=True)

@@ -199,7 +199,8 @@ def getCaseLocation(casename):
         {'name': 'complete_coast', 'x0':   25, 'x1': 2575, 'y0':   25, 'y1':  875 },
         {'name': 'skagerak',       'x0':  300, 'x1':  600, 'y0':   50, 'y1':  250 },
         {'name': 'oslo',           'x0':  500, 'x1':  550, 'y0':  160, 'y1':  210 },
-        {'name': 'denmark',        'x0':    2, 'x1':  300, 'y0':    2, 'y1':  300 }
+        {'name': 'denmark',        'x0':    2, 'x1':  300, 'y0':    2, 'y1':  300 },
+        {'name': 'lovese',         'x0': 1400, 'x1': 2034, 'y0':  450, 'y1':  769 }
     ]
     use_case = None
     for case in cases:
