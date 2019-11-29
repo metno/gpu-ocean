@@ -29,7 +29,7 @@ import numpy as np
 from mpi4py import MPI
 import gc, os, time
 
-from SWESimulators import OceanModelEnsemble, Common, Observation
+from SWESimulators import OceanModelEnsemble, Common, Observation, OceanStateNoise
 from SWESimulators import DataAssimilationUtils as dautils
 
 
@@ -155,7 +155,12 @@ class MPIOceanModelEnsemble:
                             super_dir_name=self.super_dir_name, netcdf_filename=netcdf_filename, 
                             rank=self.comm.rank)
         
+        self.perturbators = [None]*4
+        self.num_perturbators = 4
+        self._initPerturbators()
         
+        for particle_id in range(len(self.ensemble.particles)):
+            self._perturbParticle(particle_id)
         
         
     def modelStep(self, sub_t):
@@ -448,4 +453,36 @@ class MPIOceanModelEnsemble:
         
     def initDriftersFromObservations(self):
         self.ensemble.attachDrifters(self.observations.get_drifter_position(self.t, applyDrifterSet=False, ignoreBuoys=True))
+        
+        
+    def _initPerturbators(self): 
+        
+        successful_state_noise_objects = 0
+        msg = 'Rank ' + str(self.comm.rank) + ' initialized perturbators with interpolation factors '
+        exception = None
+        for interpolation_factor in [3, 5, 7, 9]:
+            try:
+                self.perturbators[successful_state_noise_objects] = OceanStateNoise.OceanStateNoise.fromsim(self.ensemble.particles[0], 
+                                                                                                            soar_q0=1.0e-5,
+                                                                                                            interpolation_factor=interpolation_factor,
+                                                                                                            use_lcg=True)
+                successful_state_noise_objects += 1
+                msg = msg + str(interpolation_factor) + " "
+            except AssertionError as e:
+                exception = e
+                
+        print(msg)
+        if not (successful_state_noise_objects > 0):
+            print('No perturbators was created')
+            raise exception
+        self.num_perturbators = successful_state_noise_objects
+        
+        
+    def _perturbParticle(self, particle_id):
+        self.perturbators[2].perturbSim(self.ensemble.particles[particle_id])
+        
+        
+        
+        
+        
         

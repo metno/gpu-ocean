@@ -177,9 +177,12 @@ if __name__ == "__main__":
         
         # Time in main loop.
         # Define the simulation time range early so that we know how much BC we must read
-        resampling_times = np.array([1,2,3,4]) * 15*60
-        end_t_forecast = 2 * 60*60
+        #resampling_times = np.array([1,2,3,4]) * 15*60
+        #end_t_forecast = 2 * 60*60
         #resampling_times[0] = 5*60
+        
+        resampling_times = np.array([0])
+        end_t_forecast = 3*60*60
         
         # FIXME: Hardcoded parameters
         observation_type = dautils.ObservationType.StaticBuoys
@@ -220,9 +223,9 @@ if __name__ == "__main__":
                 "dt": dt,
                 "rk_order": 2,
                 "desingularization_eps": 1.0,
-                "small_scale_perturbation": True,
-                "small_scale_perturbation_amplitude": 1.0e-5, #1.0e-5,
-                "small_scale_perturbation_interpolation_factor": 1,
+                "small_scale_perturbation": False,
+                #"small_scale_perturbation_amplitude": 1.0e-5, #1.0e-5,
+                #"small_scale_perturbation_interpolation_factor": 1,
                 "subsample_angle": None,
                 "subsample_f": None,
                 "write_netcdf": False,
@@ -234,7 +237,7 @@ if __name__ == "__main__":
         #Arguments sent to the ensemble (OceanModelEnsemble)
         kwargs['ensemble_args'] = {
             'observation_variance': args.observation_variance, 
-            'initialization_variance_factor_ocean_field': args.initialization_variance_factor_ocean_field
+            #'initialization_variance_factor_ocean_field': args.initialization_variance_factor_ocean_field
         }
             
         #Create ensemble on all nodes
@@ -251,11 +254,14 @@ if __name__ == "__main__":
         if (ensemble.comm.rank == 0):
             print("Will resample at times: ", resampling_times)
             
-        t0 = time.time()
-        dataAssimilationLoop(ensemble, resampling_times)
-        t1 = time.time()
-        total = t1-t0
-        print("Data assimilation loop on rank " + str(MPI.COMM_WORLD.rank) + " finished in " + str(total) + " s")
+        if resampling_times[-1] > 0:
+            t0 = time.time()
+            dataAssimilationLoop(ensemble, resampling_times)
+            t1 = time.time()
+            total = t1-t0
+            print("Data assimilation loop on rank " + str(MPI.COMM_WORLD.rank) + " finished in " + str(total) + " s")
+        else:
+            print("No resampling times found - rank " + str(MPI.COMM_WORLD.rank) + " moving directly to forecast")
         
         ensemble.initDriftersFromObservations()
         
