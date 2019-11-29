@@ -254,7 +254,7 @@ def checkCachedNetCDF(source_url, download_data=True):
         source_url = cache_filenames
     return source_url
 
-def getInitialConditions(source_url, x0, x1, y0, y1, \
+def getInitialConditions(source_url_list, x0, x1, y0, y1, \
                          timestep_indices=None, \
                          land_value=5.0, \
                          iterations=10, \
