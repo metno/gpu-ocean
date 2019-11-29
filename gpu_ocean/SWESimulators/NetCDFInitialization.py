@@ -26,7 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 import numpy as np
-import datetime, os
+import datetime, os, copy
 from netCDF4 import Dataset
 from scipy.ndimage.morphology import binary_erosion, grey_dilation
 
@@ -173,7 +173,12 @@ def getInitialConditionsNorKystCases(source_url, casename, **kwargs):
 
     return getInitialConditions(source_url,  use_case['x0'], use_case['x1'], use_case['y0'], use_case['y1'], **kwargs)
 
-def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land_value=5.0, iterations=10, sponge_cells=[10, 10, 10, 10], erode_land=0):
+def getInitialConditions(source_url, x0, x1, y0, y1, \
+                         timestep_indices=None, \
+                         land_value=5.0, \
+                         iterations=10, \
+                         sponge_cells={'north':20, 'south': 20, 'east': 20, 'west': 20}, \
+                         erode_land=0):
     ic = {}
     
     ### Check if local file exists:
@@ -238,7 +243,7 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     ic['t0'] = t0
     ic['timesteps'] = timesteps
     
-    #Number of cells
+    #Number of cells - FIXME: this is really really misleading!
     ic['sponge_cells'] = sponge_cells
     ic['NX'] = x1 - x0
     ic['NY'] = y1 - y0
@@ -282,8 +287,8 @@ def getInitialConditions(source_url, x0, x1, y0, y1, timestep_indices=None, land
     return ic
 
 
-def rescaleInitialConditions(old_ic, scale):    
-    ic = old_ic.copy()
+def rescaleInitialConditions(old_ic, scale):
+    ic = copy.deepcopy(old_ic)
     
     ic['NX'] = int(old_ic['NX']*scale)
     ic['NY'] = int(old_ic['NY']*scale)
@@ -301,6 +306,11 @@ def rescaleInitialConditions(old_ic, scale):
         _, _, ic['angle'] = OceanographicUtilities.rescaleMidpoints(old_ic['angle'], ic['NX'], ic['NY'])
     if (old_ic['latitude'].shape == old_ic['eta0'].shape):
         _, _, ic['latitude'] = OceanographicUtilities.rescaleMidpoints(old_ic['latitude'], ic['NX'], ic['NY'])
+    
+    #Scale number of sponge cells also
+    for key in ic['boundary_conditions'].spongeCells.keys():
+        ic['boundary_conditions'].spongeCells[key] = np.int32(ic['boundary_conditions'].spongeCells[key]*scale)
+        
     #Not touched:
     #"boundary_conditions": 
     #"boundary_conditions_data": 

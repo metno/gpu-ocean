@@ -821,7 +821,7 @@ class BoundaryConditions:
     """
     def __init__(self, \
                  north=1, east=1, south=1, west=1, \
-                 spongeCells=[0,0,0,0]):
+                 spongeCells={'north':0, 'south': 0, 'east': 0, 'west': 0}):
         """
         There is one parameter for each of the cartesian boundaries.
         Values can be set as follows:
@@ -835,7 +835,11 @@ class BoundaryConditions:
         self.east  = np.int32(east)
         self.south = np.int32(south)
         self.west  = np.int32(west)
-        self.spongeCells = np.int32(spongeCells)
+        self.spongeCells = spongeCells
+        
+        #Quick and dirty make sure sponge cells are int32
+        for key in self.spongeCells.keys():
+            self.spongeCells[key] = np.int32(self.spongeCells[key])
             
         # Checking that periodic boundaries are periodic
         assert not ((self.north == 2 or self.south == 2) and  \
@@ -846,7 +850,11 @@ class BoundaryConditions:
                     'The given periodic boundary conditions are not periodically (east/west)'
 
     def get(self):
-        return [self.north, self.east, self.south, self.west]
+        raise NotImplementedError("get() implementation changed! Change calling code")
+        #Previous code was:
+        #return [self.north, self.east, self.south, self.west]
+        #New code is the following, change code calling this function to support new dict
+        return {'north': self.north, 'south': self.south, 'east': self.east, 'west': self.west}
     
     def getSponge(self):
         return self.spongeCells
@@ -1216,8 +1224,8 @@ class BoundaryConditionsArakawaA:
             self.boundary_conditions.north, self.boundary_conditions.south, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
-            self.boundary_conditions.spongeCells[0], \
-            self.boundary_conditions.spongeCells[2], \
+            self.boundary_conditions.spongeCells['north'], \
+            self.boundary_conditions.spongeCells['south'], \
             h.data.gpudata, h.pitch, \
             u.data.gpudata, u.pitch, \
             v.data.gpudata, v.pitch)                                   
@@ -1228,8 +1236,8 @@ class BoundaryConditionsArakawaA:
             self.boundary_conditions.east, self.boundary_conditions.west, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
-            self.boundary_conditions.spongeCells[1], \
-            self.boundary_conditions.spongeCells[3], \
+            self.boundary_conditions.spongeCells['east'], \
+            self.boundary_conditions.spongeCells['west'], \
             h.data.gpudata, h.pitch, \
             u.data.gpudata, u.pitch, \
             v.data.gpudata, v.pitch)
@@ -1240,8 +1248,8 @@ class BoundaryConditionsArakawaA:
             self.boundary_conditions.north, self.boundary_conditions.south, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
-            self.boundary_conditions.spongeCells[0], \
-            self.boundary_conditions.spongeCells[2], \
+            self.boundary_conditions.spongeCells['north'], \
+            self.boundary_conditions.spongeCells['south'], \
             h.data.gpudata, h.pitch, \
             u.data.gpudata, u.pitch, \
             v.data.gpudata, v.pitch, \
@@ -1253,8 +1261,8 @@ class BoundaryConditionsArakawaA:
             self.boundary_conditions.east, self.boundary_conditions.west, \
             self.nx, self.ny, \
             self.halo_x, self.halo_y, \
-            self.boundary_conditions.spongeCells[1], \
-            self.boundary_conditions.spongeCells[3], \
+            self.boundary_conditions.spongeCells['east'], \
+            self.boundary_conditions.spongeCells['west'], \
             h.data.gpudata, h.pitch, \
             u.data.gpudata, u.pitch, \
             v.data.gpudata, v.pitch, \
