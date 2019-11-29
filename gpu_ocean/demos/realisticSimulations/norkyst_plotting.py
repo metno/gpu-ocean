@@ -316,8 +316,25 @@ def ncAnimation(filename, title=None, movie_frames=None, create_movie=True, fig=
     
     
     
-def refAnimation(source_url, case, movie_frames=None, timestep_indices=None, create_movie=True, fig=None, save_movie=True, **kwargs): 
+def refAnimation(source_url_list, case, movie_frames=None, timestep_indices=None, create_movie=True, fig=None, save_movie=True, **kwargs): 
     
+    if type(source_url_list) is not list:
+        source_url_list = [source_url_list]
+        
+    num_files = len(source_url_list)
+    print('num_files: ', num_files)
+    print('source_url_list')
+    print( source_url_list )
+    
+    
+    # For reading parameters and the first files of data
+    source_url = source_url_list[0]
+    time_offset = 0
+    if not create_movie:
+        source_url = source_url_list[-1]
+        time_offset = (len(source_url_list)-1)*24*3600
+        
+
     #Create figure and plot initial conditions
     if fig is None:
         fig = plt.figure(figsize=(14, 4))
@@ -335,7 +352,6 @@ def refAnimation(source_url, case, movie_frames=None, timestep_indices=None, cre
             timestep_indices = [timestep_indices[0]] + [timestep_indices[-1]]
             
         t0 = min(timesteps)
-        timesteps = timesteps - t0
         
         H_m = ncfile.variables['h'][case['y0']:case['y1'], case['x0']:case['x1']]
         eta = ncfile.variables['zeta'][timestep_indices[:], case['y0']:case['y1'], case['x0']:case['x1']]
@@ -350,10 +366,47 @@ def refAnimation(source_url, case, movie_frames=None, timestep_indices=None, cre
         for i in range(len(timestep_indices[:])):
             hu[i] = hu[i] * (H_m + eta[i])
             hv[i] = hv[i] * (H_m + eta[i])
+            
+        print('got data from the first file. eta.shape: ', eta.shape)
+        
     except Exception as e:
         raise e
     finally:
         ncfile.close()
+
+    # Read additional files
+    if create_movie:
+        for i in range(1, num_files):
+            try:
+                ncfile = Dataset(source_url_list[i])
+                
+                if (timestep_indices is not None):
+                    timesteps_i = ncfile.variables['time'][timestep_indices[:]]
+                else:
+                    timesteps_i = ncfile.variables['time'][:]
+                    
+                t0 = min(t0, min(timesteps_i))
+                
+                eta_i = ncfile.variables['zeta'][timestep_indices[:], case['y0']:case['y1'], case['x0']:case['x1']]
+                hu_i = ncfile.variables['ubar'][timestep_indices[:], case['y0']:case['y1'], case['x0']:case['x1']]
+                hv_i = ncfile.variables['vbar'][timestep_indices[:], case['y0']:case['y1'], case['x0']:case['x1']]
+                
+                for j in range(len(timestep_indices[:])):
+                    hu_i[j] = hu_i[j] * (H_m + eta_i[j])
+                    hv_i[j] = hv_i[j] * (H_m + eta_i[j])
+            except Exception as e:
+                raise e
+            finally:
+                ncfile.close()
+                
+            eta = np.concatenate((eta, eta_i))
+            hu  = np.concatenate((hu, hu_i))
+            hv  = np.concatenate((hv, hv_i))
+            timesteps = np.concatenate((timesteps,  timesteps_i))
+            
+            print('got data from additional file. eta.shape: ', eta.shape)
+
+    timesteps = timesteps - t0 + time_offset
 
     if movie_frames is None:
         movie_frames = len(timestep_indices)
@@ -386,6 +439,7 @@ def refAnimation(source_url, case, movie_frames=None, timestep_indices=None, cre
     def animate(i):
         t_now = timesteps[0] + (i / (movie_frames-1)) * (timesteps[-1] - timesteps[0]) 
         
+
         k = np.searchsorted(timesteps, t_now)
         if (k >= eta.shape[0]):
             k = eta.shape[0] - 1
@@ -416,3 +470,145 @@ def refAnimation(source_url, case, movie_frames=None, timestep_indices=None, cre
     else:
         plt.close(fig)
         return anim
+        
+        
+def animateWind(wind_source, create_movie=True):
+    time = wind_source.t
+    
+    max_stress = max(np.max(np.abs(wind_source.X)), np.max(np.abs(wind_source.Y)))
+    wind_stress = np.sqrt(wind_source.X**2, wind_source.Y**2)
+
+    fig = plt.figure(figsize=(12,3))
+    
+    ax = [None]*3
+    sc = [None]*3
+    
+    ax[0] = plt.subplot(1,3,1)
+    plt.title("Wind stress (total)")
+    sc[0] = plt.imshow(wind_stress[0], origin='lower', vmin=0, cmap='Reds')
+    plt.colorbar(shrink=0.6)
+
+    ax[1] = plt.subplot(1,3,2)
+    plt.title("Wind stress u")
+    sc[1] = plt.imshow(wind_source.X[0], origin='lower', cmap='bwr', vmin=-max_stress, vmax=max_stress)
+    plt.colorbar(shrink=0.6)
+
+    ax[2] = plt.subplot(1,3,3)
+    plt.title("Wind stress v")
+    sc[2] = plt.imshow(wind_source.Y[0], origin='lower', cmap='bwr', vmin=-max_stress, vmax=max_stress)
+    plt.colorbar(shrink=0.6)
+    
+    progress = Common.ProgressPrinter(5)
+    pp = display(progress.getPrintString(0),display_id=True)
+    
+
+    
+    #Helper function which simulates and plots the solution
+    def animate(i):
+        fig.suptitle("Time = {:04.0f} h".format(time[i]/3600), fontsize=18)
+        
+        fig.sca(ax[0])
+        sc[0].set_data(wind_stress[i])
+        
+        fig.sca(ax[1])
+        sc[1].set_data(wind_source.X[i])
+        
+        fig.sca(ax[2])
+        sc[2].set_data(wind_source.Y[i])
+        
+        pp.update(progress.getPrintString(i / (len(time)-1)))
+
+    #Matplotlib for creating an animation
+    if (create_movie):
+        anim = animation.FuncAnimation(fig, animate, range(len(time)), interval=250)
+        plt.close(fig)
+        return anim
+    else:
+        pass
+        
+        
+def bcAnimation(bc_data, x0, x1, y0, y1, create_movie=True, **kwargs):
+    nx = x1-x0
+    ny = y1-y0
+    x_north = np.linspace(x0, x1, nx)
+    y_north = np.linspace(y1, y1, nx)
+
+    x_south = np.linspace(x0, x1, nx)
+    y_south = np.linspace(y0, y0, nx)
+
+    x_east = np.linspace(x1, x1, ny)
+    y_east = np.linspace(y0, y1, ny)
+
+    x_west = np.linspace(x0, x0, ny)
+    y_west = np.linspace(y0, y1, ny)
+    
+    fig = plt.figure(figsize=(12,3))
+    
+    sc = [None]*12
+    ax = [None]*3
+    
+    plt.suptitle("Time t=" + str(bc_data.t[0]/3600) + " h")
+    ax[0] = plt.subplot(1,3,1)
+    plt.title("eta")
+    sc[0] = plt.scatter(x_north, y_north, c=bc_data.north.h[0,:], marker='s', vmax=0.5, vmin=-0.5)
+    sc[1] = plt.scatter(x_south, y_south, c=bc_data.south.h[0,:], marker='s', vmax=0.5, vmin=-0.5)
+    sc[2] = plt.scatter(x_east, y_east, c=bc_data.east.h[0,:], marker='s', vmax=0.5, vmin=-0.5)
+    sc[3] = plt.scatter(x_west, y_west, c=bc_data.west.h[0,:], marker='s', vmax=0.5, vmin=-0.5)
+    plt.axis('image')
+    plt.colorbar(shrink=0.6)
+    
+    ax[1] = plt.subplot(1,3,2)
+    plt.title("hu")
+    sc[4] = plt.scatter(x_north, y_north, c=bc_data.north.hu[0,:], marker='s', vmax=75, vmin=-75)
+    sc[5] = plt.scatter(x_south, y_south, c=bc_data.south.hu[0,:], marker='s', vmax=75, vmin=-75)
+    sc[6] = plt.scatter(x_east, y_east, c=bc_data.east.hu[0,:], marker='s', vmax=75, vmin=-75)
+    sc[7] = plt.scatter(x_west, y_west, c=bc_data.west.hu[0,:], marker='s', vmax=75, vmin=-75)
+    plt.axis('image')
+    plt.colorbar(shrink=0.6)
+    
+    ax[2] = plt.subplot(1,3,3)
+    plt.title("hv")
+    sc[8] = plt.scatter(x_north, y_north, c=bc_data.north.hv[0,:], marker='s', vmax=75, vmin=-75)
+    sc[9] = plt.scatter(x_south, y_south, c=bc_data.south.hv[0,:], marker='s', vmax=75, vmin=-75)
+    sc[10] = plt.scatter(x_east, y_east, c=bc_data.east.hv[0,:], marker='s', vmax=75, vmin=-75)
+    sc[11] = plt.scatter(x_west, y_west, c=bc_data.west.hv[0,:], marker='s', vmax=75, vmin=-75)
+    plt.axis('image')
+    plt.colorbar(shrink=0.6)
+    
+    progress = Common.ProgressPrinter(5)
+    pp = display(progress.getPrintString(0),display_id=True)
+    
+    
+    #Helper function which simulates and plots the solution
+    def animate(i):
+        fig.suptitle("Time = {:04.0f} h".format(bc_data.t[i]/3600), fontsize=18)
+        
+        fig.sca(ax[0])
+        sc[0].set_array(bc_data.north.h[i])
+        sc[1].set_array(bc_data.south.h[i])
+        sc[2].set_array(bc_data.east.h[i])
+        sc[3].set_array(bc_data.west.h[i])
+        
+        fig.sca(ax[1])
+        sc[4].set_array(bc_data.north.hu[i])
+        sc[5].set_array(bc_data.south.hu[i])
+        sc[6].set_array(bc_data.east.hu[i])
+        sc[7].set_array(bc_data.west.hu[i])
+        
+        fig.sca(ax[2])
+        sc[8].set_array(bc_data.north.hv[i])
+        sc[9].set_array(bc_data.south.hv[i])
+        sc[10].set_array(bc_data.east.hv[i])
+        sc[11].set_array(bc_data.west.hv[i])
+
+        pp.update(progress.getPrintString(i / (len(bc_data.t)-1)))
+
+
+    #Matplotlib for creating an animation
+    if (create_movie):
+        anim = animation.FuncAnimation(fig, animate, range(len(bc_data.t)), interval=250)
+        plt.close(fig)
+        return anim
+    else:
+        pass
+        

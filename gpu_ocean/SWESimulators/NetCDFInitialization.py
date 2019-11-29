@@ -33,14 +33,21 @@ from scipy.ndimage.morphology import binary_erosion, grey_dilation
 from SWESimulators import Common, WindStress, OceanographicUtilities
 
 
-def getBoundaryConditionsData(source_url, timestep_indices, timesteps, x0, x1, y0, y1):
+def getBoundaryConditionsData(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1):
     """
     timestep_indices => index into netcdf-array, e.g. [1, 3, 5]
     timestep => time at timestep, e.g. [1800, 3600, 7200]
     """
-    nt = len(timesteps)
+    num_files = len(source_url_list)
+    
+    nt = 0
+    for i in range(num_files):
+        nt += len(timesteps[i])
+    
     if (timestep_indices is None):
-        timestep_indices = range(len(timesteps))
+        timestep_indices = [None]*num_files
+        for i in range(num_files):
+            timestep_indices[i] = range(len(timesteps[i]))
 
     bc_eta = {}
     bc_eta['north'] = np.empty((nt, x1-x0), dtype=np.float32)
@@ -60,45 +67,51 @@ def getBoundaryConditionsData(source_url, timestep_indices, timesteps, x0, x1, y
     bc_hv['east'] = np.empty((nt, y1-y0), dtype=np.float32)
     bc_hv['west'] = np.empty((nt, y1-y0), dtype=np.float32)
     
-    try:
-        ncfile = Dataset(source_url)
+    
+    bc_index = 0
+    for i in range(num_files):
+        try:
+            ncfile = Dataset(source_url_list[i])
 
-        H = ncfile.variables['h'][y0-1:y1+1, x0-1:x1+1]
+            H = ncfile.variables['h'][y0-1:y1+1, x0-1:x1+1]
+            
+            for timestep_index in timestep_indices[i]:
+                zeta = ncfile.variables['zeta'][timestep_index, y0-1:y1+1, x0-1:x1+1]
+                zeta = zeta.filled(0)
+                bc_eta['north'][bc_index] = zeta[-1, 1:-1]
+                bc_eta['south'][bc_index] = zeta[0, 1:-1]
+                bc_eta['east'][bc_index] = zeta[1:-1, -1]
+                bc_eta['west'][bc_index] = zeta[ 1:-1, 0]
 
-        for i, timestep_index in enumerate(timestep_indices):
-            zeta = ncfile.variables['zeta'][timestep_index, y0-1:y1+1, x0-1:x1+1]
-            zeta = zeta.filled(0)
-            bc_eta['north'][i] = zeta[-1, 1:-1]
-            bc_eta['south'][i] = zeta[0, 1:-1]
-            bc_eta['east'][i] = zeta[1:-1, -1]
-            bc_eta['west'][i] = zeta[ 1:-1, 0]
+                h = H + zeta
 
-            h = H + zeta
+                hu = ncfile.variables['ubar'][timestep_index, y0-1:y1+1, x0-1:x1+1]
+                hu = hu.filled(0) #zero on land
+                hu = h*hu
 
-            hu = ncfile.variables['ubar'][timestep_index, y0-1:y1+1, x0-1:x1+1]
-            hu = hu.filled(0) #zero on land
-            hu = h*hu
+                bc_hu['north'][bc_index] = hu[-1, 1:-1]
+                bc_hu['south'][bc_index] = hu[0, 1:-1]
+                bc_hu['east'][bc_index] = hu[1:-1, -1]
+                bc_hu['west'][bc_index] = hu[1:-1, 0]
 
-            bc_hu['north'][i] = hu[-1, 1:-1]
-            bc_hu['south'][i] = hu[0, 1:-1]
-            bc_hu['east'][i] = hu[1:-1, -1]
-            bc_hu['west'][i] = hu[1:-1, 0]
+                hv = ncfile.variables['vbar'][timestep_index, y0-1:y1+1, x0-1:x1+1]
+                hv = hv.filled(0) #zero on land
+                hv = h*hv
 
-            hv = ncfile.variables['vbar'][timestep_index, y0-1:y1+1, x0-1:x1+1]
-            hv = hv.filled(0) #zero on land
-            hv = h*hv
+                bc_hv['north'][bc_index] = hv[-1, 1:-1]
+                bc_hv['south'][bc_index] = hv[0, 1:-1]
+                bc_hv['east'][bc_index] = hv[1:-1, -1]
+                bc_hv['west'][bc_index] = hv[1:-1, 0]
 
-            bc_hv['north'][i] = hv[-1, 1:-1]
-            bc_hv['south'][i] = hv[0, 1:-1]
-            bc_hv['east'][i] = hv[1:-1, -1]
-            bc_hv['west'][i] = hv[1:-1, 0]
+                bc_index = bc_index + 1
+                
 
-    except Exception as e:
-        raise e
-    finally:
-        ncfile.close()
+        except Exception as e:
+            raise e
+        finally:
+            ncfile.close()
 
-    bc_data = Common.BoundaryConditionsData(timesteps, 
+    bc_data = Common.BoundaryConditionsData(np.ravel(timesteps).copy(), 
         north=Common.SingleBoundaryConditionData(bc_eta['north'], bc_hu['north'], bc_hv['north']),
         south=Common.SingleBoundaryConditionData(bc_eta['south'], bc_hu['south'], bc_hv['south']),
         east=Common.SingleBoundaryConditionData(bc_eta['east'], bc_hu['east'], bc_hv['east']),
@@ -107,27 +120,45 @@ def getBoundaryConditionsData(source_url, timestep_indices, timesteps, x0, x1, y
     return bc_data
 
 
-def getWindSourceterm(source_url, timestep_indices, timesteps, x0, x1, y0, y1):
+def getWindSourceterm(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1):
     """
     timestep_indices => index into netcdf-array, e.g. [1, 3, 5]
     timestep => time at timestep, e.g. [1800, 3600, 7200]
     """
     
-    if (timestep_indices is None):
-        timestep_indices = range(len(timesteps))
-        
-    try:
-        ncfile = Dataset(source_url)
-        u_wind = ncfile.variables['Uwind'][timestep_indices, y0:y1, x0:x1]
-        v_wind = ncfile.variables['Vwind'][timestep_indices, y0:y1, x0:x1]
-    except Exception as e:
-        raise e
-    finally:
-        ncfile.close()
-
-    u_wind = u_wind.filled(0)
-    v_wind = v_wind.filled(0)
+    if type(source_url_list) is not list:
+        source_url_list = [source_url_list]
     
+    num_files = len(source_url_list)
+    
+    source_url = source_url_list[0]
+    
+    assert(num_files == len(timesteps)), str(num_files) +' vs '+ str(len(timesteps))
+    
+    if (timestep_indices is None):
+        timestep_indices = [None]*num_files
+        for i in range(num_files):
+            timestep_indices[i] = range(len(timesteps[i]))
+        
+    u_wind_list = [None]*num_files
+    v_wind_list = [None]*num_files
+    
+    for i in range(num_files):
+        try:
+            ncfile = Dataset(source_url_list[i])
+            u_wind_list[i] = ncfile.variables['Uwind'][timestep_indices[i], y0:y1, x0:x1]
+            v_wind_list[i] = ncfile.variables['Vwind'][timestep_indices[i], y0:y1, x0:x1]
+        except Exception as e:
+            raise e
+        finally:
+            ncfile.close()
+
+    u_wind = u_wind_list[0].filled(0)
+    v_wind = v_wind_list[0].filled(0)
+    for i in range(1, num_files):
+        u_wind = np.concatenate((u_wind, u_wind_list[i].filled(0)))
+        v_wind = np.concatenate((v_wind, v_wind_list[i].filled(0)))
+        
     wind_speed = np.sqrt(np.power(u_wind, 2) + np.power(v_wind, 2))
 
     # C_drag as defined by Engedahl (1995)
@@ -147,13 +178,20 @@ def getWindSourceterm(source_url, timestep_indices, timesteps, x0, x1, y0, y1):
     wind_stress_u = wind_stress*u_wind
     wind_stress_v = wind_stress*v_wind
     
-    wind_source = WindStress.WindStress(t=timesteps, X=wind_stress_u, Y=wind_stress_v)
+    wind_source = WindStress.WindStress(t=np.ravel(timesteps).copy(), X=wind_stress_u, Y=wind_stress_v)
     
     return wind_source
 
 def getInitialConditionsNorKystCases(source_url, casename, **kwargs):
     """
     Initial conditions for pre-defined areas within the NorKyst-800 model domain. 
+    """
+    use_case = getCaseLocation(casename)
+    return getInitialConditions(source_url, use_case['x0'], use_case['x1'], use_case['y0'], use_case['y1'], **kwargs)
+
+def getCaseLocation(casename):
+    """
+    Domains for pre-defined areas within the NorKyst-800 model domain. 
     """
     cases = [
         {'name': 'norwegian_sea',  'x0':  900, 'x1': 1400, 'y0':  600, 'y1':  875 },
@@ -171,28 +209,72 @@ def getInitialConditionsNorKystCases(source_url, casename, **kwargs):
 
     assert(use_case is not None), 'Invalid case. Please choose between:\n'+str([case['name'] for case in cases])
 
-    return getInitialConditions(source_url,  use_case['x0'], use_case['x1'], use_case['y0'], use_case['y1'], **kwargs)
+    return use_case
 
-def getInitialConditions(source_url, x0, x1, y0, y1, \
-                         timestep_indices=None, \
-                         land_value=5.0, \
-                         iterations=10, \
-                         sponge_cells={'north':20, 'south': 20, 'east': 20, 'west': 20}, \
-                         erode_land=0):
-    ic = {}
-    
+
+def checkCachedNetCDF(source_url, download_data=True):
+    """ 
+    Checks if the file represented by source_url is available locally already.
+    We search for the file in the working directory, or in a folder called 
+    'netcdf_cache' in the working directory.
+    If download_data is true, it will  download the netcfd file into 'netcdf_cache' 
+    if it is not found locally already.
+    """
     ### Check if local file exists:
     filename = os.path.abspath(os.path.basename(source_url))
     cache_folder='netcdf_cache'
     cache_filename = os.path.abspath(os.path.join(cache_folder,
                                                   os.path.basename(source_url)))
-    
+                                                  
     if (os.path.isfile(filename)):
         source_url = filename
         
     elif (os.path.isfile(cache_filename)):
         source_url = cache_filename
         
+    elif (download_data):
+        import requests
+        download_url = source_url.replace("dodsC", "fileServer")
+
+        req = requests.get(download_url, stream = True)
+        filesize = int(req.headers.get('content-length'))
+
+        progress = Common.ProgressPrinter()
+        pp = display(progress.getPrintString(0),display_id=True)
+        
+        os.makedirs(cache_folder, exist_ok=True)
+
+        print("Downloading data to local file (" + str(filesize // (1024*1024)) + " MB)")
+        with open(cache_filename, "wb") as outfile:
+            for chunk in req.iter_content(chunk_size = 10*1024*1024):
+                if chunk:
+                    outfile.write(chunk)
+                    pp.update(progress.getPrintString(outfile.tell() / filesize))
+
+        source_url = cache_filenames
+    return source_url
+
+def getInitialConditions(source_url, x0, x1, y0, y1, \
+                         timestep_indices=None, \
+                         land_value=5.0, \
+                         iterations=10, \
+                         sponge_cells={'north':20, 'south': 20, 'east': 20, 'west': 20}, \
+                         erode_land=0, 
+                         download_data=True):
+    ic = {}
+    
+    if type(source_url_list) is not list:
+        source_url_list = [source_url_list]
+
+    num_files = len(source_url_list)
+    
+    for i in range(len(source_url_list)):
+       source_url_list[i] = checkCachedNetCDF(source_url_list[i], download_data=download_data)
+    
+    
+        
+    # Read constants and initial values from the first source url
+    source_url = source_url_list[0]
     try:
         ncfile = Dataset(source_url)
         H_m = ncfile.variables['h'][y0-1:y1+1, x0-1:x1+1]
@@ -204,21 +286,45 @@ def getInitialConditions(source_url, x0, x1, y0, y1, \
         x = ncfile.variables['X'][x0:x1]
         y = ncfile.variables['Y'][y0:y1]
         
-        if (timestep_indices is not None):
-            timesteps = ncfile.variables['time'][timestep_indices[:]]
-        else:
-            timesteps = ncfile.variables['time'][:]
-            timestep_indices = range(len(timesteps))
         
     except Exception as e:
         raise e
     finally:
         ncfile.close()
+        
+    # Get time steps:
+    if timestep_indices is None:
+        timestep_indices = [None]*num_files
+    elif type(timestep_indices) is not list:
+        timestep_indices_tmp = [None]*num_files
+        for i in range(num_files):
+            timestep_indices_tmp[i] = timestep_indices
+        timestep_indices = timestep_indices_tmp
+    
+    timesteps = [None]*num_files
+    
+    for i in range(num_files):
+        try:
+            ncfile = Dataset(source_url_list[i])
+            if (timestep_indices[i] is not None):
+                timesteps[i] = ncfile.variables['time'][timestep_indices[i][:]]
+            else:
+                timesteps[i] = ncfile.variables['time'][:]
+                timestep_indices[i] = range(len(timesteps[i]))
+        except Exception as e:
+            print('exception in obtaining timestep for file '+str(i))
+            raise e
+        finally:
+            ncfile.close()
 
     #Generate timesteps in reference to t0
-    t0 = min(timesteps)
+    t0 = timesteps[0][0]
+    for ts in timesteps:
+        t0 = min(t0, min(ts))
+    
     assert(np.all(np.diff(timesteps)>=0))
-    timesteps = timesteps - t0
+    for i in range(num_files):
+        timesteps[i] = timesteps[i] - t0
     
     #Generate intersections bathymetry
     H_m_mask = eta0.mask.copy()
@@ -238,10 +344,6 @@ def getInitialConditions(source_url, x0, x1, y0, y1, \
     eta0 = np.ma.array(eta0.filled(0), mask=eta0.mask.copy())
     hu0 = np.ma.array(h0*u0.filled(0), mask=eta0.mask.copy())
     hv0 = np.ma.array(h0*v0.filled(0), mask=eta0.mask.copy())
-    
-    #Initial reference time and all timesteps
-    ic['t0'] = t0
-    ic['timesteps'] = timesteps
     
     #Spong cells for e.g., flow relaxation boundary conditions
     ic['sponge_cells'] = sponge_cells
@@ -278,14 +380,18 @@ def getInitialConditions(source_url, x0, x1, y0, y1, \
     # ic['f'], ic['coriolis_beta'] = OceanographicUtilities.calcCoriolisParams(OceanographicUtilities.degToRad(latitude[0, 0]))
     
     #Boundary conditions
-    ic['boundary_conditions_data'] = getBoundaryConditionsData(source_url, timestep_indices, timesteps, x0, x1, y0, y1)
+    ic['boundary_conditions_data'] = getBoundaryConditionsData(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1)
     ic['boundary_conditions'] = Common.BoundaryConditions(north=3, south=3, east=3, west=3, spongeCells=sponge_cells)
     
     #Wind stress
-    ic['wind_stress'] = getWindSourceterm(source_url, timestep_indices, timesteps, x0, x1, y0, y1)
+    ic['wind_stress'] = getWindSourceterm(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1)
     
     #Note
-    ic['note'] = datetime.datetime.now().isoformat() + ": Generated from " + source_url
+    ic['note'] = datetime.datetime.now().isoformat() + ": Generated from " + str(source_url_list)
+    
+    #Initial reference time and all timesteps
+    ic['t0'] = t0
+    ic['timesteps'] = np.ravel(timesteps)
     
     return ic
 

@@ -44,7 +44,7 @@ class SimNetCDFWriter:
         offset_x: Offset simulator origo with offset_x*dx in x-dimension, before writing to netCDF. 
         offset_y: Offset simulator origo with offset_y*dy in y-dimension, before writing to netCDF.
     """
-    def __init__(self, sim, filename=None, num_layers=1, staggered_grid=False, \
+    def __init__(self, sim, super_dir_name=None, filename=None, num_layers=1, staggered_grid=False, \
                  ignore_ghostcells=False, \
                  offset_x=0, offset_y=0):
 
@@ -70,8 +70,14 @@ class SimNetCDFWriter:
 
         self.simulator_short = str(sim.__class__.__name__)
 
+        if super_dir_name is not None:
+            self.super_dir_name = super_dir_name
+        else:
+            self.super_dir_name = os.getcwd()
         
         self.dir_name = "netcdf_" + self.timestamp_short + "/"
+        
+        self.dir_name = os.path.join(self.super_dir_name, self.dir_name)
         
         if not filename:
             self.output_file_name = self.dir_name + self.simulator_short + "_" + self.timestamp + ".nc"
@@ -144,13 +150,7 @@ class SimNetCDFWriter:
             
         # Organize directory and create file:
         if(sim.comm):
-            if not os.path.isdir(self.dir_name) and sim.comm.rank == 0:
-                os.makedirs(self.dir_name)
-            else:
-                while True:
-                    if os.path.isdir(self.dir_name):
-                        break
-                    time.sleep(1)
+            os.makedirs(self.dir_name, exist_ok=True)
             if(self.write_parallel):
                 # FIXME: Needs to be updated to handle more than one member/particle per MPI process
                 self.ncfile = Dataset(self.output_file_name,'w', clobber=True, parallel=True)
@@ -158,8 +158,7 @@ class SimNetCDFWriter:
                 self.output_file_name = self.output_file_name.replace('.nc', '_' + str(sim.comm.rank) + '_' + str(sim.local_particle_id) + '.nc')
                 self.ncfile = Dataset(self.output_file_name,'w', clobber=True, parallel=False)
         else:
-            if not os.path.isdir(self.dir_name):
-                os.makedirs(self.dir_name)
+            os.makedirs(self.dir_name, exist_ok=True)
             self.ncfile = Dataset(self.output_file_name,'w', clobber=True, parallel=False)
         self.ncfile.Conventions = "CF-1.4"
         
