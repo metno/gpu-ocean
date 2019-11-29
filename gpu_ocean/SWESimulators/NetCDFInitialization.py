@@ -243,10 +243,13 @@ def getInitialConditions(source_url, x0, x1, y0, y1, \
     ic['t0'] = t0
     ic['timesteps'] = timesteps
     
-    #Number of cells - FIXME: this is really really misleading!
+    #Spong cells for e.g., flow relaxation boundary conditions
     ic['sponge_cells'] = sponge_cells
+    
+    #Number of cells
     ic['NX'] = x1 - x0
     ic['NY'] = y1 - y0
+    
     # Domain size without ghost cells
     ic['nx'] = ic['NX']-4
     ic['ny'] = ic['NY']-4
