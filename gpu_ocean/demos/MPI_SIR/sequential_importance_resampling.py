@@ -177,12 +177,12 @@ if __name__ == "__main__":
         
         # Time in main loop.
         # Define the simulation time range early so that we know how much BC we must read
-        #resampling_times = np.array([1,2,3,4]) * 15*60
-        #end_t_forecast = 2 * 60*60
+        resampling_times = np.array([1,2,3,4,5,6]) * 15*60
+        end_t_forecast = 3 * 60*60
         #resampling_times[0] = 5*60
         
-        resampling_times = np.array([0])
-        end_t_forecast = 3*60*60
+        #resampling_times = np.array([0])
+        #end_t_forecast = 3*60*60
         
         # FIXME: Hardcoded parameters
         observation_type = dautils.ObservationType.StaticBuoys

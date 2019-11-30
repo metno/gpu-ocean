@@ -159,6 +159,7 @@ class MPIOceanModelEnsemble:
         self.num_perturbators = 4
         self._initPerturbators()
         
+        # perturb the initial ensemble
         for particle_id in range(len(self.ensemble.particles)):
             self._perturbParticle(particle_id)
         
@@ -266,7 +267,7 @@ class MPIOceanModelEnsemble:
 
         # Upload new data to the GPU for the right particle
         for local_dst, eta0, hu0, hv0, eta1, hu1, hv1 in receive_data:
-            self.logger.info("Resetting " + str(local_dst))
+            self.logger.info("Uploading new state to local particle " + str(local_dst))
             stream = self.ensemble.particles[local_dst].gpu_stream
             self.ensemble.particles[local_dst].gpu_data.h0.upload(stream, eta0)
             self.ensemble.particles[local_dst].gpu_data.hu0.upload(stream, hu0)
@@ -275,6 +276,10 @@ class MPIOceanModelEnsemble:
             self.ensemble.particles[local_dst].gpu_data.h1.upload(stream, eta1)
             self.ensemble.particles[local_dst].gpu_data.hu1.upload(stream, hu1)
             self.ensemble.particles[local_dst].gpu_data.hv1.upload(stream, hv1)
+            
+            # Perturb newly resampled particle
+            self._perturbParticle(local_dst, stream=stream)
+            
         receive_data = None
         
     def observeTrueDrifters(self):
@@ -463,9 +468,10 @@ class MPIOceanModelEnsemble:
         for interpolation_factor in [3, 5, 7, 9]:
             try:
                 self.perturbators[successful_state_noise_objects] = OceanStateNoise.OceanStateNoise.fromsim(self.ensemble.particles[0], 
-                                                                                                            soar_q0=1.0e-5,
+                                                                                                            soar_q0=0.5e-4,
                                                                                                             interpolation_factor=interpolation_factor,
                                                                                                             use_lcg=True)
+                print('perturbator with interpolation factor '+str(interpolation_factor)+' is '+str(self.perturbators[successful_state_noise_objects].soar_q0))
                 successful_state_noise_objects += 1
                 msg = msg + str(interpolation_factor) + " "
             except AssertionError as e:
@@ -478,9 +484,14 @@ class MPIOceanModelEnsemble:
         self.num_perturbators = successful_state_noise_objects
         
         
-    def _perturbParticle(self, particle_id):
-        self.perturbators[2].perturbSim(self.ensemble.particles[particle_id])
-        
+    #def _perturbParticle(self, particle_id):
+    #    self.perturbators[2].perturbSim(self.ensemble.particles[particle_id])
+
+    def _perturbParticle(self, particle_id, stream=None):
+        perturbator_id = np.random.randint(0, 4)
+        q0_scale = 10*np.random.rand()
+        self.perturbators[perturbator_id].perturbSim(self.ensemble.particles[particle_id], q0_scale=q0_scale, stream=stream)
+
         
         
         
