@@ -166,6 +166,11 @@ if __name__ == "__main__":
     parser.add_argument('--observation_file', type=str, default=None)
     parser.add_argument('--log_file', type=str, default="sequential_importance_resampling.log")
     parser.add_argument('--log_level', type=int, default=20)
+    parser.add_argument('--resampling_frequency_minutes', type=int, default=15)
+    parser.add_argument('--data_assimilation_end_hours', type=int, default=6)
+    parser.add_argument('--forecast_duration_hours', type=int, default=6)
+    
+    
     
     args = parser.parse_args()
     
@@ -178,14 +183,19 @@ if __name__ == "__main__":
         #Test that MPI works
         testMPI()
         
-        # Time in main loop.
-        # Define the simulation time range early so that we know how much BC we must read
-        resampling_times = np.array([1,2,3,4,5,6]) * 15*60
-        end_t_forecast = 3 * 60*60
-        #resampling_times[0] = 5*60
         
-        #resampling_times = np.array([0])
-        #end_t_forecast = 3*60*60
+        # All observation files are sampled on a 5 minute basis
+        assert(args.resampling_frequency_minutes % 5 == 0), 'resampling_frequency_minutes should be a factor of 5'
+        obs_config_observation_interval = int(args.resampling_frequency_minutes / 5) 
+        
+        data_assimilation_end_t = args.data_assimilation_end_hours * 60*60
+        
+        # Make list of resampling times - make sure that we include the end time as well
+        resampling_times = np.arange(args.resampling_frequency_minutes, args.data_assimilation_end_hours*60 + 1, args.resampling_frequency_minutes)*60
+        
+        # Find the end time for the forecast
+        end_t_forecast = resampling_times[-1] + args.forecast_duration_hours * 60*60
+        
         
         # FIXME: Hardcoded parameters
         #observation_type = dautils.ObservationType.StaticBuoys
@@ -253,9 +263,11 @@ if __name__ == "__main__":
         
         #ensemble.setBuoySet([26])
         ensemble.setDrifterSet([11])
+        ensemble.observations.setObservationInterval(obs_config_observation_interval)
         
         for particleInfo in ensemble.ensemble.particleInfos:
             particleInfo.usePredefinedExtraCellsLovese()
+            
         
         
         if (ensemble.comm.rank == 0):
