@@ -31,7 +31,7 @@ import pycuda.driver as cuda
 
 #Import our simulator
 file_dir = os.path.dirname(os.path.realpath(__file__)) 
-sys.path.insert(0, os.path.abspath(os.path.join(file_dir, '../')))
+sys.path.insert(0, os.path.abspath(os.path.join(file_dir, '../../')))
 
 from SWESimulators import CDKLM16, PlotHelper, Common, WindStress, OceanographicUtilities, MPIOceanModelEnsemble, NetCDFInitialization
 from SWESimulators import DataAssimilationUtils as dautils
@@ -175,6 +175,15 @@ if __name__ == "__main__":
         #Test that MPI works
         testMPI()
         
+        # Time in main loop.
+        # Define the simulation time range early so that we know how much BC we must read
+        resampling_times = np.array([1,2,3,4,5,6]) * 15*60
+        end_t_forecast = 3 * 60*60
+        #resampling_times[0] = 5*60
+        
+        #resampling_times = np.array([0])
+        #end_t_forecast = 3*60*60
+        
         # FIXME: Hardcoded parameters
         observation_type = dautils.ObservationType.StaticBuoys
         
@@ -187,16 +196,25 @@ if __name__ == "__main__":
             
             #Initial conditions
             # FIXME: Hardcoded parameters
-            source_url = norkyst800_url = 'https://thredds.met.no/thredds/dodsC/fou-hi/norkyst800m-1h/NorKyst-800m_ZDEPTHS_his.an.2019071600.nc'
-            x0 = 25
-            x1 = 2575
-            y0 = 25
-            y1 = 875
+            casename = 'lovese'
+            source_url = [
+                'https://thredds.met.no/thredds/dodsC/fou-hi/norkyst800m-1h/NorKyst-800m_ZDEPTHS_his.an.2019071600.nc',
+                'https://thredds.met.no/thredds/dodsC/fou-hi/norkyst800m-1h/NorKyst-800m_ZDEPTHS_his.an.2019071700.nc',
+                'https://thredds.met.no/thredds/dodsC/fou-hi/norkyst800m-1h/NorKyst-800m_ZDEPTHS_his.an.2019071800.nc',
+                'https://thredds.met.no/thredds/dodsC/fou-hi/norkyst800m-1h/NorKyst-800m_ZDEPTHS_his.an.2019071900.nc',
+                'https://thredds.met.no/thredds/dodsC/fou-hi/norkyst800m-1h/NorKyst-800m_ZDEPTHS_his.an.2019072000.nc',
+                'https://thredds.met.no/thredds/dodsC/fou-hi/norkyst800m-1h/NorKyst-800m_ZDEPTHS_his.an.2019072100.nc'
+            ]
+            
+            # Reduce to only relevant files:
+            required_num_files = np.int(np.floor(end_t_forecast/(24*60*60) )) + 1
+            source_url = source_url[:required_num_files]
             
             dt = args.dt
             
             t0 = time.time()
-            data_args = NetCDFInitialization.removeMetadata(NetCDFInitialization.getInitialConditionsNorKystCases(source_url, "lofoten"))
+            full_data_args = NetCDFInitialization.getInitialConditionsNorKystCases(source_url, casename)
+            data_args = NetCDFInitialization.removeMetadata(full_data_args)
             t1 = time.time()
             total = t1-t0
             print("Fetched initial conditions in " + str(total) + " s")
@@ -205,9 +223,9 @@ if __name__ == "__main__":
                 "dt": dt,
                 "rk_order": 2,
                 "desingularization_eps": 1.0,
-                "small_scale_perturbation": True,
-                "small_scale_perturbation_amplitude": 1.0e-5, #1.0e-5,
-                "small_scale_perturbation_interpolation_factor": 1,
+                "small_scale_perturbation": False,
+                #"small_scale_perturbation_amplitude": 1.0e-5, #1.0e-5,
+                #"small_scale_perturbation_interpolation_factor": 1,
                 "subsample_angle": None,
                 "subsample_f": None,
                 "write_netcdf": False,
@@ -219,7 +237,7 @@ if __name__ == "__main__":
         #Arguments sent to the ensemble (OceanModelEnsemble)
         kwargs['ensemble_args'] = {
             'observation_variance': args.observation_variance, 
-            'initialization_variance_factor_ocean_field': args.initialization_variance_factor_ocean_field
+            #'initialization_variance_factor_ocean_field': args.initialization_variance_factor_ocean_field
         }
             
         #Create ensemble on all nodes
@@ -231,19 +249,19 @@ if __name__ == "__main__":
         
         ensemble.setBuoySet([26])
         
-        #Run main loop
-        resampling_times = np.array([1,2,3,4]) * 15*60
-        end_t_forecast = 2 * 60*60
-        #resampling_times[0] = 5*60
+        
         
         if (ensemble.comm.rank == 0):
             print("Will resample at times: ", resampling_times)
             
-        t0 = time.time()
-        dataAssimilationLoop(ensemble, resampling_times)
-        t1 = time.time()
-        total = t1-t0
-        print("Data assimilation loop on rank " + str(MPI.COMM_WORLD.rank) + " finished in " + str(total) + " s")
+        if resampling_times[-1] > 0:
+            t0 = time.time()
+            dataAssimilationLoop(ensemble, resampling_times)
+            t1 = time.time()
+            total = t1-t0
+            print("Data assimilation loop on rank " + str(MPI.COMM_WORLD.rank) + " finished in " + str(total) + " s")
+        else:
+            print("No resampling times found - rank " + str(MPI.COMM_WORLD.rank) + " moving directly to forecast")
         
         ensemble.initDriftersFromObservations()
         
