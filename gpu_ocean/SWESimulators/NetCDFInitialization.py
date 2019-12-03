@@ -219,10 +219,10 @@ def in_ipynb():
         cfg = get_ipython().config
         if str(type(get_ipython())) == "<class 'ipykernel.zmqshell.ZMQInteractiveShell'>":
         #if cfg['IPKernelApp']['parent_appname'] == 'ipython-notebook':
-          #print ('Running in ipython notebook env.')
-        return True
-    else:
-        return False
+            #print ('Running in ipython notebook env.')
+            return True
+        else:
+            return False
     except NameError:
         #print ('NOT Running in ipython notebook env.')
         return False
