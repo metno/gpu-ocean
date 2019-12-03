@@ -212,6 +212,20 @@ def getCaseLocation(casename):
 
     return use_case
 
+# Returns True if the current execution context is an IPython notebook, e.g. Jupyter.
+# https://stackoverflow.com/questions/15411967/how-can-i-check-if-code-is-executed-in-the-ipython-notebook
+def in_ipynb():
+    try:
+        cfg = get_ipython().config
+        if str(type(get_ipython())) == "<class 'ipykernel.zmqshell.ZMQInteractiveShell'>":
+        #if cfg['IPKernelApp']['parent_appname'] == 'ipython-notebook':
+            #print ('Running in ipython notebook env.')
+            return True
+        else:
+            return False
+    except NameError:
+        #print ('NOT Running in ipython notebook env.')
+        return False
 
 def checkCachedNetCDF(source_url, download_data=True):
     """ 
@@ -240,8 +254,11 @@ def checkCachedNetCDF(source_url, download_data=True):
         req = requests.get(download_url, stream = True)
         filesize = int(req.headers.get('content-length'))
 
-        progress = Common.ProgressPrinter()
-        pp = display(progress.getPrintString(0),display_id=True)
+        in_pynb = False
+        if(in_pynb()):
+            progress = Common.ProgressPrinter()
+            pp = display(progress.getPrintString(0),display_id=True)
+            in_pynb = True
         
         os.makedirs(cache_folder, exist_ok=True)
 
@@ -250,9 +267,10 @@ def checkCachedNetCDF(source_url, download_data=True):
             for chunk in req.iter_content(chunk_size = 10*1024*1024):
                 if chunk:
                     outfile.write(chunk)
-                    pp.update(progress.getPrintString(outfile.tell() / filesize))
+                    if(in_pynb):
+                        pp.update(progress.getPrintString(outfile.tell() / filesize))
 
-        source_url = cache_filenames
+        source_url = cache_filename
     return source_url
 
 def getInitialConditions(source_url_list, x0, x1, y0, y1, \
