@@ -176,7 +176,36 @@ class Observation:
                                   self.buoy_observations_key: buoy_observations, self.buoy_positions_key: buoy_positions,
                                   self.buoy_obs_errors_key: buoy_obs_errors, self.drifter_obs_errors_key: drifter_obs_errors}
         
+    
+    def add_observations_from_arrays(self, t, x, y):
+        """
+        Takes time, x and y positions as input and feed them into the data frame
         
+        This function can only be called when the data frame is empty
+        """
+        assert(self.get_num_observations() == 0), 'This function can only be called when the Observation data frame is empty'        
+        
+        buoy_positions = None
+        buoy_observations = None
+        buoy_obs_errors = None
+
+        for i in range(len(t)):
+            time = t[i]
+            x_pos = x[:,i]
+            y_pos = y[:,i]
+            
+            assert(self.get_num_observations() == i), 'Something weird happened, and the counter is no longer the same as num observations in the data frame'
+            
+            drifter_positions = np.array([x_pos, y_pos]).transpose()
+            drifter_obs_errors = np.random.normal(size=drifter_positions.shape)
+            
+            self.obs_df.loc[i] = {self.time_key: time, self.drifter_positions_key: drifter_positions,
+                                      self.buoy_observations_key: buoy_observations, self.buoy_positions_key: buoy_positions,
+                                      self.buoy_obs_errors_key: buoy_obs_errors, self.drifter_obs_errors_key: drifter_obs_errors}
+    
+
+
+    
     #########################
     ### CONFIGURATIONS
     ########################
@@ -444,6 +473,7 @@ class Observation:
                 observation[:,2:] += obs_error * self.obs_stddev
         
         return observation
+        
         
         
     def _detect_jump(self, pos0, pos1, jump_limit=100000):
