@@ -12,3 +12,5 @@ numpy
 scipy
 pandas
 tables
+mpi4py
+requests

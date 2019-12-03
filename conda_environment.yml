@@ -16,6 +16,8 @@ dependencies:
 - pandas
 - pytables
 - nb_conda_kernels
+- mpi4py
+- requests
 - pip:
   - pycuda
 # on Windows: make sure your visual studio c++ compiler is available in PATH
