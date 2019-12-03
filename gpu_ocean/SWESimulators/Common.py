@@ -286,9 +286,10 @@ class CUDAContext(object):
     """
     Class which keeps track of the CUDA context and some helper functions
     """
-    def __init__(self, blocking=False, use_cache=True):
+    def __init__(self, device=0, blocking=False, use_cache=True):
         self.blocking = blocking
         self.use_cache = use_cache
+        self.device = device
         self.logger =  logging.getLogger(__name__)
         self.kernels = {}
         
@@ -303,7 +304,7 @@ class CUDAContext(object):
         self.logger.info("CUDA version %s", str(cuda.get_version()))
         self.logger.info("Driver version %s",  str(cuda.get_driver_version()))
 
-        self.cuda_device = cuda.Device(0)
+        self.cuda_device = cuda.Device(device)
         self.logger.info("Using '%s' GPU", self.cuda_device.name())
         self.logger.debug(" => compute capability: %s", str(self.cuda_device.compute_capability()))
         self.logger.debug(" => memory: %d MB", self.cuda_device.total_memory() / (1024*1024))

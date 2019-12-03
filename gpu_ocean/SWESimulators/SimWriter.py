@@ -97,7 +97,6 @@ class SimNetCDFWriter:
         # Simulator info
         self.boundary_conditions = str(sim.boundary_conditions)
         # (machine readable BC)
-        self.boundary_conditions_mr = str(sim.boundary_conditions.get())
         self.boundary_conditions_sponge_mr = str(sim.boundary_conditions.getSponge())
         
         self.dt = sim.dt
@@ -135,15 +134,6 @@ class SimNetCDFWriter:
         self.ghost_cells_south = sim.ghost_cells_y
         self.bottom_friction_r = sim.r
 
-        # If the boundary conditions have required extra ghost cells, we have to change nx, ny, etc.
-        if sim.boundary_conditions.isSponge():
-            nx = nx + 2*sim.ghost_cells_x - sim.boundary_conditions.spongeCells[1] - sim.boundary_conditions.spongeCells[3]
-            ny = ny + 2*sim.ghost_cells_y - sim.boundary_conditions.spongeCells[0] - sim.boundary_conditions.spongeCells[2]
-
-            self.ghost_cells_north = sim.boundary_conditions.spongeCells[0]
-            self.ghost_cells_east  = sim.boundary_conditions.spongeCells[1]
-            self.ghost_cells_south = sim.boundary_conditions.spongeCells[2]
-            self.ghost_cells_west  = sim.boundary_conditions.spongeCells[3]
         self.ghost_cells_tot_y = self.ghost_cells_north + self.ghost_cells_south
         self.ghost_cells_tot_x = self.ghost_cells_east  + self.ghost_cells_west 
             
@@ -169,7 +159,6 @@ class SimNetCDFWriter:
         self.ncfile.staggered_grid = str(self.staggered_grid)
         self.ncfile.simulator_short = self.simulator_short
         self.ncfile.boundary_conditions = self.boundary_conditions
-        self.ncfile.boundary_conditions_mr = self.boundary_conditions_mr
         self.ncfile.boundary_conditions_sponge_mr = self.boundary_conditions_sponge_mr
         self.ncfile.time_integrator = self.time_integrator
         self.ncfile.minmod_theta = self.minmod_theta

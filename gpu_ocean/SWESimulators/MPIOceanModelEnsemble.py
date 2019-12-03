@@ -133,7 +133,7 @@ class MPIOceanModelEnsemble:
         #Create ensemble on local node
         ##############################
         self.logger.info("Creating ensemble with %d members", self.local_ensemble_size)
-        self.gpu_ctx = Common.CUDAContext()
+        self.gpu_ctx = Common.CUDAContext(device=comm.rank)
         
         # DEBUG
         self.sim_args["comm"] = self.comm
