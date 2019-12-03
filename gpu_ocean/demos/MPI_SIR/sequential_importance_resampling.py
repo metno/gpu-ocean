@@ -69,7 +69,7 @@ def generateDrifterPositions(data_args, num_drifters):
 
     return drifters
     
-def dataAssimilationLoop(ensemble, resampling_times):
+def dataAssimilationLoop(ensemble, resampling_times, resampling=True):
     #Perform actual data assimilation        
     t = 0
     
@@ -93,11 +93,12 @@ def dataAssimilationLoop(ensemble, resampling_times):
             #Make ParticleInfo for writing to file 
             ensemble.dumpParticleSample(drifter_cells)
         
-        #Gather the gaussian weights from all nodes to a global vector on rank 0
-        global_normalized_weights = ensemble.getNormalizedWeights()
+        if(resampling):
+            #Gather the gaussian weights from all nodes to a global vector on rank 0
+            global_normalized_weights = ensemble.getNormalizedWeights()
         
-        #Resample the particles
-        ensemble.resampleParticles(global_normalized_weights)
+            #Resample the particles
+            ensemble.resampleParticles(global_normalized_weights)
         
         print(str(ensemble.comm.rank) + ", ", end="", flush=True)
     
@@ -159,6 +160,7 @@ if __name__ == "__main__":
     parser.add_argument('-dt', type=float, default=0.0)
     parser.add_argument('--num_drifters', type=int, default=-1) #TODO: Use only num_drifters of the entries in observation_file
     parser.add_argument('--per_node_ensemble_size', type=int, default=5)
+    parser.add_argument('--no_resampling', action='store_true') # default: False
     parser.add_argument('--observation_variance', type=float, default=1)#0.01**2)
     parser.add_argument('--initialization_variance_factor_ocean_field', type=float, default=0.0)
     parser.add_argument('--observation_file', type=str, default=None)
@@ -169,6 +171,7 @@ if __name__ == "__main__":
     
     logger = setupLogger(args)
     
+    resampling = not args.no_resampling
 
         
     if True:
@@ -185,7 +188,8 @@ if __name__ == "__main__":
         #end_t_forecast = 3*60*60
         
         # FIXME: Hardcoded parameters
-        observation_type = dautils.ObservationType.StaticBuoys
+        #observation_type = dautils.ObservationType.StaticBuoys
+        observation_type = dautils.ObservationType.UnderlyingFlow
         
         kwargs = {}
         #Generate initial conditions on rank 0
@@ -247,8 +251,11 @@ if __name__ == "__main__":
         total = t1-t0
         print("Initialized MPI ensemble on rank " + str(MPI.COMM_WORLD.rank) + " in " + str(total) + " s")
         
-        ensemble.setBuoySet([26])
+        #ensemble.setBuoySet([26])
+        ensemble.setDrifterSet([11])
         
+        for particleInfo in ensemble.ensemble.particleInfos:
+            particleInfo.usePredefinedExtraCellsLovese()
         
         
         if (ensemble.comm.rank == 0):
@@ -256,7 +263,7 @@ if __name__ == "__main__":
             
         if resampling_times[-1] > 0:
             t0 = time.time()
-            dataAssimilationLoop(ensemble, resampling_times)
+            dataAssimilationLoop(ensemble, resampling_times, resampling=resampling)
             t1 = time.time()
             total = t1-t0
             print("Data assimilation loop on rank " + str(MPI.COMM_WORLD.rank) + " finished in " + str(total) + " s")

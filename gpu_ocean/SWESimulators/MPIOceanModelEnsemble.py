@@ -289,6 +289,10 @@ class MPIOceanModelEnsemble:
         self.observations.setBuoySet(buoy_set)
         self.num_drifters = self.observations.get_num_drifters()
         
+    def setDrifterSet(self, drifter_set):
+        self.observations.setDrifterSet(drifter_set)
+        self.num_drifters = self.observations.get_num_drifters()
+        
     def _localGetInnovations(self): 
         #observations is a numpy array with D drifter positions and drifter velocities
         #[[x_1, y_1, hu_1, hv_1], ... , [x_D, y_D, hu_D, hv_D]]

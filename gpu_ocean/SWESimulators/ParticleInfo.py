@@ -119,7 +119,29 @@ class ParticleInfo:
         """
         self.extraCells = extraCells
     
-
+    def usePredefinedExtraCellsLovese(self):
+        # Some hard coded positions that are not on land
+        self.extraCells = np.array([[ 50, 110],
+                            [110, 110],
+                            [170, 110],
+                            [290, 115],
+                            [410, 115],
+                            [470, 120],
+                            [ 50, 155],
+                            [200, 165],
+                            [290, 165],
+                            [350, 155],
+                            [410, 155],
+                            [470, 155],
+                            [ 50, 200],
+                            [110, 200],
+                            [170, 200],
+                            [230, 200],
+                            [290, 200],
+                            [350, 200],
+                            [410, 200],
+                            [470, 200]])
+    
     def usePredefinedExtraCells(self):
         """
         The first ten cells represents cells that are passed by a drifter in the main truth generated on
