@@ -103,10 +103,10 @@ class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     
     
     def modelStep(self, sub_t, rank, update_dt=True):
-        self.logger.debug("Stepping all particles (ocean models) %f in time", sub_t)
         """
         Function which makes all particles step until time t.
         """
+        self.logger.debug("Stepping all particles (ocean models) %f in time", sub_t)
         particle = 0
         for p in self.particles:
             self.t = p.step(sub_t)
@@ -115,6 +115,14 @@ class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                 self.logger.debug("[" + str(rank) + "]: Particle " + str(particle) + " has dt " + str(p.dt))
             particle += 1
         return self.t
+    
+    def updateDt(self):
+        """
+        Function that updates dt for all particles.
+        """
+        self.logger.debug("Updating dt on all particles (ocean models)")
+        for p in self.particles:
+            p.updateDt()
     
     def dumpParticleSample(self, drifter_cells):
         for i in range(self.numParticles):

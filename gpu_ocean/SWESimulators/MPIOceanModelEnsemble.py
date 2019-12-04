@@ -167,9 +167,12 @@ class MPIOceanModelEnsemble:
         self.Hm = self.ensemble.particles[0].downloadBathymetry(interior_domain_only=True)[1]
         assert(self.Hm.shape == (self.data_args["ny"], self.data_args["nx"])), 'Wrong size for self.Hm'
         
-    def modelStep(self, sub_t):
-        self.t = self.ensemble.modelStep(sub_t, self.comm.rank)
+    def modelStep(self, sub_t, update_dt=True):
+        self.t = self.ensemble.modelStep(sub_t, self.comm.rank, update_dt=update_dt)
         return self.t
+        
+    def updateDt(self):
+        self.ensemble.updateDt()
         
         
         
@@ -475,7 +478,7 @@ class MPIOceanModelEnsemble:
         for interpolation_factor in [3, 5, 7, 9]:
             try:
                 self.perturbators[successful_state_noise_objects] = OceanStateNoise.OceanStateNoise.fromsim(self.ensemble.particles[0], 
-                                                                                                            soar_q0=0.5e-4,
+                                                                                                            soar_q0=2.5e-5,
                                                                                                             interpolation_factor=interpolation_factor,
                                                                                                             use_lcg=True)
                 print('perturbator with interpolation factor '+str(interpolation_factor)+' is '+str(self.perturbators[successful_state_noise_objects].soar_q0))

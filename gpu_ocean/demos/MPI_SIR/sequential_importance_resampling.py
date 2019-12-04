@@ -42,7 +42,7 @@ def testMPI():
     print("Hello! I'm rank %d from %d running in total..." % (comm.rank, comm.size))
 
     #Make results deterministic
-    np.random.seed(seed=(42 + comm.rank))
+    #np.random.seed(seed=(42 + comm.rank))
     comm.Barrier()   
     
     
@@ -84,7 +84,7 @@ def dataAssimilationLoop(ensemble, resampling_times, resampling=True):
         sub_steps = int(assimilation_dt // step_size)
         
         for j in range(sub_steps):
-            t = ensemble.modelStep(step_size)
+            t = ensemble.modelStep(step_size, update_dt=False)
             
             # Find latest observed drifters
             obs_index = min(0, np.searchsorted(observation_times, t) - 1)
@@ -100,6 +100,8 @@ def dataAssimilationLoop(ensemble, resampling_times, resampling=True):
             #Resample the particles
             ensemble.resampleParticles(global_normalized_weights)
         
+        ensemble.updateDt()
+        
         print(str(ensemble.comm.rank) + ", ", end="", flush=True)
     
 def forecastLoop(ensemble, end_t):      
@@ -112,7 +114,10 @@ def forecastLoop(ensemble, end_t):
     end_t = np.round(end_t)
     
     for dump_time in range(int(start_t), int(end_t), sub_step_size):
-        t = ensemble.modelStep(sub_step_size)
+        t = ensemble.modelStep(sub_step_size, update_dt=False)
+        
+        if(dump_time % 3600 == 0):
+            ensemble.updateDt()
         
         # Find latest observed drifters
         obs_index = min(0, np.searchsorted(observation_times, t) - 1)
