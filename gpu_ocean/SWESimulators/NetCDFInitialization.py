@@ -254,11 +254,11 @@ def checkCachedNetCDF(source_url, download_data=True):
         req = requests.get(download_url, stream = True)
         filesize = int(req.headers.get('content-length'))
 
-        in_pynb = False
-        if(in_pynb()):
+        is_notebook = False
+        if(in_ipynb()):
             progress = Common.ProgressPrinter()
             pp = display(progress.getPrintString(0),display_id=True)
-            in_pynb = True
+            is_notebook = True
         
         os.makedirs(cache_folder, exist_ok=True)
 
@@ -267,7 +267,7 @@ def checkCachedNetCDF(source_url, download_data=True):
             for chunk in req.iter_content(chunk_size = 10*1024*1024):
                 if chunk:
                     outfile.write(chunk)
-                    if(in_pynb):
+                    if(is_notebook):
                         pp.update(progress.getPrintString(outfile.tell() / filesize))
 
         source_url = cache_filename
