@@ -41,7 +41,7 @@ class Observation:
     
     def __init__(self, observation_type=dautils.ObservationType.UnderlyingFlow,
                  domain_size_x=None, domain_size_y=None, nx=None, ny=None,
-                 observation_variance=0.0,
+                 observation_variance=0.0, observation_interval=1,
                  land_mask=None):
         """
         Class for facilitating drifter observations in files.
@@ -92,7 +92,7 @@ class Observation:
         
         # Configuration parameters:
         self.drifterSet = None
-        self.observationInterval = 1
+        self.observationInterval = observation_interval
         self.obs_var = observation_variance
         self.obs_stddev = np.sqrt(observation_variance)
         self.land_mask = land_mask
@@ -380,6 +380,9 @@ class Observation:
         [[x_1, y_1, hu_1, hv_1], ... , [x_D, y_D, hu_D, hv_D]]
         """
         
+        assert((waterDepth is not None) or (Hm is not None)), \
+            'Observation.get_observation() requires either waterDepth or Hm as input argument. Now, neither is provided'
+        
         # The timestamp is rounded to nearest integer, so that it is possible to compare to 
         # entries in the DataFrame.
         rounded_t = round(t)
@@ -428,18 +431,22 @@ class Observation:
         
         observation = np.zeros((num_drifters, 4))
         observation[:,:2] = current_pos
+
         
-        waterDepths = np.ones(num_drifters)*waterDepth
+        
+        waterDepths = np.empty(num_drifters)
         if Hm is not None:
             # Find cell for current_pos and read Hm[current_pos_cell_y, current_pos_cell_x]
             # instead of waterDepth.
             dx = self.domain_size_x/self.nx
             dy = self.domain_size_y/self.ny
             for d in range(num_drifters):
-                cell_id_x = np.int(np.floor(curent_pos[i,0]/dx))
-                cell_id_y = np.int(np.floor(curent_pos[i,1]/dy))
+                cell_id_x = np.int(np.floor(current_pos[d,0]/dx))
+                cell_id_y = np.int(np.floor(current_pos[d,1]/dy))
                 waterDepths[d] = Hm[cell_id_y, cell_id_x]
-                
+        else:
+            waterDepths = np.ones(num_drifters)*waterDepth
+        
         for d in range(num_drifters):
             observation[d,2:] = u_v[d,:]*waterDepths[d]
         

@@ -69,7 +69,7 @@ def generateDrifterPositions(data_args, num_drifters):
 
     return drifters
     
-def dataAssimilationLoop(ensemble, resampling_times):
+def dataAssimilationLoop(ensemble, resampling_times, resampling=True):
     #Perform actual data assimilation        
     t = 0
     
@@ -93,11 +93,12 @@ def dataAssimilationLoop(ensemble, resampling_times):
             #Make ParticleInfo for writing to file 
             ensemble.dumpParticleSample(drifter_cells)
         
-        #Gather the gaussian weights from all nodes to a global vector on rank 0
-        global_normalized_weights = ensemble.getNormalizedWeights()
+        if(resampling):
+            #Gather the gaussian weights from all nodes to a global vector on rank 0
+            global_normalized_weights = ensemble.getNormalizedWeights()
         
-        #Resample the particles
-        ensemble.resampleParticles(global_normalized_weights)
+            #Resample the particles
+            ensemble.resampleParticles(global_normalized_weights)
         
         print(str(ensemble.comm.rank) + ", ", end="", flush=True)
     
@@ -159,33 +160,46 @@ if __name__ == "__main__":
     parser.add_argument('-dt', type=float, default=0.0)
     parser.add_argument('--num_drifters', type=int, default=-1) #TODO: Use only num_drifters of the entries in observation_file
     parser.add_argument('--per_node_ensemble_size', type=int, default=5)
+    parser.add_argument('--no_resampling', action='store_true') # default: False
     parser.add_argument('--observation_variance', type=float, default=1)#0.01**2)
     parser.add_argument('--initialization_variance_factor_ocean_field', type=float, default=0.0)
     parser.add_argument('--observation_file', type=str, default=None)
     parser.add_argument('--log_file', type=str, default="sequential_importance_resampling.log")
     parser.add_argument('--log_level', type=int, default=20)
+    parser.add_argument('--resampling_frequency_minutes', type=int, default=15)
+    parser.add_argument('--data_assimilation_end_hours', type=int, default=6)
+    parser.add_argument('--forecast_duration_hours', type=int, default=6)
+    
+    
     
     args = parser.parse_args()
     
     logger = setupLogger(args)
     
+    resampling = not args.no_resampling
 
         
     if True:
         #Test that MPI works
         testMPI()
         
-        # Time in main loop.
-        # Define the simulation time range early so that we know how much BC we must read
-        resampling_times = np.array([1,2,3,4,5,6]) * 15*60
-        end_t_forecast = 3 * 60*60
-        #resampling_times[0] = 5*60
         
-        #resampling_times = np.array([0])
-        #end_t_forecast = 3*60*60
+        # All observation files are sampled on a 5 minute basis
+        assert(args.resampling_frequency_minutes % 5 == 0), 'resampling_frequency_minutes should be a factor of 5'
+        obs_config_observation_interval = int(args.resampling_frequency_minutes / 5) 
+        
+        data_assimilation_end_t = args.data_assimilation_end_hours * 60*60
+        
+        # Make list of resampling times - make sure that we include the end time as well
+        resampling_times = np.arange(args.resampling_frequency_minutes, args.data_assimilation_end_hours*60 + 1, args.resampling_frequency_minutes)*60
+        
+        # Find the end time for the forecast
+        end_t_forecast = resampling_times[-1] + args.forecast_duration_hours * 60*60
+        
         
         # FIXME: Hardcoded parameters
-        observation_type = dautils.ObservationType.StaticBuoys
+        #observation_type = dautils.ObservationType.StaticBuoys
+        observation_type = dautils.ObservationType.UnderlyingFlow
         
         kwargs = {}
         #Generate initial conditions on rank 0
@@ -247,8 +261,13 @@ if __name__ == "__main__":
         total = t1-t0
         print("Initialized MPI ensemble on rank " + str(MPI.COMM_WORLD.rank) + " in " + str(total) + " s")
         
-        ensemble.setBuoySet([26])
+        #ensemble.setBuoySet([26])
+        ensemble.setDrifterSet([11])
+        ensemble.observations.setObservationInterval(obs_config_observation_interval)
         
+        for particleInfo in ensemble.ensemble.particleInfos:
+            particleInfo.usePredefinedExtraCellsLovese()
+            
         
         
         if (ensemble.comm.rank == 0):
@@ -256,7 +275,7 @@ if __name__ == "__main__":
             
         if resampling_times[-1] > 0:
             t0 = time.time()
-            dataAssimilationLoop(ensemble, resampling_times)
+            dataAssimilationLoop(ensemble, resampling_times, resampling=resampling)
             t1 = time.time()
             total = t1-t0
             print("Data assimilation loop on rank " + str(MPI.COMM_WORLD.rank) + " finished in " + str(total) + " s")

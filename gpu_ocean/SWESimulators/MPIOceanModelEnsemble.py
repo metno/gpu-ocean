@@ -163,6 +163,9 @@ class MPIOceanModelEnsemble:
         for particle_id in range(len(self.ensemble.particles)):
             self._perturbParticle(particle_id)
         
+        # required when observing drifters
+        self.Hm = self.ensemble.particles[0].downloadBathymetry(interior_domain_only=True)[1]
+        assert(self.Hm.shape == (self.data_args["ny"], self.data_args["nx"])), 'Wrong size for self.Hm'
         
     def modelStep(self, sub_t):
         self.t = self.ensemble.modelStep(sub_t, self.comm.rank)
@@ -282,17 +285,21 @@ class MPIOceanModelEnsemble:
             
         receive_data = None
         
-    def observeTrueDrifters(self):
-        return self.observations.get_observation(self.t, 12414) # FIXME: Use Hm as second arg
+    def observeTrueState(self):
+        return self.observations.get_observation(self.t, Hm=self.Hm)
     
     def setBuoySet(self, buoy_set):
         self.observations.setBuoySet(buoy_set)
         self.num_drifters = self.observations.get_num_drifters()
         
+    def setDrifterSet(self, drifter_set):
+        self.observations.setDrifterSet(drifter_set)
+        self.num_drifters = self.observations.get_num_drifters()
+        
     def _localGetInnovations(self): 
         #observations is a numpy array with D drifter positions and drifter velocities
         #[[x_1, y_1, hu_1, hv_1], ... , [x_D, y_D, hu_D, hv_D]]
-        observations = self.observeTrueDrifters()
+        observations = self.observeTrueState()
         
         #for particle in self.ensemble.particles:
         #    particle.writeState()
