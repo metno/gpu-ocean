@@ -300,11 +300,16 @@ class CUDAContext(object):
         
         self.logger.info("PyCUDA version %s", str(pycuda.VERSION_TEXT))
         
+        # Check that the device id is valid
+        if self.device >= cuda.Device.count():
+            self.device = self.device % cuda.Device.count()
+            print('Changing device ID from ' + str(device) + ' to ' + str(self.device))
+        
         #Print some info about CUDA
         self.logger.info("CUDA version %s", str(cuda.get_version()))
         self.logger.info("Driver version %s",  str(cuda.get_driver_version()))
 
-        self.cuda_device = cuda.Device(device)
+        self.cuda_device = cuda.Device(self.device)
         self.logger.info("Using '%s' GPU", self.cuda_device.name())
         self.logger.debug(" => compute capability: %s", str(self.cuda_device.compute_capability()))
         self.logger.debug(" => memory: %d MB", self.cuda_device.total_memory() / (1024*1024))
