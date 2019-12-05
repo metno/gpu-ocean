@@ -98,7 +98,7 @@ def dataAssimilationLoop(ensemble, resampling_times, resampling=True):
             global_normalized_weights = ensemble.getNormalizedWeights()
         
             #Resample the particles
-            ensemble.resampleParticles(global_normalized_weights)
+            ensemble.resampleParticles(global_normalized_weights, write_to_file=True)
         
         ensemble.updateDt()
         
