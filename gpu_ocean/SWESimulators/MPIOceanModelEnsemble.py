@@ -48,7 +48,7 @@ class MPIOceanModelEnsemble:
                  observation_file, observation_type=dautils.ObservationType.UnderlyingFlow,
                  local_ensemble_size=None, 
                  sim_args={}, data_args={},
-                 ensemble_args={}):
+                 ensemble_args={}, metadata={}):
         """
         Initialize the ensemble. Only rank 0 should receive the optional arguments.
         The constructor handles initialization across nodes
@@ -84,17 +84,20 @@ class MPIOceanModelEnsemble:
             os.makedirs(self.super_dir_name, exist_ok=True)
             
             # Write some useful metadata file
-            metadata = {}
-            metadata["id"] = self.super_dir_name
-            metadata["timestamp"] = self.timestamp
-            metadata["num_rank"] = self.comm.size
-            metadata["local_ensemble_size"] = self.local_ensemble_size
-            metadata["timestamp"] = self.timestamp
-            metadata["observation_variance"] = ensemble_args["observation_variance"]
-            metadata["timestamp"] = self.timestamp
+            write_metadata = {}
+            import subprocess
+            write_metadata["git_revision"] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=os.path.dirname(__file__)).strip().decode()
+            write_metadata["id"] = self.super_dir_name
+            write_metadata["timestamp"] = self.timestamp
+            write_metadata["num_rank"] = self.comm.size
+            write_metadata["local_ensemble_size"] = self.local_ensemble_size
+            write_metadata["global_ensemble_size"] = self.local_ensemble_size * self.comm.size
+            write_metadata["observation_variance"] = ensemble_args["observation_variance"]
+            for k, v in metadata.items():
+                write_metadata[k] = v
             metadata_file = os.path.join(self.super_dir_name, self.super_dir_name + "_metadata.json")
             with open(metadata_file, "w") as write_file:
-                json.dump(metadata, write_file)
+                json.dump(write_metadata, write_file)
         else:
             self.timestamp = None
             self.timestamp_short = None
