@@ -28,6 +28,7 @@ import logging
 import numpy as np
 from mpi4py import MPI
 import gc, os, time
+import json
 
 from SWESimulators import OceanModelEnsemble, Common, Observation, OceanStateNoise
 from SWESimulators import DataAssimilationUtils as dautils
@@ -47,7 +48,7 @@ class MPIOceanModelEnsemble:
                  observation_file, observation_type=dautils.ObservationType.UnderlyingFlow,
                  local_ensemble_size=None, 
                  sim_args={}, data_args={},
-                 ensemble_args={}):
+                 ensemble_args={}, metadata={}):
         """
         Initialize the ensemble. Only rank 0 should receive the optional arguments.
         The constructor handles initialization across nodes
@@ -81,6 +82,22 @@ class MPIOceanModelEnsemble:
             else:
                 self.super_dir_name = "EPS_" + self.timestamp
             os.makedirs(self.super_dir_name, exist_ok=True)
+            
+            # Write some useful metadata file
+            write_metadata = {}
+            import subprocess
+            write_metadata["git_revision"] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=os.path.dirname(__file__)).strip().decode()
+            write_metadata["id"] = self.super_dir_name
+            write_metadata["timestamp"] = self.timestamp
+            write_metadata["num_rank"] = self.comm.size
+            write_metadata["local_ensemble_size"] = self.local_ensemble_size
+            write_metadata["global_ensemble_size"] = self.local_ensemble_size * self.comm.size
+            write_metadata["observation_variance"] = ensemble_args["observation_variance"]
+            for k, v in metadata.items():
+                write_metadata[k] = v
+            metadata_file = os.path.join(self.super_dir_name, self.super_dir_name + "_metadata.json")
+            with open(metadata_file, "w") as write_file:
+                json.dump(write_metadata, write_file)
         else:
             self.timestamp = None
             self.timestamp_short = None
@@ -102,27 +119,6 @@ class MPIOceanModelEnsemble:
         self.data_args = self.comm.bcast(self.data_args, root=0)
         
         self.data_shape = (self.data_args['ny'], self.data_args['nx'])
-        
-        #if (self.comm.rank != 0):
-        #    #FIXME: Hardcoded to sponge_cells=[80, 80, 80, 80]
-        #    data_args['H'] = np.empty((self.data_shape[0]+161, self.data_shape[1]+161), dtype=np.float32)
-        #    data_args['eta0'] = np.empty((self.data_shape[0]+160, self.data_shape[1]+160), dtype=np.float32)
-        #    data_args['hu0'] = np.empty((self.data_shape[0]+160, self.data_shape[1]+160), dtype=np.float32)
-        #    data_args['hv0'] = np.empty((self.data_shape[0]+160, self.data_shape[1]+160), dtype=np.float32)
-        #else:
-        #    data_args['H'] = np.float32(sim_ic['H'])
-        #    data_args['eta0'] = np.float32(sim_ic['eta0'])
-        #    data_args['hu0'] = np.float32(sim_ic['hu0'])
-        #    data_args['hv0'] = np.float32(sim_ic['hv0'])
-            
-        #FIXME: Optimize this to one transfer by packing arrays?
-        #self.comm.Bcast(data_args['H'], root=0)
-        #self.comm.Bcast(data_args['eta0'], root=0)
-        #self.comm.Bcast(data_args['hu0'], root=0)
-        #self.comm.Bcast(data_args['hv0'], root=0)
-        
-        #self.logger.debug("eta0 is %s", str(data_args['eta0']))
-        
         
         
         #Broadcast arguments that we do not store in self
@@ -215,7 +211,7 @@ class MPIOceanModelEnsemble:
     
     
 
-    def resampleParticles(self, global_normalized_weights):
+    def resampleParticles(self, global_normalized_weights, write_to_file=False):
         # FIXME: Do we need to exhange more data (than eta, hu, hv)
         
         #Get the vector of "new" particles representing which particles should be copied etc
@@ -266,6 +262,13 @@ class MPIOceanModelEnsemble:
         # Wait for communication to complete
         for request in mpi_requests:
             request.wait()
+            
+        # Write weights and communication pairs to file
+        if(self.comm.rank == 0 and write_to_file):
+            os.makedirs(os.path.join(self.super_dir_name, "resampling"), exist_ok=True)
+            
+            resampling_file = os.path.join(self.super_dir_name, "resampling", "resampling_" + str(int(self.t)))
+            np.save(resampling_file, [global_normalized_weights, resampling_indices])
 
         # Clear sent data
         send_data = None

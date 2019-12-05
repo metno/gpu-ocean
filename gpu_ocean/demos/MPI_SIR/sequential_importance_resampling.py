@@ -98,7 +98,7 @@ def dataAssimilationLoop(ensemble, resampling_times, resampling=True):
             global_normalized_weights = ensemble.getNormalizedWeights()
         
             #Resample the particles
-            ensemble.resampleParticles(global_normalized_weights)
+            ensemble.resampleParticles(global_normalized_weights, write_to_file=True)
         
         ensemble.updateDt()
         
@@ -163,11 +163,9 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Run an MPI cluster for sequential importance resampling. Run this file using e.g., using mpiexec -n 4 python sequential_importance_resampling.py to run a simulation. Plot results using the --make_plots option (without MPI!)')
     parser.add_argument('-dt', type=float, default=0.0)
-    parser.add_argument('--num_drifters', type=int, default=-1) #TODO: Use only num_drifters of the entries in observation_file
     parser.add_argument('--per_node_ensemble_size', type=int, default=5)
     parser.add_argument('--no_resampling', action='store_true') # default: False
     parser.add_argument('--observation_variance', type=float, default=1)#0.01**2)
-    parser.add_argument('--initialization_variance_factor_ocean_field', type=float, default=0.0)
     parser.add_argument('--observation_file', type=str, default=None)
     parser.add_argument('--log_file', type=str, default="sequential_importance_resampling.log")
     parser.add_argument('--log_level', type=int, default=20)
@@ -261,7 +259,7 @@ if __name__ == "__main__":
             
         #Create ensemble on all nodes
         t0 = time.time()
-        ensemble = MPIOceanModelEnsemble.MPIOceanModelEnsemble(MPI.COMM_WORLD, args.observation_file, observation_type, **kwargs)
+        ensemble = MPIOceanModelEnsemble.MPIOceanModelEnsemble(MPI.COMM_WORLD, args.observation_file, observation_type, **kwargs, metadata=vars(args))
         t1 = time.time()
         total = t1-t0
         print("Initialized MPI ensemble on rank " + str(MPI.COMM_WORLD.rank) + " in " + str(total) + " s")
