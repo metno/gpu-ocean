@@ -172,10 +172,13 @@ if __name__ == "__main__":
     parser.add_argument('--resampling_frequency_minutes', type=int, default=15)
     parser.add_argument('--data_assimilation_end_hours', type=int, default=6)
     parser.add_argument('--forecast_duration_hours', type=int, default=6)
-    
-    
+    parser.add_argument('--profile', action='store_true') # default: False
     
     args = parser.parse_args()
+    
+    if(args.profile):
+        # profiling: total run time
+        t_total_start = time.time()
     
     logger = setupLogger(args)
     
@@ -229,12 +232,17 @@ if __name__ == "__main__":
             
             dt = args.dt
             
-            t0 = time.time()
+            if(args.profile):
+                # profiling: IC
+                t0 = time.time()
+            
             full_data_args = NetCDFInitialization.getInitialConditionsNorKystCases(source_url, casename)
             data_args = NetCDFInitialization.removeMetadata(full_data_args)
-            t1 = time.time()
-            total = t1-t0
-            print("Fetched initial conditions in " + str(total) + " s")
+            
+            if(args.profile):
+                t1 = time.time()
+                t_ic = t1-t0
+                print("Fetched initial conditions in " + str(t_ic) + " s")
             
             sim_args = {
                 "dt": dt,
@@ -258,11 +266,18 @@ if __name__ == "__main__":
         }
             
         #Create ensemble on all nodes
-        t0 = time.time()
+        if(args.profile):
+            # profiling: ensemble initialization
+            MPI.COMM_WORLD.Barrier()
+            t0 = time.time()
+            
         ensemble = MPIOceanModelEnsemble.MPIOceanModelEnsemble(MPI.COMM_WORLD, args.observation_file, observation_type, **kwargs, metadata=vars(args))
-        t1 = time.time()
-        total = t1-t0
-        print("Initialized MPI ensemble on rank " + str(MPI.COMM_WORLD.rank) + " in " + str(total) + " s")
+        
+        if(args.profile):
+            MPI.COMM_WORLD.Barrier()
+            t1 = time.time()
+            t_init_ensemble = t1-t0
+            print("Initialized MPI ensemble on rank " + str(MPI.COMM_WORLD.rank) + " in " + str(t_init_ensemble) + " s")
         
         #ensemble.setBuoySet([26])
         ensemble.setDrifterSet([11])
@@ -277,25 +292,66 @@ if __name__ == "__main__":
             print("Will resample at times: ", resampling_times)
             
         if resampling_times[-1] > 0:
-            t0 = time.time()
+            if(args.profile):
+                # profiling: DA
+                MPI.COMM_WORLD.Barrier()
+                t0 = time.time()
+            
             dataAssimilationLoop(ensemble, resampling_times, resampling=resampling)
-            t1 = time.time()
-            total = t1-t0
-            print("Data assimilation loop on rank " + str(MPI.COMM_WORLD.rank) + " finished in " + str(total) + " s")
+            
+            if(args.profile):
+                MPI.COMM_WORLD.Barrier()
+                t1 = time.time()
+                t_da = t1-t0
+                print("Data assimilation loop on rank " + str(MPI.COMM_WORLD.rank) + " finished in " + str(t_da) + " s")
         else:
             print("No resampling times found - rank " + str(MPI.COMM_WORLD.rank) + " moving directly to forecast")
         
         ensemble.initDriftersFromObservations()
         
-        t0 = time.time()
+        if(args.profile):
+            # profiling: forecast
+            MPI.COMM_WORLD.Barrier()
+            t0 = time.time()
+        
         forecastLoop(ensemble, end_t_forecast)
-        t1 = time.time()
-        total = t1-t0
-        print("Forecast loop on rank " + str(MPI.COMM_WORLD.rank) + " finished in " + str(total) + " s")
+        
+        if(args.profile):
+            MPI.COMM_WORLD.Barrier()
+            t1 = time.time()
+            t_forecast = t1-t0
+            print("Forecast loop on rank " + str(MPI.COMM_WORLD.rank) + " finished in " + str(t_forecast) + " s")
         
         # Write to files
         ensemble.dumpParticleInfosToFiles()
         ensemble.dumpDrifterForecastToFiles()
+        
+        if(args.profile):
+            MPI.COMM_WORLD.Barrier()
+            t_total_end = time.time()
+            t_total = t_total_end - t_total_start
+            print("Total run time on rank " + str(MPI.COMM_WORLD.rank) + " is " + str(t_total) + " s")
+        
+        # write profiling to json file
+        if(args.profile and MPI.COMM_WORLD.rank == 0):
+            if "SLURM_JOB_ID" in os.environ:
+                job_id = int(os.environ["SLURM_JOB_ID"])
+                profiling_file = "EPS_" + str(job_id) + "_" + ensemble.timestamp + "_profiling.json"
+            else:
+                profiling_file = "EPS_" + ensemble.timestamp + "_profiling.json"
+
+            profiling_file = os.path.join(ensemble.super_dir_name, profiling_file)
+
+            write_profiling_data = {}
+            write_profiling_data["total"] = t_total
+            write_profiling_data["initial_conditions"] = t_ic
+            write_profiling_data["ensemble_initialization"] = t_init_ensemble
+            write_profiling_data["data_assimilation"] = t_da
+            write_profiling_data["forecast"] = t_forecast
+
+            import json
+            with open(profiling_file, "w") as write_file:
+                json.dump(write_profiling_data, write_file)
         
         # Handle CUDA context when exiting python
         import atexit
@@ -311,3 +367,4 @@ if __name__ == "__main__":
             logging.shutdown()
             
         atexit.register(exitfunc)
+        
