@@ -490,21 +490,23 @@ class Observation:
             return True
         return False
 
-    def get_drifter_path(self, drifter_id, start_t, end_t, in_km=True, keepDomainSize=True):
+    def get_drifter_path(self, drifter_id, start_t, end_t, 
+                         in_km=True, keepDomainSize=True, assume_no_boundary_trouble=False):
         """
         Creates a list of paths for the given drifter in the given time interval,
         so that the drift trajectory can be plotted.
         We create a list of paths rather than a single path, as the path is disconnected 
         when the drifter passes through the periodic boundary.
         Parameters:
-        - drifter_id:       Index of the drifter of interest
-        - start_t:          Simulation time at the start of the path
-        - end_t:            Simulation time at the end of the path
-        - in_km:            Boolean - True if the path should be described in km, False if meter
-        - keepDomainSize:   Boolean - True split paths when crossing the boundary
-                                      False creates a single continous path, in which drifters going through the 
-                                      boundary at e.g., x=10 gets x values [..., 9.8, 9.9, 10.0, 10.1, 10.2, ...]
-                                      instaed of [..., 9.8, 9.9, 0.0, 0.1, 0.2, ...]
+        - drifter_id:         Index of the drifter of interest
+        - start_t:            Simulation time at the start of the path
+        - end_t:              Simulation time at the end of the path
+        - in_km:              Boolean - True if the path should be described in km, False if meter
+        - keepDomainSize:     Boolean - True split paths when crossing the boundary
+                                        False creates a single continous path, in which drifters going through the 
+                                        boundary at e.g., x=10 gets x values [..., 9.8, 9.9, 10.0, 10.1, 10.2, ...]
+                                        instaed of [..., 9.8, 9.9, 0.0, 0.1, 0.2, ...]
+        - assume_no_boundary_trouble: Boolean - If this is true, we can speed up the processing.
         """
         paths = []
         observation_times = self.get_observation_times()
@@ -527,39 +529,49 @@ class Observation:
         path_index = 0
         boundary_correction = np.array([0, 0])
         
-        for i in range(start_obs_index, end_obs_index):
-            obs_t = observation_times[i]
-            if obs_t < start_t or obs_t > end_t:
-                continue
-            current_pos = all_drifter_positions[i, :]
-            if path_index > 0:
-                if self._detect_jump(path[path_index-1,:], current_pos + boundary_correction):
-                    if keepDomainSize:
-                        paths.append(path[:path_index,:])
-                        
-                        path_index = 0
-                        path = np.zeros((total_num_observations, 2))
-                    else:
-                        xdiff = current_pos[0] + boundary_correction[0] - path[path_index-1, 0] 
-                        ydiff = current_pos[1] + boundary_correction[1] - path[path_index-1, 1] 
-                        
-                        if min(abs(xdiff - self.domain_size_x), abs(xdiff + self.domain_size_x)) < abs(xdiff):
-                            # The jump is in x
-                            if abs(xdiff - self.domain_size_x) < abs(xdiff + self.domain_size_x):
-                                boundary_correction[0] -= self.domain_size_x
-                            else:
-                                boundary_correction[0] += self.domain_size_x
-                        
-                        if min(abs(ydiff - self.domain_size_y), abs(ydiff + self.domain_size_y)) < abs(ydiff):
-                            if abs(ydiff - self.domain_size_y) < abs(ydiff + self.domain_size_y):
-                                boundary_correction[1] -= self.domain_size_y
-                            else:
-                                boundary_correction[1] += self.domain_size_y
-                                
-            path[path_index,:] = current_pos + boundary_correction
+        
+        if assume_no_boundary_trouble:
+            # Get the trajectory directly from all_drifter_positions
+            obs_start_index = np.searchsorted(observation_times, start_t)
+            obs_end_index   = min(np.searchsorted(observation_times, end_t)+1, len(observation_times))
+            path[:,:] = all_drifter_positions[obs_start_index:obs_end_index, :].copy()
+            paths.append(path)
+        
+        else:
+            # Look carefully through all_drifter_positions and fix issues at the boundary
+            for i in range(start_obs_index, end_obs_index):
+                obs_t = observation_times[i]
+                if obs_t < start_t or obs_t > end_t:
+                    continue
+                current_pos = all_drifter_positions[i, :]
+                if path_index > 0:
+                    if self._detect_jump(path[path_index-1,:], current_pos + boundary_correction):
+                        if keepDomainSize:
+                            paths.append(path[:path_index,:])
+                            
+                            path_index = 0
+                            path = np.zeros((total_num_observations, 2))
+                        else:
+                            xdiff = current_pos[0] + boundary_correction[0] - path[path_index-1, 0] 
+                            ydiff = current_pos[1] + boundary_correction[1] - path[path_index-1, 1] 
+                            
+                            if min(abs(xdiff - self.domain_size_x), abs(xdiff + self.domain_size_x)) < abs(xdiff):
+                                # The jump is in x
+                                if abs(xdiff - self.domain_size_x) < abs(xdiff + self.domain_size_x):
+                                    boundary_correction[0] -= self.domain_size_x
+                                else:
+                                    boundary_correction[0] += self.domain_size_x
+                            
+                            if min(abs(ydiff - self.domain_size_y), abs(ydiff + self.domain_size_y)) < abs(ydiff):
+                                if abs(ydiff - self.domain_size_y) < abs(ydiff + self.domain_size_y):
+                                    boundary_correction[1] -= self.domain_size_y
+                                else:
+                                    boundary_correction[1] += self.domain_size_y
+                                    
+                path[path_index,:] = current_pos + boundary_correction
                 
-            path_index += 1
-        paths.append(path[:path_index, :])
+                path_index += 1
+            paths.append(path[:path_index, :])
         if in_km:
             for p in range(len(paths)):
                 paths[p] /= 1000
