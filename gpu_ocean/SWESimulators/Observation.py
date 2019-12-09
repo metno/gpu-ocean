@@ -533,11 +533,9 @@ class Observation:
         if assume_no_boundary_trouble:
             # Get the trajectory directly from all_drifter_positions
             obs_start_index = np.searchsorted(observation_times, start_t)
-            obs_end_index   = min(np.searchsorted(observation_times, end_t), 
-                                  len(observation_times)-1)
-            
-            path = all_drifter_positions[obs_start_index:obs_end_index, :]
-            
+            obs_end_index   = min(np.searchsorted(observation_times, end_t)+1, len(observation_times))
+            path[:,:] = all_drifter_positions[obs_start_index:obs_end_index, :].copy()
+            paths.append(path)
         
         else:
             # Look carefully through all_drifter_positions and fix issues at the boundary
@@ -570,10 +568,10 @@ class Observation:
                                 else:
                                     boundary_correction[1] += self.domain_size_y
                                     
-            path[path_index,:] = current_pos + boundary_correction
+                path[path_index,:] = current_pos + boundary_correction
                 
-            path_index += 1
-        paths.append(path[:path_index, :])
+                path_index += 1
+            paths.append(path[:path_index, :])
         if in_km:
             for p in range(len(paths)):
                 paths[p] /= 1000
