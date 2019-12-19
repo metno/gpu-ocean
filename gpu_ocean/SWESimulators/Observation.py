@@ -511,13 +511,8 @@ class Observation:
         paths = []
         observation_times = self.get_observation_times()
         
-        start_obs_index = 0
-        end_obs_index = len(observation_times)
-        try:
-            start_obs_index = np.where(observation_times == start_t)[0][0]
-            end_obs_index   = np.where(observation_times == end_t  )[0][0]+1
-        except IndexError:
-            pass
+        start_obs_index = np.searchsorted(observation_times, start_t)
+        end_obs_index   = min(np.searchsorted(observation_times, end_t)+1, len(observation_times))
         
         total_num_observations = end_obs_index - start_obs_index
         
@@ -532,9 +527,7 @@ class Observation:
         
         if assume_no_boundary_trouble:
             # Get the trajectory directly from all_drifter_positions
-            obs_start_index = np.searchsorted(observation_times, start_t)
-            obs_end_index   = min(np.searchsorted(observation_times, end_t)+1, len(observation_times))
-            path[:,:] = all_drifter_positions[obs_start_index:obs_end_index, :].copy()
+            path[:,:] = all_drifter_positions[start_obs_index:end_obs_index, :].copy()
             paths.append(path)
         
         else:
