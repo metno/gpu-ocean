@@ -114,7 +114,7 @@ class MPIOceanModelEnsemble:
         self.sim_args = sim_args 
         self.sim_args = self.comm.bcast(self.sim_args, root=0)
         
-        # FIXME: ! ! ! SLOW ! ! !
+        # FIXME: Optimize: Use Bcast(...)
         self.data_args = data_args 
         self.data_args = self.comm.bcast(self.data_args, root=0)
         

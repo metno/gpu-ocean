@@ -106,7 +106,7 @@ def dataAssimilationLoop(ensemble, resampling_times, resampling=True):
     
 def forecastLoop(ensemble, end_t):      
     start_t = ensemble.t
-    sub_step_size = 60
+    sub_step_size = 300
     
     observation_times = ensemble.observations.get_observation_times()
     
@@ -280,7 +280,8 @@ if __name__ == "__main__":
             print("Initialized MPI ensemble on rank " + str(MPI.COMM_WORLD.rank) + " in " + str(t_init_ensemble) + " s")
         
         #ensemble.setBuoySet([26])
-        ensemble.setDrifterSet([11])
+        #ensemble.setDrifterSet([103, 84, 85, 41])
+        ensemble.setDrifterSet([103, 84, 85, 39])
         ensemble.observations.setObservationInterval(obs_config_observation_interval)
         
         for particleInfo in ensemble.ensemble.particleInfos:
