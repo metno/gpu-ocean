@@ -46,6 +46,9 @@ def testMPI():
     comm.Barrier()   
     
     
+def syncGPUandMPI(ensemble):
+    ensemble.syncGPU()
+    MPI.COMM_WORLD.Barrier()
     
 
 def generateDrifterPositions(data_args, num_drifters):
@@ -104,9 +107,10 @@ def dataAssimilationLoop(ensemble, resampling_times, resampling=True):
         
         print(str(ensemble.comm.rank) + ", ", end="", flush=True)
     
-def forecastLoop(ensemble, end_t):      
+def forecastLoop(ensemble, end_t, perturb_forecast):      
     start_t = ensemble.t
     sub_step_size = 300
+    forecast_tic = time.time()
     
     observation_times = ensemble.observations.get_observation_times()
     
@@ -118,6 +122,12 @@ def forecastLoop(ensemble, end_t):
         
         if(dump_time % 3600 == 0):
             ensemble.updateDt()
+            if perturb_forecast and dump_time > 0:
+                ensemble.perturbAllParticles()
+                
+            split_time = time.time() - forecast_tic
+            print(str(ensemble.comm.rank) + " (hour "+str(dump_time//3600)+" after "+str(int(split_time))+" s), ",
+                  end="", flush=True)
         
         # Find latest observed drifters
         obs_index = min(0, np.searchsorted(observation_times, t) - 1)
@@ -173,6 +183,8 @@ if __name__ == "__main__":
     parser.add_argument('--data_assimilation_end_hours', type=int, default=6)
     parser.add_argument('--forecast_duration_hours', type=int, default=6)
     parser.add_argument('--profile', action='store_true') # default: False
+    parser.add_argument('--perturb_forecast', action='store_true') # default: False
+
     
     args = parser.parse_args()
     
@@ -196,12 +208,15 @@ if __name__ == "__main__":
         
         data_assimilation_end_t = args.data_assimilation_end_hours * 60*60
         
-        # Make list of resampling times - make sure that we include the end time as well
-        resampling_times = np.arange(args.resampling_frequency_minutes, args.data_assimilation_end_hours*60 + 1, args.resampling_frequency_minutes)*60
-        
+        if data_assimilation_end_t > 0:
+            # Make list of resampling times - make sure that we include the end time as well
+            resampling_times = np.arange(args.resampling_frequency_minutes, args.data_assimilation_end_hours*60 + 1, args.resampling_frequency_minutes)*60
+        else:
+            resampling_times = [0]
+
         # Find the end time for the forecast
         end_t_forecast = resampling_times[-1] + args.forecast_duration_hours * 60*60
-        
+            
         
         # FIXME: Hardcoded parameters
         #observation_type = dautils.ObservationType.StaticBuoys
@@ -268,13 +283,13 @@ if __name__ == "__main__":
         #Create ensemble on all nodes
         if(args.profile):
             # profiling: ensemble initialization
-            MPI.COMM_WORLD.Barrier()
+            MPI.COMM_WORLD.Barrier() # No ensemble created yet, so we sync only the MPI level.
             t0 = time.time()
             
         ensemble = MPIOceanModelEnsemble.MPIOceanModelEnsemble(MPI.COMM_WORLD, args.observation_file, observation_type, **kwargs, metadata=vars(args))
         
         if(args.profile):
-            MPI.COMM_WORLD.Barrier()
+            syncGPUandMPI(ensemble)
             t1 = time.time()
             t_init_ensemble = t1-t0
             print("Initialized MPI ensemble on rank " + str(MPI.COMM_WORLD.rank) + " in " + str(t_init_ensemble) + " s")
@@ -295,18 +310,19 @@ if __name__ == "__main__":
         if resampling_times[-1] > 0:
             if(args.profile):
                 # profiling: DA
-                MPI.COMM_WORLD.Barrier()
+                syncGPUandMPI(ensemble)
                 t0 = time.time()
             
             dataAssimilationLoop(ensemble, resampling_times, resampling=resampling)
             
             if(args.profile):
-                MPI.COMM_WORLD.Barrier()
+                syncGPUandMPI(ensemble)
                 t1 = time.time()
                 t_da = t1-t0
                 print("Data assimilation loop on rank " + str(MPI.COMM_WORLD.rank) + " finished in " + str(t_da) + " s")
         else:
             print("No resampling times found - rank " + str(MPI.COMM_WORLD.rank) + " moving directly to forecast")
+            t_da = 0
         
         ensemble.initDriftersFromObservations()
         
@@ -315,10 +331,10 @@ if __name__ == "__main__":
             MPI.COMM_WORLD.Barrier()
             t0 = time.time()
         
-        forecastLoop(ensemble, end_t_forecast)
+        forecastLoop(ensemble, end_t_forecast, args.perturb_forecast)
         
         if(args.profile):
-            MPI.COMM_WORLD.Barrier()
+            syncGPUandMPI(ensemble)
             t1 = time.time()
             t_forecast = t1-t0
             print("Forecast loop on rank " + str(MPI.COMM_WORLD.rank) + " finished in " + str(t_forecast) + " s")
@@ -328,7 +344,7 @@ if __name__ == "__main__":
         ensemble.dumpDrifterForecastToFiles()
         
         if(args.profile):
-            MPI.COMM_WORLD.Barrier()
+            syncGPUandMPI(ensemble)
             t_total_end = time.time()
             t_total = t_total_end - t_total_start
             print("Total run time on rank " + str(MPI.COMM_WORLD.rank) + " is " + str(t_total) + " s")

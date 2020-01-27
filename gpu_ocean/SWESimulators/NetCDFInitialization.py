@@ -288,7 +288,7 @@ def getInitialConditions(source_url_list, x0, x1, y0, y1, \
     num_files = len(source_url_list)
     
     for i in range(len(source_url_list)):
-       source_url_list[i] = checkCachedNetCDF(source_url_list[i], download_data=download_data)
+        source_url_list[i] = checkCachedNetCDF(source_url_list[i], download_data=download_data)
     
     
         
