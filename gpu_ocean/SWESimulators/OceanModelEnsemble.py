@@ -180,3 +180,6 @@ class OceanModelEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             filename = filename_prefix + "_" + str(p) + ".bz2"
             self.drifterForecast[p].to_pickle(filename)
         
+    def syncGPU(self):
+        for p in range(self.getNumParticles()):
+            self.particles[p].gpu_stream.synchronize()

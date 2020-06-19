@@ -506,7 +506,13 @@ class MPIOceanModelEnsemble:
         self.perturbators[perturbator_id].perturbSim(self.ensemble.particles[particle_id], q0_scale=q0_scale, stream=stream)
 
         
+    def perturbAllParticles(self):
+        stream = self.ensemble.particles[0].gpu_stream
+        for p in range(len(self.ensemble.particles)):
+            self._perturbParticle(p, stream=stream)
+            
         
-        
-        
+    def syncGPU(self):
+        self.ensemble.syncGPU()
+        self.gpu_ctx.synchronize()
         
