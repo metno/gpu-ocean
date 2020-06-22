@@ -21,6 +21,14 @@ We recommend that you set up your python environment using Conda as follows:
     ```
     conda env create -f conda_environment.yml
     ```
+- Activate the new environment
+    ```
+    conda activate gpuocean
+    ```
+- Install pycuda (but none of its dependencies) using pip:
+    ```
+    pip3 install --no-deps -U pycuda
+    ```
 
 You should now be able to start a jupyter notebook server, open one of our notebooks, select the conda environment 'gpuocean' as kernel, and run the code. 
 
