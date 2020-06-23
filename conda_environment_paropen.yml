@@ -7,7 +7,7 @@ channels:
 - noaa-orr-erd
 
 dependencies:
-- python=3.6
+- python=3.7
 - numpy
 - matplotlib
 - jupyter
@@ -19,12 +19,13 @@ dependencies:
 - pytables
 - nb_conda_kernels
 - mpi4py
+- openssl
 - requests
+- pip
+- pytools
 - parcels
 - cartopy
 - ffmpeg
 - opendrift
-- pip:
-  - pycuda
 # on Windows: make sure your visual studio c++ compiler is available in PATH
 # PATH should have something like C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\
