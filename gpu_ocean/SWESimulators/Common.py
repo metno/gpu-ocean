@@ -405,7 +405,7 @@ class CUDAContext(object):
         return kernel_hasher.hexdigest()
         
     """
-    Reads a text file and creates an OpenCL kernel from that
+    Reads a text file and creates an CUDA kernel from that
     """
     def get_kernel(self, kernel_filename, include_dirs=[], defines={}, compile_args={'no_extern_c': True}, jit_compile_args={}):
         """
