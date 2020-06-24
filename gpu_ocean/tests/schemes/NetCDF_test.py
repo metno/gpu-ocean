@@ -32,7 +32,7 @@ from testUtils import *
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')))
 
-from SWESimulators import Common, CDKLM16, SimWriter, DoubleJetCase
+from SWESimulators import Common, CDKLM16, SimWriter, DoubleJetCase, SimReader
 
 
 class NetCDFtest(unittest.TestCase):

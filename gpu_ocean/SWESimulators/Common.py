@@ -890,11 +890,11 @@ class BoundaryConditions:
         elif cond == 2:
             return "Periodic"
         elif cond == 3:
-            return "Flow Relaxation Scheme"
+            return "Flow_Relaxation_Scheme"
         elif cond == 4:
-            return "Open Linear Interpolation"
+            return "Open_Linear_Interpolation"
         else:
-            return "Invalid :|"
+            return "Invalid_:|"
         
     def __str__(self):
         msg = "north: "   + self._toString(self.north) + \
@@ -905,8 +905,36 @@ class BoundaryConditions:
         return msg
     
     
+    @classmethod
+    def fromstring(cls, bc_string):
     
-    
+        def keyword_to_cond(key):
+            if key == 'Wall':
+                return 1
+            elif key == 'Periodic':
+                return 2
+            elif key == 'Flow_Relaxation_Scheme':
+                return 3
+            elif key == 'Open_Linear_Interpolation':
+                return 4
+            else:
+                return -1
+            
+        #clean string
+        bc_clean_str = bc_string.replace(',','').replace('}','').replace('{','').replace(':','').replace("'","")
+        
+        bc_array = str.split(bc_clean_str, ' ')
+        north = keyword_to_cond(bc_array[1])
+        east  = keyword_to_cond(bc_array[3])
+        south = keyword_to_cond(bc_array[5])
+        west  = keyword_to_cond(bc_array[7])
+        
+        spongeCells = {bc_array[9]: int(bc_array[10]),
+                        bc_array[11]:  int(bc_array[12]),
+                        bc_array[13]:  int(bc_array[14]),
+                        bc_array[15]:  int(bc_array[16])}
+        
+        return cls(north=north, east=east, south=south, west=west, spongeCells=spongeCells)
     
     
     

@@ -30,7 +30,7 @@ import datetime
 from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 from matplotlib import animation, rc
-from SWESimulators import PlotHelper
+from SWESimulators import PlotHelper, Common
 
 
 class SimNetCDFReader:
@@ -78,10 +78,8 @@ class SimNetCDFReader:
         return time.size
     
     def getBC(self):
-        return np.fromstring(self.get("boundary_conditions_mr")[1:-1], dtype=int, sep=',')
-    
-    def getBCSpongeCells(self):
-        return np.fromstring(self.get("boundary_conditions_sponge_mr")[1:-1], dtype=int, sep=' ')
+        bc = Common.BoundaryConditions.fromstring(self.get("boundary_conditions"))
+        return bc
 
     
     def getTimes(self):
@@ -105,8 +103,14 @@ class SimNetCDFReader:
         return eta, hu, hv, np.float32(time[index])
     
     def getH(self):
-        H = self.ncfile.variables['H'][:, :]
+        if self.staggered_grid:
+            H = self.ncfile.variables['Hm'][:, :]
+        else:
+            H = self.ncfile.variables['Hi'][:, :]
         return H
+    
+    def getHm(self):
+        return self.ncfile.variables['Hm'][:, :]
         
     
     def getStateAtTime(self, time):
@@ -155,15 +159,10 @@ class SimNetCDFReader:
     def getEtaXSlice(self, t, y):
         y_index = int(y) + int(self.get('ghost_cells_south'))
         return self.ncfile.variables['eta'][t, y_index, self.ghostCells[3]:-self.ghostCells[1] ]
-        
-    def _getWaterHeight(self):
-        if self.staggered_grid:
-            return 0.0
-        return 60.0
     
     def _animate(self, i):
         eta1, u1, v1, t = self.getTimeStep(i)
-        self.plotter.plot(eta1-self._getWaterHeight(), u1, v1)
+        self.plotter.plot(eta1, u1, v1)
                 
 
     
@@ -181,10 +180,9 @@ class SimNetCDFReader:
         radius = np.sqrt(np.multiply(x_coords, x_coords) + np.multiply(y_coords, y_coords))
 
         eta0, hu0, hv0, t0 = self.getTimeStep(0)
-        waterHeight = self._getWaterHeight()
         fig = plt.figure()
         self.plotter = PlotHelper.PlotHelper(fig, x_coords, y_coords, radius, \
-                                             eta0-waterHeight, hu0, hv0)
+                                             eta0, hu0, hv0)
 
         anim = animation.FuncAnimation(fig, self._animate, range(self.getNumTimeSteps()), interval=100)
         plt.close(anim._fig)
