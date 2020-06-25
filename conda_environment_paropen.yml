@@ -24,6 +24,8 @@ dependencies:
 - pip
 - pytools
 - parcels
+- mpich
+- scikit-learn
 - cartopy
 - ffmpeg
 - opendrift
