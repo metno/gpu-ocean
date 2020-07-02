@@ -25,6 +25,42 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /**
   * Kernel that evolves drifter positions along u and v.
   */
+  
+texture<float, cudaTextureType2D> wind_X_current;
+texture<float, cudaTextureType2D> wind_X_next;
+
+texture<float, cudaTextureType2D> wind_Y_current;
+texture<float, cudaTextureType2D> wind_Y_next;
+
+__device__ float windX(float wind_t_, float ti_, float tj_, int nx_, int ny_) {
+    
+    //Normalize coordinates (to [0, 1])
+    const float s = ti_ / float(nx_);
+    const float t = tj_ / float(ny_);
+    
+    //Look up current and next timestep (using bilinear texture interpolation)
+    float current = tex2D(wind_X_current, s, t);
+    float next = tex2D(wind_X_next, s, t);
+    
+    //Interpolate in time
+    return wind_t_*next + (1.0f - wind_t_)*current;
+}
+
+__device__ float windY(float wind_t_, float ti_, float tj_, int nx_, int ny_) {
+    
+    //Normalize coordinates (to [0, 1])
+    const float s = ti_ / float(nx_);
+    const float t = tj_ / float(ny_);
+    
+    //Look up current and next timestep (using bilinear texture interpolation)
+    float current = tex2D(wind_Y_current, s, t);
+    float next = tex2D(wind_Y_next, s, t);
+    
+    //Interpolate in time
+    return wind_t_*next + (1.0f - wind_t_)*current;
+}
+
+
 extern "C" {
 __global__ void passiveDrifterKernel(
         //Discretization parameters
@@ -46,16 +82,21 @@ __global__ void passiveDrifterKernel(
         
         const int num_drifters_,
         float* drifters_positions_, const int drifters_pitch_,
-        const float sensitivity_) {
+        const float sensitivity_,
+        const float wind_t_) 
+        {
 
     //Index of thread within block (only needed in one dim)
     const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
         
     //Index of block within domain (only needed in one dim)
     const int bx = blockDim.x * blockIdx.x;
+    const int by = blockDim.y * blockIdx.y;
         
     //Index of cell within domain (only needed in one dim)
     const int ti = bx + tx;
+    const int tj = by + ty;
     
     if (ti < num_drifters_ + 1) {
         // Obtain pointer to our particle:
@@ -74,12 +115,16 @@ __global__ void passiveDrifterKernel(
         
         
         float* const hu_row = (float*) ((char*) hu_ptr_ + hu_pitch_*cell_id_y);
-        float const u = hu_row[cell_id_x]/h;
+        //float const u = hu_row[cell_id_x]/h;
 
         float* const hv_row = (float*) ((char*) hv_ptr_ + hv_pitch_*cell_id_y);
-        float const v = hv_row[cell_id_x]/h;
+        //float const v = hv_row[cell_id_x]/h;
 
-
+        const float XWind = windX(wind_t_, ti+0.5, tj+0.5, NX, NY) * 0.02;
+        const float YWind = windY(wind_t_, ti+0.5, tj+0.5, NX, NY) * 0.02;
+        
+        float const u = hu_row[cell_id_x]/h + XWind;
+        float const v = hv_row[cell_id_x]/h + YWind;
 
         // Move drifter
         drifter_pos_x += sensitivity_*u*dt_;

@@ -412,8 +412,53 @@ def getInitialConditions(source_url_list, x0, x1, y0, y1, \
     ic['t0'] = t0
     ic['timesteps'] = np.ravel(timesteps)
     
+    #wind
+    ic['wind'] = getWind(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1) 
+    
     return ic
 
+def getWind(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1):
+    """
+    timestep_indices => index into netcdf-array, e.g. [1, 3, 5]
+    timestep => time at timestep, e.g. [1800, 3600, 7200]
+    """
+    
+    if type(source_url_list) is not list:
+        source_url_list = [source_url_list]
+    
+    num_files = len(source_url_list)
+    
+    source_url = source_url_list[0]
+    
+    assert(num_files == len(timesteps)), str(num_files) +' vs '+ str(len(timesteps))
+    
+    if (timestep_indices is None):
+        timestep_indices = [None]*num_files
+        for i in range(num_files):
+            timestep_indices[i] = range(len(timesteps[i]))
+        
+    u_wind_list = [None]*num_files
+    v_wind_list = [None]*num_files
+    
+    for i in range(num_files):
+        try:
+            ncfile = Dataset(source_url_list[i])
+            u_wind_list[i] = ncfile.variables['Uwind'][timestep_indices[i], y0:y1, x0:x1]
+            v_wind_list[i] = ncfile.variables['Vwind'][timestep_indices[i], y0:y1, x0:x1]
+        except Exception as e:
+            raise e
+        finally:
+            ncfile.close()
+
+    u_wind = u_wind_list[0].filled(0)
+    v_wind = v_wind_list[0].filled(0)
+    for i in range(1, num_files):
+        u_wind = np.concatenate((u_wind, u_wind_list[i].filled(0)))
+        v_wind = np.concatenate((v_wind, v_wind_list[i].filled(0)))
+    
+    wind_source = WindStress.WindStress(t=np.ravel(timesteps).copy(), X=u_wind, Y=v_wind)
+    
+    return wind_source
 
 def rescaleInitialConditions(old_ic, scale):
     ic = copy.deepcopy(old_ic)

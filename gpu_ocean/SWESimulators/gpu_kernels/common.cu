@@ -650,9 +650,6 @@ __device__ float windStressY(float wind_stress_t_, float ti_, float tj_, int nx_
 }
 
 
-
-
-
 __device__ float3 F_func(const float3 Q, const float g) {
     float3 F;
 

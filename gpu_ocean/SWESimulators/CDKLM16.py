@@ -61,6 +61,7 @@ class CDKLM16(Simulator.Simulator):
                  coriolis_beta=0.0, \
                  max_wind_direction_perturbation = 0, \
                  wind_stress=WindStress.WindStress(), \
+                 wind = WindStress.WindStress(),\
                  boundary_conditions=Common.BoundaryConditions(), \
                  boundary_conditions_data=Common.BoundaryConditionsData(), \
                  small_scale_perturbation=False, \
@@ -213,6 +214,8 @@ class CDKLM16(Simulator.Simulator):
         self.cdklm_swe_2D = self.kernel.get_function("cdklm_swe_2D")
         self.cdklm_swe_2D.prepare("fiPiPiPiPiPiPiPiPiffi")
         self.update_wind_stress(self.kernel, self.cdklm_swe_2D)
+        
+        self.wind = wind
         
         # CUDA functions for finding max time step size:
         self.num_threads_dt = num_threads_dt
@@ -599,6 +602,10 @@ class CDKLM16(Simulator.Simulator):
     def drifterStep(self, dt):
         # Evolve drifters
         if self.hasDrifters:
+            self.drifters.t = self.t
+            self.drifters.nx = self.nx
+            self.drifters.ny = self.ny
+            self.drifters.wind = self.wind
             self.drifters.drift(self.gpu_data.h0, self.gpu_data.hu0, \
                                 self.gpu_data.hv0, \
                                 self.bathymetry.Bm, \
