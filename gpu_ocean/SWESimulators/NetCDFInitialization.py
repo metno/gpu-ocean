@@ -502,5 +502,6 @@ def removeMetadata(old_ic):
     ic.pop('sponge_cells', None)
     ic.pop('t0', None)
     ic.pop('timesteps', None)
+    ic.pop('wind', None)
     
     return ic

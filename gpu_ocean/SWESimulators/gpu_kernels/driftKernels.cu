@@ -26,6 +26,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
   * Kernel that evolves drifter positions along u and v.
   */
   
+//Code relating to wind-data
+
 texture<float, cudaTextureType2D> wind_X_current;
 texture<float, cudaTextureType2D> wind_X_next;
 
@@ -83,7 +85,8 @@ __global__ void passiveDrifterKernel(
         const int num_drifters_,
         float* drifters_positions_, const int drifters_pitch_,
         const float sensitivity_,
-        const float wind_t_) 
+        const float wind_t_, 
+        const float wind_drift_factor_) 
         {
 
     //Index of thread within block (only needed in one dim)
@@ -120,8 +123,8 @@ __global__ void passiveDrifterKernel(
         float* const hv_row = (float*) ((char*) hv_ptr_ + hv_pitch_*cell_id_y);
         //float const v = hv_row[cell_id_x]/h;
 
-        const float XWind = windX(wind_t_, ti+0.5, tj+0.5, NX, NY) * 0.02;
-        const float YWind = windY(wind_t_, ti+0.5, tj+0.5, NX, NY) * 0.02;
+        const float XWind = windX(wind_t_, ti+0.5, tj+0.5, nx_, ny_) * wind_drift_factor_; //Dette er muligens ganske feil
+        const float YWind = windY(wind_t_, ti+0.5, tj+0.5, nx_, ny_) * wind_drift_factor_;
         
         float const u = hu_row[cell_id_x]/h + XWind;
         float const v = hv_row[cell_id_x]/h + YWind;

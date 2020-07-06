@@ -34,7 +34,8 @@ from SWESimulators import BaseDrifterCollection
 
 class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
     def __init__(self, gpu_ctx, numDrifters, \
-                 observation_variance=0.01, t = 0.0, nx = 0, ny = 0, wind = WindStress.WindStress(),\
+                 observation_variance=0.01, wind = WindStress.WindStress(),
+                 wind_drift_factor = 0.0,\
                  boundaryConditions=Common.BoundaryConditions(), \
                  initialization_cov_drifters=None, \
                  domain_size_x=1.0, domain_size_y=1.0, \
@@ -51,14 +52,8 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
         self.gpu_ctx = gpu_ctx
         self.block_width = block_width
         self.block_height = 1
-        self.t = t
-        self.nx = nx
-        self.ny = ny
         self.wind = wind
-        
-        #Initialize wind parameters
-        self.wind_textures = {}
-        self.wind_timestamps = {}
+        self.wind_drift_factor = np.float32(wind_drift_factor)
         
         
         # TODO: Where should the cl_queue come from?
@@ -76,16 +71,20 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
                                                  self.driftersHost)
         
         self.drift_kernels = gpu_ctx.get_kernel("driftKernels.cu", \
-                                                defines={'block_width': self.block_width, 'block_height': self.block_height,
-                                                        'NX': int(self.nx), 'NY': int(self.ny)
-                                                        })
+                                                defines={'block_width': self.block_width, 'block_height': self.block_height
+                                                       })
 
         # Get CUDA functions and define data types for prepared_{async_}call()
         self.passiveDrifterKernel = self.drift_kernels.get_function("passiveDrifterKernel")
-        self.passiveDrifterKernel.prepare("iifffiiPiPiPiPiiiiPiff")
+        self.passiveDrifterKernel.prepare("iifffiiPiPiPiPiiiiPifff")
         self.enforceBoundaryConditionsKernel = self.drift_kernels.get_function("enforceBoundaryConditions")
         self.enforceBoundaryConditionsKernel.prepare("ffiiiPi")
-        self.update_wind(self.drift_kernels, self.passiveDrifterKernel)
+        if self.wind_drift_factor:
+            #Initialize wind parameters
+            self.wind_textures = {}
+            self.wind_timestamps = {}
+            
+            self.update_wind(self.drift_kernels, self.passiveDrifterKernel, 0.0)
         
         
         self.local_size = (self.block_width, self.block_height, 1)
@@ -123,14 +122,14 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
         
         return copyOfSelf
     
-    def update_wind(self, kernel_module, kernel_function):
+    def update_wind(self, kernel_module, kernel_function, t):
         #Key used to access the hashmaps
         key = str(kernel_module)
-        print('hei')
+
         #Compute new t0 and t1
         t_max_index = len(self.wind.t)-1
-        t0_index = max(0, np.searchsorted(self.wind.t, self.t)-1)
-        t1_index = min(t_max_index, np.searchsorted(self.wind.t, self.t))
+        t0_index = max(0, np.searchsorted(self.wind.t, t)-1)
+        t1_index = min(t_max_index, np.searchsorted(self.wind.t,t))
         new_t0 = self.wind.t[t0_index]
         new_t1 = self.wind.t[t1_index]
         
@@ -186,7 +185,7 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
       
         # Compute the wind_stress_t linear interpolation coefficient
         wind_t = 0.0
-        elapsed_since_t0 = (self.t-new_t0)
+        elapsed_since_t0 = (t-new_t0)
         time_interval = max(1.0e-10, (new_t1-new_t0))
         wind_t = max(0.0, min(1.0, elapsed_since_t0 / time_interval))
         
@@ -215,9 +214,12 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
         allDrifters = self.driftersDevice.download(self.gpu_stream)
         return allDrifters[self.obs_index, :]
     
-    def drift(self, eta, hu, hv, Hm, nx, ny, dx, dy, dt, \
+    def drift(self, eta, hu, hv, Hm, nx, ny, t, dx, dy, dt, \
               x_zero_ref, y_zero_ref):
-        wind_t = np.float32(self.update_wind(self.drift_kernels, self.passiveDrifterKernel))
+        if self.wind_drift_factor:
+            wind_t = np.float32(self.update_wind(self.drift_kernels, self.passiveDrifterKernel,t))
+        else:
+            wind_t = 0.0
         self.passiveDrifterKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                                                nx, ny, dx, dy, dt, x_zero_ref, y_zero_ref, \
                                                eta.data.gpudata, eta.pitch, \
@@ -230,7 +232,7 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
                                                self.driftersDevice.data.gpudata, \
                                                self.driftersDevice.pitch, \
                                                np.float32(self.sensitivity),\
-                                               wind_t)
+                                               wind_t, self.wind_drift_factor)
         
                                  
     def setGPUStream(self, gpu_stream):
