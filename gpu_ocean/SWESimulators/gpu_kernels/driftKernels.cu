@@ -91,15 +91,12 @@ __global__ void passiveDrifterKernel(
 
     //Index of thread within block (only needed in one dim)
     const int tx = threadIdx.x;
-    const int ty = threadIdx.y;
         
     //Index of block within domain (only needed in one dim)
     const int bx = blockDim.x * blockIdx.x;
-    const int by = blockDim.y * blockIdx.y;
         
     //Index of cell within domain (only needed in one dim)
     const int ti = bx + tx;
-    const int tj = by + ty;
     
     if (ti < num_drifters_ + 1) {
         // Obtain pointer to our particle:
@@ -118,17 +115,24 @@ __global__ void passiveDrifterKernel(
         
         
         float* const hu_row = (float*) ((char*) hu_ptr_ + hu_pitch_*cell_id_y);
-        //float const u = hu_row[cell_id_x]/h;
 
         float* const hv_row = (float*) ((char*) hv_ptr_ + hv_pitch_*cell_id_y);
-        //float const v = hv_row[cell_id_x]/h;
-
-        const float XWind = windX(wind_t_, ti+0.5, tj+0.5, nx_, ny_) * wind_drift_factor_; //Dette er muligens ganske feil
-        const float YWind = windY(wind_t_, ti+0.5, tj+0.5, nx_, ny_) * wind_drift_factor_;
         
-        float const u = hu_row[cell_id_x]/h + XWind;
-        float const v = hv_row[cell_id_x]/h + YWind;
+        float u;
+        float v;
 
+        if (wind_drift_factor_) {
+            const float XWind = windX(wind_t_, cell_id_x+0.5, cell_id_y+0.5, nx_, ny_) * wind_drift_factor_; 
+            const float YWind = windY(wind_t_, cell_id_x+0.5, cell_id_y+0.5, nx_, ny_) * wind_drift_factor_;
+
+            u = hu_row[cell_id_x]/h + XWind;
+            v = hv_row[cell_id_x]/h + YWind;
+            }
+        else {
+            u = hu_row[cell_id_x]/h;
+            v = hv_row[cell_id_x]/h;
+            }
+        
         // Move drifter
         drifter_pos_x += sensitivity_*u*dt_;
         drifter_pos_y += sensitivity_*v*dt_;

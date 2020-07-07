@@ -219,7 +219,7 @@ class GPUDrifterCollection(BaseDrifterCollection.BaseDrifterCollection):
         if self.wind_drift_factor:
             wind_t = np.float32(self.update_wind(self.drift_kernels, self.passiveDrifterKernel,t))
         else:
-            wind_t = 0.0
+            wind_t = np.float32(0.0)
         self.passiveDrifterKernel.prepared_async_call(self.global_size, self.local_size, self.gpu_stream, \
                                                nx, ny, dx, dy, dt, x_zero_ref, y_zero_ref, \
                                                eta.data.gpudata, eta.pitch, \
