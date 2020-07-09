@@ -1,21 +1,5 @@
-#Import packages we need
-import numpy as np
-from netCDF4 import Dataset
-import datetime
-from IPython.display import display
-import matplotlib
-from matplotlib import pyplot as plt
-import importlib
-from datetime import timedelta
-import pyproj
-
 #For GPUOcean
-#from SWESimulators import CDKLM16, Common, IPythonMagic, NetCDFInitialization
-from SWESimulators import GPUDrifterCollection, Observation
-#from SWESimulators import DataAssimilationUtils as dautils
-#from demos.realisticSimulations import norkyst_plotting #Trengs denne?
-#from SWESimulators import PlotHelper
-from demos.Opendrift_Parcels.GPUOcean_runDeterministic import *
+from demos.GPUOcean_runDeterministic import *
 
 #For Opendrift
 from opendrift.readers import reader_netCDF_CF_generic
@@ -97,7 +81,7 @@ def parcelsFile2gpuoceanObs(filename, source_url, x0, x1, y0,y1, X= None, Y= Non
 
 def simulate_parcels(source_url, output_filename, lat, lon, 
                      wind_drift_factor= 0.0, 
-                     velocity_average= True, duration=24):
+                     velocity_average= True, duration=23):
     """
     source_url: local file or list of local files with fielddata in NetCDF-format
     output_filename: name of file in which to save calculated trajectory
@@ -135,7 +119,7 @@ def simulate_parcels(source_url, output_filename, lat, lon,
     
 def simulate_opendrift(source_url, lat, lon, 
                        wind_drift_factor = 0.0, 
-                       velocity_average = True, duration=24):
+                       velocity_average = True, duration=23):
     """
     source_url: url or local file or list of either with fielddata in NetCDF-format
     output_filename: name of file in which to save calculated trajectory
@@ -148,7 +132,7 @@ def simulate_opendrift(source_url, lat, lon,
           Can quite easily make random distribution of starting position if comparing with GPU Monte Carlo. 
     """    
     reader_norkyst = reader_netCDF_CF_generic.Reader(source_url)
-    o = OceanDrift(loglevel=20)
+    o = OceanDrift(loglevel=50)
     
     if velocity_average:
         reader_norkyst.variable_mapping['x_sea_water_velocity'] = 'ubar'

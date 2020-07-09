@@ -13,7 +13,6 @@ import pyproj
 from SWESimulators import CDKLM16, Common, IPythonMagic, NetCDFInitialization
 from SWESimulators import GPUDrifterCollection, Observation
 from SWESimulators import DataAssimilationUtils as dautils
-from demos.realisticSimulations import norkyst_plotting #Trengs denne?
 from SWESimulators import PlotHelper
 
 
@@ -110,9 +109,8 @@ def xygpuocean2lonlat(source_url, x, y, x0, y0, X= None, Y= None, proj = None):
 
 def simulate_gpuocean_deterministic(source_url, domain, initx, inity, 
                                     sim_args, erode_land = 1, 
-                                    observation_type = dautils.ObservationType.UnderlyingFlow,
                                     wind_drift_factor = 0.0, rescale=0,
-                                    outfolder = None, start_forecast_hours = 0, forecast_duration = 24 ):
+                                    outfolder = None, start_forecast_hours = 0, forecast_duration = 23 ):
     """
     source_url: url or local file or list of either with fielddata in NetCDF-format
     domain: array/list on form [x0,x1,y0,y1] defining the domain for the simulation
@@ -142,10 +140,11 @@ def simulate_gpuocean_deterministic(source_url, domain, initx, inity,
     if rescale:
         data_args = NetCDFInitialization.rescaleInitialConditions(data_args, scale=rescale)
 
-    importlib.reload(CDKLM16)
     sim = CDKLM16.CDKLM16(**sim_args, **NetCDFInitialization.removeMetadata(data_args))
     
     #Forecast
+    observation_type = dautils.ObservationType.UnderlyingFlow 
+    
     observation_args = {'observation_type': observation_type,
                     'nx': sim.nx, 'ny': sim.ny,
                     'domain_size_x': sim.nx*sim.dx,
@@ -237,7 +236,7 @@ def getVfromReference(source_url,domain, hour):
 
 
 
-def createForecastCanvas(observation, background= False, url=None, domain = None, drifter_id = 0,  zoom = 1, hour=23):
+def createForecastCanvas(observation, background= False, url=None, domain = None, zoom_element = 0,  zoom = 1, hour=23):
     fig = plt.figure(figsize=(12,12))
     ax = plt.subplot(111)
 
@@ -259,8 +258,8 @@ def createForecastCanvas(observation, background= False, url=None, domain = None
         ax.imshow(observation.land_mask, origin="lower", extent=extent, cmap='binary')
     
     if (zoom!=1):
-        path_x = observation.get_drifter_path(drifter_id, 0, hour*3600, in_km = False)[:][:,0]
-        path_y = observation.get_drifter_path(drifter_id, 0, hour*3600, in_km = False)[:][:,1]
+        path_x = observation.get_drifter_path(zoom_element, 0, hour*3600, in_km = False)[0][:,0]
+        path_y = observation.get_drifter_path(zoom_element, 0, hour*3600, in_km = False)[0][:,1]
         
         xmin, xmax, ymin, ymax = np.nanmin(path_x), np.nanmax(path_x), np.nanmin(path_y), np.nanmax(path_y)
         
@@ -279,19 +278,13 @@ def createForecastCanvas(observation, background= False, url=None, domain = None
     return ax
 
 
-def plotAllDrifters(obs, drifter_ids=None,background = False, url = None, color_id = 2, domain = None, ax = None, zoom_element = 0, start = 0, end = 23, zoom = 1):
+def plotAllDrifters(obs, drifter_ids=None,background = False, url = None, color_id = 2, label = None, domain = None, ax = None, zoom_element = 0, start = 0, end = 23, zoom = 1):
     """background: True if velocity field as background(absolute value of velocity). Default is False. 
                 Opendrift/Norkyst800 used currently. GPUOcean? Just use data from generated netcdf-file?
         url needed if background = True, domain needed if background = True
     """
-    color_combinations = [
-        # [true color, forecast color]
-        #['xkcd:dark grey blue', 'xkcd:light blue grey', 'xkcd:wine'],
-        ['xkcd:scarlet', 'xkcd:light blue grey', 'xkcd:dark blue grey'],
-        ['xkcd:viridian', 'xkcd:foam green','xkcd:light blue grey'],
-        ['g', 'xkcd:foam green', 'xkcd:dark grey green']
-    ]
-    colors = color_combinations[0]
+    colors = ['xkcd:scarlet', 'xkcd:light blue grey', 'xkcd:dark blue grey', 'xkcd:foam green','xkcd:viridian']
+    assert(color_id < len(colors)), 'Not enough colors, choose smaller color_id (maximum'+ len(colors)+')'
     
     if drifter_ids is None:
         drifter_ids = np.arange(obs.get_num_drifters(ignoreBuoys=True))
@@ -307,11 +300,14 @@ def plotAllDrifters(obs, drifter_ids=None,background = False, url = None, color_
         drifter_paths[i] = obs.get_drifter_path(drifter_ids[i], forecast_start_t, forecast_end_t, in_km = False)
 
     if ax is None:
-        ax = createForecastCanvas(obs, background = background,url = url,domain = domain, hour = end, drifter_id = zoom_element, zoom = zoom)
+        ax = createForecastCanvas(obs, background = background,url = url,domain = domain, hour = end, zoom_element = zoom_element, zoom = zoom)
         
     for drifter_path in drifter_paths:
         for path in drifter_path:
-            ax.plot(path[:,0], path[:,1], color=colors[color_id], zorder=5)
+            if label:
+                ax.plot(path[:,0], path[:,1], color=colors[color_id], zorder=5, label= label)
+            else:
+                ax.plot(path[:,0], path[:,1], color=colors[color_id], zorder=5)
 
             # Mark start and end of true path
             start_pos = drifter_path[0][0,:]
@@ -322,3 +318,5 @@ def plotAllDrifters(obs, drifter_ids=None,background = False, url = None, color_
                                                    fill=False, zorder=10)
             ax.add_patch(circ_start)
             ax.plot(end_pos[0], end_pos[1], 'x', color='k', zorder=11)
+
+        
