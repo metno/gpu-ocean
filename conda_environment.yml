@@ -4,6 +4,7 @@ name: gpuocean
 channels:
 - conda-forge
 
+# If you update this list, please also update gpu_ocean/requirements.txt
 dependencies:
 - python=3.7
 - numpy
