@@ -22,6 +22,7 @@ dependencies:
 - openssl
 - requests
 - pip
+- pyproj
 - pytools
 # Activate environment and install the following packages using pip:
 # $ conda activate gpuocean
