@@ -402,7 +402,7 @@ def getInitialConditions(source_url_list, x0, x1, y0, y1, \
     ic['boundary_conditions_data'] = getBoundaryConditionsData(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1)
     ic['boundary_conditions'] = Common.BoundaryConditions(north=3, south=3, east=3, west=3, spongeCells=sponge_cells)
     
-    #Wind stress
+    #Wind stress (shear stress acting on the ocean surface)
     ic['wind_stress'] = getWindSourceterm(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1)
     
     #Note
@@ -412,7 +412,7 @@ def getInitialConditions(source_url_list, x0, x1, y0, y1, \
     ic['t0'] = t0
     ic['timesteps'] = np.ravel(timesteps)
     
-    #wind
+    #wind (wind speed in m/s used for forcing on drifter)
     ic['wind'] = getWind(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1) 
     
     return ic

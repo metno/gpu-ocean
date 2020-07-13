@@ -29,8 +29,11 @@ import numpy as np
 import scipy.integrate
 import warnings
 
-from scipy.integrate.quadrature import AccuracyWarning
-
+if scipy.__version__.startswith('1.4'):
+    from scipy.integrate.quadrature import AccuracyWarning
+else:
+    from scipy.integrate._quadrature import AccuracyWarning
+    
 from SWESimulators import CDKLM16, Common
 
 class DoubleJetPerturbationType:
