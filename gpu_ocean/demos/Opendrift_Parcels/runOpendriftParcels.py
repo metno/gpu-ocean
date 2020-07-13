@@ -110,7 +110,7 @@ def simulate_parcels(source_url, output_filename, lat, lon,
         fieldset = FieldSet(U = fieldset.U+ Uwind,V = fieldset.V+ Vwind)
 
     pset = ParticleSet.from_list(fieldset = fieldset, pclass = JITParticle, lon=lon, lat=lat)
-    output_file = pset.ParticleFile(name = output_filename, outputdt = timedelta(minutes=15))
+    output_file = pset.ParticleFile(name = output_filename, outputdt = timedelta(minutes=5))
 
     pset.execute(AdvectionRK4, runtime = timedelta(hours = duration), dt = timedelta(minutes=5), output_file = output_file)
 
@@ -144,7 +144,7 @@ def simulate_opendrift(source_url, lat, lon,
     
     o.set_config('drift:scheme', 'runge-kutta4') #Set to runge-kutta4, which is the same as Parcels. Default is euler. 
     
-    o.run(duration = timedelta(hours=duration), time_step = 300, time_step_output = 900)
+    o.run(duration = timedelta(hours=duration), time_step = 300, time_step_output = 300)
     
     return o
 
