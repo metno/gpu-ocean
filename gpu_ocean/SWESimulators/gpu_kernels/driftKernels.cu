@@ -25,6 +25,44 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /**
   * Kernel that evolves drifter positions along u and v.
   */
+  
+//Code relating to wind-data
+
+texture<float, cudaTextureType2D> wind_X_current;
+texture<float, cudaTextureType2D> wind_X_next;
+
+texture<float, cudaTextureType2D> wind_Y_current;
+texture<float, cudaTextureType2D> wind_Y_next;
+
+__device__ float windX(float wind_t_, float ti_, float tj_, int nx_, int ny_) {
+    
+    //Normalize coordinates (to [0, 1])
+    const float s = ti_ / float(nx_);
+    const float t = tj_ / float(ny_);
+    
+    //Look up current and next timestep (using bilinear texture interpolation)
+    float current = tex2D(wind_X_current, s, t);
+    float next = tex2D(wind_X_next, s, t);
+    
+    //Interpolate in time
+    return wind_t_*next + (1.0f - wind_t_)*current;
+}
+
+__device__ float windY(float wind_t_, float ti_, float tj_, int nx_, int ny_) {
+    
+    //Normalize coordinates (to [0, 1])
+    const float s = ti_ / float(nx_);
+    const float t = tj_ / float(ny_);
+    
+    //Look up current and next timestep (using bilinear texture interpolation)
+    float current = tex2D(wind_Y_current, s, t);
+    float next = tex2D(wind_Y_next, s, t);
+    
+    //Interpolate in time
+    return wind_t_*next + (1.0f - wind_t_)*current;
+}
+
+
 extern "C" {
 __global__ void passiveDrifterKernel(
         //Discretization parameters
@@ -46,7 +84,10 @@ __global__ void passiveDrifterKernel(
         
         const int num_drifters_,
         float* drifters_positions_, const int drifters_pitch_,
-        const float sensitivity_) {
+        const float sensitivity_,
+        const float wind_t_, 
+        const float wind_drift_factor_) 
+        {
 
     //Index of thread within block (only needed in one dim)
     const int tx = threadIdx.x;
@@ -74,13 +115,24 @@ __global__ void passiveDrifterKernel(
         
         
         float* const hu_row = (float*) ((char*) hu_ptr_ + hu_pitch_*cell_id_y);
-        float const u = hu_row[cell_id_x]/h;
 
         float* const hv_row = (float*) ((char*) hv_ptr_ + hv_pitch_*cell_id_y);
-        float const v = hv_row[cell_id_x]/h;
+        
+        float u;
+        float v;
 
+        if (wind_drift_factor_) {
+            const float XWind = windX(wind_t_, cell_id_x+0.5, cell_id_y+0.5, nx_, ny_) * wind_drift_factor_; 
+            const float YWind = windY(wind_t_, cell_id_x+0.5, cell_id_y+0.5, nx_, ny_) * wind_drift_factor_;
 
-
+            u = hu_row[cell_id_x]/h + XWind;
+            v = hv_row[cell_id_x]/h + YWind;
+            }
+        else {
+            u = hu_row[cell_id_x]/h;
+            v = hv_row[cell_id_x]/h;
+            }
+        
         // Move drifter
         drifter_pos_x += sensitivity_*u*dt_;
         drifter_pos_y += sensitivity_*v*dt_;
