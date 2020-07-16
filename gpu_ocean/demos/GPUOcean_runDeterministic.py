@@ -42,7 +42,7 @@ def getXYproj(source_url):
     
     return X, Y, proj
 
-def initlonlat2initgpuocean(source_url, lon, lat,norkyst = True, proj = None, num_cells_x = 100, num_cells_y = 100):
+def initlonlat2initgpuocean(source_url, lon, lat,norkyst = True, num_cells_x = 100, num_cells_y = 100):
     """
     Given netCDF-file, takes in longitude and latitude coordinates(single or lists) 
     and returns necessary variables for initilazing a GPUOcean simulation.
@@ -54,7 +54,8 @@ def initlonlat2initgpuocean(source_url, lon, lat,norkyst = True, proj = None, nu
         #Finding tentative x,y(not for a specific domain)
         x, y = proj(lon,lat, inverse = False)
     else:
-        assert(proj is not None), "Projection is needed for nordfjords160-data"
+        proj_str= '+proj=stere +ellps=WGS84 +lat_0=90.0 +lat_ts=60.0 +x_0=3192800 +y_0=1784000 +lon_0=70'
+        proj = pyproj.Proj(proj_str)
         try:
             ncfile = Dataset(source_url)
             lon_rho = ncfile.variables['lon_rho'][:]
