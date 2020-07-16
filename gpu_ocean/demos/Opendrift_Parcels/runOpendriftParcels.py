@@ -61,7 +61,7 @@ def parcelsFile2gpuoceanObs(filename, source_url, x0, x1, y0,y1, X= None, Y= Non
     lat = np.ma.filled(pfile.variables['lat'], np.nan)
     pfile.close()
 
-    x, y = lonlat2xygpuocean(source_url, lon, lat, x0, y0, X = X, Y = Y, proj = proj)
+    x, y = lonlat2xygpuocean(source_url, lon, lat, x0, y0)
     
     #TODO: Remove drifters ouside the domain
 

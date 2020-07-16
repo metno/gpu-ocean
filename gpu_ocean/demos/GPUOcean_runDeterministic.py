@@ -88,7 +88,7 @@ def initlonlat2initgpuocean(source_url, lon, lat,norkyst = True, num_cells_x = 1
     return xinit, yinit, int(x0), int(x1), int(y0), int(y1)
 
 
-def lonlat2xygpuocean(source_url, lon, lat, x0, y0, norkyst = False, proj = None):
+def lonlat2xygpuocean(source_url, lon, lat, x0, y0, norkyst = True):
     """
     Takes in NetCDF-file, x, y coordinates(single or lists) and x0, y0 of GPU Ocean-domain. 
     Returns x, y projection of lon, lat.
@@ -97,7 +97,8 @@ def lonlat2xygpuocean(source_url, lon, lat, x0, y0, norkyst = False, proj = None
     if norkyst:
         X, Y, proj = getXYproj(source_url)
     else:
-        assert(proj is not None), "Projection is needed for nordfjords160-data"
+        proj_str= '+proj=stere +ellps=WGS84 +lat_0=90.0 +lat_ts=60.0 +x_0=3192800 +y_0=1784000 +lon_0=70'
+        proj = pyproj.Proj(proj_str)
         try:
             ncfile = Dataset(source_url)
             lon_rho = ncfile.variables['lon_rho'][:]
