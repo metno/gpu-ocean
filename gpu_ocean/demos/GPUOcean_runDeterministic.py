@@ -42,21 +42,36 @@ def getXYproj(source_url):
     
     return X, Y, proj
 
-def initlonlat2initgpuocean(source_url, lon, lat, X= None, Y= None, proj = None, num_cells_x = 100, num_cells_y = 100):
+def initlonlat2initgpuocean(source_url, lon, lat,norkyst = True, proj = None, num_cells_x = 100, num_cells_y = 100):
     """
     Given netCDF-file, takes in longitude and latitude coordinates(single or lists) 
     and returns necessary variables for initilazing a GPUOcean simulation.
     Returns domain coordinates as well as initial positions of drifters. Default domain size = 100 cells in both directions.
-    If X, Y and proj are given, netCDF-file is not opened.
+    Norkyst=True assumes the input data is on the format of norkyst800, while false assumes norfjords(ROMS) format.
     """
-    if (X is None) or (Y is None) or (proj is None):
+    if norkyst:
         X, Y, proj = getXYproj(source_url)
+        #Finding tentative x,y(not for a specific domain)
+        x, y = proj(lon,lat, inverse = False)
+    else:
+        assert(proj is not None), "Projection is needed for nordfjords160-data"
+        try:
+            ncfile = Dataset(source_url)
+            lon_rho = ncfile.variables['lon_rho'][:]
+            lat_rho = ncfile.variables['lat_rho'][:]
+        except Exception as e:
+            raise e
+        finally:
+            ncfile.close()
+            
+        X, Y = proj(lon_rho, lat_rho, inverse = False)
+        X = X[0]
+        Y = Y[:,0] 
+        x, y = proj(lon,lat, inverse = False)
+        x, y = x - X[0], y - Y[0]
     
     res = int(X[1]-X[0]) #Finding grid-resolution (assumed same in both horizontal directions)
-    
-    #Finding tentative x,y(not for a specific domain)
-    x, y = proj(lon,lat, inverse = False)
-    
+
     #Given x,y, num_cells_x, num_cells_y and resolution: specify domain in gpuocean
     x0, x1 = x//res - num_cells_x//2, x//res + num_cells_x//2 
     y0, y1 = y//res - num_cells_y//2, y//res + num_cells_y//2
@@ -65,18 +80,35 @@ def initlonlat2initgpuocean(source_url, lon, lat, X= None, Y= None, proj = None,
     xinit = x - X[int(x0) + 2]
     yinit = y- Y[int(y0) + 2]
     
+    if not norkyst:
+        xinit += X[0]
+        yinit += Y[0]
+        
     return xinit, yinit, int(x0), int(x1), int(y0), int(y1)
 
-def lonlat2xygpuocean(source_url, lon, lat, x0, y0, X= None, Y= None, proj = None):
+
+def lonlat2xygpuocean(source_url, lon, lat, x0, y0, norkyst = False, proj = None):
     """
     Takes in NetCDF-file, x, y coordinates(single or lists) and x0, y0 of GPU Ocean-domain. 
     Returns x, y projection of lon, lat.
     If X, Y and proj are given, netCDF-file is not opened.
     """
-    if (X is None) or (Y is None) or (proj is None):
+    if norkyst:
         X, Y, proj = getXYproj(source_url)
-    
-    res = int(X[1]-X[0]) #Finding grid-resolution (assumed same in both horizontal directions)
+    else:
+        assert(proj is not None), "Projection is needed for nordfjords160-data"
+        try:
+            ncfile = Dataset(source_url)
+            lon_rho = ncfile.variables['lon_rho'][:]
+            lat_rho = ncfile.variables['lat_rho'][:]
+        except Exception as e:
+            raise e
+        finally:
+            ncfile.close()
+            
+        X, Y = proj(lon_rho, lat_rho, inverse = False)
+        X = X[0]
+        Y = Y[:,0] 
     
     #Finding tentative x,y(not for a specific domain)
     x, y = proj(lon,lat, inverse = False)
@@ -86,7 +118,6 @@ def lonlat2xygpuocean(source_url, lon, lat, x0, y0, X= None, Y= None, proj = Non
     y = y- Y[int(y0) + 2]
     
     return x, y
-
 
 def xygpuocean2lonlat(source_url, x, y, x0, y0, X= None, Y= None, proj = None):
     """
@@ -108,29 +139,33 @@ def xygpuocean2lonlat(source_url, x, y, x0, y0, X= None, Y= None, proj = None):
 #Function for running simulation
 
 def simulate_gpuocean_deterministic(source_url, domain, initx, inity, 
-                                    sim_args, erode_land = 1, 
+                                    sim_args, norkyst_data = True, erode_land = 1, 
                                     wind_drift_factor = 0.0, rescale=0,
-                                    outfolder = None, start_forecast_hours = 0, forecast_duration = 23 ):
+                                    forecast_file = None, start_forecast_hours = 0, duration = 23, 
+                                    ocean_state_file = None, netcdf_frequency = 5 ):
     """
     source_url: url or local file or list of either with fielddata in NetCDF-format
     domain: array/list on form [x0,x1,y0,y1] defining the domain for the simulation
     initx, inity = initial coordinates of single drifter or lists with coordinates for multiple drifters. 
                    In local cartesian coordinates of simulation-domain. 
+    norkyst_data: (default True) If True, assumes data from norkyst800. Else, works with norfjords160m(and probably other ROMS data).
     sim_args, erode_land, observation_type: arguments needed for simulator and observation object. sim_args must be given.
     wind_drift_factor: fraction of wind-speed at which objects will be advected. Default is 0 (no direct wind-drift)
     rescale: factor setting resolution of simulation-grid. 0 indicates no rescaling(original resolution), 
              while any other number changes the resolution (ie 2 gives double resolution)
-    outfolder: outfolder
+    forecast_file: optional file for storing trajectory (pickle)
+    ocean_state_file: optional file for storing ocean state (netcdf)
+    netcdf_frequency: frequency(in hours) for storing of ocean states. 
     start_forecast_hours = number hours after which to start simulating drifttrajectories(ocean model starts at beginning of field-data)
                            Default is at beginning of field-data. 
     forecast_duration = duration of simulation(including possibly only ocean simulation). Default is 24 hours.
     """
 
-    end_forecast_hours = start_forecast_hours + forecast_duration
+    end_forecast_hours = start_forecast_hours + duration
     
     #Create simulator
     data_args = NetCDFInitialization.getInitialConditions(source_url, domain[0], domain[1], domain[2],domain[3] , 
-                     timestep_indices = None, erode_land = erode_land, download_data = False)
+                     timestep_indices = None,norkyst_data = norkyst_data, erode_land = erode_land, download_data = False)
     
     if wind_drift_factor:
         wind_data = data_args.pop('wind', None)
@@ -153,9 +188,6 @@ def simulate_gpuocean_deterministic(source_url, domain, initx, inity,
                    }
 
     trajectory_forecast = Observation.Observation(**observation_args)
-
-    if outfolder is not None:
-        trajectory_forecast_filename = 'trajectory_forecast_'+str(start_forecast_hours)+'_to_'+str(end_forecast_hours)+'.pickle'
     
     #Drifters
     #Assumes initx, inity same format/shape
@@ -173,34 +205,96 @@ def simulate_gpuocean_deterministic(source_url, domain, initx, inity,
                                                      gpu_stream = sim.gpu_stream)
     
     drifter_pos_init = np.array([initx, inity]).T
-    
-    #Run simulation
-    num_total_hours = end_forecast_hours
-    
-    five_mins_in_an_hour = 12
-    sub_dt = 5*60 # five minutes
-    
-    progress = Common.ProgressPrinter(5)
-    pp = display(progress.getPrintString(0), display_id=True)
+        
+    try:
+        if ocean_state_file is not None:
+            print("Storing ocean state to netCDF-file: " + ocean_state_file)
+            ncfile = Dataset(ocean_state_file, 'w')
 
-    for hour in range(num_total_hours):
-        
-        if hour == start_forecast_hours:
-            # Attach drifters
-            drifters.setDrifterPositions(drifter_pos_init)
-            sim.attachDrifters(drifters)
-            trajectory_forecast.add_observation_from_sim(sim)
-        
-        for mins in range(five_mins_in_an_hour):
-            t = sim.step(sub_dt)
-            if hour >= start_forecast_hours:
+            var = {}
+            var['eta'], var['hu'], var['hv'] = sim.download(interior_domain_only=False)
+            _, var['Hm'] = sim.downloadBathymetry(interior_domain_only=False)
+
+            ny, nx = var['eta'].shape
+
+            # Create dimensions
+            ncfile.createDimension('time', None) # unlimited
+            ncfile.createDimension('x', nx)
+            ncfile.createDimension('y', ny)
+
+            ncvar = {}
+
+            # Create variables for dimensions
+            ncvar['time'] = ncfile.createVariable('time', 'f8', ('time',))
+            ncvar['x'] = ncfile.createVariable('x', 'f4', ('x',))
+            ncvar['y'] = ncfile.createVariable('y', 'f4', ('y',))
+
+            # Fill dimension variables
+            ncvar['x'][:] = np.linspace(0, nx*sim.dx, nx)
+            ncvar['y'][:] = np.linspace(0, ny*sim.dy, ny)
+
+            # Create static variables
+            ncvar['Hm'] = ncfile.createVariable('Hm', 'f8', ('y', 'x',), zlib=True)
+            ncvar['Hm'][:,:] = var['Hm'][:,:]
+
+            # Create time varying data variables
+            for varname in ['eta', 'hu', 'hv']:
+                ncvar[varname] = ncfile.createVariable(varname, 'f8', ('time', 'y', 'x',), zlib=True)
+            ncvar['num_iterations'] = ncfile.createVariable('num_iterations', 'i4', ('time',))
+
+        #Run simulation
+        num_total_hours = end_forecast_hours
+
+        five_mins_in_an_hour = 12
+        sub_dt = 5*60 # five minutes
+
+        progress = Common.ProgressPrinter(5)
+        pp = display(progress.getPrintString(0), display_id=True)
+
+        netcdf_counter = 0
+        for hour in range(num_total_hours):
+
+            if hour == start_forecast_hours:
+                # Attach drifters
+                drifters.setDrifterPositions(drifter_pos_init)
+                sim.attachDrifters(drifters)
                 trajectory_forecast.add_observation_from_sim(sim)
+
+            for mins in range(five_mins_in_an_hour):
+                t = sim.step(sub_dt)
+                if hour >= start_forecast_hours:
+                    trajectory_forecast.add_observation_from_sim(sim)
+
+            if ocean_state_file is not None and hour%netcdf_frequency == 0:
+                var['eta'], var['hu'], var['hv'] = sim.download(interior_domain_only=False)
+                ncvar['time'][netcdf_counter] = sim.t
+                ncvar['num_iterations'][netcdf_counter] = sim.num_iterations
+
+                abort=False
+                for varname in ['eta', 'hu', 'hv']:
+                    ncvar[varname][netcdf_counter,:,:] = var[varname][:,:] #np.ma.masked_invalid(var[varname][:,:])
+                    if (np.any(np.isnan(var[varname]))):
+                        print("Variable " + varname + " contains NaN values!")
+                        abort=True
+                netcdf_counter += 1
+
+                if (abort):
+                    print("Aborting at t=" + str(sim.t))
+                    ncfile.sync()
+                    break
+
+            pp.update(progress.getPrintString(hour/(end_forecast_hours-1)))
+    
+        if forecast_file is not None:
+            trajectory_forecast.to_pickle(forecast_file)
+            
+    except Exception as e:
+        print("Something went wrong:" + str(e))
+        raise e
+    finally:
+        if ocean_state_file is not None:
+            ncfile.close()
         
-        pp.update(progress.getPrintString(hour/(end_forecast_hours-1)))
-    
-    if outfolder is not None:
-        trajectory_forecast.to_pickle(trajectory_forecast_path)
-    
     return trajectory_forecast
 
 
@@ -242,7 +336,7 @@ def createForecastCanvas(observation, background= False, url=None, domain = None
 
     domain_size_x = observation.domain_size_x
     domain_size_y = observation.domain_size_y
-
+    
     extent=np.array([0, domain_size_x, 0, domain_size_y]) 
 
     if background:
