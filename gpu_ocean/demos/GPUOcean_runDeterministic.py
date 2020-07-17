@@ -47,7 +47,7 @@ def initlonlat2initgpuocean(source_url, lon, lat,norkyst = True, num_cells_x = 1
     Given netCDF-file, takes in longitude and latitude coordinates(single or lists) 
     and returns necessary variables for initilazing a GPUOcean simulation.
     Returns domain coordinates as well as initial positions of drifters. Default domain size = 100 cells in both directions.
-    Norkyst=True assumes the input data is on the format of norkyst800, while false assumes norfjords(ROMS) format.
+    norkyst=True assumes the input data is on the format of norkyst800, while false assumes norfjords(ROMS) format.
     """
     if norkyst:
         X, Y, proj = getXYproj(source_url)
