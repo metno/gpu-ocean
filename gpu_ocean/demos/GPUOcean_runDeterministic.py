@@ -139,6 +139,11 @@ def xygpuocean2lonlat(source_url, x, y, x0, y0, X= None, Y= None, proj = None):
 
 
 def norfjords2norkyst(norfjords_obs, norkyst_obs, norfjords_url, norkyst_url, norfjords_x0, norfjords_y0, norkyst_x0, norkyst_y0):
+    """
+    Takes in observation-objects, source_urls and x0,y0 values for two observation objects: one based on initial conditions from 
+    norfjords160 data and one based on norkyst800-data. Returns new observation with the trajectories from the observation based on 
+    norfjords data, but placed within the same reference system as the observation based on norkyst-data.
+    """
     try:
         ncfile = Dataset(norfjords_url)
         lon_rho = ncfile.variables['lon_rho'][:]
@@ -174,7 +179,46 @@ def norfjords2norkyst(norfjords_obs, norkyst_obs, norfjords_url, norkyst_url, no
     
     return new_norfjords_obs
     
+def norkyst2norfjords(norfjords_obs, norkyst_obs, norfjords_url, norkyst_url, norfjords_x0, norfjords_y0, norkyst_x0, norkyst_y0):
+    """
+    Takes in observation-objects, source_urls and x0,y0 values for two observation objects: one based on initial conditions from 
+    norfjords160 data and one based on norkyst800-data. Returns new observation with the trajectories from the observation based on norkyst 
+    data, but placed within the same reference system as the observation based on norfjords-data.
+    """
+    try:
+        ncfile = Dataset(norfjords_url)
+        lon_rho = ncfile.variables['lon_rho'][:]
+        lat_rho = ncfile.variables['lat_rho'][:]
+    except Exception as e:
+        raise e
+    finally:
+        ncfile.close()
+        
+    X_norkyst, Y_norkyst, proj = getXYproj(norkyst_url)
+        
+    X_norfjords, Y_norfjords = proj(lon_rho, lat_rho, inverse = False) #Norfjords within norkyst800(total domain)
+    X_norfjords = X_norfjords[0]
+    Y_norfjords = Y_norfjords[:,0] 
+
+    t = norkyst_obs.get_observation_times()
+
+    df = norkyst_obs.obs_df['drifter_positions'].values
+    x = np.stack(df, axis=1)[:, :,0]
+    y = np.stack(df, axis=1)[:, :,1]
     
+    x += X_norkyst[norkyst_x0+2]- X_norfjords[norfjords_x0 + 2]
+    y += Y_norkyst[norkyst_y0+2]- Y_norfjords[norfjords_y0 + 2]
+    
+    observation_args = {'observation_type': norfjords_obs.observation_type,
+                'nx': norfjords_obs.nx, 'ny': norfjords_obs.ny,
+                'domain_size_x': norfjords_obs.domain_size_x,
+                'domain_size_y': norfjords_obs.domain_size_y,
+                'land_mask': norfjords_obs.land_mask
+               }
+    new_norkyst_obs = Observation.Observation(**observation_args)
+    new_norkyst_obs.add_observations_from_arrays( t, x, y)
+    
+    return new_norkyst_obs      
     
 #Function for running simulation
 
