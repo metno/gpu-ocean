@@ -34,34 +34,75 @@ texture<float, cudaTextureType2D> wind_X_next;
 texture<float, cudaTextureType2D> wind_Y_current;
 texture<float, cudaTextureType2D> wind_Y_next;
 
-__device__ float windX(float wind_t_, float ti_, float tj_, int nx_, int ny_) {
+__device__ float windX(const float wind_t_, 
+                       const float drifter_pos_x_, const float drifter_pos_y_, 
+                       const float domain_size_x_, const float domain_size_y_) {
     
     //Normalize coordinates (to [0, 1])
-    const float s = ti_ / float(nx_);
-    const float t = tj_ / float(ny_);
+    const float s = drifter_pos_x_ / domain_size_x_;
+    const float t = drifter_pos_y_ / domain_size_y_;
     
     //Look up current and next timestep (using bilinear texture interpolation)
-    float current = tex2D(wind_X_current, s, t);
-    float next = tex2D(wind_X_next, s, t);
+    const float current = tex2D(wind_X_current, s, t);
+    const float next = tex2D(wind_X_next, s, t);
     
     //Interpolate in time
     return wind_t_*next + (1.0f - wind_t_)*current;
 }
 
-__device__ float windY(float wind_t_, float ti_, float tj_, int nx_, int ny_) {
+__device__ float windY(const float wind_t_, 
+                       const float drifter_pos_x_, const float drifter_pos_y_, 
+                       const float domain_size_x_, const float domain_size_y_) {
     
     //Normalize coordinates (to [0, 1])
-    const float s = ti_ / float(nx_);
-    const float t = tj_ / float(ny_);
+    const float s = drifter_pos_x_ / domain_size_x_;
+    const float t = drifter_pos_y_ / domain_size_y_;
     
     //Look up current and next timestep (using bilinear texture interpolation)
-    float current = tex2D(wind_Y_current, s, t);
-    float next = tex2D(wind_Y_next, s, t);
+    const float current = tex2D(wind_Y_current, s, t);
+    const float next = tex2D(wind_Y_next, s, t);
     
     //Interpolate in time
     return wind_t_*next + (1.0f - wind_t_)*current;
 }
 
+
+
+__device__ float waterVelocityU(
+        float* eta_ptr_, const int eta_pitch_,
+        float* hu_ptr_, const int hu_pitch_,
+        float* Hm_ptr_, const int Hm_pitch_,
+        const int cell_id_x, const int cell_id_y) {
+    
+    // Read the water velocity from global memory
+    float* const eta_row_y = (float*) ((char*) eta_ptr_ + eta_pitch_*cell_id_y);
+    float* const Hm_row_y = (float*) ((char*) Hm_ptr_ + Hm_pitch_*cell_id_y);
+    float const h = Hm_row_y[cell_id_x] + eta_row_y[cell_id_x];
+
+    float* const hu_row = (float*) ((char*) hu_ptr_ + hu_pitch_*cell_id_y);
+    
+    float const u = hu_row[cell_id_x]/h;
+    
+    return u;
+}
+
+__device__ float waterVelocityV(
+        float* eta_ptr_, const int eta_pitch_,
+        float* hv_ptr_, const int hv_pitch_, 
+        float* Hm_ptr_, const int Hm_pitch_,
+        const int cell_id_x, const int cell_id_y) {
+    
+    // Read the water velocity from global memory
+    float* const eta_row_y = (float*) ((char*) eta_ptr_ + eta_pitch_*cell_id_y);
+    float* const Hm_row_y = (float*) ((char*) Hm_ptr_ + Hm_pitch_*cell_id_y);
+    float const h = Hm_row_y[cell_id_x] + eta_row_y[cell_id_x];
+
+    float* const hv_row = (float*) ((char*) hv_ptr_ + hv_pitch_*cell_id_y);
+    
+    float const v = hv_row[cell_id_x]/h;
+    
+    return v;
+}
 
 extern "C" {
 __global__ void passiveDrifterKernel(
@@ -103,35 +144,45 @@ __global__ void passiveDrifterKernel(
         float* drifter = (float*) ((char*) drifters_positions_ + drifters_pitch_*ti);
         float drifter_pos_x = drifter[0];
         float drifter_pos_y = drifter[1];
-
+        
         // Find cell ID for the cell in which our particle is
         int const cell_id_x = (int)(ceil(drifter_pos_x/dx_) + x_zero_reference_cell_);
         int const cell_id_y = (int)(ceil(drifter_pos_y/dy_) + y_zero_reference_cell_);
-
-        // Read the water velocity from global memory
-        float* const eta_row = (float*) ((char*) eta_ptr_ + eta_pitch_*cell_id_y);
-        float* const Hm_row = (float*) ((char*) Hm_ptr_ + Hm_pitch_*cell_id_y);
-        float const h = Hm_row[cell_id_x] + eta_row[cell_id_x];
         
+        float const frac_x = drifter_pos_x / dx_ - floor(drifter_pos_x / dx_);
+        float const frac_y = drifter_pos_y / dy_ - floor(drifter_pos_y / dy_);
         
-        float* const hu_row = (float*) ((char*) hu_ptr_ + hu_pitch_*cell_id_y);
+        const int cell_id_x0 = frac_x < 0.5f ? cell_id_x - 1 : cell_id_x;
+        const float x_factor = frac_x < 0.5f ? frac_x + 0.5f : frac_x - 0.5f; 
+        const int cell_id_x1 = cell_id_x0 + 1;
 
-        float* const hv_row = (float*) ((char*) hv_ptr_ + hv_pitch_*cell_id_y);
+        const int cell_id_y0 = frac_y < 0.5f ? cell_id_y - 1 : cell_id_y;
+        const float y_factor = frac_y < 0.5f ? frac_y + 0.5f : frac_y - 0.5f; 
+        const int cell_id_y1 = cell_id_y0 + 1;
+                
+        float const u_x0y0 = waterVelocityU(eta_ptr_, eta_pitch_,hu_ptr_, hu_pitch_,Hm_ptr_, Hm_pitch_, cell_id_x0, cell_id_y0);
+        float const u_x1y0 = waterVelocityU(eta_ptr_, eta_pitch_,hu_ptr_, hu_pitch_,Hm_ptr_, Hm_pitch_, cell_id_x1, cell_id_y0);
+        float const u_x0y1 = waterVelocityU(eta_ptr_, eta_pitch_,hu_ptr_, hu_pitch_,Hm_ptr_, Hm_pitch_, cell_id_x0, cell_id_y1);
+        float const u_x1y1 = waterVelocityU(eta_ptr_, eta_pitch_,hu_ptr_, hu_pitch_,Hm_ptr_, Hm_pitch_, cell_id_x1, cell_id_y1);
         
-        float u;
-        float v;
-
+        float const v_x0y0 = waterVelocityV(eta_ptr_, eta_pitch_,hv_ptr_, hv_pitch_,Hm_ptr_, Hm_pitch_, cell_id_x0, cell_id_y0);
+        float const v_x1y0 = waterVelocityV(eta_ptr_, eta_pitch_,hv_ptr_, hv_pitch_,Hm_ptr_, Hm_pitch_, cell_id_x1, cell_id_y0);
+        float const v_x0y1 = waterVelocityV(eta_ptr_, eta_pitch_,hv_ptr_, hv_pitch_,Hm_ptr_, Hm_pitch_, cell_id_x0, cell_id_y1);
+        float const v_x1y1 = waterVelocityV(eta_ptr_, eta_pitch_,hv_ptr_, hv_pitch_,Hm_ptr_, Hm_pitch_, cell_id_x1, cell_id_y1);
+        
+        float const u_y0 = (1-x_factor)*u_x0y0 + x_factor * u_x1y0; 
+        float const u_y1 = (1-x_factor)*u_x0y1 + x_factor * u_x1y1; 
+        
+        float const v_y0 = (1-x_factor)*v_x0y0 + x_factor * v_x1y0; 
+        float const v_y1 = (1-x_factor)*v_x0y1 + x_factor * v_x1y1;
+        
+        float u = (1-y_factor)*u_y0 + y_factor *u_y1;
+        float v = (1-y_factor)*v_y0 + y_factor *v_y1;
+        
         if (wind_drift_factor_) {
-            const float XWind = windX(wind_t_, cell_id_x+0.5, cell_id_y+0.5, nx_, ny_) * wind_drift_factor_; 
-            const float YWind = windY(wind_t_, cell_id_x+0.5, cell_id_y+0.5, nx_, ny_) * wind_drift_factor_;
-
-            u = hu_row[cell_id_x]/h + XWind;
-            v = hv_row[cell_id_x]/h + YWind;
-            }
-        else {
-            u = hu_row[cell_id_x]/h;
-            v = hv_row[cell_id_x]/h;
-            }
+            u = u + windX(wind_t_, drifter_pos_x, drifter_pos_y, nx_*dx_, ny_*dy_) * wind_drift_factor_;
+            v = v + windY(wind_t_, drifter_pos_x, drifter_pos_y, nx_*dx_, ny_*dy_) * wind_drift_factor_;
+        }
         
         // Move drifter
         drifter_pos_x += sensitivity_*u*dt_;

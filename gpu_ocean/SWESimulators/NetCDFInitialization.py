@@ -28,12 +28,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import datetime, os, copy
 from netCDF4 import Dataset
+import pyproj
 from scipy.ndimage.morphology import binary_erosion, grey_dilation
 
 from SWESimulators import Common, WindStress, OceanographicUtilities
 
 
-def getBoundaryConditionsData(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1):
+def getBoundaryConditionsData(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1, norkyst_data):
     """
     timestep_indices => index into netcdf-array, e.g. [1, 3, 5]
     timestep => time at timestep, e.g. [1800, 3600, 7200]
@@ -84,9 +85,15 @@ def getBoundaryConditionsData(source_url_list, timestep_indices, timesteps, x0, 
                 bc_eta['west'][bc_index] = zeta[ 1:-1, 0]
 
                 h = H + zeta
-
-                hu = ncfile.variables['ubar'][timestep_index, y0-1:y1+1, x0-1:x1+1]
-                hu = hu.filled(0) #zero on land
+                
+                if norkyst_data:
+                    hu = ncfile.variables['ubar'][timestep_index, y0-1:y1+1, x0-1:x1+1]
+                    hu = hu.filled(0) #zero on land
+                else: 
+                    hu = ncfile.variables['ubar'][timestep_index, y0-1:y1+1, x0-1:x1+2]
+                    hu = hu.filled(0) #zero on land
+                    hu = (hu[:,1:] + hu[:, :-1]) * 0.5
+                    
                 hu = h*hu
 
                 bc_hu['north'][bc_index] = hu[-1, 1:-1]
@@ -94,8 +101,13 @@ def getBoundaryConditionsData(source_url_list, timestep_indices, timesteps, x0, 
                 bc_hu['east'][bc_index] = hu[1:-1, -1]
                 bc_hu['west'][bc_index] = hu[1:-1, 0]
 
-                hv = ncfile.variables['vbar'][timestep_index, y0-1:y1+1, x0-1:x1+1]
-                hv = hv.filled(0) #zero on land
+                if norkyst_data:
+                    hv = ncfile.variables['vbar'][timestep_index, y0-1:y1+1, x0-1:x1+1]
+                    hv = hv.filled(0) #zero on land
+                else:
+                    hv = ncfile.variables['vbar'][timestep_index, y0-1:y1+2, x0-1:x1+1]
+                    hv = hv.filled(0) #zero on land
+                    hv = (hv[1:,:] + hv[:-1, :]) * 0.5
                 hv = h*hv
 
                 bc_hv['north'][bc_index] = hv[-1, 1:-1]
@@ -158,7 +170,10 @@ def getWindSourceterm(source_url_list, timestep_indices, timesteps, x0, x1, y0, 
     for i in range(1, num_files):
         u_wind = np.concatenate((u_wind, u_wind_list[i].filled(0)))
         v_wind = np.concatenate((v_wind, v_wind_list[i].filled(0)))
-        
+    
+    u_wind = u_wind.astype(np.float32)
+    v_wind = v_wind.astype(np.float32)
+    
     wind_speed = np.sqrt(np.power(u_wind, 2) + np.power(v_wind, 2))
 
     # C_drag as defined by Engedahl (1995)
@@ -275,6 +290,7 @@ def checkCachedNetCDF(source_url, download_data=True):
 
 def getInitialConditions(source_url_list, x0, x1, y0, y1, \
                          timestep_indices=None, \
+                         norkyst_data = True,
                          land_value=5.0, \
                          iterations=10, \
                          sponge_cells={'north':20, 'south': 20, 'east': 20, 'west': 20}, \
@@ -290,26 +306,63 @@ def getInitialConditions(source_url_list, x0, x1, y0, y1, \
     for i in range(len(source_url_list)):
         source_url_list[i] = checkCachedNetCDF(source_url_list[i], download_data=download_data)
     
-    
         
     # Read constants and initial values from the first source url
     source_url = source_url_list[0]
-    try:
-        ncfile = Dataset(source_url)
-        H_m = ncfile.variables['h'][y0-1:y1+1, x0-1:x1+1]
-        eta0 = ncfile.variables['zeta'][0, y0-1:y1+1, x0-1:x1+1]
-        u0 = ncfile.variables['ubar'][0, y0:y1, x0:x1]
-        v0 = ncfile.variables['vbar'][0, y0:y1, x0:x1]
-        angle = ncfile.variables['angle'][y0:y1, x0:x1]
-        latitude = ncfile.variables['lat'][y0:y1, x0:x1]
-        x = ncfile.variables['X'][x0:x1]
-        y = ncfile.variables['Y'][y0:y1]
+    if norkyst_data:
+        try:
+            ncfile = Dataset(source_url)
+            H_m = ncfile.variables['h'][y0-1:y1+1, x0-1:x1+1]
+            eta0 = ncfile.variables['zeta'][0, y0-1:y1+1, x0-1:x1+1]
+            u0 = ncfile.variables['ubar'][0, y0:y1, x0:x1]
+            v0 = ncfile.variables['vbar'][0, y0:y1, x0:x1]
+            angle = ncfile.variables['angle'][y0:y1, x0:x1]
+            latitude = ncfile.variables['lat'][y0:y1, x0:x1]
+            x = ncfile.variables['X'][x0:x1]
+            y = ncfile.variables['Y'][y0:y1]
+        except Exception as e:
+            raise e
+        finally:
+            ncfile.close()
         
+        u0 = u0.filled(0.0)
+        v0 = v0.filled(0.0)
         
-    except Exception as e:
-        raise e
-    finally:
-        ncfile.close()
+        time_str = 'time'
+    else:
+        try:
+            ncfile = Dataset(source_url)
+            H_m = ncfile.variables['h'][y0-1:y1+1, x0-1:x1+1]
+            eta0 = ncfile.variables['zeta'][0, y0-1:y1+1, x0-1:x1+1]
+            u0 = ncfile.variables['ubar'][0, y0:y1, x0:x1+1]
+            v0 = ncfile.variables['vbar'][0, y0:y1+1, x0:x1]
+            angle = ncfile.variables['angle'][y0:y1, x0:x1]
+            #lon, lat at cell centers:
+            lat_rho = ncfile.variables['lat_rho'][y0:y1, x0:x1]
+            lon_rho = ncfile.variables['lon_rho'][y0:y1, x0:x1]
+        except Exception as e:
+            raise e
+        finally:
+            ncfile.close()
+        
+        latitude = lat_rho
+        
+        #Find x, y (in Norkyst800 reference system, origin at norkyst800 origin)
+        proj_str= '+proj=stere +ellps=WGS84 +lat_0=90.0 +lat_ts=60.0 +x_0=3192800 +y_0=1784000 +lon_0=70'
+        proj = pyproj.Proj(proj_str)
+        
+        x_rho, y_rho = proj(lon_rho, lat_rho, inverse = False)
+        x, y = x_rho[0], y_rho[:,0]
+        
+        #Find u,v at cell centers
+        u0 = u0.filled(fill_value = 0.0)
+        v0 = v0.filled(fill_value = 0.0)
+   
+        u0 = (u0[:,1:] + u0[:, :-1]) * 0.5
+        v0 = (v0[1:,:] + v0[:-1, :]) * 0.5
+        
+        time_str = 'ocean_time'
+
         
     # Get time steps:
     if timestep_indices is None:
@@ -321,14 +374,14 @@ def getInitialConditions(source_url_list, x0, x1, y0, y1, \
         timestep_indices = timestep_indices_tmp
     
     timesteps = [None]*num_files
-    
+        
     for i in range(num_files):
         try:
             ncfile = Dataset(source_url_list[i])
             if (timestep_indices[i] is not None):
-                timesteps[i] = ncfile.variables['time'][timestep_indices[i][:]]
+                timesteps[i] = ncfile.variables[time_str][timestep_indices[i][:]]
             else:
-                timesteps[i] = ncfile.variables['time'][:]
+                timesteps[i] = ncfile.variables[time_str][:]
                 timestep_indices[i] = range(len(timesteps[i]))
         except Exception as e:
             print('exception in obtaining timestep for file '+str(i))
@@ -361,8 +414,8 @@ def getInitialConditions(source_url_list, x0, x1, y0, y1, \
     
     #Generate physical variables
     eta0 = np.ma.array(eta0.filled(0), mask=eta0.mask.copy())
-    hu0 = np.ma.array(h0*u0.filled(0), mask=eta0.mask.copy())
-    hv0 = np.ma.array(h0*v0.filled(0), mask=eta0.mask.copy())
+    hu0 = np.ma.array(h0*u0, mask=eta0.mask.copy())
+    hv0 = np.ma.array(h0*v0, mask=eta0.mask.copy())
     
     #Spong cells for e.g., flow relaxation boundary conditions
     ic['sponge_cells'] = sponge_cells
@@ -399,11 +452,14 @@ def getInitialConditions(source_url_list, x0, x1, y0, y1, \
     # ic['f'], ic['coriolis_beta'] = OceanographicUtilities.calcCoriolisParams(OceanographicUtilities.degToRad(latitude[0, 0]))
     
     #Boundary conditions
-    ic['boundary_conditions_data'] = getBoundaryConditionsData(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1)
+    ic['boundary_conditions_data'] = getBoundaryConditionsData(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1, norkyst_data)
     ic['boundary_conditions'] = Common.BoundaryConditions(north=3, south=3, east=3, west=3, spongeCells=sponge_cells)
     
     #Wind stress (shear stress acting on the ocean surface)
     ic['wind_stress'] = getWindSourceterm(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1)
+    
+    #wind (wind speed in m/s used for forcing on drifter)
+    ic['wind'] = getWind(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1) 
     
     #Note
     ic['note'] = datetime.datetime.now().isoformat() + ": Generated from " + str(source_url_list)
@@ -411,9 +467,6 @@ def getInitialConditions(source_url_list, x0, x1, y0, y1, \
     #Initial reference time and all timesteps
     ic['t0'] = t0
     ic['timesteps'] = np.ravel(timesteps)
-    
-    #wind (wind speed in m/s used for forcing on drifter)
-    ic['wind'] = getWind(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1) 
     
     return ic
 
@@ -455,6 +508,9 @@ def getWind(source_url_list, timestep_indices, timesteps, x0, x1, y0, y1):
     for i in range(1, num_files):
         u_wind = np.concatenate((u_wind, u_wind_list[i].filled(0)))
         v_wind = np.concatenate((v_wind, v_wind_list[i].filled(0)))
+    
+    u_wind = u_wind.astype(np.float32)
+    v_wind = v_wind.astype(np.float32)
     
     wind_source = WindStress.WindStress(t=np.ravel(timesteps).copy(), X=u_wind, Y=v_wind)
     
