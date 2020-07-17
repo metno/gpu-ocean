@@ -138,6 +138,44 @@ def xygpuocean2lonlat(source_url, x, y, x0, y0, X= None, Y= None, proj = None):
     return lon, lat
 
 
+def norfjords2norkyst(norfjords_obs, norkyst_obs, norfjords_url, norkyst_url, norfjords_x0, norfjords_y0, norkyst_x0, norkyst_y0):
+    try:
+        ncfile = Dataset(norfjords_url)
+        lon_rho = ncfile.variables['lon_rho'][:]
+        lat_rho = ncfile.variables['lat_rho'][:]
+    except Exception as e:
+        raise e
+    finally:
+        ncfile.close()
+        
+    X_norkyst, Y_norkyst, proj = getXYproj(norkyst_url)
+        
+    X_norfjords, Y_norfjords = proj(lon_rho, lat_rho, inverse = False) #Norfjords within norkyst800(total domain)
+    X_norfjords = X_norfjords[0]
+    Y_norfjords = Y_norfjords[:,0] 
+
+    t = norfjords_obs.get_observation_times()
+
+    df = norfjords_obs.obs_df['drifter_positions'].values
+    x = np.stack(df, axis=1)[:, :,0]
+    y = np.stack(df, axis=1)[:, :,1]
+    
+    x += X_norfjords[norfjords_x0+2]- X_norkyst[norkyst_x0 + 2]
+    y += Y_norfjords[norfjords_y0+2]- Y_norkyst[norkyst_y0 + 2]
+    
+    observation_args = {'observation_type': norkyst_obs.observation_type,
+                'nx': norkyst_obs.nx, 'ny': norkyst_obs.ny,
+                'domain_size_x': norkyst_obs.domain_size_x,
+                'domain_size_y': norkyst_obs.domain_size_y,
+                'land_mask': norkyst_obs.land_mask
+               }
+    new_norfjords_obs = Observation.Observation(**observation_args)
+    new_norfjords_obs.add_observations_from_arrays( t, x, y)
+    
+    return new_norfjords_obs
+    
+    
+    
 #Function for running simulation
 
 def simulate_gpuocean_deterministic(source_url, domain, initx, inity, 
