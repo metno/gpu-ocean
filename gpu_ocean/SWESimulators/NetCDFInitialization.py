@@ -107,7 +107,7 @@ def getBoundaryConditionsData(source_url_list, timestep_indices, timesteps, x0, 
                 else:
                     hv = ncfile.variables['vbar'][timestep_index, y0-1:y1+2, x0-1:x1+1]
                     hv = hv.filled(0) #zero on land
-                    hv = (hv[:1,:] + hv[:-1, :]) * 0.5
+                    hv = (hv[1:,:] + hv[:-1, :]) * 0.5
                 hv = h*hv
 
                 bc_hv['north'][bc_index] = hv[-1, 1:-1]
