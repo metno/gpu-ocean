@@ -236,10 +236,7 @@ class FBL(Simulator.Simulator):
         except:
             wind = WindStress.WindStress()
 
-        boundaryConditions = Common.BoundaryConditions( \
-            sim_reader.getBC()[0], sim_reader.getBC()[1], \
-            sim_reader.getBC()[2], sim_reader.getBC()[3], \
-            sim_reader.getBCSpongeCells())
+        boundaryConditions = sim_reader.getBC()
 
         h0 = sim_reader.getH();
 

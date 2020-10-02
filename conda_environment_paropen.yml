@@ -1,0 +1,37 @@
+# Assumes that conda, pip and build-essentials are installed
+---
+name: gpuocean_parcels_opendrift
+channels:
+- conda-forge
+- opendrift
+- noaa-orr-erd
+
+dependencies:
+- python=3.7
+- numpy
+- matplotlib
+- jupyter
+- netcdf4
+- pytest
+- xmlrunner
+- scipy
+- pandas
+- pytables
+- nb_conda_kernels
+- nbdime
+- mpi4py
+- openssl
+- requests
+- pip
+- pytools
+- parcels
+- mpich
+- scikit-learn
+- cartopy
+- ffmpeg
+- opendrift
+# Activate environment and install the following packages using pip:
+# $ conda activate gpuocean_parcels_opendrift
+#  - pycuda: $ pip3 install --no-deps -U pycuda
+# on Windows: make sure your visual studio c++ compiler is available in PATH
+# PATH should have something like C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\

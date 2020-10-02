@@ -4,8 +4,9 @@ name: gpuocean
 channels:
 - conda-forge
 
+# If you update this list, please also update gpu_ocean/requirements.txt
 dependencies:
-- python=3.6
+- python=3.7
 - numpy
 - matplotlib
 - jupyter
@@ -16,9 +17,15 @@ dependencies:
 - pandas
 - pytables
 - nb_conda_kernels
+- nbdime
 - mpi4py
+- openssl
 - requests
-- pip:
-  - pycuda
+- pip
+- pyproj
+- pytools
+# Activate environment and install the following packages using pip:
+# $ conda activate gpuocean
+#  - pycuda: $ pip3 install --no-deps -U pycuda
 # on Windows: make sure your visual studio c++ compiler is available in PATH
 # PATH should have something like C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\

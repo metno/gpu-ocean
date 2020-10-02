@@ -468,10 +468,7 @@ class CDKLM16(Simulator.Simulator):
         sim_params['wind_stress'] = wind
             
         # Boundary conditions
-        sim_params['boundary_conditions'] = Common.BoundaryConditions( \
-            sim_reader.getBC()[0], sim_reader.getBC()[1], \
-            sim_reader.getBC()[2], sim_reader.getBC()[3], \
-            sim_reader.getBCSpongeCells())
+        sim_params['boundary_conditions'] = sim_reader.getBC()
     
         # Model errors
         if sim_reader.has('small_scale_perturbation'):
@@ -602,7 +599,7 @@ class CDKLM16(Simulator.Simulator):
             self.drifters.drift(self.gpu_data.h0, self.gpu_data.hu0, \
                                 self.gpu_data.hv0, \
                                 self.bathymetry.Bm, \
-                                self.nx, self.ny, self.dx, self.dy, \
+                                self.nx, self.ny, self.t, self.dx, self.dy, \
                                 dt, \
                                 np.int32(2), np.int32(2))
             self.drifter_t += dt

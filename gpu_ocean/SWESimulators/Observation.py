@@ -509,7 +509,9 @@ class Observation:
         - assume_no_boundary_trouble: Boolean - If this is true, we can speed up the processing.
         """
         paths = []
-        observation_times = self.get_observation_times()
+        # self.get_observation_times() would not include the starting time 
+        # (and thereby, the starting position), so we need to extract these directly.
+        observation_times = self.obs_df.time.values[::self.observationInterval].copy()
         
         start_obs_index = np.searchsorted(observation_times, start_t)
         end_obs_index   = min(np.searchsorted(observation_times, end_t)+1, len(observation_times))
@@ -517,7 +519,7 @@ class Observation:
         total_num_observations = end_obs_index - start_obs_index
         
         # Filter the given drifter based from the data frame only once for efficiency
-        all_drifter_positions_df = self.obs_df[self.drifter_positions_key].values[::self.observationInterval][1:].copy()
+        all_drifter_positions_df = self.obs_df[self.drifter_positions_key].values[::self.observationInterval].copy()
         all_drifter_positions = np.stack(all_drifter_positions_df, axis=0)[:, drifter_id,:]
         
         path = np.zeros((total_num_observations, 2))

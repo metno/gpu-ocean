@@ -252,7 +252,11 @@ __global__ void ctcsStepKernel(
         
         // Option 3: Corresponding to Lars Petter's compendium GEF4510 2014 (if we discard varying bathymetry)
         //const float P_x = -0.5f*g_*(h_p0*h_p0 - h_00*h_00);
-
+        
+        // Option 4: According to Lars Petter's fortran code
+        //const float P_x = -0.5f*g_*((H_p0 + H_00)*(eta_p0 - eta_00));
+        //const float P_x = -g_*H_x*(eta_p0 - eta_00) + P_x_hat;
+        
         // It seems that options 2 and 3 gives the same results (at least for Kelvin waves)
         
         //Calculate nonlinear effects
@@ -355,6 +359,10 @@ __global__ void ctcsStepKernel(
         
         // Corresponding to Lars Petter's compendium GEF4510 2014 (if we discard varying bathymetry)
         //const float P_y = -0.5f*g_*(h_0p*h_0p - h_00*h_00);
+
+        // Option 4: According to Lars Petter's fortran code
+        //const float P_y = -0.5f*g_*((H_0p + H_00)*(eta_0p - eta_00));
+        //const float P_y = -g_*H_y*(eta_0p - eta_00) + P_y_hat;
         
         //Calculate nonlinear effects
         const float N_a = (V_0p + V_00)*(V_0p + V_00) / (H_0p + eta_0p);
