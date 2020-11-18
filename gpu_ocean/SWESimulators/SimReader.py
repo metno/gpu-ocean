@@ -56,12 +56,16 @@ class SimNetCDFReader:
         except:
             return "not found"
         
-    def has(self, attr):
+    def has(self, fieldname):
         try:
-            tmp = self.ncfile.getncattr(attr)
+            tmp = self.ncfile.getncattr(fieldname)
             return True
         except:
-            return False
+            try:
+                tmp = self.ncfile.variables[fieldname]
+                return True
+            except:
+                return False
         
     def printVariables(self):
         for var in self.ncfile.variables:
@@ -103,10 +107,13 @@ class SimNetCDFReader:
         return eta, hu, hv, np.float32(time[index])
     
     def getH(self):
-        if self.staggered_grid:
-            H = self.ncfile.variables['Hm'][:, :]
+        if self.has('H'):
+            H = self.ncfile.variables['H'][:, :]
         else:
-            H = self.ncfile.variables['Hi'][:, :]
+            if self.staggered_grid:
+                H = self.ncfile.variables['Hm'][:, :]
+            else:
+                H = self.ncfile.variables['Hi'][:, :]
         return H
     
     def getHm(self):
