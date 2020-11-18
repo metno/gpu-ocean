@@ -921,7 +921,7 @@ class BoundaryConditions:
                 return -1
             
         #clean string
-        bc_clean_str = bc_string.replace(',','').replace('}','').replace('{','').replace(':','').replace("'","")
+        bc_clean_str = bc_string.replace(',','').replace('}','').replace('{','').replace('[','').replace(']','').replace(':','').replace("'","")
         
         bc_array = str.split(bc_clean_str, ' ')
         north = keyword_to_cond(bc_array[1])
@@ -929,10 +929,16 @@ class BoundaryConditions:
         south = keyword_to_cond(bc_array[5])
         west  = keyword_to_cond(bc_array[7])
         
-        spongeCells = {bc_array[9]: int(bc_array[10]),
-                        bc_array[11]:  int(bc_array[12]),
-                        bc_array[13]:  int(bc_array[14]),
-                        bc_array[15]:  int(bc_array[16])}
+        if len(bc_array)>13:
+            spongeCells = {bc_array[9]: int(bc_array[10]),
+                            bc_array[11]:  int(bc_array[12]),
+                            bc_array[13]:  int(bc_array[14]),
+                            bc_array[15]:  int(bc_array[16])}
+        else:
+            spongeCells = {'north'  : int(bc_array[9]),
+                            'east'  :  int(bc_array[10]),
+                            'south' :  int(bc_array[11]),
+                            'west'  :  int(bc_array[12])}
         
         return cls(north=north, east=east, south=south, west=west, spongeCells=spongeCells)
     
