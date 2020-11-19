@@ -4,6 +4,7 @@
 /.settings/
 /.pydevproject
 .ipynb_checkpoints/
+.vscode/
 *.pyc
 *~
 *.nc
