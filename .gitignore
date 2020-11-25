@@ -6,7 +6,7 @@
 /.pydevproject
 .ipynb_checkpoints/
 .vscode/
-/cuda_cache/
+cuda_cache/
 
 # Ignored file types
 *.pyc
