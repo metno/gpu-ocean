@@ -1,3 +1,0 @@
-2020-11-16 09:54:39,063:root:INFO: Python version 3.7.8 | packaged by conda-forge | (default, Jul 31 2020, 01:53:57) [MSC v.1916 64 bit (AMD64)]
-2020-11-16 17:12:38,535:SWESimulators.IPythonMagic:INFO: Exitfunc: Resetting CUDA context stack
-2020-11-16 17:12:38,536:SWESimulators.IPythonMagic:INFO: `-> Popping <2419178390896>
