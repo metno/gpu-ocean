@@ -113,6 +113,9 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.rmseUnderDrifter_eta = []
         self.rmseUnderDrifter_hu = []
         self.rmseUnderDrifter_hv = []
+        self.rmseWeightedUnderDrifter_eta = []
+        self.rmseWeightedUnderDrifter_hu = []
+        self.rmseWeightedUnderDrifter_hv = []
         self.rUnderDrifter_eta = []
         self.rUnderDrifter_hu = []
         self.rUnderDrifter_hv = []
@@ -586,6 +589,10 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     def getEnsembleVarAndRMSEUnderDrifter(self, t, allDrifters=False):
         """
         Putting entries in the statistical arrays for single cells.
+        1. unbiased estimate of variance 
+        2. root mean square error compared to the truth (rmse_truth)
+        3. rmse_truth normalized by the norm of the truth
+        4. ratio of variance and rmse_truth 
         """
         
         drifter_pos = self.observeTrueState()[0][0:2]
@@ -607,6 +614,9 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         eta_rmse = 0.0
         hu_rmse = 0.0
         hv_rmse = 0.0
+        eta_rmse_weighted = 0.0
+        hu_rmse_weighted = 0.0
+        hv_rmse_weighted = 0.0
         eta_sigma = 0.0
         hu_sigma = 0.0
         hv_sigma = 0.0
@@ -631,6 +641,10 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         eta_rmse = np.sqrt((eta_true - eta_mean)**2)
         hu_rmse  = np.sqrt((hu_true  - hu_mean )**2)
         hv_rmse  = np.sqrt((hv_true  - hv_mean )**2)
+
+        eta_rmse_weighted = eta_rmse/abs(eta_true)
+        hu_rmse_weighted  = hu_rmse/abs(hu_true)
+        hv_rmse_weighted  = hv_rmse/abs(hv_true)
         
         numNonZeros = 0
         for p in range(self.getNumParticles()):
@@ -655,6 +669,9 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.rmseUnderDrifter_eta.append(eta_rmse)
         self.rmseUnderDrifter_hu.append(hu_rmse)
         self.rmseUnderDrifter_hv.append(hv_rmse)
+        self.rmseWeightedUnderDrifter_eta.append(eta_rmse_weighted)
+        self.rmseWeightedUnderDrifter_hu.append(hu_rmse_weighted)
+        self.rmseWeightedUnderDrifter_hv.append(hv_rmse_weighted)
         self.rUnderDrifter_eta.append(eta_r)
         self.rUnderDrifter_hu.append(hu_r)
         self.rUnderDrifter_hv.append(hv_r)
