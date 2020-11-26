@@ -98,7 +98,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         if self.observation_type == dautils.ObservationType.StaticBuoys:
             if buoys_positions is not None:
                 assert( len(buoys_positions)==num_drifters ), "number of given buoys positions does not match the specified num_drifters" 
-            self.buoys_positions = buoys_positions
+        self.buoys_positions = buoys_positions
 
         self.observation_buffer = None
                 
@@ -588,7 +588,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         Putting entries in the statistical arrays for single cells.
         """
         
-        drifter_pos = self.observeTrueDrifters()[0,:]
+        drifter_pos = self.observeTrueState()[0][0:2]
         
         # downloadTrueOceanState and downloadParticleOceanState gives us interior domain only,
         # and no ghost cells.
