@@ -96,7 +96,8 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.compensate_for_eta = compensate_for_eta
 
         if self.observation_type == dautils.ObservationType.StaticBuoys:
-            assert( len(buoys_positions)==num_drifters ), "number of given buoys positions does not match the specified num_drifters" 
+            if buoys_positions is not None:
+                assert( len(buoys_positions)==num_drifters ), "number of given buoys positions does not match the specified num_drifters" 
             self.buoys_positions = buoys_positions
 
         self.observation_buffer = None
@@ -130,12 +131,13 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
                 
         # Put the initial positions into the observation array
-        # For buoys with fixed positions the cell ids of the bouys are extracted and stored
+        # (For static buoys the cell ids of the positions are extracted and stored,
+        # the self.buoys_postions are either given as input or sampled in _init)
         if self.observation_type == dautils.ObservationType.StaticBuoys:
-            self.buoys_ids = np.empty((len(buoys_positions),2)).astype(int)
-            for d in range(len(buoys_positions)):
-                self.buoys_ids[d][0] = np.int(np.floor(buoys_positions[d][0]/self.dx))
-                self.buoys_ids[d][1] = np.int(np.floor(buoys_positions[d][1]/self.dy))
+            self.buoys_ids = np.empty((len(self.buoys_positions),2)).astype(int)
+            for d in range(len(self.buoys_positions)):
+                self.buoys_ids[d][0] = np.int(np.floor(self.buoys_positions[d][0]/self.dx))
+                self.buoys_ids[d][1] = np.int(np.floor(self.buoys_positions[d][1]/self.dy))
 
         self._addObservation(self.observeTrueDrifters()) 
         
@@ -280,8 +282,14 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                                  boundaryConditions=self.boundaryConditions,
                                                  initialization_cov_drifters=self.initialization_cov_drifters,
                                                  domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
-            if buoys_positions is not None:
-                drifters.setDrifterPositions(buoys_positions)
+            
+            # for static buoys set positions as specified by input or get the sampled position
+            if self.observation_type == dautils.ObservationType.StaticBuoys:
+                if buoys_positions is not None:
+                    drifters.setDrifterPositions(buoys_positions)
+                elif buoys_positions is None:
+                    self.buoys_positions = drifters.getDrifterPositions()
+
             self.particles[i].attachDrifters(drifters)
           
         # Initialize and attach drifters to all particles.
