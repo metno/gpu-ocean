@@ -113,6 +113,9 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.rmseUnderDrifter_eta = []
         self.rmseUnderDrifter_hu = []
         self.rmseUnderDrifter_hv = []
+        self.rmseMeanUnderDrifter_eta = []
+        self.rmseMeanUnderDrifter_hu = []
+        self.rmseMeanUnderDrifter_hv = []
         self.rmseWeightedUnderDrifter_eta = []
         self.rmseWeightedUnderDrifter_hu = []
         self.rmseWeightedUnderDrifter_hv = []
@@ -636,11 +639,15 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         eta_mean = eta_mean/numNonZeros
         hu_mean = hu_mean/numNonZeros
         hv_mean = hv_mean/numNonZeros
+
+        eta_rmse = np.sqrt(eta_rmse/numNonZeros)
+        hu_rmse  = np.sqrt( hu_rmse/numNonZeros)
+        hv_rmse  = np.sqrt( hv_rmse/numNonZeros)
         
         # RMSE according to the paper draft
-        eta_rmse = np.sqrt((eta_true - eta_mean)**2)
-        hu_rmse  = np.sqrt((hu_true  - hu_mean )**2)
-        hv_rmse  = np.sqrt((hv_true  - hv_mean )**2)
+        eta_rmse_mean = np.sqrt((eta_true - eta_mean)**2)
+        hu_rmse_mean  = np.sqrt((hu_true  - hu_mean )**2)
+        hv_rmse_mean  = np.sqrt((hv_true  - hv_mean )**2)
 
         eta_rmse_weighted = eta_rmse/abs(eta_true)
         hu_rmse_weighted  = hu_rmse/abs(hu_true)
@@ -669,6 +676,9 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.rmseUnderDrifter_eta.append(eta_rmse)
         self.rmseUnderDrifter_hu.append(hu_rmse)
         self.rmseUnderDrifter_hv.append(hv_rmse)
+        self.rmseMeanUnderDrifter_eta.append(eta_rmse_mean)
+        self.rmseMeanUnderDrifter_hu.append(hu_rmse_mean)
+        self.rmseMeanUnderDrifter_hv.append(hv_rmse_mean)
         self.rmseWeightedUnderDrifter_eta.append(eta_rmse_weighted)
         self.rmseWeightedUnderDrifter_hu.append(hu_rmse_weighted)
         self.rmseWeightedUnderDrifter_hv.append(hv_rmse_weighted)
