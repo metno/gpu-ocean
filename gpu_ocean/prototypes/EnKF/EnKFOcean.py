@@ -62,8 +62,8 @@ class EnKFOcean:
         self.N_d = ensemble.getNumDrifters()
 
         # Size of state matrices (with ghost cells)
-        self.n_i = self.ensemble.particles[0].ny + 4 
-        self.n_j = self.ensemble.particles[0].nx + 4
+        self.n_i = self.ensemble.particles[0].ny + 2*self.ensemble.particles[-1].ghost_cells_y
+        self.n_j = self.ensemble.particles[0].nx + 2*self.ensemble.particles[-1].ghost_cells_x
     
 
     def EnKF(self):
