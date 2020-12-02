@@ -23,9 +23,13 @@ import sys
 with open('.git/config', 'a') as f:
 	f.write('\n')
 	f.write('[filter "ipynbAnimations"]\n')
-	filepath = '"{}" gitFilterIpynbAnimations.py'.format(sys.executable.replace('\\', '/')).replace('exe','exe\\')
-	f.write('   clean = \\' + filepath + '\n')
+	filepath = '"{}" gitFilterIpynbAnimations.py'.format(sys.executable.replace('\\', '/')).replace("exe","exe\\")
+	if '.exe' in filepath:
+		filepath = '\\' + filepath
+	else:
+		filepath = 'python gitFilterIpynbAnimations.py'
+	f.write('   clean = ' + filepath + '\n')
 	f.write('   smudge = cat')
    
-with open('.gitattributes', 'a', newline='') as f:
+with open('.gitattributes', 'a') as f:
     f.write('*.ipynb filter=ipynbAnimations\n')
