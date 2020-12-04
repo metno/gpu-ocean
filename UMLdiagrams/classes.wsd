@@ -1,0 +1,38 @@
+@startuml
+
+left to right direction
+
+class BaseOceanStateEnsemble
+class EnsembleFromFile
+class OceanNoiseEnsemble
+
+BaseOceanStateEnsemble --> EnsembleFromFile
+BaseOceanStateEnsemble --> OceanNoiseEnsemble
+
+BaseOceanStateEnsemble : [Simulator] particles
+BaseOceanStateEnsemble : nx, ny, dx, dy
+BaseOceanStateEnsemble : numParticles
+
+BaseOceanStateEnsemble : step()
+BaseOceanStateEnsemble : observeParticles()
+BaseOceanStateEnsemble : getInnovations()
+BaseOceanStateEnsemble : getObservationCov()
+
+EnsembleFromFile : _initializeTruthFromFile()
+EnsembleFromFile : _initializeEnsembleFromFile()
+
+OceanNoiseEnsemble : observeTrueState()
+
+
+class Simulator
+class CDKLM16
+
+Simulator --> CDKLM16
+
+Simulator : nx, ny, dx, dy
+Simulator : [DataAssimilationUtils.Observation] drifters
+
+Simulator : download()
+Simulator : upload()
+
+@enduml

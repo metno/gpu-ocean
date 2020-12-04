@@ -24,6 +24,7 @@ with open('.git/config', 'a') as f:
 	f.write('\n')
 	f.write('[filter "ipynbAnimations"]\n')
 	filepath = '"{}" gitFilterIpynbAnimations.py'.format(sys.executable.replace('\\', '/')).replace("exe","exe\\")
+    # TODO: use sys.platform to distinguish win32 and linux/linux2/darwin solution 
 	if '.exe' in filepath:
 		filepath = '\\' + filepath
 	else:
