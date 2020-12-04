@@ -23,14 +23,13 @@ import sys
 with open('.git/config', 'a') as f:
 	f.write('\n')
 	f.write('[filter "ipynbAnimations"]\n')
-	filepath = '"{}" gitFilterIpynbAnimations.py'.format(sys.executable.replace('\\', '/')).replace("exe","exe\\")
-    # TODO: use sys.platform to distinguish win32 and linux/linux2/darwin solution 
-	if '.exe' in filepath:
+	filepath = '"{}" gitFilterIpynbAnimations.py'.format(sys.executable.replace('\\', '/')).replace(".exe",".exe\\")
+	if sys.platform == 'win32': #Windows: win32
 		filepath = '\\' + filepath
-	else:
+	else: #others like Linux and Mac: linux/linux2/darwin
 		filepath = 'python gitFilterIpynbAnimations.py'
 	f.write('   clean = ' + filepath + '\n')
-	f.write('   smudge = cat')
+	f.write('   smudge = cat' + '\n')
    
 with open('.gitattributes', 'a') as f:
     f.write('*.ipynb filter=ipynbAnimations\n')
