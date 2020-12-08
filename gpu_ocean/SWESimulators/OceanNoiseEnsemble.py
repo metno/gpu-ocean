@@ -55,7 +55,8 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                  observation_variance_factor = 5.0,
                  initialization_variance_factor_drifter_position = 0.0,
                  initialization_variance_factor_ocean_field = 0.0,
-                 compensate_for_eta = True):
+                 compensate_for_eta = True,
+                 ensemble_small_scale_perturbation=True):
         """
         Class that holds an ensemble of ocean states. All ensemble members are initiated 
         as perturbations of a given input simulator, and the true state is also a perturbation
@@ -87,6 +88,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.obs_index = self.numParticles
         
         self.simType = 'CDKLM16'
+        self.ensemble_small_scale_perturbation = ensemble_small_scale_perturbation
         
         self.t = 0.0
         
@@ -130,7 +132,8 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                      observation_variance_factor = observation_variance_factor,
                                      initialization_variance_factor_drifter_position = initialization_variance_factor_drifter_position,
                                      initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field)        
-        self._init(driftersPerOceanModel=num_drifters, buoys_positions=self.buoys_positions)
+        self._init(driftersPerOceanModel=num_drifters, 
+                buoys_positions=self.buoys_positions)
         
         # Create gpu kernels and buffers:
         self._setupGPU()
@@ -213,7 +216,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
         self.small_scale_perturbation = sim.small_scale_perturbation
         self.small_scale_perturbation_amplitude = None
-        self.small_scale_perturbation_interpolation_factor = None
+        self.small_scale_perturbation_interpolation_factor = 1.0
         
         if self.small_scale_perturbation:
             self.small_scale_perturbation_amplitude = sim.small_scale_model_error.soar_q0
@@ -275,7 +278,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                                 self.g, self.f, self.r, \
                                                 boundary_conditions=self.boundaryConditions, \
                                                 write_netcdf=False, \
-                                                small_scale_perturbation=True, \
+                                                small_scale_perturbation=self.ensemble_small_scale_perturbation, \
                                                 small_scale_perturbation_amplitude=self.small_scale_perturbation_amplitude,
                                                 small_scale_perturbation_interpolation_factor=self.small_scale_perturbation_interpolation_factor)
             
