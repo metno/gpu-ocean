@@ -55,3 +55,7 @@ Have fun!
 cd <project root directory>
 wget -r -np -nH -R "index.html*" http://gpu-ocean.met.no:9000/gpu_ocean
 ```
+
+# For contributors 
+
+More information can be found in the [wiki pages](https://github.com/metno/gpu-ocean/wiki/)
