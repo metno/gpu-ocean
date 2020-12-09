@@ -422,7 +422,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         return self.particles[self.obs_index].drifters.getDrifterPositions()
         
         
-    def observeTrueState(self):
+    def observeTrueState(self, apply_observation_error=True):
         """
         Applying the observation operator on the syntetic true state.
         The observation should be in state space, and therefore consists of 
@@ -456,6 +456,10 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                 
                 hu = u*depth
                 hv = v*depth
+
+                if apply_observation_error:
+                    hu += np.random.normal(scale=np.sqrt(self.observation_variance))
+                    hv += np.random.normal(scale=np.sqrt(self.observation_variance))
                 
                 trueState[d,:] = np.array([x, y , hu, hv])
             return trueState
@@ -474,6 +478,10 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                 eta, hu, hv = self.downloadParticleOceanState(self.obs_index)
                 true_hu = hu[id_y, id_x]
                 true_hv = hv[id_y, id_x]
+
+                if apply_observation_error:
+                    true_hu += np.random.normal(scale=np.sqrt(self.observation_variance))
+                    true_hv += np.random.normal(scale=np.sqrt(self.observation_variance))
                 
                 trueState[d,:] = np.array([x, y, true_hu, true_hv])
             return trueState
@@ -487,6 +495,10 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                 eta, hu, hv = self.downloadParticleOceanState(self.obs_index)
                 true_hu = hu[id_y, id_x]
                 true_hv = hv[id_y, id_x]
+
+                if apply_observation_error:
+                    true_hu += np.random.normal(scale=np.sqrt(self.observation_variance))
+                    true_hv += np.random.normal(scale=np.sqrt(self.observation_variance))
                 
                 trueState[d,:] = np.array([self.buoys_positions[d][0], self.buoys_positions[d][1], true_hu, true_hv])
             return trueState
