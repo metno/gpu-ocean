@@ -490,11 +490,10 @@ class CDKLM16(Simulator.Simulator):
         """
         Function which steps n timesteps.
         apply_stochastic_term: Boolean value for whether the stochastic
-            perturbation (if any) should be applied.
+            perturbation (if any) should be applied after every simulation time step
+            by adding SOAR-generated random fields using OceanNoiseState.perturbSim(...)
         """
         
-            
-
         if self.t == 0:
             self.bc_kernel.update_bc_values(self.gpu_stream, self.t)
             self.bc_kernel.boundaryCondition(self.gpu_stream, \

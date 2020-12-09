@@ -60,7 +60,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         """
         Class that holds an ensemble of ocean states. All ensemble members are initiated 
         as perturbations of a given input simulator, and the true state is also a perturbation
-        of the input simulator and is run along side the ense
+        of the input simulator and is run along side the ensemble
 
         gpu_ctx: GPU context
         numParticles: Number of particles, also known as number of ensemble members
@@ -493,9 +493,12 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
 
     def step(self, t, stochastic_particles=True, stochastic_truth=True):
         """
-        Function which makes all particles step until time t.
+        Function which makes all particles (including truth) step until time t.
         apply_stochastic_term: Boolean value for whether the stochastic
-            perturbation (if any) should be applied.
+            perturbation (if any) should be applied: 
+            small_scale_perturbation in the simulator after every model time step
+            by adding a SOAR generated random fields to the state 
+            using OceanNoiseState.perturbSim(...)
         """
         for p in range(self.getNumParticles()+1):
             #print "Starting sim " + str(p)
