@@ -66,11 +66,22 @@ class EnKFOcean:
         self.n_j = self.ensemble.particles[0].nx + 2*self.ensemble.particles[-1].ghost_cells_x
     
 
-    def EnKF(self):
+    def EnKF(self, ensemble=None):
         """
         Performing the analysis phase of the EnKF.
         Particles are observed and the analysis state is calculated and uploaded!
+
+        ensemble: for better readability of the script when EnKF is called the ensemble can be passed again.
+        Then it overwrites the initially defined member ensemble
         """
+
+        if ensemble is not None:
+            assert(self.N_e == ensemble.getNumParticles()), "ensemble changed size"
+            assert(self.N_d == ensemble.getNumDrifters()), "ensemble changed number of drifter"
+            assert(self.n_i == ensemble.particles[0].ny + 2*ensemble.particles[-1].ghost_cells_y), "ensemble changed size of physical domain"
+            assert(self.n_j == ensemble.particles[0].nx + 2*ensemble.particles[-1].ghost_cells_x), "ensemble changed size of physical domain"
+            
+            self.ensemble = ensemble
 
         R = self._giveR()
 
