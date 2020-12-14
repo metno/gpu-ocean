@@ -614,6 +614,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         2. root mean square error compared to the truth (rmse_truth)
         3. rmse_truth normalized by the norm of the truth
         4. ratio of variance and rmse_truth 
+        by default considering the first drifter only
         """
         
         drifter_pos = self.observeTrueState()[0][0:2]
