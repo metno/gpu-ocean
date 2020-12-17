@@ -384,6 +384,18 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
         self.particlesActive[particle_id] = False
 
+    def deactivateDegeneratedParticles(self, dt_min, dt_max=0.0):
+        '''
+        Deactivating a particle in the ensemble 
+        if the model time step exceeds dt_min or dt_max (if provided)
+        '''
+        for p in range(self.numParticles):
+            if self.particlesActive[p]:
+                dt = particles[p].dt 
+                if dt < dt_min:
+                    self.deactivateParticle(p, "dt < dt_min")
+                if dt_max > 0.0 and dt > dt_max:
+                    self.deactivateParticle(p, "dt > dt_max")
     
     def writeEnsembleToNetCDF(self):
         for p in range(self.getNumParticles()):
