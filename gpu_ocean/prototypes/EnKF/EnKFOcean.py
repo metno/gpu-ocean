@@ -83,6 +83,8 @@ class EnKFOcean:
             
             self.ensemble = ensemble
 
+            self.N_e_active = ensemble.getNumActiveParticles()
+
         R = self._giveR()
 
         HX_f_pert = self._giveHX_f_pert()
@@ -142,20 +144,20 @@ class EnKFOcean:
 
         """
 
-        # Observation 
+        # Observation (nan for inactive particles)
         HX_f_orig = self.ensemble.observeParticles()
 
         # Reshaping
-        HX_f = np.zeros( (2*self.N_d, self.N_e) )
-        for e in range(self.N_e):
+        HX_f = np.zeros( (2*self.N_d, self.N_e_active) )
+        for e in range(self.N_e_active):
             for l in range(self.N_d):
                 HX_f[l,e]     = HX_f_orig[e,l,0]
             for l in range(self.N_d):
                 HX_f[self.N_d+l,e] = HX_f_orig[e,l,1]
 
         HX_f_mean = np.zeros_like(HX_f)
-        for e in range(self.N_e):
-            HX_f_mean = 1/self.N_e * HX_f[:,e]
+        for e in range(self.N_e_active):
+            HX_f_mean = 1/self.N_e_active * HX_f[:,e]
 
         HX_f_pert = HX_f - HX_f_mean.reshape((2*self.N_d,1))
 
@@ -164,7 +166,7 @@ class EnKFOcean:
 
     def _giveHPHT(self, HX_f_pert):
 
-        HPHT = 1/(self.N_e-1) * np.dot(HX_f_pert,HX_f_pert.T)
+        HPHT = 1/(self.N_e_active-1) * np.dot(HX_f_pert,HX_f_pert.T)
         
         return HPHT
 
@@ -200,14 +202,14 @@ class EnKFOcean:
         innovation_orig = self.ensemble.getInnovations()[:,:,:]
 
         # Reshaping
-        innovation = np.zeros( (2*self.N_d, self.N_e) )
-        for e in range(self.N_e):
+        innovation = np.zeros( (2*self.N_d, self.N_e_active) )
+        for e in range(self.N_e_active):
             for l in range(self.N_d):
                 innovation[l,e]     = innovation_orig[e,l,0]
             for l in range(self.N_d):
                 innovation[self.N_d+l,e] = innovation_orig[e,l,1]
 
-        Y_pert = np.random.multivariate_normal(np.zeros(2*self.N_d),R ,self.N_e).T
+        Y_pert = np.random.multivariate_normal(np.zeros(2*self.N_d),R ,self.N_e_active).T
 
         D = innovation + Y_pert
 
@@ -256,8 +258,8 @@ class EnKFOcean:
         ]
         """
 
-        X_f = np.zeros((3*self.n_i*self.n_j, self.N_e))
-        for e in range(self.N_e):
+        X_f = np.zeros((3*self.n_i*self.n_j, self.N_e_active))
+        for e in range(self.N_e_active):
             eta, hu, hv = self.ensemble.particles[e].download(interior_domain_only=False)
             eta = eta.reshape(self.n_i*self.n_j)
             hu  = hu.reshape(self.n_i*self.n_j)
@@ -265,11 +267,11 @@ class EnKFOcean:
             X_f[:,e] = np.append(eta, np.append(hu,hv))
 
         X_f_mean = np.zeros( 3*self.n_i*self.n_j )
-        for e in range(self.N_e):
-            X_f_mean += 1/self.N_e * X_f[:,e]
+        for e in range(self.N_e_active):
+            X_f_mean += 1/self.N_e_active * X_f[:,e]
 
         X_f_pert = np.zeros_like( X_f )
-        for e in range(self.N_e):
+        for e in range(self.N_e_active):
             X_f_pert[:,e] = X_f[:,e] - X_f_mean
 
         return X_f, X_f_pert
@@ -277,14 +279,14 @@ class EnKFOcean:
 
     def _giveX_a(self, X_f, X_f_pert, E):
 
-        X_a = X_f + 1/(self.N_e-1) * np.dot(X_f_pert,E)
+        X_a = X_f + 1/(self.N_e_active-1) * np.dot(X_f_pert,E)
 
         return X_a
 
 
     def uploadAnalysisState(self, X_a):
 
-        for e in range(self.N_e):
+        for e in range(self.N_e_active):
             eta = X_a[0:self.n_i*self.n_j, e].reshape((self.n_i,self.n_j))
             hu  = X_a[self.n_i*self.n_j:2*self.n_i*self.n_j, e].reshape((self.n_i,self.n_j))
             hv  = X_a[2*self.n_i*self.n_j:3*self.n_i*self.n_j, e].reshape((self.n_i,self.n_j))
