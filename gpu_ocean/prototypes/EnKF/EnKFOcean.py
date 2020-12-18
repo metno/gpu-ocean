@@ -279,7 +279,7 @@ class EnKFOcean:
                 eta = eta.reshape(self.n_i*self.n_j)
                 hu  = hu.reshape(self.n_i*self.n_j)
                 hv  = hv.reshape(self.n_i*self.n_j)
-                X_f[:,e] = np.append(eta, np.append(hu,hv))
+                X_f[:,idx] = np.append(eta, np.append(hu,hv))
                 idx += 1
 
         X_f_mean = np.zeros( 3*self.n_i*self.n_j )
@@ -305,8 +305,8 @@ class EnKFOcean:
         idx = 0
         for e in range(self.N_e):
             if self.ensemble.particlesActive[e]:
-                eta = X_a[0:self.n_i*self.n_j, e].reshape((self.n_i,self.n_j))
-                hu  = X_a[self.n_i*self.n_j:2*self.n_i*self.n_j, e].reshape((self.n_i,self.n_j))
-                hv  = X_a[2*self.n_i*self.n_j:3*self.n_i*self.n_j, e].reshape((self.n_i,self.n_j))
+                eta = X_a[0:self.n_i*self.n_j, idx].reshape((self.n_i,self.n_j))
+                hu  = X_a[self.n_i*self.n_j:2*self.n_i*self.n_j, idx].reshape((self.n_i,self.n_j))
+                hv  = X_a[2*self.n_i*self.n_j:3*self.n_i*self.n_j, idx].reshape((self.n_i,self.n_j))
                 self.ensemble.particles[e].upload(eta,hu,hv)
                 idx += 1
