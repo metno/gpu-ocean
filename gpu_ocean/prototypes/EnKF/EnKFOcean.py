@@ -107,6 +107,18 @@ class EnKFOcean:
     which are separated for the seek of readability
     """
 
+    def _deleteDeactivatedObservations(self, observation):
+        """
+        Delete inactive particles
+        """
+        idx = 0
+        for p in range(self.N_e):
+            if self.ensemble.particlesActive[p]:
+                idx+=1
+            elif not self.ensemble.particlesActive[p]:
+                observation = np.delete(observation, idx, axis=0)
+        return observation
+
 
     def _giveR(self):
         
@@ -145,7 +157,7 @@ class EnKFOcean:
         """
 
         # Observation (nan for inactive particles)
-        HX_f_orig = self.ensemble.observeParticles()
+        HX_f_orig = self._deleteDeactivatedObservations(self.ensemble.observeParticles())
 
         # Reshaping
         HX_f = np.zeros( (2*self.N_d, self.N_e_active) )
@@ -199,7 +211,7 @@ class EnKFOcean:
 
         """
 
-        innovation_orig = self.ensemble.getInnovations()[:,:,:]
+        innovation_orig = self._deleteDeactivatedObservations(self.ensemble.getInnovations()[:,:,:])
 
         # Reshaping
         innovation = np.zeros( (2*self.N_d, self.N_e_active) )
@@ -259,12 +271,16 @@ class EnKFOcean:
         """
 
         X_f = np.zeros((3*self.n_i*self.n_j, self.N_e_active))
-        for e in range(self.N_e_active):
-            eta, hu, hv = self.ensemble.particles[e].download(interior_domain_only=False)
-            eta = eta.reshape(self.n_i*self.n_j)
-            hu  = hu.reshape(self.n_i*self.n_j)
-            hv  = hv.reshape(self.n_i*self.n_j)
-            X_f[:,e] = np.append(eta, np.append(hu,hv))
+
+        idx = 0
+        for e in range(self.N_e):
+            if self.ensemble.particlesActive[e]:
+                eta, hu, hv = self.ensemble.particles[e].download(interior_domain_only=False)
+                eta = eta.reshape(self.n_i*self.n_j)
+                hu  = hu.reshape(self.n_i*self.n_j)
+                hv  = hv.reshape(self.n_i*self.n_j)
+                X_f[:,e] = np.append(eta, np.append(hu,hv))
+                idx += 1
 
         X_f_mean = np.zeros( 3*self.n_i*self.n_j )
         for e in range(self.N_e_active):
@@ -285,9 +301,12 @@ class EnKFOcean:
 
 
     def uploadAnalysisState(self, X_a):
-
-        for e in range(self.N_e_active):
-            eta = X_a[0:self.n_i*self.n_j, e].reshape((self.n_i,self.n_j))
-            hu  = X_a[self.n_i*self.n_j:2*self.n_i*self.n_j, e].reshape((self.n_i,self.n_j))
-            hv  = X_a[2*self.n_i*self.n_j:3*self.n_i*self.n_j, e].reshape((self.n_i,self.n_j))
-            self.ensemble.particles[e].upload(eta,hu,hv)
+        
+        idx = 0
+        for e in range(self.N_e):
+            if self.ensemble.particlesActive[e]:
+                eta = X_a[0:self.n_i*self.n_j, e].reshape((self.n_i,self.n_j))
+                hu  = X_a[self.n_i*self.n_j:2*self.n_i*self.n_j, e].reshape((self.n_i,self.n_j))
+                hv  = X_a[2*self.n_i*self.n_j:3*self.n_i*self.n_j, e].reshape((self.n_i,self.n_j))
+                self.ensemble.particles[e].upload(eta,hu,hv)
+                idx += 1
