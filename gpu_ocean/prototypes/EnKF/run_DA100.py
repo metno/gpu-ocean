@@ -223,6 +223,9 @@ if args_observation_type == 'buoys':
     log(str(ensemble.observations.read_buoy))
 
 
+dt_ref = ensemble.particles[-1].dt
+
+
 # %%
 ### -------------------------------
 # Initialize IEWPF class (if needed)
@@ -286,6 +289,7 @@ for day in range(numDays):
 
                 ensemble.registerStateSample(drifter_cells)
 
+                """
                 # (START) DEBUG LOG
                 max_dt = 0.0
                 max_particle = 0
@@ -299,13 +303,17 @@ for day in range(numDays):
                     if dt < min_dt:
                         min_dt = dt
                         min_particle = particle_id
-                log("After minute " + str(fiveMin*5 + minute) + " of hour " + str(hour + 1) + " of day " + str(day + 3) + ":\n"                     + "min_dt: {:01.6f} s".format(min_dt) + " for particle {:02.0f}".format(min_particle) + "\n"                     + "max_dt: {:01.6f} s".format(max_dt) + " for particle {:02.0f}".format(max_particle) )
+                log("After minute " + str(fiveMin*5 + minute) + " of hour " + str(hour + 1) + " of day " + str(day + 3) + ":\n" \
+                    + "min_dt: {:01.6f} s".format(min_dt) + " for particle {:02.0f}".format(min_particle) + "\n" \
+                    + "max_dt: {:01.6f} s".format(max_dt) + " for particle {:02.0f}".format(max_particle) )
 
                 if (max_dt > 10.0):
                     ensemble.writeEnsembleToNetCDF()
                 if (min_dt < 0.005):
                     ensemble.writeEnsembleToNetCDF()
                 # (END) DEBUG LOG
+                """
+                ensemble.deactivateDegeneratedParticles(0.9*dt_ref, 1.1*dt_ref)
 
 
                 # Done minutes

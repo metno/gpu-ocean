@@ -391,7 +391,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         '''
         for p in range(self.numParticles):
             if self.particlesActive[p]:
-                dt = particles[p].dt 
+                dt = self.particles[p].dt 
                 if dt < dt_min:
                     self.deactivateParticle(p, "dt < dt_min")
                 if dt_max > 0.0 and dt > dt_max:
