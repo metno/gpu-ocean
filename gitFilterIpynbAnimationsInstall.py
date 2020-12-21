@@ -20,16 +20,27 @@ and helps to keep the worktree cleaner
 
 import sys
 
-with open('.git/config', 'a') as f:
-	f.write('\n')
-	f.write('[filter "ipynbAnimations"]\n')
-	filepath = '"{}" gitFilterIpynbAnimations.py'.format(sys.executable.replace('\\', '/')).replace(".exe",".exe\\")
-	if sys.platform == 'win32': #Windows: win32
-		filepath = '\\' + filepath
-	else: #others like Linux and Mac: linux/linux2/darwin
-		filepath = 'python gitFilterIpynbAnimations.py'
-	f.write('   clean = ' + filepath + '\n')
-	f.write('   smudge = cat' + '\n')
+with open('.git/config', 'r') as f:
+	conf = f.read()
+	filter_exists_conf = '[filter "ipynbAnimations"]' in conf
+
+if not filter_exists_conf:
+	with open('.git/config', 'a') as f:
+		f.write('\n')
+		f.write('[filter "ipynbAnimations"]\n')
+		filepath = '"{}" gitFilterIpynbAnimations.py'.format(sys.executable.replace('\\', '/')).replace(".exe",".exe\\")
+		if sys.platform == 'win32': #Windows: win32
+			filepath = '\\' + filepath
+		else: #others like Linux and Mac: linux/linux2/darwin
+			filepath = 'python gitFilterIpynbAnimations.py'
+		f.write('   clean = ' + filepath + '\n')
+		f.write('   smudge = cat' + '\n')
    
-with open('.gitattributes', 'a') as f:
-    f.write('*.ipynb filter=ipynbAnimations\n')
+
+with open('.gitattributes', 'r') as f:
+	attrs = f.read()
+	filter_exists_attr = '*.ipynb filter=ipynbAnimations' in attrs
+
+if not filter_exists_attr:
+	with open('.gitattributes', 'a') as f:
+		f.write('*.ipynb filter=ipynbAnimations\n')
