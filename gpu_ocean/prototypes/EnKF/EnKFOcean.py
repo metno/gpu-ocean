@@ -50,7 +50,7 @@ class EnKFOcean:
             
     """
 
-    def __init__(self, ensemble):
+    def __init__(self, ensemble, inflation_factor=1.0):
         """
         Copying the ensemble to the member variables 
         and deducing frequently used ensemble quantities
@@ -64,6 +64,8 @@ class EnKFOcean:
         # Size of state matrices (with ghost cells)
         self.n_i = self.ensemble.particles[0].ny + 2*self.ensemble.particles[-1].ghost_cells_y
         self.n_j = self.ensemble.particles[0].nx + 2*self.ensemble.particles[-1].ghost_cells_x
+
+        self.inflation_factor = inflation_factor
     
 
     def EnKF(self, ensemble=None):
@@ -178,7 +180,7 @@ class EnKFOcean:
 
     def _giveHPHT(self, HX_f_pert):
 
-        HPHT = 1/(self.N_e_active-1) * np.dot(HX_f_pert,HX_f_pert.T)
+        HPHT = self.inflation_factor**2/(self.N_e_active-1) * np.dot(HX_f_pert,HX_f_pert.T)
         
         return HPHT
 
@@ -295,7 +297,7 @@ class EnKFOcean:
 
     def _giveX_a(self, X_f, X_f_pert, E):
 
-        X_a = X_f + 1/(self.N_e_active-1) * np.dot(X_f_pert,E)
+        X_a = X_f + self.inflation_factor**2/(self.N_e_active-1) * np.dot(X_f_pert,E)
 
         return X_a
 
