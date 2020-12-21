@@ -1,10 +1,8 @@
-# To add a new cell, type '# %%'
-# To add a new markdown cell, type '# %% [markdown]'
-# %%
 # -*- coding: utf-8 -*-
 
 """
 This software is part of GPU Ocean. 
+
 Copyright (C) 2019 SINTEF Digital
 
 This python program is used to set up and run a data-assimilation 
@@ -34,52 +32,57 @@ if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../SWESimulators'
         sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../')))
 
 
-# %%
+
 #--------------------------------------------------------------
 # PARAMETERS
 #--------------------------------------------------------------
-args_ensemble_size = 100
-args_method = "EnKF" 
-args_observation_interval = 1
-args_observation_variance = 1.0
-args_observation_type = "buoys"
-args_buoy_area = "all"
-args_media_dir = "forecasting_results/"
+# Read input parameters and check that they are good
 
-args_num_days = 7
-args_num_hours = 24
-args_forecast_days = 3
-args_profiling = False
+import argparse
+parser = argparse.ArgumentParser(description='Generate an ensemble.')
+parser.add_argument('-N', '--ensemble_size', type=int, default=100)
+parser.add_argument('--method', type=str, default='EnKF')
+parser.add_argument('--inflation_factor', type=float, default=1.0)
+parser.add_argument('--observation_interval', type=int, default=1)
+parser.add_argument('--observation_variance', type=float, default=1.0)
+parser.add_argument('--observation_type', type=str, default='buoys')
+parser.add_argument('--buoy_area', type=str, default='all')
+parser.add_argument('--media_dir', type=str, default='forecasting_results/')
+
+parser.add_argument('--num_days', type=int, default=7) 
+parser.add_argument('--num_hours', type=int, default=24) 
+parser.add_argument('--forecast_days', type=int, default=3)
+parser.add_argument('--profiling', action='store_true')
+
+
+args = parser.parse_args()
 
 
 # Checking input args
-if args_ensemble_size is None:
+if args.ensemble_size is None:
     print("Ensemble size missing, please provide a --ensemble_size argument.")
     sys.exit(-1)
-elif args_ensemble_size < 1:
+elif args.ensemble_size < 1:
     parser.error("Illegal ensemble size " + str(args.ensemble_size))
 
-profiling = args_profiling
+profiling = args.profiling
 
 
-# %%
 ###-----------------------------------------
 ## Define files for ensemble and truth.
 ##
 
-#ensemble_init_path = 'C:/Users/florianb/Documents/GPU-Ocean/gpu-ocean/data/ensemble_init/'
-#ensemble_init_path = '/home/florianb/gpu-ocean/data/ensemble_init/'
 ensemble_init_path = '../../../data/ensemble_init/'
-assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101,     "Ensemble init folder has wrong number of files: " + str(len(os.listdir(ensemble_init_path)))
+assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101,\
+    "Ensemble init folder has wrong number of files: " + str(len(os.listdir(ensemble_init_path)))
 
-#truth_path = 'C:/Users/florianb/Documents/GPU-Ocean/gpu-ocean/data/true_state/'
-#truth_path = '/home/florianb/gpu-ocean/data/true_state/'
 truth_path = '../../../data/true_state/'
-assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3,     "Truth folder has wrong number of files"
+assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3,\
+    "Truth folder has wrong number of files"
 
 
 timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
-media_dir = args_media_dir
+media_dir = args.media_dir
 destination_dir = os.path.join(media_dir, "da_experiment_" +  timestamp + "/")
 os.makedirs(destination_dir)
 
@@ -99,8 +102,8 @@ with open(log_file, 'w') as f:
 
 def logParams():
     log('Input arguments:')
-    #for arg in vars(args):
-    #    log('\t' + str((arg, getattr(args, arg))))
+    for arg in vars(args):
+        log('\t' + str((arg, getattr(args, arg))))
     log('\nPath to initial conditions for ensemble:')
     log('\t' + ensemble_init_path)
     log('Path to true state:')
@@ -122,7 +125,7 @@ logParams()
         
     
 # Reading and checking method
-method = str(args_method).lower()
+method = str(args.method).lower()
 if method == 'iewpf2':
     log(' ----> Using IEWPF 2 stage method')
 elif method == 'enkf':
@@ -141,8 +144,8 @@ end_time        = 13*24*60*60 # 13 days in seconds
 
 
 # Based on truth from June 25th 2019
-#drifterSet = [ 2, 7, 12, 24, 29, 35, 41, 48, 53, 60]
-drifterSet = [ 2, 24, 60]
+drifterSet = [ 2, 7, 12, 24, 29, 35, 41, 48, 53, 60]
+#drifterSet = [ 2, 24, 60]
 
 # Log extra information for the ensemble state for the following cells:
 extraCells = np.array([[254, 241], # Cross with two trajectories
@@ -158,7 +161,6 @@ extraCells = np.array([[254, 241], # Cross with two trajectories
                       ])
 
 
-# %%
 ###--------------------------------
 # Import required packages
 #
@@ -186,16 +188,15 @@ toc = time.time()
 log("{:02.4f} s: ".format(toc-tic) + "Created context on " + device_name, True)
 
 
-# %%
 ###--------------------------
 # Initiate the ensemble
 #
 
 observation_type = dautils.ObservationType.UnderlyingFlow
-if args_observation_type == 'buoys':
+if args.observation_type == 'buoys':
     observation_type = dautils.ObservationType.StaticBuoys
     log('Observation type changed to StaticBuoys!')
-elif args_observation_type == 'all_drifters':
+elif args.observation_type == 'all_drifters':
     drifterSet = 'all'
     log('Using all drifters for DA experiment')
 
@@ -204,21 +205,25 @@ print(observation_type)
 cont_write_netcdf = True and not profiling
 
 tic = time.time()
-ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx, args_ensemble_size,                                                ensemble_init_path, truth_path,                                                args_observation_variance,
-                                               cont_write_netcdf = cont_write_netcdf,
-                                               use_lcg = True,
-                                               write_netcdf_directory = destination_dir,
-                                               observation_type=observation_type)
+ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx, 
+                                                args.ensemble_size,                                                
+                                                ensemble_init_path, 
+                                                truth_path,                                                
+                                                args.observation_variance,
+                                                cont_write_netcdf = cont_write_netcdf,
+                                                use_lcg = True,
+                                                write_netcdf_directory = destination_dir,
+                                                observation_type=observation_type)
 
 # Configure observations according to the selected drifters:
 ensemble.configureObservations(drifterSet=drifterSet, 
-                               observationInterval = args_observation_interval,
-                               buoy_area = args_buoy_area)
+                               observationInterval = args.observation_interval,
+                               buoy_area = args.buoy_area)
 ensemble.configureParticleInfos(extraCells)
 toc = time.time()
 log("{:02.4f} s: ".format(toc-tic) + "Ensemble is loaded and created", True)
 log("Using drifterSet:\n" + str(drifterSet))
-if args_observation_type == 'buoys':
+if args.observation_type == 'buoys':
     log('buoys to read:')
     log(str(ensemble.observations.read_buoy))
 
@@ -226,9 +231,8 @@ if args_observation_type == 'buoys':
 dt_ref = ensemble.particles[-1].dt
 
 
-# %%
 ### -------------------------------
-# Initialize IEWPF class (if needed)
+# Initialize DA class (if needed)
 #
 tic = time.time()
 iewpf = None
@@ -237,7 +241,7 @@ if method.startswith('iewpf'):
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class IEWPFOcean initiated", True)
 elif method.startswith('enkf'):
-    enkf = EnKFOcean.EnKFOcean(ensemble)
+    enkf = EnKFOcean.EnKFOcean(ensemble, args.inflation_factor)
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class EnKFOcean initiated", True)
 else:
@@ -245,9 +249,6 @@ else:
     log("{:02.4f} s: ".format(toc-tic) + "Skipping creation of a DA class", True)
 
     
-
-
-# %%
 
 ### ----------------------------------------------
 #   DATA ASSIMILATION
@@ -257,9 +258,9 @@ obstime = start_time # time in seconds (starting after spin-up phase)
 
 master_tic = time.time()
 
-numDays = args_num_days 
-numHours = args_num_hours 
-forecast_days = args_forecast_days
+numDays = args.num_days 
+numHours = args.num_hours 
+forecast_days = args.forecast_days
 
 
 log('---------- Starting simulation --------------') 
@@ -331,7 +332,6 @@ for day in range(numDays):
 # Done days
 
 
-# %%
 ### -------------------------------------------------
 #   Start forecast
 #
@@ -401,7 +401,7 @@ for particle_id in range(ensemble.getNumParticles()):
         log("Skipping forecast for particle " + str(particle_id) + ", as this particle is dead")
 
 
-# %%
+
 # Clean up simulation and close netcdf file
 tic = time.time()
 sim = None
@@ -417,9 +417,6 @@ if not profiling:
     assert(forecast_end_time == 13*24*60*60), 'Forecast did not reach goal time'
 
 log('Yes, done!')
-
-
-# %%
 
 
 
