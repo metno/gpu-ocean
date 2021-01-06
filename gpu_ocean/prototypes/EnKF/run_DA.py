@@ -316,7 +316,6 @@ for day in range(numDays):
                 """
                 ensemble.deactivateDegeneratedParticles(0.9*dt_ref, 1.1*dt_ref)
 
-
                 # Done minutes
 
         # Done five minutes
