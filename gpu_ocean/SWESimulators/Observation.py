@@ -55,6 +55,9 @@ class Observation:
         
         All observations are based on velocities (u, v) and equilibrium ocean
         depth H. There are therefore no observations of eta.
+
+        domain_size_x : size of simulation domain in x-direction in meters
+        domain_size_y : size of simulation domain in y-direction in meters
         """
         
         self.observation_type = observation_type

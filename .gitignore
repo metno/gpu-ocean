@@ -1,13 +1,22 @@
+# Ignored folders
 /build/
 /.cproject
 /.project
 /.settings/
 /.pydevproject
 .ipynb_checkpoints/
+.vscode/
+cuda_cache/
+/data/
+
+# Ignored file types
 *.pyc
 *~
 *.nc
+*.log
+*.bz2
 
+# Ignored folders from the build
 /CMakeCache.txt
 /CMakeFiles/
 /DartConfiguration.tcl
