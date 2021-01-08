@@ -24,6 +24,7 @@ dependencies:
 - pip
 - pyproj
 - pytools
+- ffmpeg
 # Activate environment and install the following packages using pip:
 # $ conda activate gpuocean
 #  - pycuda: $ pip3 install --no-deps -U pycuda
