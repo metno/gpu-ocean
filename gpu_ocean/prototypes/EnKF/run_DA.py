@@ -280,12 +280,13 @@ for day in range(numDays):
             
             for minute in range(5):
                 obstime += 60
-                ensemble.stepToObservation(obstime, model_error_final_step=(minute<4))
-
-                if minute == 4:
-                    if method == 'iewpf':
+                if method == 'iewpf':
+                    ensemble.stepToObservation(obstime, model_error_final_step=(minute<4))
+                    if minute == 4:
                         iewpf.iewpf_2stage(ensemble, perform_step=False)
-                    elif method == 'enkf':
+                if method = 'enkf':
+                    ensemble.stepToObservation(obstime)
+                    if minute == 4:
                         enkf.EnKF(ensemble)
 
                 ensemble.registerStateSample(drifter_cells)
