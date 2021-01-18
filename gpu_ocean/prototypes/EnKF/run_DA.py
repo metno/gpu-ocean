@@ -130,6 +130,8 @@ if method == 'iewpf2':
     log(' ----> Using IEWPF 2 stage method')
 elif method == 'enkf':
     log(' ----> Using EnKF')
+elif method == 'etkf':
+    log(' ----> Using ETKF')
 elif method == 'none':
     log(' ----> No data assimilation')
 else:
@@ -244,6 +246,10 @@ elif method.startswith('enkf'):
     enkf = EnKFOcean.EnKFOcean(ensemble, args.inflation_factor)
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class EnKFOcean initiated", True)
+elif method.startswith('enkf'):
+    etkf = ETKFOcean.ETKFOcean(ensemble, args.inflation_factor)
+    toc = time.time()
+    log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class EnKFOcean initiated", True)
 else:
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Skipping creation of a DA class", True)
@@ -284,10 +290,13 @@ for day in range(numDays):
                     ensemble.stepToObservation(obstime, model_error_final_step=(minute<4))
                     if minute == 4:
                         iewpf.iewpf_2stage(ensemble, perform_step=False)
-                if method = 'enkf':
+                else:
                     ensemble.stepToObservation(obstime)
                     if minute == 4:
-                        enkf.EnKF(ensemble)
+                        if method = 'enkf':
+                            enkf.EnKF(ensemble)
+                        if method = 'etkf':
+                            enkf.EnKF(ensemble)
 
                 ensemble.registerStateSample(drifter_cells)
 

@@ -30,7 +30,7 @@ import logging
 
 #from SWESimulators import Common, OceanStateNoise, config, EnsemblePlot
 
-class EnKFOcean:
+class ETKFOcean:
     """
     This class implements the Stochastic Ensemble Kalman Filter in square-root formulation
     for an ocean model with small scale ocean state perturbations as model errors.
@@ -77,19 +77,17 @@ class EnKFOcean:
 
             self.N_e_active = ensemble.getNumActiveParticles()
 
-        R = self._giveR()
+        R = self._constructR()
 
-        HX_f_pert = self._giveHX_f_pert()
-        HPHT = self._giveHPHT(HX_f_pert)
-        F = self._giveF(HPHT, R)
-        
-        D = self._giveD(HX_f_pert, R)
 
-        C = self._giveC(F, D)
-        E = self._giveE(HX_f_pert, C)
+        X_f, X_f_mean, X_f_pert = self._giveX_f()
+        HX_f_pert, HX_f_mean = self._giveHX_f()
+        D = self._giveD(HX_f_mean)
 
-        X_f, X_f_pert = self._giveX_f_pert()
-        X_a = self._giveX_a(X_f, X_f_pert, E)
+        P = self._giveP(HX_f_pert, R)
+        K = self._giveK(X_f_pert, P, HX_f_pert, R)
+
+        X_a = self._giveX_a(X_f_mean, K, D, P)
 
         self.uploadAnalysisState(X_a)
 
@@ -112,7 +110,7 @@ class EnKFOcean:
         return observation
 
 
-    def _giveR(self):
+    def _constructR(self):
         
         R_orig = self.ensemble.getObservationCov()
 
@@ -126,116 +124,7 @@ class EnKFOcean:
 
         return R
 
-
-    def _giveHX_f_pert(self):
-        """
-        Particles are observed in the following form:
-        [
-        particle 1:  [hu_1, hv_1], ... , [hu_D, hv_D],
-        ...
-        particle Ne: [hu_1, hv_1], ... , [hu_D, hv_D]
-        ]
-
-        In order to bring it in accordance with later data structure we use the following format for the storage of the perturbation of the observation:
-        [
-        [hu_1 (particle 1), ..., hu_1 (particle Ne)],
-        ...
-        [hu_D (particle 1), ..., hu_D (particle Ne)],
-        [hv_1 (particle 1), ..., hv_1 (particle Ne)],
-        ...
-        [hv_D (particle 1), ..., hv_D (particle Ne)],
-        ]
-
-        """
-
-        # Observation (nan for inactive particles)
-        HX_f_orig = self._deleteDeactivatedObservations(self.ensemble.observeParticles())
-
-        # Reshaping
-        HX_f = np.zeros( (2*self.N_d, self.N_e_active) )
-        for e in range(self.N_e_active):
-            for l in range(self.N_d):
-                HX_f[l,e]     = HX_f_orig[e,l,0]
-            for l in range(self.N_d):
-                HX_f[self.N_d+l,e] = HX_f_orig[e,l,1]
-
-        HX_f_mean = np.zeros_like(HX_f)
-        for e in range(self.N_e_active):
-            HX_f_mean = 1/self.N_e_active * HX_f[:,e]
-
-        HX_f_pert = HX_f - HX_f_mean.reshape((2*self.N_d,1))
-
-        return HX_f_pert
-
-
-    def _giveHPHT(self, HX_f_pert):
-
-        HPHT = self.inflation_factor**2/(self.N_e_active-1) * np.dot(HX_f_pert,HX_f_pert.T)
-        
-        return HPHT
-
-
-    def _giveF(self, HPHT, R):
-
-        F = HPHT + R
-
-        return F 
-
-
-    def _giveD(self, D, R):
-        """
-        Particles yield innovations in the following form:
-        [
-        particle 1:  [hu_1, hv_1], ... , [hu_D, hv_D],
-        ...
-        particle Ne: [hu_1, hv_1], ... , [hu_D, hv_D]
-        ]
-
-        In order to bring it in accordance with later data structure we use the following format for the storage of the perturbation of the observation:
-        [
-        [d_hu_1 (particle 1), ..., d_hu_1 (particle Ne)],
-        ...
-        [d_hu_D (particle 1), ..., d_hu_D (particle Ne)],
-        [d_hv_1 (particle 1), ..., d_hv_1 (particle Ne)],
-        ...
-        [d_hv_D (particle 1), ..., d_hv_D (particle Ne)],
-        ]
-
-        """
-
-        innovation_orig = self._deleteDeactivatedObservations(self.ensemble.getInnovations()[:,:,:])
-
-        # Reshaping
-        innovation = np.zeros( (2*self.N_d, self.N_e_active) )
-        for e in range(self.N_e_active):
-            for l in range(self.N_d):
-                innovation[l,e]     = innovation_orig[e,l,0]
-            for l in range(self.N_d):
-                innovation[self.N_d+l,e] = innovation_orig[e,l,1]
-
-        Y_pert = np.random.multivariate_normal(np.zeros(2*self.N_d),R ,self.N_e_active).T
-
-        D = innovation + Y_pert
-
-        return D
-
-
-    def _giveC(self, F, D):
-
-        Finv = np.linalg.inv(F)
-        C = np.dot(Finv,D)
-
-        return C
-
-
-    def _giveE(self, HX_f_pert, C):
-
-        E = np.dot(HX_f_pert.T,C)
-
-        return E
-
-
-    def _giveX_f_pert(self):
+    def _giveX_f(self):
 
         """
         The download gives eta = 
@@ -282,13 +171,110 @@ class EnKFOcean:
         for e in range(self.N_e_active):
             X_f_pert[:,e] = X_f[:,e] - X_f_mean
 
-        return X_f, X_f_pert
+        return X_f, X_f_mean, X_f_pert
 
 
-    def _giveX_a(self, X_f, X_f_pert, E):
+    def _giveHX_f(self):
+        """
+        Particles are observed in the following form:
+        [
+        particle 1:  [hu_1, hv_1], ... , [hu_D, hv_D],
+        ...
+        particle Ne: [hu_1, hv_1], ... , [hu_D, hv_D]
+        ]
 
-        X_a = X_f + self.inflation_factor**2/(self.N_e_active-1) * np.dot(X_f_pert,E)
+        In order to bring it in accordance with later data structure we use the following format for the storage of the perturbation of the observation:
+        [
+        [hu_1 (particle 1), ..., hu_1 (particle Ne)],
+        ...
+        [hu_D (particle 1), ..., hu_D (particle Ne)],
+        [hv_1 (particle 1), ..., hv_1 (particle Ne)],
+        ...
+        [hv_D (particle 1), ..., hv_D (particle Ne)],
+        ]
 
+        """
+
+        # Observation (nan for inactive particles)
+        HX_f_orig = self._deleteDeactivatedObservations(self.ensemble.observeParticles())
+
+        # Reshaping
+        HX_f = np.zeros( (2*self.N_d, self.N_e_active) )
+        for e in range(self.N_e_active):
+            for l in range(self.N_d):
+                HX_f[l,e]     = HX_f_orig[e,l,0]
+            for l in range(self.N_d):
+                HX_f[self.N_d+l,e] = HX_f_orig[e,l,1]
+
+        HX_f_mean = 1/self.N_e_active * np.sum(HX_f, axis=1)
+
+        HX_f_pert = HX_f - HX_f_mean.reshape((2*self.N_d,1))
+
+        return HX_f_pert, HX_f_mean
+
+
+    def _giveD(self, HX_f_mean):
+        """
+        Particles yield innovations in the following form:
+        [
+        particle 1:  [hu_1, hv_1], ... , [hu_D, hv_D],
+        ...
+        particle Ne: [hu_1, hv_1], ... , [hu_D, hv_D]
+        ]
+
+        In order to bring it in accordance with later data structure we use the following format for the storage of the perturbation of the observation:
+        [
+        [d_hu_1 (particle 1), ..., d_hu_1 (particle Ne)],
+        ...
+        [d_hu_D (particle 1), ..., d_hu_D (particle Ne)],
+        [d_hv_1 (particle 1), ..., d_hv_1 (particle Ne)],
+        ...
+        [d_hv_D (particle 1), ..., d_hv_D (particle Ne)],
+        ]
+
+        """
+
+        y_orig = self.ensemble.observeTrueState()
+
+        y = np.zeros( (2*self.N_d) )
+        for l in range(self.N_d):
+            y[l]     = y_orig[l,2]
+        for l in range(self.N_d):
+            y[N_d+l] = y_orig[l,3]
+
+        D = y - HX_f_mean
+
+        return D
+
+
+    def _giveP(self, HX_f_pert, R):
+
+        Rinv = np.linalg.inv(R)
+
+        A = np.dot( (self.N_e_active-1)*np.eye(self.N_e_active), np.dot(HX_f_pert.T, np.dot(Rinv, HX_f_pert)))
+
+        P = np.linalg.inv(A)
+
+        return P
+
+    def _giveK(self, X_f_pert, P, HX_f_pert, R):
+
+        K = np.dot(X_f_pert, np.dot(P,np.dot(HX_f_pert.T,Rinv)))
+
+        return K
+
+
+    def _giveX_a(self, X_f_mean, K, D, P):
+
+        X_a_mean = X_f_mean + np.dot(K, D)
+
+        sigma, V = np.linalg.eigh( (self.N_e_active-1) * P )
+        X_a_pert = np.dot( X_f_pert, np.dot( V, np.dot( np.diag( np.sqrt( sigma ) ), V.T )))
+
+        X_a = X_a_pert 
+        for j in range(N_e_active):
+            X_a[:,j] += X_a_mean
+            
         return X_a
 
 
