@@ -5,8 +5,7 @@ This software is a part of GPU Ocean.
 
 Copyright (C) 2018  SINTEF Digital
 
-This python class implements the Stochastic Ensemble Kalman Filter 
-in square root formulation.
+This python class implements the Ensemble Transform Kalman Filter.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -59,7 +58,7 @@ class EnKFOcean:
         self.inflation_factor = inflation_factor
     
 
-    def EnKF(self, ensemble=None):
+    def ETKF(self, ensemble=None):
         """
         Performing the analysis phase of the EnKF.
         Particles are observed and the analysis state is calculated and uploaded!
