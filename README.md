@@ -23,8 +23,13 @@ If you are on Windows, you also need to have installed Visual Studios and add th
     5.  Add the folder from above as new path
 
 ## Set-up
-We recommend that you set up your python environment using Conda as follows:
-- Install [miniconda](https://conda.io/miniconda.html) (which is a minimal subset of Anaconda)
+We recommend that you set up your python environment using the package manager Conda as follows:
+- Install [miniconda](https://conda.io/miniconda.html) or [miniforge](https://github.com/conda-forge/miniforge).
+    - If you choose to install Miniconda (a minimal subset of Anaconda), you must take care to not violate the [commercial license of Anaconda](https://www.anaconda.com/blog/sustaining-our-stewardship-of-the-open-source-data-science-community) introduced in Sep 2020. Miniconda is not bound by this licence, but downloading packages through the default channel pointing to anaconda seems to be. All commands in this instruction use the community-driven channel `conda-forge`, but to be sure to not violate the anaconda licence you can remove the default channel by
+    ```
+    conda config --remove channels defaults
+    ```
+    Or install [miniforge](https://github.com/conda-forge/miniforge) instead, which "holds a minimal installer for Conda specific to conda-forge."
 - Install jupyter notebook (unless you already have it installed on your system) by opening a terminal (or Anaconda prompt if on Windows) and type
     ```
     conda install -c conda-forge jupyter
