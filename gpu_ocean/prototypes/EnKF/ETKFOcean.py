@@ -77,17 +77,17 @@ class ETKFOcean:
 
             self.N_e_active = ensemble.getNumActiveParticles()
 
-        R = self._constructR()
+        Rinv = self._constructRinv()
 
 
         X_f, X_f_mean, X_f_pert = self._giveX_f()
         HX_f_pert, HX_f_mean = self._giveHX_f()
         D = self._giveD(HX_f_mean)
 
-        P = self._giveP(HX_f_pert, R)
-        K = self._giveK(X_f_pert, P, HX_f_pert, R)
+        P = self._giveP(HX_f_pert, Rinv)
+        K = self._giveK(X_f_pert, P, HX_f_pert, Rinv)
 
-        X_a = self._giveX_a(X_f_mean, K, D, P)
+        X_a = self._giveX_a(X_f_mean, X_f_pert, K, D, P)
 
         self.uploadAnalysisState(X_a)
 
@@ -110,7 +110,7 @@ class ETKFOcean:
         return observation
 
 
-    def _constructR(self):
+    def _constructRinv(self):
         
         R_orig = self.ensemble.getObservationCov()
 
@@ -122,7 +122,9 @@ class ETKFOcean:
             R[l,self.N_d+l] = R_orig[0,1]
             R[self.N_d+l,l] = R_orig[1,0]
 
-        return R
+        Rinv = np.linalg.inv(R)
+
+        return Rinv
 
     def _giveX_f(self):
 
@@ -240,16 +242,15 @@ class ETKFOcean:
         for l in range(self.N_d):
             y[l]     = y_orig[l,2]
         for l in range(self.N_d):
-            y[N_d+l] = y_orig[l,3]
+            y[self.N_d+l] = y_orig[l,3]
 
         D = y - HX_f_mean
 
         return D
 
 
-    def _giveP(self, HX_f_pert, R):
+    def _giveP(self, HX_f_pert, Rinv):
 
-        Rinv = np.linalg.inv(R)
 
         A = np.dot( (self.N_e_active-1)*np.eye(self.N_e_active), np.dot(HX_f_pert.T, np.dot(Rinv, HX_f_pert)))
 
@@ -257,22 +258,22 @@ class ETKFOcean:
 
         return P
 
-    def _giveK(self, X_f_pert, P, HX_f_pert, R):
+    def _giveK(self, X_f_pert, P, HX_f_pert, Rinv):
 
         K = np.dot(X_f_pert, np.dot(P,np.dot(HX_f_pert.T,Rinv)))
 
         return K
 
 
-    def _giveX_a(self, X_f_mean, K, D, P):
+    def _giveX_a(self, X_f_mean, X_f_pert, K, D, P):
 
         X_a_mean = X_f_mean + np.dot(K, D)
 
         sigma, V = np.linalg.eigh( (self.N_e_active-1) * P )
-        X_a_pert = np.dot( X_f_pert, np.dot( V, np.dot( np.diag( np.sqrt( sigma ) ), V.T )))
+        X_a_pert = np.dot( X_f_pert, np.dot( V, np.dot( np.diag( np.sqrt( np.real(sigma) ) ), V.T )))
 
         X_a = X_a_pert 
-        for j in range(N_e_active):
+        for j in range(self.N_e_active):
             X_a[:,j] += X_a_mean
             
         return X_a

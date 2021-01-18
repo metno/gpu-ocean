@@ -174,6 +174,7 @@ from SWESimulators import EnsembleFromFiles, Observation
 # For data assimilation:
 from SWESimulators import IEWPFOcean
 import EnKFOcean
+import ETKFOcean
 # For forcasting:
 from SWESimulators import GPUDrifterCollection
 # For ObservationType:
@@ -246,10 +247,10 @@ elif method.startswith('enkf'):
     enkf = EnKFOcean.EnKFOcean(ensemble, args.inflation_factor)
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class EnKFOcean initiated", True)
-elif method.startswith('enkf'):
+elif method.startswith('etkf'):
     etkf = ETKFOcean.ETKFOcean(ensemble, args.inflation_factor)
     toc = time.time()
-    log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class EnKFOcean initiated", True)
+    log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class ETKFOcean initiated", True)
 else:
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Skipping creation of a DA class", True)
@@ -293,38 +294,14 @@ for day in range(numDays):
                 else:
                     ensemble.stepToObservation(obstime)
                     if minute == 4:
-                        if method = 'enkf':
+                        if method == 'enkf':
                             enkf.EnKF(ensemble)
-                        if method = 'etkf':
-                            enkf.EnKF(ensemble)
+                        if method == 'etkf':
+                            etkf.ETKF(ensemble)
 
                 ensemble.registerStateSample(drifter_cells)
 
-                """
-                # (START) DEBUG LOG
-                max_dt = 0.0
-                max_particle = 0
-                min_dt = 1.0e10
-                min_particle = 0
-                for particle_id in range(len(ensemble.particles)):
-                    dt = ensemble.particles[particle_id].dt
-                    if dt > max_dt:
-                        max_dt = dt
-                        max_particle = particle_id
-                    if dt < min_dt:
-                        min_dt = dt
-                        min_particle = particle_id
-                log("After minute " + str(fiveMin*5 + minute) + " of hour " + str(hour + 1) + " of day " + str(day + 3) + ":\n" \
-                    + "min_dt: {:01.6f} s".format(min_dt) + " for particle {:02.0f}".format(min_particle) + "\n" \
-                    + "max_dt: {:01.6f} s".format(max_dt) + " for particle {:02.0f}".format(max_particle) )
-
-                if (max_dt > 10.0):
-                    ensemble.writeEnsembleToNetCDF()
-                if (min_dt < 0.005):
-                    ensemble.writeEnsembleToNetCDF()
-                # (END) DEBUG LOG
-                """
-                ensemble.deactivateDegeneratedParticles(0.9*dt_ref, 1.1*dt_ref)
+                ensemble.deactivateDegeneratedParticles(0.5*dt_ref, 1.5*dt_ref)
 
                 # Done minutes
 
