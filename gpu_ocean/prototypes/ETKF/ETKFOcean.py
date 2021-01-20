@@ -219,22 +219,10 @@ class ETKFOcean:
     def _giveD(self, HX_f_mean):
         """
         Particles yield innovations in the following form:
-        [
-        particle 1:  [hu_1, hv_1], ... , [hu_D, hv_D],
-        ...
-        particle Ne: [hu_1, hv_1], ... , [hu_D, hv_D]
-        ]
+        [x_1, y_1, hu_1, hv_1], ... , [x_D, y_D, hu_D, hv_D]
 
         In order to bring it in accordance with later data structure we use the following format for the storage of the perturbation of the observation:
-        [
-        [d_hu_1 (particle 1), ..., d_hu_1 (particle Ne)],
-        ...
-        [d_hu_D (particle 1), ..., d_hu_D (particle Ne)],
-        [d_hv_1 (particle 1), ..., d_hv_1 (particle Ne)],
-        ...
-        [d_hv_D (particle 1), ..., d_hv_D (particle Ne)],
-        ]
-
+        [hu_1, ..., hu_D, hv_1, ..., hv_D]
         """
 
         y_orig = self.ensemble.observeTrueState()
