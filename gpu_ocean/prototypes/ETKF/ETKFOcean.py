@@ -56,6 +56,8 @@ class ETKFOcean:
         self.n_j = self.ensemble.particles[0].nx + 2*self.ensemble.particles[-1].ghost_cells_x
 
         self.inflation_factor = inflation_factor
+
+        self.localPatches = None
     
 
     def ETKF(self, ensemble=None):
@@ -280,3 +282,39 @@ class ETKFOcean:
                 hv  = X_a[2*self.n_i*self.n_j:3*self.n_i*self.n_j, idx].reshape((self.n_i,self.n_j))
                 self.ensemble.particles[e].upload(eta,hu,hv)
                 idx += 1
+
+
+    def initializeLocalPatches(self, radius, x0=0.0, y0=0.0):
+        """
+        Preprocessing for the LETKF 
+        which generates a tensor storing the local observation indices for every grid cell.
+        The tensor is of shape (ny,nx,N_d) where in the 3rd component of (j,i,k) the entry is 
+            0 if observation k is NOT in the local region of cell (j,i)
+            1 if observation k is in the local region of cell (j,i)
+        """
+        ny = self.ensemble.ny
+        nx = self.ensemble.nx
+
+        dy = self.ensemble.dy
+        dx = self.ensemble.dx
+
+        ly = ny*dy
+        lx = nx*dx
+
+        self.localPatches = np.zeros((ny, nx, self.N_d))
+
+        drifter_positions = self.ensemble.observeTrueDrifters()
+
+        for j in range(ny):
+            for i in range(nx):
+                loc = np.array([(i+0.5)*dx, (j+0.5)*dy])
+                print(i,j,"\n")
+                for d in range(self.N_d):
+                    dist = min( 
+                                np.linalg.norm( loc - drifter_positions[d,:]),
+                                np.linalg.norm( np.abs(loc - drifter_positions[d,:]) - np.array([lx,0])),
+                                np.linalg.norm( np.abs(loc - drifter_positions[d,:]) - np.array([0,ly])),
+                                np.linalg.norm( np.abs(loc - drifter_positions[d,:]) - np.array([lx,ly]))
+                            )
+                    if dist < radius:
+                        self.localPatches[j,i,d] = 1
