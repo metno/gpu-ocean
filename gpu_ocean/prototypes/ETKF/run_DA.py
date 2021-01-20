@@ -41,7 +41,7 @@ if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../SWESimulators'
 import argparse
 parser = argparse.ArgumentParser(description='Generate an ensemble.')
 parser.add_argument('-N', '--ensemble_size', type=int, default=100)
-parser.add_argument('--method', type=str, default='EnKF')
+parser.add_argument('--method', type=str, default='ETKF')
 parser.add_argument('--inflation_factor', type=float, default=1.0)
 parser.add_argument('--observation_interval', type=int, default=1)
 parser.add_argument('--observation_variance', type=float, default=1.0)
@@ -173,7 +173,7 @@ from SWESimulators import Common
 from SWESimulators import EnsembleFromFiles, Observation
 # For data assimilation:
 from SWESimulators import IEWPFOcean
-import EnKFOcean
+#import EnKFOcean
 import ETKFOcean
 # For forcasting:
 from SWESimulators import GPUDrifterCollection
@@ -301,7 +301,7 @@ for day in range(numDays):
 
                 ensemble.registerStateSample(drifter_cells)
 
-                ensemble.deactivateDegeneratedParticles(0.5*dt_ref, 1.5*dt_ref)
+                ensemble.deactivateDegeneratedParticles(0.75*dt_ref, 1.25*dt_ref)
 
                 # Done minutes
 
