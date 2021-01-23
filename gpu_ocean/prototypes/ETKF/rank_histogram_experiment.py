@@ -28,11 +28,10 @@ import subprocess
 
 import numpy as np
 
-current_dir = os.path.dirname(os.path.realpath(__file__))
+current_dir = os.getcwd()
 
-if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../../SWESimulators'))):
-        sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../../')))
-
+if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../SWESimulators'))):
+        sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../')))
 
         
 #--------------------------------------------------------------
@@ -43,14 +42,14 @@ if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../../SWESimulato
 
 import argparse
 parser = argparse.ArgumentParser(description='Generate an ensemble.')
-parser.add_argument('--experiments', type=int, default=None)
+parser.add_argument('--experiments', type=int, default=100)
 parser.add_argument('--output_folder', type=str, default="rank_histogram_experiments")
 parser.add_argument('--method', type=str, default='ETKF')
 parser.add_argument('--observation_variance', type=float, default=1)
 
 const_args = {
     'ensemble_size' : 40,
-    #'method' : 'iewpf2',
+    'method' : 'etkf',
     'observation_interval' : 1,
     'observation_type' : 'buoys',
     'buoy_area' : 'all'
@@ -73,11 +72,11 @@ elif args.experiments < 1:
 ###-----------------------------------------
 ## Define files for ensemble and truth.
 ##
-ensemble_init_path = os.path.abspath('../presented_data/ensemble_init/')
+ensemble_init_path = os.path.abspath('../../../data/ensemble_init/')
 assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101, \
     "Ensemble init folder has wrong number of files: " + str(len(os.listdir(ensemble_init_path)))
 
-truth_path = os.path.abspath('../presented_data/true_state/')
+truth_path = os.path.abspath('../../../data/true_state/')
 assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3, \
     "Truth folder has wrong number of files"
 
@@ -157,7 +156,7 @@ from SWESimulators import Common
 from SWESimulators import EnsembleFromFiles, Observation
 # For data assimilation:
 from SWESimulators import IEWPFOcean
-import ETKF
+import ETKFOcean
 # For ObservationType:
 from SWESimulators import DataAssimilationUtils as dautils
 # For generating new truths
@@ -192,7 +191,7 @@ observation_type = dautils.ObservationType.StaticBuoys
 
 master_tic = time.time()
 
-numHours = 6
+numHours = 1
 forecastHours = 1
 x_index =  100
 hours_to_store = [1, 6, 7, 12, 18, 24, 48, 72]
@@ -235,6 +234,12 @@ for run_id in range(args.experiments):
     truth_name = 'truth_run_' + str(run_id).zfill(4) + '_attempt_'
     truth_path = None
     truth_attempt = 0
+
+    truth_path = djeutils.generateTruth(gpu_ctx, destination_dir,
+                                        duration_in_days=3,
+                                        duration_in_hours=numHours+forecastHours,
+                                        folder_name=truth_name+str(truth_attempt))
+
     while truth_path is None:
         log('Generating truth - attempt ' + str(truth_attempt))
         try:
@@ -312,8 +317,8 @@ for run_id in range(args.experiments):
                         iewpf.iewpf_2stage(ensemble, perform_step=False)
                 elif method == 'etkf':
                     ensemble.stepToObservation(obstime)
-                    if minute == 4 and not forecast_instead_of_da :
-                        etkf.etkf(ensemble)
+                    if minute == 4 and not forecast_instead_of_da:
+                        etkf.ETKF(ensemble)
                 
                 #ensemble.registerStateSample(drifter_cells)
             # Done minutes
