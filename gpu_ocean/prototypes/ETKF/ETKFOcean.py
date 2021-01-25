@@ -27,6 +27,7 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import time
 import logging
+from SWESimulators import DataAssimilationUtils as dautils
 
 #from SWESimulators import Common, OceanStateNoise, config, EnsemblePlot
 
@@ -55,9 +56,15 @@ class ETKFOcean:
         self.n_i = self.ensemble.particles[0].ny + 2*self.ensemble.particles[-1].ghost_cells_y
         self.n_j = self.ensemble.particles[0].nx + 2*self.ensemble.particles[-1].ghost_cells_x
 
+        # Parameter for inflation
+        #TODO: insert in code below
         self.inflation_factor = inflation_factor
 
-        self.r_scale = 15.0
+        # Parameters and variables for localisation
+        self.r_factor = 15.0
+
+        self.W_loc = None
+        self.all_Ls = None
     
 
     def ETKF(self, ensemble=None):
@@ -284,52 +291,9 @@ class ETKFOcean:
                 idx += 1
 
 
-
-
-
-
-    @staticmethod
-    def distGC( obs, loc, r, lx, ly):
-        """
-        Calculating the Gasparin-Cohn value for the distance between obs 
-        and loc for the localisation radius r.
-        
-        obs: drifter positions ([x,y])
-        loc: current physical location to check (either [x,y] or [[x1,y1],...,[xd,yd]])
-        r: localisation scale in the Gasparin Cohn function
-        lx: domain extension in x-direction (necessary for periodic boundary conditions)
-        ly: domain extension in y-direction (necessary for periodic boundary conditions)
-        """
-        if not obs.shape == loc.shape: 
-            obs = np.tile(obs, (loc.shape[0],1))
-        
-        if len(loc.shape) == 1:
-            dist = min(np.linalg.norm(np.abs(obs-loc)),
-                    np.linalg.norm(np.abs(obs-loc) - np.array([lx,0 ])),
-                    np.linalg.norm(np.abs(obs-loc) - np.array([0 ,ly])),
-                    np.linalg.norm(np.abs(obs-loc) - np.array([lx,ly])) )
-        else:
-            dist = np.linalg.norm(obs-loc, axis=1)
-
-        # scalar case
-        if isinstance(dist, float):
-            distGC = 0.0
-            if dist/r < 1: 
-                distGC = 1 - 5/3*(dist/r)**2 + 5/8*(dist/r)**3 + 1/2*(dist/r)**4 - 1/4*(dist/r)**5
-            elif dist/r >= 1 and dist/r < 2:
-                distGC = 4 - 5*(dist/r) + 5/3*(dist/r)**2 + 5/8*(dist/r)**3 -1/2*(dist/r)**4 + 1/12*(dist/r)**5 - 2/(3*(dist/r))
-        # vector case
-        else:
-            distGC = np.zeros_like(dist)
-            for i in range(len(dist)):
-                if dist[i]/r < 1: 
-                    distGC[i] = 1 - 5/3*(dist[i]/r)**2 + 5/8*(dist[i]/r)**3 + 1/2*(dist[i]/r)**4 - 1/4*(dist[i]/r)**5
-                elif dist[i]/r >= 1 and dist[i]/r < 2:
-                    distGC[i] = 4 - 5*(dist[i]/r) + 5/3*(dist[i]/r)**2 + 5/8*(dist[i]/r)**3 -1/2*(dist[i]/r)**4 + 1/12*(dist[i]/r)**5 - 2/(3*(dist[i]/r))
-
-        return distGC
-
-
+    """
+    Functionalities for the LETKF
+    """
 
     @staticmethod
     def getLocalIndices(obs_loc, scale_r, dx, dy, nx, ny):
@@ -337,12 +301,13 @@ class ETKFOcean:
         Defines mapping from global domain (nx times ny) to local domain
         """
 
-        boxed_r = dx*scale_r*2
+        boxed_r = dx*scale_r*1.5
         
         localIndices = np.array([[False]*nx]*ny)
         
         obs_loc_cellID = (np.int(obs_loc[0]//dx), np.int(obs_loc[1]//dy))
 
+        #print(obs_loc_cellID)
         loc_cell_left  = np.int((obs_loc[0]-boxed_r   )//dx)
         loc_cell_right = np.int((obs_loc[0]+boxed_r+dx)//dx)
         loc_cell_down  = np.int((obs_loc[1]-boxed_r   )//dy)
@@ -383,16 +348,58 @@ class ETKFOcean:
                         loc = np.array([(x+0.5)*dx, (y+0.5)*dy])
 
         return localIndices, xroll, yroll
+
+
+    @staticmethod
+    def distGC(obs, loc, r, lx, ly):
+        """
+        Calculating the Gasparin-Cohn value for the distance between obs 
+        and loc for the localisation radius r.
         
+        obs: drifter positions ([x,y])
+        loc: current physical location to check (either [x,y] or [[x1,y1],...,[xd,yd]])
+        r: localisation scale in the Gasparin Cohn function
+        lx: domain extension in x-direction (necessary for periodic boundary conditions)
+        ly: domain extension in y-direction (necessary for periodic boundary conditions)
+        """
+        if not obs.shape == loc.shape: 
+            obs = np.tile(obs, (loc.shape[0],1))
+        
+        if len(loc.shape) == 1:
+            dist = min(np.linalg.norm(np.abs(obs-loc)),
+                    np.linalg.norm(np.abs(obs-loc) - np.array([lx,0 ])),
+                    np.linalg.norm(np.abs(obs-loc) - np.array([0 ,ly])),
+                    np.linalg.norm(np.abs(obs-loc) - np.array([lx,ly])) )
+        else:
+            dist = np.linalg.norm(obs-loc, axis=1)
+
+        # scalar case
+        if isinstance(dist, float):
+            distGC = 0.0
+            if dist/r < 1: 
+                distGC = 1 - 5/3*(dist/r)**2 + 5/8*(dist/r)**3 + 1/2*(dist/r)**4 - 1/4*(dist/r)**5
+            elif dist/r >= 1 and dist/r < 2:
+                distGC = 4 - 5*(dist/r) + 5/3*(dist/r)**2 + 5/8*(dist/r)**3 -1/2*(dist/r)**4 + 1/12*(dist/r)**5 - 2/(3*(dist/r))
+        # vector case
+        else:
+            distGC = np.zeros_like(dist)
+            for i in range(len(dist)):
+                if dist[i]/r < 1: 
+                    distGC[i] = 1 - 5/3*(dist[i]/r)**2 + 5/8*(dist[i]/r)**3 + 1/2*(dist[i]/r)**4 - 1/4*(dist[i]/r)**5
+                elif dist[i]/r >= 1 and dist[i]/r < 2:
+                    distGC[i] = 4 - 5*(dist[i]/r) + 5/3*(dist[i]/r)**2 + 5/8*(dist[i]/r)**3 -1/2*(dist[i]/r)**4 + 1/12*(dist[i]/r)**5 - 2/(3*(dist[i]/r))
+
+        return distGC
+
 
     @staticmethod
     def getLocalWeightShape(scale_r, dx, dy, nx, ny):
         """
-        ...
+        Gives a local stencil with weights based on the distGC
         """
-    
-        local_nx = int(scale_r*2*2)+1
-        local_ny = int(scale_r*2*2)+1
+        
+        local_nx = int(scale_r*2*1.5)+1
+        local_ny = int(scale_r*2*1.5)+1
         weights = np.zeros((local_ny, local_ny))
         
         obs_loc_cellID = (local_ny, local_nx)
@@ -404,11 +411,11 @@ class ETKFOcean:
                 weights[y,x] = min(1, ETKFOcean.distGC(obs_loc, loc, scale_r*dx, nx*dx, ny*dy))
                             
         return weights
-
+            
 
     @staticmethod
-    def getCombinedWeights(observation_positions, scale_r, dx, dy, nx, ny):
-    
+    def getCombinedWeights(observation_positions, scale_r, dx, dy, nx, ny, W_loc):
+        
         W_scale = np.zeros((ny, nx))
         
         num_drifters = observation_positions.shape[0]
@@ -418,7 +425,7 @@ class ETKFOcean:
             return None
 
         # Get the shape of the local weights (drifter independent)
-        W_loc = getLocalWeightShape(scale_r, dx, dy, nx, ny)
+        W_loc = ETKFOcean.getLocalWeightShape(scale_r, dx, dy, nx, ny)
         
         for d in range(num_drifters):
             # Get local mapping for drifter 
@@ -434,63 +441,48 @@ class ETKFOcean:
         return W_scale
 
 
-    def initializeLocalPatches(self, localScale=0.0, x0=0.0, y0=0.0):
+    def initializeLocalPatches(self, r_factor=0.0):
         """
         Preprocessing for the LETKF 
         which generates arrays storing the local observation indices for every grid cell (including 2 ghost cells)
         
-        localScale: scale for the Gasparin-Cohn distance and the definition of local boxes
+        r_factor: scale for the Gasparin-Cohn distance and the definition of local boxes
         x0: x-coordinate of physical position of the lower left corner in meter
         y0: y-coordinate of physical position of the lower left corner in meter
-        
-        self.localObservationDistances: 3D-array of shape (ny,nx,N_d) 
-            where in the 3rd component of (j,i,k) the entry is Gasparin-Cohn distance of (x_i,y_j) to drifter k 
-        self.localObservationBoxes: 3D-array of shape (ny,nx,N_d) 
-            where in the 3rd component of (j,i,k) the entry is 1 if (x_i,y_j) in local box of drifter k, 0 else
-        self.localObservationBoxesIndices: reshaping of self.localObservationBoxes to match shape of X_f (see above)
+
+        FILL CONTENT
         """
 
         # Book keeping
         dy = self.ensemble.dy
         dx = self.ensemble.dx
 
-        nx = self.n_j
-        ny = self.n_i
+        nx = self.ensemble.nx
+        ny = self.ensemble.ny
 
         ly = nx*dy
         lx = ny*dx
 
-        if r_scale > 0.0:
-            self.r_scale = r_scale
+        if r_factor > 0.0:
+            self.r_factor = r_factor
 
         # Get drifter position
-        drifter_positions = self.ensemble.observeTrueDrifters()
+        self.drifter_positions = self.ensemble.observeTrueDrifters()
 
-        # Construct localPatches array
-        self.localObservationDistances = np.zeros((ny, nx, self.N_d))
-        self.localObservationDistancesIndices = np.zeros((3*ny*nx, self.N_d))
+        # Construct local stencil
+        self.W_loc = ETKFOcean.getLocalWeightShape(self.r_factor, dx, dy, nx, ny)
 
-        self.localObservationBoxes = np.zeros((ny, nx, self.N_d))
-        self.localObservationBoxesIndices = np.zeros((3*ny*nx, self.N_d))
+        # Construct global analysis and forecast weights
+        W_combined = ETKFOcean.getCombinedWeights(self.drifter_positions, self.r_factor, dx, dy, nx, ny, self.W_loc)
 
-        self.localObservationDependencies = np.zeros((self.N_d,self.N_d))
+        W_scale = np.maximum(W_combined, 1)
 
-        for d in range(self.N_d):
-            print("Construct localObservationDistances for observation_id ", d)
-            self.localObservationDistances[:,:,d] = ETKFOcean.distGCField( drifter_positions[d,:], self.localScale*dx, dx, dy, nx, ny )
-            dists = self.localObservationDistances[:,:,d].reshape(nx*ny)
-            self.localObservationDistancesIndices[:,d] = np.append(dists, np.append(dists,dists))
-
-
-            self.localObservationBoxes[:,:,d] = ETKFOcean.localBox( drifter_positions[d,:], self.localScale*dx, dx, dy, nx, ny )
-            idxs = self.localObservationBoxes[:,:,d].reshape(nx*ny)
-            self.localObservationBoxesIndices[:,d] = np.append(idxs, np.append(idxs,idxs))
-
-            self.localObservationDependencies[d,:] = ETKFOcean.drifterDependencies(d, drifter_positions, self.localScale*dx, lx, ly)
+        self.W_analysis = W_combined/W_scale
+        self.W_forecast = np.ones_like(W_scale) - self.W_analysis
 
 
 
-    def LETKF(self, ensemble=None, localScale=0.0):
+    def LETKF(self, ensemble=None, r_factor=0.0):
         """
         Performing the analysis phase of the ETKF.
         Particles are observed and the analysis state is calculated and uploaded!
@@ -499,6 +491,7 @@ class ETKFOcean:
         Then it overwrites the initially defined member ensemble
         """
 
+        # Check and update parameters of ensemble
         if ensemble is not None:
             assert(self.N_e == ensemble.getNumParticles()), "ensemble changed size"
             assert(self.N_d == ensemble.getNumDrifters()), "ensemble changed number of drifter"
@@ -509,78 +502,90 @@ class ETKFOcean:
 
             self.N_e_active = ensemble.getNumActiveParticles()
 
-        if localScale > 0.0:
-            if localScale != self.localScale:
-                self.localScale = localScale
-                self.initializeLocalPatches( localScale=self.localScale, x0=0.0, y0=0.0)
+        # Update localisation if needed
+        if r_factor > 0.0 and r_factor != self.localScale:
+            self.r_factor = r_factor
+            self.W_loc = None
 
-        if self.localObservationDistances is None:
-            self.initializeLocalPatches( localScale=self.localScale, x0=0.0, y0=0.0)
+        if self.W_loc is None:
+            self.initializeLocalPatches( r_factor=self.r_factor )
 
-        local_X_as = X_f = np.zeros((3*self.n_i*self.n_j, self.N_e_active,self.N_d))
+        # Precalculate rolling (for StaticBuoys this just have to be once)
+        if self.ensemble.observation_type == dautils.ObservationType.StaticBuoys and self.all_Ls is None:
+            self.all_Ls = [None]*self.N_d
+            self.all_xrolls = np.zeros(self.N_d, dtype=np.int)
+            self.all_yrolls = np.zeros(self.N_d, dtype=np.int)
 
-        X_f, X_f_mean, X_f_pert = self._giveX_f()
-        HX_f_pert, HX_f_mean = self._giveHX_f()
-        y_orig = self.ensemble.observeTrueState()
+            for d in range(self.N_d):
+                # Collecting rolling information (xroll and yroll are 0)
+                self.all_Ls[d], self.all_xrolls[d], self.all_yrolls[d] = \
+                    ETKFOcean.getLocalIndices(self.drifter_positions[d,:], self.r_factor, \
+                        self.ensemble.dx, self.ensemble.dy, self.ensemble.nx, self.ensemble.ny)
 
-        for d in range(self.N_d):
-            local_X_f = X_f[self.localObservationBoxesIndices[:,d]==1,:]
-            local_X_f_mean = X_f_mean[self.localObservationBoxesIndices[:,d]==1,:]
-            local_X_f_pert = X_f_pert[self.localObservationBoxesIndices[:,d]==1,:]
+        # Get global forecast information 
+        X_f, X_f_mean, X_f_pert = self.giveX_f_global()
+        HX_f_mean, HX_f_pert = self.giveHX_f_global()
 
-            local_HX_f_mean = HX_f_mean[self.localObservationDependencies[d,:]>0.0,:]
-            local_HX_f_pert = HX_f_pert[self.localObservationDependencies[d,:]>0.0,:]
+        # Prepare global anlysis
+        X_a = np.zeros_like(X_f)
 
-            local_Rinv = self._constructLocalRinv(d)
-
-            local_D = self._giveLocalD(y_orig, HX_f_mean, d)
-
-            local_P = self._giveP(local_HX_f_pert, local_Rinv)
+        # Prepare local ETKF analysis
+        N_x_local = self.W_loc.shape[0]*self.W_loc.shape[1] 
+        X_f_loc_tmp = np.zeros((self.N_e_active, 3, self.N_x_local))
+        X_f_loc_pert_tmp = np.zeros((self.N_e_active, 3, self.N_x_local))
+        X_f_loc_mean_tmp = np.zeros((3, self.N_x_local))
             
-            K = self._giveK(local_X_f_pert, local_P, local_HX_f_pert, local_Rinv)
-
-            local_X_a = self._giveX_a(local_X_f_mean, local_X_f_pert, local_K, local_D, local_P)
-
-            local_X_as[:,:,d] = self._reconstructXa(local_X_a, d)
-
-        self.combineLocalAnalysis(X_f, local_X_as)
-        self.uploadAnalysisState(X_a)
+        X_f_loc = np.zeros((3*N_x_local, self.N_e_active))
+        X_f_loc_pert = np.zeros((3*N_x_local, self.N_e_active))
 
 
-    def _constructLocalRinv(self, d):
-
-        local_N_d = np.sum(self.localObservationDependencies[d,:])
         
-        R_orig = self.ensemble.getObservationCov()
 
-        local_R = np.zeros( (R_orig.shape[0]*local_N_d, R_orig.shape[1]*local_N_d) )
 
-        for l in range(local_N_d):
-            local_R[l,l] = R_orig[0,0]
-            local_R[local_N_d+l, local_N_d+l] = R_orig[1,1]
-            local_R[l,local_N_d+l] = R_orig[0,1]
-            local_R[local_N_d+l,l] = R_orig[1,0]
 
-        local_Rinv = np.linalg.inv(local_R)
+    def giveX_f_global(self):
+        """
+        Download recent particle states
+        """
 
-        return local_Rinv
+        X_f = np.zeros((self.N_e_active,3,self.ensemble.ny,self.ensemble.nx))
 
-    def _giveLocalD(self, y_orig, HX_f_mean, d):
+        idx = 0
+        for e in range(self.N_e):
+            if self.ensemble.particlesActive[e]:
+                eta, hu, hv = self.ensemble.particles[e].download(interior_domain_only=True)
+                X_f[idx,0,:,:] = eta 
+                X_f[idx,1,:,:] = hu
+                X_f[idx,2,:,:] = hv
+                idx += 1
 
-        local_N_d = np.sum(self.localObservationDependencies[d,:])
+        X_f_mean = 1/self.N_e_active * np.sum(X_f,axis=0)
 
-        local_y_orig = y_orig[self.localObservationDependencies[d,:]>0.0,:]
+        X_f_pert = np.zeros_like( X_f )
+        for e in range(self.N_e_active):
+            X_f_pert[e,:,:,:] = X_f[e,:,:,:] - X_f_mean
 
-        local_y = np.zeros( (2*local_N_d) )
+        return X_f, X_f_mean, X_f_pert
 
-        for l in range(local_N_d):
-            local_y[l]           = local_y_orig[l,2]
-        for l in range(local_N_d):
-            local_y[local_N_d+l] = local_y_orig[l,3]
+    def giveHX_f_global(self):
+        """
+        Observe particles 
+        """
 
-        local_D = local_y - HX_f_mean[self.localObservationDependencies[d,:]>0.0]
+        HX_f = self.ensemble.observeParticles()
 
-        return local_D
+        HX_f_mean = 1/self.N_e_active * np.sum(HX_f, axis=0)
+
+        HX_f_pert = HX_f - HX_f_mean
+
+        return HX_f_mean, HX_f_pert
+
+
+
+
+
+
+
 
 
     def _reconstructXa(self, local_X_a, d):
