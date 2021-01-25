@@ -41,7 +41,7 @@ if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../SWESimulators'
 import argparse
 parser = argparse.ArgumentParser(description='Generate an ensemble.')
 parser.add_argument('-N', '--ensemble_size', type=int, default=100)
-parser.add_argument('--method', type=str, default='ETKF')
+parser.add_argument('--method', type=str, default='LETKF')
 parser.add_argument('--inflation_factor', type=float, default=1.0)
 parser.add_argument('--observation_interval', type=int, default=1)
 parser.add_argument('--observation_variance', type=float, default=1.0)
@@ -132,6 +132,8 @@ elif method == 'enkf':
     log(' ----> Using EnKF')
 elif method == 'etkf':
     log(' ----> Using ETKF')
+elif method == 'letkf':
+    log(' ----> Using ETKF with localisation')
 elif method == 'none':
     log(' ----> No data assimilation')
 else:
@@ -247,7 +249,7 @@ elif method.startswith('enkf'):
     enkf = EnKFOcean.EnKFOcean(ensemble, args.inflation_factor)
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class EnKFOcean initiated", True)
-elif method.startswith('etkf'):
+elif method.startswith('etkf') or method.startswith('letkf'):
     etkf = ETKFOcean.ETKFOcean(ensemble, args.inflation_factor)
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class ETKFOcean initiated", True)
@@ -298,6 +300,8 @@ for day in range(numDays):
                             enkf.EnKF(ensemble)
                         if method == 'etkf':
                             etkf.ETKF(ensemble)
+                        if method == 'letkf':
+                            etkf.LETKF(ensemble)
 
                 ensemble.registerStateSample(drifter_cells)
 
