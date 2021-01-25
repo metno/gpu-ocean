@@ -57,8 +57,7 @@ class ETKFOcean:
 
         self.inflation_factor = inflation_factor
 
-        self.localObservationDistances = None
-        self.localScale = 25.0
+        self.r_scale = 15.0
     
 
     def ETKF(self, ensemble=None):
@@ -331,80 +330,108 @@ class ETKFOcean:
         return distGC
 
 
+
     @staticmethod
-    def distGCField( obs, r, dx, dy, nx, ny):
+    def getLocalIndices(obs_loc, scale_r, dx, dy, nx, ny):
+        """ 
+        Defines mapping from global domain (nx times ny) to local domain
         """
-        Calculating the Gasparin-Cohn value for the distance between obs 
-        and all (x,y)-grid points for the localisation radius r.
+
+        boxed_r = dx*scale_r*2
         
-        obs: drifter positions (either [x,y] or [[x1,y1],...,[xd,yd]])
-        loc: current physical location to check ([x,y])
-        r: localisation scale in the Gasparin Cohn function
-        lx: domain extension in x-direction (necessary for periodic boundary conditions)
-        ly: domain extension in y-direction (necessary for periodic boundary conditions)
+        localIndices = np.array([[False]*nx]*ny)
+        
+        obs_loc_cellID = (np.int(obs_loc[0]//dx), np.int(obs_loc[1]//dy))
 
-        distGCField: 
+        loc_cell_left  = np.int((obs_loc[0]-boxed_r   )//dx)
+        loc_cell_right = np.int((obs_loc[0]+boxed_r+dx)//dx)
+        loc_cell_down  = np.int((obs_loc[1]-boxed_r   )//dy)
+        loc_cell_up    = np.int((obs_loc[1]+boxed_r+dy)//dy)
+
+        xranges = []
+        yranges = []
+        
+        xroll = 0
+        yroll = 0
+
+        if loc_cell_left < 0:
+            xranges.append((nx+loc_cell_left , nx))
+            xroll = loc_cell_left   # negative number
+            loc_cell_left = 0 
+        elif loc_cell_right > nx:
+            xranges.append((0, loc_cell_right - nx))
+            xroll = loc_cell_right - nx   # positive number
+            loc_cell_right = nx 
+        xranges.append((loc_cell_left, loc_cell_right))
+
+        if loc_cell_down < 0:
+            yranges.append((ny+loc_cell_down , ny))
+            yroll = loc_cell_down   # negative number
+            loc_cell_down = 0 
+        elif loc_cell_up > ny:
+            yranges.append((0, loc_cell_up - ny ))
+            yroll = loc_cell_up - ny   # positive number
+            loc_cell_up = ny
+        yranges.append((loc_cell_down, loc_cell_up))
+
+        for xrange in xranges:
+            for yrange in yranges:
+                localIndices[yrange[0] : yrange[1], xrange[0] : xrange[1]] = True
+
+                for y in range(yrange[0],yrange[1]):
+                    for x in range(xrange[0], xrange[1]):
+                        loc = np.array([(x+0.5)*dx, (y+0.5)*dy])
+
+        return localIndices, xroll, yroll
+        
+
+    @staticmethod
+    def getLocalWeightShape(scale_r, dx, dy, nx, ny):
         """
+        ...
+        """
+    
+        local_nx = int(scale_r*2*2)+1
+        local_ny = int(scale_r*2*2)+1
+        weights = np.zeros((local_ny, local_ny))
+        
+        obs_loc_cellID = (local_ny, local_nx)
+        obs_loc = np.array([local_nx*dx/2, local_ny*dy/2])
 
-        # compensation for ghost cells
-        obs = obs + np.array([2*dx, 2*dy])
-
-        lx = dx*nx
-        ly = dy*ny
-        dist_field = np.zeros((ny, nx))
-        for j in range(ny):
-            for i in range(nx):
-                loc = np.array([(i+0.5)*dx, (j+0.5)*dy])
-                dist_field[j, i] = ETKFOcean.distGC(obs, loc, r, lx, ly)
-        return dist_field
+        for y in range(local_ny):
+            for x in range(local_nx):
+                loc = np.array([(x+0.5)*dx, (y+0.5)*dy])
+                weights[y,x] = min(1, ETKFOcean.distGC(obs_loc, loc, scale_r*dx, nx*dx, ny*dy))
+                            
+        return weights
 
 
     @staticmethod
-    def boxDist(obs, loc, lx, ly):
-        """
-        Returning L1 norm between obs and loc for periodic boundary conditions
-        """
+    def getCombinedWeights(observation_positions, scale_r, dx, dy, nx, ny):
+    
+        W_scale = np.zeros((ny, nx))
+        
+        num_drifters = observation_positions.shape[0]
+        #print('found num_drifters:', num_drifters)
+        if observation_positions.shape[1] != 2:
+            print('observation_positions has wrong shape')
+            return None
 
-        return min(np.max(np.abs(obs-loc)),
-                np.max(np.abs(np.abs(obs-loc)-np.array([lx,0 ]))),
-                np.max(np.abs(np.abs(obs-loc)-np.array([0 ,ly]))),
-                np.max(np.abs(np.abs(obs-loc)-np.array([lx,ly]))))
+        # Get the shape of the local weights (drifter independent)
+        W_loc = getLocalWeightShape(scale_r, dx, dy, nx, ny)
+        
+        for d in range(num_drifters):
+            # Get local mapping for drifter 
+            L, xroll, yroll = ETKFOcean.getLocalIndices(observation_positions[d,:], scale_r, dx, dy, nx, ny)
 
+            # Roll weigths according to periodic boundaries
+            W_loc_d = np.roll(np.roll(W_loc, shift=yroll, axis=0 ), shift=xroll, axis=1)
+            
+            # Add weights to global domain based on local mapping:
+            W_scale[L] += W_loc_d.flatten()
 
-    @staticmethod
-    def localBox(obs, r, dx, dy, nx, ny):
-        """
-        Returning a (nx,ny)-sized array with 1 if (x,y) in boxDist of obs, 0 else
-        """
-
-        # compensation for ghost cells
-        obs = obs + np.array([2*dx, 2*dy])
-
-        lx = dx*nx
-        ly = dy*ny
-        box_field = np.zeros((ny, nx))
-        for j in range(ny):
-            for i in range(nx):
-                loc = np.array([(i+0.5)*dx, (j+0.5)*dy])
-                if ETKFOcean.boxDist(obs, loc, lx, ly) < r*2:
-                    box_field[j, i] = 1
-        return box_field
-
-
-    @staticmethod
-    def drifterDependencies(d, obs, r, lx, ly):
-        """
-        Returning a (N_d)-array with 1 if i is in boxDist of drifter d, 0 else
-        """
-        N_d = obs.shape[0]
-        drifter_dependencies = np.zeros((N_d))
-        for i in range(N_d):
-            if ETKFOcean.boxDist(obs[d,:], obs[i,:], lx, ly) < r*2:
-                drifter_dependencies[d] = 1
-
-        print("Strange dependency scaling! Not consistent with local box!")
-
-        return drifter_dependencies
+            
+        return W_scale
 
 
     def initializeLocalPatches(self, localScale=0.0, x0=0.0, y0=0.0):
@@ -421,9 +448,6 @@ class ETKFOcean:
         self.localObservationBoxes: 3D-array of shape (ny,nx,N_d) 
             where in the 3rd component of (j,i,k) the entry is 1 if (x_i,y_j) in local box of drifter k, 0 else
         self.localObservationBoxesIndices: reshaping of self.localObservationBoxes to match shape of X_f (see above)
-
-        TODO: x,y shifting if x0,y0 != 0.0
-        TODO: adaptive ghost_cell handling (atm: hard coded 2 cells)
         """
 
         # Book keeping
@@ -436,8 +460,8 @@ class ETKFOcean:
         ly = nx*dy
         lx = ny*dx
 
-        if localScale > 0.0:
-            self.localScale = localScale
+        if r_scale > 0.0:
+            self.r_scale = r_scale
 
         # Get drifter position
         drifter_positions = self.ensemble.observeTrueDrifters()
