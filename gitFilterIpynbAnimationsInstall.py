@@ -38,24 +38,25 @@ if not filter_exists_conf:
 		f.write('   clean = ' + filepath + '\n')
 		f.write('   smudge = cat' + '\n')
 
-# Add filter to configs for diff
+# # Add filter to configs for diff
 
-with open('.git/config', 'r') as f:
-	conf = f.read()
-	filter_exists_conf = '[filter "ipynbAllOutputs"]' in conf
+# with open('.git/config', 'r') as f:
+# 	conf = f.read()
+# 	filter_exists_conf = '[filter "ipynbAllOutputs"]' in conf
 
-if not filter_exists_conf:
-	with open('.git/config', 'a') as f:
-		f.write('\n')
-		f.write('[filter "ipynbAllOutputs"]\n')
-		filepath = '"{}" gitFilterIpynbAll.py'.format(sys.executable.replace('\\', '/')).replace(".exe",".exe\\")
-		if sys.platform == 'win32': #Windows: win32
-			filepath = '\\' + filepath
-		else: #others like Linux and Mac: linux/linux2/darwin
-			filepath = 'python gitFilterIpynbAll.py'
-		f.write('   clean = ' + filepath + '\n')
-		f.write('   smudge = cat' + '\n')
-   
+# if not filter_exists_conf:
+# 	with open('.git/config', 'a') as f:
+# 		f.write('\n')
+# 		f.write('[filter "ipynbAllOutputs"]\n')
+# 		filepath = '"{}" gitFilterIpynbAll.py'.format(sys.executable.replace('\\', '/')).replace(".exe",".exe\\")
+# 		if sys.platform == 'win32': #Windows: win32
+# 			filepath = '\\' + filepath
+# 		else: #others like Linux and Mac: linux/linux2/darwin
+# 			filepath = 'python gitFilterIpynbAll.py'
+# 		f.write('   clean = ' + filepath + '\n')
+# 		f.write('   smudge = cat' + '\n')
+
+
 # Add filter to attributes
 
 with open('.gitattributes', 'r') as f:
@@ -66,12 +67,12 @@ if not filter_exists_attr:
 	with open('.gitattributes', 'a') as f:
 		f.write('*.ipynb filter=ipynbAnimations\n')
 
-# Add filter driver to attributes
+# # Add filter driver to attributes
 
-with open('.gitattributes', 'r') as f:
-	attrs = f.read()
-	filter_exists_attr = '*.ipynb diff=ipynbAllOutputs' in attrs
+# with open('.gitattributes', 'r') as f:
+# 	attrs = f.read()
+# 	filter_exists_attr = '*.ipynb diff=ipynbAllOutputs' in attrs
 
-if not filter_exists_attr:
-	with open('.gitattributes', 'a') as f:
-		f.write('*.ipynb diff=ipynbAllOutputs\n')
+# if not filter_exists_attr:
+# 	with open('.gitattributes', 'a') as f:
+# 		f.write('*.ipynb diff=ipynbAllOutputs\n')

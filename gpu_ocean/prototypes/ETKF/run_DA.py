@@ -47,7 +47,7 @@ parser.add_argument('--observation_interval', type=int, default=1)
 parser.add_argument('--observation_variance', type=float, default=1.0)
 parser.add_argument('--observation_type', type=str, default='buoys')
 parser.add_argument('--buoy_area', type=str, default='all')
-parser.add_argument('--media_dir', type=str, default='forecasting_results/')
+parser.add_argument('--media_dir', type=str, default='/lustre/storeB/users/florianb/forecasting_results/')
 
 parser.add_argument('--num_days', type=int, default=7) 
 parser.add_argument('--num_hours', type=int, default=24) 
@@ -72,11 +72,11 @@ profiling = args.profiling
 ## Define files for ensemble and truth.
 ##
 
-ensemble_init_path = '../../../data/ensemble_init/'
+ensemble_init_path = '/lustre/storeB/users/florianb/data/ensemble_init/'
 assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101,\
     "Ensemble init folder has wrong number of files: " + str(len(os.listdir(ensemble_init_path)))
 
-truth_path = '../../../data/true_state/'
+truth_path = '/lustre/storeB/users/florianb/data/true_state/'
 assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3,\
     "Truth folder has wrong number of files"
 
