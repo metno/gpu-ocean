@@ -177,6 +177,7 @@ from SWESimulators import EnsembleFromFiles, Observation
 from SWESimulators import IEWPFOcean
 #import EnKFOcean
 import ETKFOcean
+import SkillScore
 # For forcasting:
 from SWESimulators import GPUDrifterCollection
 # For ObservationType:
@@ -257,7 +258,7 @@ else:
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Skipping creation of a DA class", True)
 
-    
+skillScore = SkillScore.SkillScore(ensemble)
 
 ### ----------------------------------------------
 #   DATA ASSIMILATION
@@ -292,10 +293,12 @@ for day in range(numDays):
                 if method == 'iewpf':
                     ensemble.stepToObservation(obstime, model_error_final_step=(minute<4))
                     if minute == 4:
+                        skillScore.MSE(ensemble)
                         iewpf.iewpf_2stage(ensemble, perform_step=False)
                 else:
                     ensemble.stepToObservation(obstime)
                     if minute == 4:
+                        skillScore.MSE(ensemble)
                         if method == 'enkf':
                             enkf.EnKF(ensemble)
                         if method == 'etkf':
@@ -320,6 +323,8 @@ for day in range(numDays):
     ensemble.writeEnsembleToNetCDF()
     
 # Done days
+
+log("Skill score (MSE) = " + str(skillScore.evaluate()))
 
 
 ### -------------------------------------------------
