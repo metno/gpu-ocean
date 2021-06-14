@@ -63,6 +63,6 @@ class SkillScore:
         """
         Average skill score over all DA times 
         """
-        assert(self.count_DA_times == 0), "Not a single DA step to evaluate"
+        assert(self.count_DA_times != 0), "Not a single DA step to evaluate"
 
         return self.record_skill_score/self.count_DA_times
