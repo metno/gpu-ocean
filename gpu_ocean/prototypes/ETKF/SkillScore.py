@@ -64,7 +64,8 @@ class SkillScore:
                 skill_ensemble.particles[p].perturbState()
         self.count_DA_times += 1
         self.running_skill_score += np.sum(1/(self.N_e*self.N_y)*(skill_ensemble.observeParticles()-skill_ensemble.observeTrueState()[:,2:4])**2)
-        print("Running skill score = ", self.running_skill_score/self.count_DA_times)
+        #print("Running skill score = ", self.running_skill_score/self.count_DA_times)
+        print("Latest MSE = ", np.sum(1/(self.N_e*self.N_y)*(skill_ensemble.observeParticles()-skill_ensemble.observeTrueState()[:,2:4])**2))
 
     
     def evaluate(self):
