@@ -44,19 +44,27 @@ class SkillScore:
         """
         
         self.count_DA_times = 0 
-        self.record_skill_score = 0
+        self.running_skill_score = 0
 
         self.N_e = ensemble.getNumParticles()
+        self.N_y = ensemble.getNumDrifters()
     
 
-    def MSE(self,ensemble):
+    def MSE(self, ensemble, perturb=False):
         """
         MSE as skill score.
 
-        TODO: Add explanation!
+        Taking the MSE error over all particle observations w.r.t. the true observation for all observation positions:
+        1/N_e * (sum{j=1}^{N_y} sum_{i=1}^{N_e} (hu_i(x_j) - hu_true(x_j))^2 
+         + sum{j=1}^{N_y} sum_{i=1}^{N_e} (hv_i(x_j) - hv_true(x_j))^2)
         """
+        skill_ensemble = ensemble
+        if perturb:
+            for p in range(self.N_e):
+                skill_ensemble.particles[p].perturbState()
         self.count_DA_times += 1
-        self.record_skill_score += np.sum(1/self.N_e*(ensemble.observeParticles()-ensemble.observeTrueState()[:,2:4])**2)
+        self.running_skill_score += np.sum(1/(self.N_e*self.N_y)*(skill_ensemble.observeParticles()-skill_ensemble.observeTrueState()[:,2:4])**2)
+        print("Running skill score = ", self.running_skill_score/self.count_DA_times)
 
     
     def evaluate(self):
@@ -65,4 +73,4 @@ class SkillScore:
         """
         assert(self.count_DA_times != 0), "Not a single DA step to evaluate"
 
-        return self.record_skill_score/self.count_DA_times
+        return self.running_skill_score/self.count_DA_times

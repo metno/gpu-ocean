@@ -293,18 +293,20 @@ for day in range(numDays):
                 if method == 'iewpf':
                     ensemble.stepToObservation(obstime, model_error_final_step=(minute<4))
                     if minute == 4:
-                        skillScore.MSE(ensemble)
+                        skillScore.MSE(ensemble, perturb=True) #TODO: Implement in DA class!!! (performance and clarity)
+                        #skillScore.MSE(ensemble)
                         iewpf.iewpf_2stage(ensemble, perform_step=False)
                 else:
                     ensemble.stepToObservation(obstime)
                     if minute == 4:
-                        skillScore.MSE(ensemble)
+                        skillScore.MSE(ensemble) #TODO: Implement in DA class!!! (performance and clarity)
                         if method == 'enkf':
                             enkf.EnKF(ensemble)
                         if method == 'etkf':
                             etkf.ETKF(ensemble)
                         if method == 'letkf':
                             etkf.LETKF(ensemble)
+                    
 
                 ensemble.registerStateSample(drifter_cells)
 
