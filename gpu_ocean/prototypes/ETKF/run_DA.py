@@ -290,16 +290,15 @@ for day in range(numDays):
             
             for minute in range(5):
                 obstime += 60
-                if method == 'iewpf':
+                if method == 'iewpf2':
                     ensemble.stepToObservation(obstime, model_error_final_step=(minute<4))
                     if minute == 4:
-                        skillScore.MSE(ensemble, perturb=True) #TODO: Implement in DA class!!! (performance and clarity)
-                        #skillScore.MSE(ensemble)
+                        skillScore.bias(ensemble, perturb=True) #TODO: Implement in DA class!!! (performance and clarity)
                         iewpf.iewpf_2stage(ensemble, perform_step=False)
                 else:
                     ensemble.stepToObservation(obstime)
                     if minute == 4:
-                        skillScore.MSE(ensemble) #TODO: Implement in DA class!!! (performance and clarity)
+                        skillScore.bias(ensemble) #TODO: Implement in DA class!!! (performance and clarity)
                         if method == 'enkf':
                             enkf.EnKF(ensemble)
                         if method == 'etkf':

@@ -51,6 +51,7 @@ class SkillScore:
     
 
     def MSE(self, ensemble, perturb=False):
+        #FIXME: Only for active particles!! 
         """
         MSE as skill score.
 
@@ -58,14 +59,37 @@ class SkillScore:
         1/N_e * (sum{j=1}^{N_y} sum_{i=1}^{N_e} (hu_i(x_j) - hu_true(x_j))^2 
          + sum{j=1}^{N_y} sum_{i=1}^{N_e} (hv_i(x_j) - hv_true(x_j))^2)
         """
+        # The last time step of some PF is without noise 
+        # to counteract this fact additional noise can be added
         skill_ensemble = ensemble
         if perturb:
             for p in range(self.N_e):
                 skill_ensemble.particles[p].perturbState()
+
+        # Updating the running skill score
         self.count_DA_times += 1
         self.running_skill_score += np.sum(1/(self.N_e*self.N_y)*(skill_ensemble.observeParticles()-skill_ensemble.observeTrueState()[:,2:4])**2)
         #print("Running skill score = ", self.running_skill_score/self.count_DA_times)
         print("Latest MSE = ", np.sum(1/(self.N_e*self.N_y)*(skill_ensemble.observeParticles()-skill_ensemble.observeTrueState()[:,2:4])**2))
+
+
+    def bias(self, ensemble, perturb=False):
+        #FIXME: Only for active particles!! 
+        """
+        bias as skill score.
+        """
+        # The last time step of some PF is without noise 
+        # to counteract this fact additional noise can be added
+        skill_ensemble = ensemble
+        if perturb:
+            for p in range(self.N_e):
+                skill_ensemble.particles[p].perturbState()
+
+        # Updating the running skill score
+        self.count_DA_times += 1
+        self.running_skill_score += np.average((np.average(skill_ensemble.observeParticles(), axis=0) - skill_ensemble.observeTrueState()[:,2:4]))
+        #print("Running skill score = ", self.running_skill_score/self.count_DA_times)
+        print("Latest bias = ", np.average((np.average(skill_ensemble.observeParticles(), axis=0) - skill_ensemble.observeTrueState()[:,2:4])) )
 
     
     def evaluate(self):
