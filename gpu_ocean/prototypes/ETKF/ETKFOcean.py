@@ -304,17 +304,17 @@ class ETKFOcean:
         Defines mapping from global domain (nx times ny) to local domain
         """
 
-        boxed_r = dx*scale_r*1.5
+        boxed_r = dx*np.ceil(scale_r*1.5)
         
         localIndices = np.array([[False]*nx]*ny)
         
         obs_loc_cellID = (np.int(obs_loc[0]//dx), np.int(obs_loc[1]//dy))
 
         #print(obs_loc_cellID)
-        loc_cell_left  = np.int((obs_loc[0]-boxed_r   )//dx)
-        loc_cell_right = np.int((obs_loc[0]+boxed_r+dx)//dx)
-        loc_cell_down  = np.int((obs_loc[1]-boxed_r   )//dy)
-        loc_cell_up    = np.int((obs_loc[1]+boxed_r+dy)//dy)
+        loc_cell_left  = int(np.round(obs_loc[0]/dx)) - int(np.round(boxed_r/dx))
+        loc_cell_right = int(np.round(obs_loc[0]/dx)) + int(np.round((boxed_r+dx)/dx))
+        loc_cell_down  = int(np.round(obs_loc[1]/dy)) - int(np.round(boxed_r/dy))
+        loc_cell_up    = int(np.round(obs_loc[1]/dy)) + int(np.round((boxed_r+dy)/dy))
 
         xranges = []
         yranges = []
@@ -401,8 +401,8 @@ class ETKFOcean:
         Gives a local stencil with weights based on the distGC
         """
         
-        local_nx = int(scale_r*2*1.5)+1
-        local_ny = int(scale_r*2*1.5)+1
+        local_nx = int(np.ceil(scale_r*1.5)*2 + 1)
+        local_ny = int(np.ceil(scale_r*1.5)*2 + 1)
         weights = np.zeros((local_ny, local_ny))
         
         obs_loc_cellID = (local_ny, local_nx)
