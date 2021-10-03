@@ -175,7 +175,8 @@ from SWESimulators import Common
 from SWESimulators import EnsembleFromFiles, Observation
 # For data assimilation:
 from SWESimulators import IEWPFOcean
-#import EnKFOcean
+# The prototyping packages:
+#import EnKFOcean #(different prototype folder)
 import ETKFOcean
 import SkillScore
 # For forcasting:
@@ -258,7 +259,8 @@ else:
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Skipping creation of a DA class", True)
 
-skillScore = SkillScore.SkillScore(ensemble)
+scores = ["bias", "MSE"]
+skillScore = SkillScore.SkillScore(ensemble, scores)
 
 ### ----------------------------------------------
 #   DATA ASSIMILATION
@@ -293,12 +295,12 @@ for day in range(numDays):
                 if method == 'iewpf2':
                     ensemble.stepToObservation(obstime, model_error_final_step=(minute<4))
                     if minute == 4:
-                        skillScore.bias(ensemble, perturb=True) #TODO: Implement in DA class!!! (performance and clarity)
+                        skillScore.assess(ensemble, perturb=True) #TODO: Implement in DA class!!! (performance and clarity)
                         iewpf.iewpf_2stage(ensemble, perform_step=False)
                 else:
                     ensemble.stepToObservation(obstime)
                     if minute == 4:
-                        skillScore.bias(ensemble) #TODO: Implement in DA class!!! (performance and clarity)
+                        skillScore.assess(ensemble) #TODO: Implement in DA class!!! (performance and clarity)
                         if method == 'enkf':
                             enkf.EnKF(ensemble)
                         if method == 'etkf':
@@ -324,8 +326,9 @@ for day in range(numDays):
     ensemble.writeEnsembleToNetCDF()
     
 # Done days
-
-log("Skill score (MSE) = " + str(skillScore.evaluate()))
+avg_scores = skillScore.evaluate(destination_dir)
+for score in scores: 
+    log("Skill score (" + score + ") = " + str(avg_scores[score]))
 
 
 ### -------------------------------------------------

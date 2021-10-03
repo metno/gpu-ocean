@@ -21,12 +21,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-
-from matplotlib import pyplot as plt
-import matplotlib.gridspec as gridspec
 import numpy as np
-import time
-import logging
+import os
 
 class SkillScore:
     """
@@ -37,18 +33,44 @@ class SkillScore:
             
     """
 
-    def __init__(self, ensemble):
+    def __init__(self, ensemble, scores):
         """
-        Copying the ensemble to the member variables 
-        and deducing frequently used ensemble quantities
+        `scores` has to be a list with the scores used for assessement,
+        currently supported are 
+        - "bias"
+        - "MSE"
+        - "CRPS".
+
+        Copying frequently used ensemble quantities.
         """
-        
-        self.count_DA_times = 0 
-        self.running_skill_score = 0
+
+        self.scores = scores
+
+        allowed_scores = ["bias", "MSE", "CRPS"]
+        assert (all(score in allowed_scores for score in scores)), "invalid scores"
+
+        # index 0: bias, index 1: MSE, index 2: CRPS
+        self.running_scoring = {}
+        for score in scores:
+            self.running_scoring[score] = np.zeros(0)
 
         self.N_e = ensemble.getNumParticles()
         self.N_y = ensemble.getNumDrifters()
     
+
+    def assess(self, ensemble, perturb=False):
+
+        if "bias" in self.scores:
+            bias = self.bias(ensemble, perturb)
+            self.running_scoring["bias"] = np.append(self.running_scoring["bias"], bias)
+        if "MSE" in self.scores:
+            MSE = self.MSE(ensemble, perturb)
+            self.running_scoring["MSE"] = np.append(self.running_scoring["MSE"], MSE)
+        if "CRPS" in self.scores:
+            CRPS = self.CRPS(ensemble, perturb)
+            self.running_scoring["CRPS"] = np.append(self.running_scoring["CRPS"], CRPS)
+
+
 
     def MSE(self, ensemble, perturb=False):
         #FIXME: Only for active particles!! 
@@ -59,43 +81,83 @@ class SkillScore:
         1/N_e * (sum{j=1}^{N_y} sum_{i=1}^{N_e} (hu_i(x_j) - hu_true(x_j))^2 
          + sum{j=1}^{N_y} sum_{i=1}^{N_e} (hv_i(x_j) - hv_true(x_j))^2)
         """
-        # The last time step of some PF is without noise 
+        # NOTE: The last time step of some PF is without noise 
         # to counteract this fact additional noise can be added
         skill_ensemble = ensemble
         if perturb:
             for p in range(self.N_e):
-                skill_ensemble.particles[p].perturbState()
+                if ensemble.particlesActive[p]:
+                    skill_ensemble.particles[p].perturbState()
 
-        # Updating the running skill score
-        self.count_DA_times += 1
-        self.running_skill_score += np.sum(1/(self.N_e*self.N_y)*(skill_ensemble.observeParticles()-skill_ensemble.observeTrueState()[:,2:4])**2)
-        #print("Running skill score = ", self.running_skill_score/self.count_DA_times)
-        print("Latest MSE = ", np.sum(1/(self.N_e*self.N_y)*(skill_ensemble.observeParticles()-skill_ensemble.observeTrueState()[:,2:4])**2))
+        MSE = np.nanmean(1/(ensemble.getNumActiveParticles()*self.N_y)*(skill_ensemble.observeParticles()-skill_ensemble.observeTrueState()[:,2:4])**2)
+        
+        print("Latest MSE = ", MSE)
+        return  MSE
 
 
     def bias(self, ensemble, perturb=False):
-        #FIXME: Only for active particles!! 
         """
         bias as skill score.
         """
-        # The last time step of some PF is without noise 
+        # NOTE: The last time step of some PF is without noise 
         # to counteract this fact additional noise can be added
         skill_ensemble = ensemble
         if perturb:
             for p in range(self.N_e):
-                skill_ensemble.particles[p].perturbState()
+                if ensemble.particlesActive[p]:
+                    skill_ensemble.particles[p].perturbState()
 
-        # Updating the running skill score
-        self.count_DA_times += 1
-        self.running_skill_score += np.average((np.average(skill_ensemble.observeParticles(), axis=0) - skill_ensemble.observeTrueState()[:,2:4]))
-        #print("Running skill score = ", self.running_skill_score/self.count_DA_times)
-        print("Latest bias = ", np.average((np.average(skill_ensemble.observeParticles(), axis=0) - skill_ensemble.observeTrueState()[:,2:4])) )
+        bias =  np.nanmean((np.nanmean(skill_ensemble.observeParticles(), axis=0) - skill_ensemble.observeTrueState()[:,2:4]))
+        
+        print("Latest bias = ", bias)
+        return bias
 
+
+    def CPRS(self, ensemble, perturb=False):
+        #FIXME: Only for active particle:
+        """
+        CRPS as skill score
+        """
+        print("Latest CRPS = ", "only dummy implementation")
+        return 0 
     
-    def evaluate(self):
+
+    def evaluate(self, destination_dir=None):
         """
         Average skill score over all DA times 
         """
-        assert(self.count_DA_times != 0), "Not a single DA step to evaluate"
 
-        return self.running_skill_score/self.count_DA_times
+        scores = None
+        avg_scores = {}
+        if "bias" in self.scores:
+            bias_scores = self.running_scoring["bias"]
+            bias_scores = np.reshape(bias_scores, (len(bias_scores),1) )
+
+            scores = bias_scores
+            avg_scores["bias"] = np.average(bias_scores)
+        
+        if "MSE" in self.scores:
+            MSE_scores = self.running_scoring["MSE"] 
+            MSE_scores = np.reshape(MSE_scores, (len(MSE_scores),1) )
+
+            if scores is None:
+                scores = MSE_scores
+            else:
+                scores = np.hstack([scores,MSE_scores])
+            avg_scores["MSE"] = np.average(MSE_scores)
+
+        if "CRPS" in self.scores:
+            CRPS_scores = self.running_scoring["CRPS"]
+            CRPS_scores = np.reshape(CRPS_scores, (len(CRPS_scores),1) )
+
+            if scores is None:
+                scores = CRPS_scores
+            else:
+                scores = np.hstack([scores,CRPS_scores])
+            avg_scores["CRPS"] = np.average(CRPS_scores)
+
+
+        if destination_dir is not None:
+            np.savetxt(os.path.join(destination_dir, 'scores.csv'), scores, header=" ".join(self.scores))
+
+        return avg_scores 
