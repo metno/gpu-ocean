@@ -5,8 +5,6 @@ This software is a part of GPU Ocean.
 
 Copyright (C) 2018  SINTEF Digital
 
-This python class implements the Ensemble Transform Kalman Filter.
-
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
@@ -28,19 +26,17 @@ class SkillScore:
     """
     This class implements some skill scores
     
-    Input to constructor:
     ensemble: An object of super-type BaseOceanStateEnsemble.
-            
+    scores: A list with the scores used for assessement,
+    currently supported are 
+        - "bias"
+        - "MSE"
+        - "CRPS".
     """
 
     def __init__(self, ensemble, scores):
         """
-        `scores` has to be a list with the scores used for assessement,
-        currently supported are 
-        - "bias"
-        - "MSE"
-        - "CRPS".
-
+        Preparing dictionary to write skills.
         Copying frequently used ensemble quantities.
         """
 
@@ -59,6 +55,9 @@ class SkillScore:
     
 
     def assess(self, ensemble, perturb=False):
+        """ Calculating different scores and saving in dict"""
+        #TODO: Changing the logic that assessment takes ensemble and true observation 
+        #(to avoid double observation in DA and skill classes)
 
         if "bias" in self.scores:
             bias = self.bias(ensemble, perturb)
@@ -73,7 +72,6 @@ class SkillScore:
 
 
     def MSE(self, ensemble, perturb=False):
-        #FIXME: Only for active particles!! 
         """
         MSE as skill score.
 
@@ -114,7 +112,7 @@ class SkillScore:
 
 
     def CPRS(self, ensemble, perturb=False):
-        #FIXME: Only for active particle:
+        #TODO: Find suitable implementation. 
         """
         CRPS as skill score
         """
