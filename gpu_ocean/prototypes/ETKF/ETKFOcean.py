@@ -668,27 +668,6 @@ class ETKFOcean:
         return HX_f_mean, HX_f_pert
 
 
-
-    @staticmethod
-    def fillGhostArea(m, nx, ny, ghost_cells_x, ghost_cells_y):
-
-        for r in range(ghost_cells_y):
-            m[r,:] = m[ny+r,:]
-            m[ny+ghost_cells_y+r,:] = m[ghost_cells_y+r,:]
-        for r in range(ghost_cells_x):
-            m[:,r] = m[:,nx+r]
-            m[:,nx+ghost_cells_x+r] = m[:,ghost_cells_x+r]
-
-        for rx in range(ghost_cells_x):
-            for ry in range(ghost_cells_y):
-                m[ry,rx] = m[ny+ry,nx+rx]
-                m[ny+ry,rx] = m[ry,nx+rx]
-                m[ry,nx+rx] = m[ny+ry,rx]
-                m[ny+ry,nx+rx] = m[ry,rx]
-
-        return m
-
-
     def uploadAnalysis(self, X_new):
         # Upload analysis
         idx = 0
@@ -698,20 +677,17 @@ class ETKFOcean:
                 eta = np.zeros((self.ensemble.ny+2*self.ghost_cells_y, self.ensemble.nx+2*self.ghost_cells_x))
                 eta[self.ghost_cells_y : self.ensemble.ny+self.ghost_cells_y, self.ghost_cells_x : self.ensemble.nx+self.ghost_cells_x] \
                     = X_new[idx][0]
-                eta = ETKFOcean.fillGhostArea(eta, self.ensemble.nx, self.ensemble.ny, self.ghost_cells_x, self.ghost_cells_y)
 
                 # construct hu
                 hu  = np.zeros((self.ensemble.ny+2*self.ghost_cells_y, self.ensemble.nx+2*self.ghost_cells_x))
                 hu[self.ghost_cells_y : self.ensemble.ny+self.ghost_cells_y, self.ghost_cells_x : self.ensemble.nx+self.ghost_cells_x] \
                     = X_new[idx][1]
-                hu = ETKFOcean.fillGhostArea(hu, self.ensemble.nx, self.ensemble.ny, self.ghost_cells_x, self.ghost_cells_y)
 
                 # construct hv
                 hv  = np.zeros((self.ensemble.ny+2*self.ghost_cells_y, self.ensemble.nx+2*self.ghost_cells_x))
                 hv[self.ghost_cells_y:self.ensemble.ny + self.ghost_cells_y, self.ghost_cells_x:self.ensemble.nx+self.ghost_cells_x] \
                     = X_new[idx][2]
-                hv = ETKFOcean.fillGhostArea(hv, self.ensemble.nx, self.ensemble.ny, self.ghost_cells_x, self.ghost_cells_y)
 
                 self.ensemble.particles[e].upload(eta,hu,hv)
+                self.ensemble.particles[e].applyBoundaryConditions()
                 idx += 1
-
