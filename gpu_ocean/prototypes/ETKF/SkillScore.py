@@ -59,59 +59,59 @@ class SkillScore:
         #TODO: Changing the logic that assessment takes ensemble and true observation 
         #(to avoid double observation in DA and skill classes)
 
-        if "bias" in self.scores:
-            bias = self.bias(ensemble, perturb)
-            self.running_scoring["bias"] = np.append(self.running_scoring["bias"], bias)
-        if "MSE" in self.scores:
-            MSE = self.MSE(ensemble, perturb)
-            self.running_scoring["MSE"] = np.append(self.running_scoring["MSE"], MSE)
-        if "CRPS" in self.scores:
-            CRPS = self.CRPS(ensemble, perturb)
-            self.running_scoring["CRPS"] = np.append(self.running_scoring["CRPS"], CRPS)
+        if len(self.scores) > 0: 
+            # NOTE: The last time step of some PF is without noise 
+            # to counteract this fact additional noise can be added
+            skill_ensemble = ensemble
+            if perturb:
+                for p in range(self.N_e):
+                    if ensemble.particlesActive[p]:
+                        skill_ensemble.particles[p].perturbState()
+
+            self.N_e = ensemble.getNumActiveParticles()
+            
+            observed_particles = skill_ensemble.observeParticles() 
+            observed_truth     = skill_ensemble.observeTrueState()[:,2:4]
+
+            if "bias" in self.scores:
+                bias = self.bias(observed_particles, observed_truth, perturb)
+                self.running_scoring["bias"] = np.append(self.running_scoring["bias"], bias)
+            if "MSE" in self.scores:
+                MSE = self.MSE(observed_particles, observed_truth, perturb)
+                self.running_scoring["MSE"] = np.append(self.running_scoring["MSE"], MSE)
+            if "CRPS" in self.scores:
+                CRPS = self.CRPS(observed_particles, observed_truth, perturb)
+                self.running_scoring["CRPS"] = np.append(self.running_scoring["CRPS"], CRPS)
 
 
 
-    def MSE(self, ensemble, perturb=False):
+    def MSE(self, observed_particles, observed_truth, perturb=False):
         """
-        MSE as skill score.
+        MSE at drifter positions as skill score.
 
         Taking the MSE error over all particle observations w.r.t. the true observation for all observation positions:
         1/N_e * (sum{j=1}^{N_y} sum_{i=1}^{N_e} (hu_i(x_j) - hu_true(x_j))^2 
          + sum{j=1}^{N_y} sum_{i=1}^{N_e} (hv_i(x_j) - hv_true(x_j))^2)
         """
-        # NOTE: The last time step of some PF is without noise 
-        # to counteract this fact additional noise can be added
-        skill_ensemble = ensemble
-        if perturb:
-            for p in range(self.N_e):
-                if ensemble.particlesActive[p]:
-                    skill_ensemble.particles[p].perturbState()
 
-        MSE = np.nanmean(1/(ensemble.getNumActiveParticles()*self.N_y)*(skill_ensemble.observeParticles()-skill_ensemble.observeTrueState()[:,2:4])**2)
+        MSE = np.nanmean(1/self.N_y*(observed_particles - observed_truth)**2)
         
         print("Latest MSE = ", MSE)
         return  MSE
 
 
-    def bias(self, ensemble, perturb=False):
+    def bias(self, observed_particles, observed_truth, perturb=False):
         """
         bias as skill score.
         """
-        # NOTE: The last time step of some PF is without noise 
-        # to counteract this fact additional noise can be added
-        skill_ensemble = ensemble
-        if perturb:
-            for p in range(self.N_e):
-                if ensemble.particlesActive[p]:
-                    skill_ensemble.particles[p].perturbState()
 
-        bias =  np.nanmean((np.nanmean(skill_ensemble.observeParticles(), axis=0) - skill_ensemble.observeTrueState()[:,2:4]))
+        bias =  np.nanmean((np.nanmean(observed_particles, axis=0) - observed_truth))
         
         print("Latest bias = ", bias)
         return bias
 
 
-    def CPRS(self, ensemble, perturb=False):
+    def CPRS(self, observed_particles, observed_truth, perturb=False):
         #TODO: Find suitable implementation. 
         """
         CRPS as skill score
@@ -124,38 +124,38 @@ class SkillScore:
         """
         Average skill score over all DA times 
         """
+        if len(self.scores) > 0: 
+            scores = None
+            avg_scores = {}
+            if "bias" in self.scores:
+                bias_scores = self.running_scoring["bias"]
+                bias_scores = np.reshape(bias_scores, (len(bias_scores),1) )
 
-        scores = None
-        avg_scores = {}
-        if "bias" in self.scores:
-            bias_scores = self.running_scoring["bias"]
-            bias_scores = np.reshape(bias_scores, (len(bias_scores),1) )
+                scores = bias_scores
+                avg_scores["bias"] = np.average(bias_scores)
+            
+            if "MSE" in self.scores:
+                MSE_scores = self.running_scoring["MSE"] 
+                MSE_scores = np.reshape(MSE_scores, (len(MSE_scores),1) )
 
-            scores = bias_scores
-            avg_scores["bias"] = np.average(bias_scores)
-        
-        if "MSE" in self.scores:
-            MSE_scores = self.running_scoring["MSE"] 
-            MSE_scores = np.reshape(MSE_scores, (len(MSE_scores),1) )
+                if scores is None:
+                    scores = MSE_scores
+                else:
+                    scores = np.hstack([scores,MSE_scores])
+                avg_scores["MSE"] = np.average(MSE_scores)
 
-            if scores is None:
-                scores = MSE_scores
-            else:
-                scores = np.hstack([scores,MSE_scores])
-            avg_scores["MSE"] = np.average(MSE_scores)
+            if "CRPS" in self.scores:
+                CRPS_scores = self.running_scoring["CRPS"]
+                CRPS_scores = np.reshape(CRPS_scores, (len(CRPS_scores),1) )
 
-        if "CRPS" in self.scores:
-            CRPS_scores = self.running_scoring["CRPS"]
-            CRPS_scores = np.reshape(CRPS_scores, (len(CRPS_scores),1) )
-
-            if scores is None:
-                scores = CRPS_scores
-            else:
-                scores = np.hstack([scores,CRPS_scores])
-            avg_scores["CRPS"] = np.average(CRPS_scores)
+                if scores is None:
+                    scores = CRPS_scores
+                else:
+                    scores = np.hstack([scores,CRPS_scores])
+                avg_scores["CRPS"] = np.average(CRPS_scores)
 
 
-        if destination_dir is not None:
-            np.savetxt(os.path.join(destination_dir, 'scores.csv'), scores, header=" ".join(self.scores))
+            if destination_dir is not None:
+                np.savetxt(os.path.join(destination_dir, 'scores.csv'), scores, header=" ".join(self.scores))
 
-        return avg_scores 
+            return avg_scores 
