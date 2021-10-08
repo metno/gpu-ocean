@@ -168,8 +168,8 @@ class IEWPFOcean:
 
         self.beta = beta
 
-        if write_betas is True:
-            self.write_betas = True 
+        self.write_betas = True 
+        if self.write_betas:
             self.betas = np.zeros(0)
     
        
