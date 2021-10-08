@@ -452,7 +452,7 @@ class CDKLM16(Simulator.Simulator):
             'g': sim_reader.get("g"),
             'f': sim_reader.get("coriolis_force"),
             'r': sim_reader.get("bottom_friction_r"),
-            't': time0,
+            't': float(time0),
             'theta': sim_reader.get("minmod_theta"),
             'rk_order': sim_reader.get("time_integrator"),
             'coriolis_beta': sim_reader.get("coriolis_beta"),
