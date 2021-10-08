@@ -67,7 +67,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                  write_netcdf_directory = None,
                  observation_type = dautils.ObservationType.UnderlyingFlow,
                  randomize_initial_ensemble=False,
-                 compensate_for_eta = True):
+                 compensate_for_eta = True,
+                 time0=None):
         """
         Initalizing ensemble from files.
         
@@ -143,7 +144,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.observation_type = observation_type
         
         ### Then, call appropriate helper functions for initialization of ensemble and true states
-        self._initializeEnsembleFromFile(randomize_initial_ensemble)
+        self._initializeEnsembleFromFile(randomize_initial_ensemble, time0)
         self._initializeTruthFromFile() 
         
         self.compensate_for_eta = compensate_for_eta
@@ -176,7 +177,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self._particleInfoExtraCells = None
         
         
-    def _initializeEnsembleFromFile(self, randomize_initial_ensemble):
+    def _initializeEnsembleFromFile(self, randomize_initial_ensemble,time0):
         num_files = len(self.ensemble_init_nc_files)
         file_ids = np.arange(self.numParticles) % num_files
         if randomize_initial_ensemble:
@@ -202,7 +203,8 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                                                        self.ensemble_init_nc_files[file_id],
                                                                        cont_write_netcdf=self.cont_write_netcdf,
                                                                        new_netcdf_filename=new_netcdf_filename,
-                                                                       use_lcg=self.use_lcg)
+                                                                       use_lcg=self.use_lcg,
+                                                                       time0=time0)
 
     def _initializeParticleInfo(self):
         self.particleInfos = [None]*self.numParticles

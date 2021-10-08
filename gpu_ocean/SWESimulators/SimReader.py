@@ -153,7 +153,7 @@ class SimNetCDFReader:
         return eta, hu, hv, time[index]
 
     def getEtaAtTimeStep(self, index):
-        return getStateAtTimeStep(index, etaOnly=True)
+        return self.getStateAtTimeStep(index, etaOnly=True)
 
     def getAxis(self):
         x = self.ncfile.variables['x']

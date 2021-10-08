@@ -407,7 +407,7 @@ class CDKLM16(Simulator.Simulator):
         gc.collect()
            
     @classmethod
-    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True, use_lcg=False, new_netcdf_filename=None):
+    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True, use_lcg=False, new_netcdf_filename=None, time0=None):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
@@ -426,7 +426,10 @@ class CDKLM16(Simulator.Simulator):
         H = sim_reader.getH();
         
         # get last timestep (including simulation time of last timestep)
-        eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
+        if time0 is None:
+            eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
+        else:
+            eta0, hu0, hv0, time0 = sim_reader.getStateAtTime(time0)
         
         # For some reason, some old netcdf had 3-dimensional bathymetry.
         # This fix ensures that we only use a valid H
