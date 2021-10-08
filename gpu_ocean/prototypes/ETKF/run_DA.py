@@ -54,6 +54,7 @@ parser.add_argument('--num_hours', type=int, default=24)
 parser.add_argument('--forecast_days', type=int, default=3)
 parser.add_argument('--profiling', action='store_true')
 
+parser.add_argument('--iewpf2beta', type=float, default=None)
 
 args = parser.parse_args()
 
@@ -244,7 +245,7 @@ dt_ref = ensemble.particles[-1].dt
 tic = time.time()
 iewpf = None
 if method.startswith('iewpf'):
-    iewpf = IEWPFOcean.IEWPFOcean(ensemble)
+    iewpf = IEWPFOcean.IEWPFOcean(ensemble, beta=args.iewpf2beta, write_betas=True)
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class IEWPFOcean initiated", True)
 elif method.startswith('enkf'):
@@ -259,7 +260,7 @@ else:
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Skipping creation of a DA class", True)
 
-scores = ["bias", "MSE"]
+scores = []
 skillScore = SkillScore.SkillScore(ensemble, scores)
 
 ### ----------------------------------------------
@@ -324,6 +325,9 @@ for day in range(numDays):
     ensemble.dumpParticleInfosToFile(particleInfoPrefix)
     
     ensemble.writeEnsembleToNetCDF()
+
+if method == "iewpf2":
+    np.savetxt(os.path.join(destination_dir, 'IEWPF2betas.txt'), iewpf.betas)
     
 # Done days
 avg_scores = skillScore.evaluate(destination_dir)
