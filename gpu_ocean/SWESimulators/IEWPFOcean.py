@@ -54,7 +54,7 @@ class IEWPFOcean:
             
     """
     def __init__(self, ensemble, debug=False, show_errors=False,
-                 block_width=16, block_height=16):
+                 block_width=16, block_height=16, beta=None):
         
         self.logger = logging.getLogger(__name__)
         self.logger_level = config.GPUOceanLoggerLevels.IEWPF_DEBUG
@@ -165,6 +165,8 @@ class IEWPFOcean:
                                     int(np.ceil(self.coarse_nx / float(self.local_size_domain[0]))), \
                                     int(np.ceil(self.coarse_ny / float(self.local_size_domain[1]))) \
                                    ) 
+
+        self.beta = beta
     
        
     def log(self, msg):
@@ -286,6 +288,10 @@ class IEWPFOcean:
             print("\nSetting beta = 0 and continueing... ")
             print("------!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!------------------------")
             beta = 0
+
+        if self.beta is not None:
+            beta = self.beta
+            self.log('beta (hard set): ' + str(beta))
         
         for p in range(ensemble.getNumParticles()):
             if ensemble.particlesActive[p]:
