@@ -160,10 +160,8 @@ class EnKFOcean:
             for l in range(self.N_d):
                 HX_f[self.N_d+l,e] = HX_f_orig[e,l,1]
 
-        HX_f_mean = np.zeros_like(HX_f)
-        for e in range(self.N_e_active):
-            HX_f_mean = 1/self.N_e_active * HX_f[:,e]
-
+        HX_f_mean = np.nanmean(HX_f, axis=1)
+        
         HX_f_pert = HX_f - HX_f_mean.reshape((2*self.N_d,1))
 
         return HX_f_pert
