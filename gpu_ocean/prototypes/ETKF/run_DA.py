@@ -219,7 +219,7 @@ ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx,
                                                 truth_path,                                                
                                                 args.observation_variance,
                                                 cont_write_netcdf = cont_write_netcdf,
-                                                use_lcg = True,
+                                                use_lcg = False, xorwow_seed = 101,
                                                 write_netcdf_directory = destination_dir,
                                                 observation_type=observation_type)
 
