@@ -27,6 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from matplotlib import pyplot as plt
 import numpy as np
 
+import pycuda.gpuarray 
 import pycuda.driver as cuda
 from pycuda.curandom import XORWOWRandomNumberGenerator
 
