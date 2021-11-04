@@ -69,6 +69,7 @@ class CDKLM16(Simulator.Simulator):
                  model_time_step=None,
                  reportGeostrophicEquilibrium=False, \
                  use_lcg=False, \
+                 xorwow_seed = None, \
                  write_netcdf=False, \
                  comm=None, \
                  local_particle_id=0, \
@@ -359,7 +360,7 @@ class CDKLM16(Simulator.Simulator):
             self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, 
                                                                                    soar_q0=small_scale_perturbation_amplitude,
                                                                                    interpolation_factor=small_scale_perturbation_interpolation_factor,
-                                                                                   use_lcg=use_lcg,
+                                                                                   use_lcg=use_lcg, xorwow_seed=xorwow_seed,
                                                                                    block_width=block_width_model_error, 
                                                                                    block_height=block_height_model_error)
     
@@ -407,7 +408,7 @@ class CDKLM16(Simulator.Simulator):
         gc.collect()
            
     @classmethod
-    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True, use_lcg=False, new_netcdf_filename=None, time0=None):
+    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True, use_lcg=False, xorwow_seed = None, new_netcdf_filename=None, time0=None):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
@@ -459,6 +460,7 @@ class CDKLM16(Simulator.Simulator):
             # 'y_zero_reference_cell': sim_reader.get("y_zero_reference_cell"), # TODO - UPDATE WITH NEW API
             'write_netcdf': cont_write_netcdf,
             'use_lcg': use_lcg,
+            'xorwow_seed' : xorwow_seed,
             'netcdf_filename': new_netcdf_filename
         }    
         
