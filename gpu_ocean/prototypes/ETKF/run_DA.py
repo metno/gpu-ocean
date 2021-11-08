@@ -54,6 +54,7 @@ parser.add_argument('--num_hours', type=int, default=24)
 parser.add_argument('--forecast_days', type=int, default=3)
 parser.add_argument('--profiling', action='store_true')
 
+parser.add_argument('--seed', type=int, default=None)
 parser.add_argument('--iewpf2beta', type=float, default=None)
 
 args = parser.parse_args()
@@ -219,7 +220,7 @@ ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx,
                                                 truth_path,                                                
                                                 args.observation_variance,
                                                 cont_write_netcdf = cont_write_netcdf,
-                                                use_lcg = False, xorwow_seed = 101,
+                                                use_lcg = False, xorwow_seed = args.seed,
                                                 write_netcdf_directory = destination_dir,
                                                 observation_type=observation_type)
 
