@@ -33,7 +33,7 @@ if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../SWESimulators'
 
 # Knonw hosts: havvarsel, PPI.
 host = os.uname()[1] 
-if host in ["r740-5hdn2s2-ag-compute", "r740-5hcv2s2-ag-compute", "r740-dsxm2t2-ag-compute", "r740-dsws2t2-ag-compute"]:
+if host in ["r740-5hdn2s2-ag-gcompute", "r740-5hcv2s2-ag-gcompute", "r740-dsxm2t2-ag-gcompute", "r740-dsws2t2-ag-gcompute"]:
     host = "ppi"
 
 #--------------------------------------------------------------

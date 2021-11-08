@@ -45,11 +45,12 @@ parser = argparse.ArgumentParser(description='Generate an ensemble.')
 parser.add_argument('--experiments', type=int, default=1000)
 parser.add_argument('--output_folder', type=str, default="/lustre/storeB/users/florianb/rank_histogram_experiments")
 parser.add_argument('--method', type=str, default='LETKF')
+parser.add_argument('--iewpf2beta', type=float, default=None)
 parser.add_argument('--observation_variance', type=float, default=1)
 
 const_args = {
     'ensemble_size' : 40,
-    'method' : 'etkf',
+    'method' : 'iewpf',
     'observation_interval' : 1,
     'observation_type' : 'buoys',
     'buoy_area' : 'all'
@@ -284,7 +285,7 @@ for run_id in range(args.experiments):
         # Initialize IEWPF class (if needed)
         if method == 'iewpf2':
             tic = time.time()
-            iewpf = IEWPFOcean.IEWPFOcean(ensemble)
+            iewpf = IEWPFOcean.IEWPFOcean(ensemble, beta=args.iewpf2beta)
             toc = time.time()
             log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class initiated", True)
         elif method == 'etkf' or method == 'letkf':
