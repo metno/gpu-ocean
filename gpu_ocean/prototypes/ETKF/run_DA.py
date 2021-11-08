@@ -31,7 +31,10 @@ current_dir = os.getcwd()
 if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../SWESimulators'))):
         sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../')))
 
-
+# Knonw hosts: havvarsel, PPI.
+host = os.uname()[1] 
+if host in ["r740-5hdn2s2-ag-compute", "r740-5hcv2s2-ag-compute", "r740-dsxm2t2-ag-compute", "r740-dsws2t2-ag-compute"]:
+    host = "ppi"
 
 #--------------------------------------------------------------
 # PARAMETERS
@@ -47,8 +50,12 @@ parser.add_argument('--observation_interval', type=int, default=1)
 parser.add_argument('--observation_variance', type=float, default=1.0)
 parser.add_argument('--observation_type', type=str, default='buoys')
 parser.add_argument('--buoy_area', type=str, default='all')
-parser.add_argument('--media_dir', type=str, default='/lustre/storeB/users/florianb/forecasting_results/')
-
+if host == "ppi":
+    parser.add_argument('--media_dir', type=str, default='/lustre/storeB/users/florianb/forecasting_results/')
+elif host == "havvarsel":
+    parser.add_argument('--media_dir', type=str, default='/sintef/forecasting_results/')
+else:
+    parser.add_argument('--media_dir', type=str)
 parser.add_argument('--num_days', type=int, default=7) 
 parser.add_argument('--num_hours', type=int, default=24) 
 parser.add_argument('--forecast_days', type=int, default=3)
@@ -74,11 +81,21 @@ profiling = args.profiling
 ## Define files for ensemble and truth.
 ##
 
-ensemble_init_path = '/lustre/storeB/users/florianb/data/ensemble_init/'
+if host == "ppi":
+    ensemble_init_path = '/lustre/storeB/users/florianb/data/ensemble_init/'
+elif host == "havvarsel":
+    ensemble_init_path = '/sintef/data/ensemble_init/'
+else:
+    ensemble_init_path = 'Give path here'
 assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101,\
     "Ensemble init folder has wrong number of files: " + str(len(os.listdir(ensemble_init_path)))
 
-truth_path = '/lustre/storeB/users/florianb/data/true_state/'
+if host == "ppi":
+    truth_path = '/lustre/storeB/users/florianb/data/true_state/'
+elif host == "havvarsel":
+    truth_path = '/sintef/data/true_state/'
+else:
+    truth_path = 'Give path here'
 assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3,\
     "Truth folder has wrong number of files"
 
