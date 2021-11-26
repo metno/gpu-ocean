@@ -278,7 +278,7 @@ else:
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Skipping creation of a DA class", True)
 
-scores = []
+scores = ["MSE", "bias", "CRPS"]
 skillScore = SkillScore.SkillScore(ensemble, scores)
 
 ### ----------------------------------------------
@@ -314,12 +314,12 @@ for day in range(numDays):
                 if method == 'iewpf2':
                     ensemble.stepToObservation(obstime, model_error_final_step=(minute<4))
                     if minute == 4:
-                        skillScore.assess(ensemble, perturb=True) #TODO: Implement in DA class!!! (performance and clarity)
+                        skillScore.assess(ensemble, perturb=True)
                         iewpf.iewpf_2stage(ensemble, perform_step=False)
                 else:
                     ensemble.stepToObservation(obstime)
                     if minute == 4:
-                        skillScore.assess(ensemble) #TODO: Implement in DA class!!! (performance and clarity)
+                        skillScore.assess(ensemble)
                         if method == 'enkf':
                             enkf.EnKF(ensemble)
                         if method == 'etkf':

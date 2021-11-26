@@ -74,18 +74,20 @@ class SkillScore:
             observed_truth     = skill_ensemble.observeTrueState()[:,2:4]
 
             if "bias" in self.scores:
-                bias = self.bias(observed_particles, observed_truth, perturb)
+                bias = self.bias(observed_particles, observed_truth)
                 self.running_scoring["bias"] = np.append(self.running_scoring["bias"], bias)
             if "MSE" in self.scores:
-                MSE = self.MSE(observed_particles, observed_truth, perturb)
+                MSE = self.MSE(observed_particles, observed_truth)
                 self.running_scoring["MSE"] = np.append(self.running_scoring["MSE"], MSE)
             if "CRPS" in self.scores:
-                CRPS = self.CRPS(observed_particles, observed_truth, perturb)
+                CRPS = self.CRPS(observed_particles, observed_truth)
                 self.running_scoring["CRPS"] = np.append(self.running_scoring["CRPS"], CRPS)
+            
+            print("\n")
 
 
 
-    def MSE(self, observed_particles, observed_truth, perturb=False):
+    def MSE(self, observed_particles, observed_truth):
         """
         MSE at drifter positions as skill score.
 
@@ -100,7 +102,7 @@ class SkillScore:
         return  MSE
 
 
-    def bias(self, observed_particles, observed_truth, perturb=False):
+    def bias(self, observed_particles, observed_truth):
         """
         bias as skill score.
         """
@@ -111,13 +113,23 @@ class SkillScore:
         return bias
 
 
-    def CPRS(self, observed_particles, observed_truth, perturb=False):
-        #TODO: Find suitable implementation. 
+    def CRPS(self, observed_particles, observed_truth):
         """
         CRPS as skill score
         """
-        print("Latest CRPS = ", "only dummy implementation")
-        return 0 
+        observationwise_singlesum = np.nanmean(np.abs(observed_particles - observed_truth), axis=0)
+
+        observationwise_doublesum = np.zeros(observed_truth.shape)
+
+        for i in range(observationwise_doublesum.shape[0]):
+            for j in range(observationwise_doublesum.shape[1]): 
+                xx, yy = np.meshgrid(observed_particles[:,i,j], observed_particles[:,i,j])
+                observationwise_doublesum[i,j] = np.nansum(np.abs(xx-yy))/(2*self.N_e**2)
+
+        crps = np.nanmean(observationwise_singlesum - observationwise_doublesum)
+
+        print("Latest CRPS = ", crps)
+        return crps 
     
 
     def evaluate(self, destination_dir=None):
