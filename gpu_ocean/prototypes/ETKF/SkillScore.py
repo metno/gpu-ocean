@@ -40,10 +40,10 @@ class SkillScore:
         Copying frequently used ensemble quantities.
         """
 
-        self.scores = scores
-
         allowed_scores = ["bias", "MSE", "CRPS"]
         assert (all(score in allowed_scores for score in scores)), "invalid scores"
+
+        self.scores = [s for a in allowed_scores for s in scores if s == a] # ordered as allowed_scores
 
         # index 0: bias, index 1: MSE, index 2: CRPS
         self.running_scoring = {}
