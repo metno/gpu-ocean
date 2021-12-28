@@ -583,12 +583,16 @@ class ETKFOcean:
 
             # Inflation
             if self.inflation_factor == 0.0:
-                inflation_factor = 1.0
+                # Adaptive inflation following Sætrom and Omre (2013)
+                # where the factor is calculated and applied locally
+                inflation_factor = np.sqrt(1 + np.trace(Rinv @ np.outer(D,D))/(self.N_e_active-2))
+                forgetting_factor = 1/(inflation_factor**2)
+                print("Ensemble inflation: ", inflation_factor)
             else:
-                inflation_factor = self.inflation_factor
+                forgetting_factor = 1/(self.inflation_factor**2)
 
             # P 
-            A1 = (self.N_e_active-1) * np.eye(self.N_e_active)
+            A1 = (self.N_e_active-1) * forgetting_factor * np.eye(self.N_e_active)
             A2 = HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv @ HX_f_loc_pert[:,ensemble.particlesActive]
             A = A1 + A2
 
@@ -630,9 +634,6 @@ class ETKFOcean:
                 X_new[e][i] = self.W_forecast*X_f[e][i] + X_a[e][i]
 
         self.uploadAnalysis(X_new)
-            
-
-        
 
 
 
