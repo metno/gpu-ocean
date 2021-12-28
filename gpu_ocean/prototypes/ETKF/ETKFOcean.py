@@ -581,21 +581,27 @@ class ETKFOcean:
             y_loc = self.ensemble.observeTrueState()[d,2:4].T
             D = y_loc - HX_f_loc_mean
 
+            # Inflation
+            if self.inflation_factor == 0.0:
+                inflation_factor = 1.0
+            else:
+                inflation_factor = self.inflation_factor
+
             # P 
             A1 = (self.N_e_active-1) * np.eye(self.N_e_active)
-            A2 = np.dot(HX_f_loc_pert.T, np.dot(Rinv, HX_f_loc_pert))
+            A2 = HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv @ HX_f_loc_pert[:,ensemble.particlesActive]
             A = A1 + A2
 
             P = np.linalg.inv(A)
 
             # K 
-            K = np.dot(X_f_loc_pert, np.dot(P, np.dot(HX_f_loc_pert.T, Rinv)))
+            K = X_f_loc_pert @ P @ HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv
 
             # local analysis
-            X_a_loc_mean = X_f_loc_mean + np.dot(K, D)
+            X_a_loc_mean = X_f_loc_mean + K @ D
 
             sigma, V = np.linalg.eigh( (self.N_e_active-1) * P )
-            X_a_loc_pert = np.dot( X_f_loc_pert, np.dot( V, np.dot( np.diag( np.sqrt( np.real(sigma) ) ), V.T )))
+            X_a_loc_pert = X_f_loc_pert @ V @ np.diag( np.sqrt( np.real(sigma) ) ) @ V.T
 
             X_a_loc = X_a_loc_pert 
             for j in range(self.N_e_active):
@@ -661,7 +667,7 @@ class ETKFOcean:
 
         HX_f = self.ensemble.observeParticles()
 
-        HX_f_mean = 1/self.N_e_active * np.sum(HX_f, axis=0)
+        HX_f_mean = 1/self.N_e_active * np.nansum(HX_f, axis=0)
 
         HX_f_pert = HX_f - HX_f_mean
 
