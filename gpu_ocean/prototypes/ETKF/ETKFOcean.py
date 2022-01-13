@@ -22,8 +22,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-from matplotlib import pyplot as plt
-import matplotlib.gridspec as gridspec
 import numpy as np
 import time
 import logging
@@ -60,7 +58,6 @@ class ETKFOcean:
         self.ghost_cells_x = self.ensemble.particles[-1].ghost_cells_x      
 
         # Parameter for inflation
-        #TODO: insert in code below
         self.inflation_factor = inflation_factor
 
         # Parameters and variables for localisation
@@ -68,6 +65,8 @@ class ETKFOcean:
 
         self.W_loc = None
         self.all_Ls = None
+
+        self.groups = None
     
 
     def ETKF(self, ensemble=None):
@@ -463,26 +462,69 @@ class ETKFOcean:
         nx = self.ensemble.nx
         ny = self.ensemble.ny
 
-        ly = nx*dy
-        lx = ny*dx
-
         if r_factor > 0.0:
             self.r_factor = r_factor
-
-        # Get drifter position
-        self.drifter_positions = self.ensemble.observeTrueDrifters()
 
         # Construct local stencil
         self.W_loc = ETKFOcean.getLocalWeightShape(self.r_factor, dx, dy, nx, ny)
 
-        # Construct global analysis and forecast weights
-        W_combined = ETKFOcean.getCombinedWeights(self.drifter_positions, self.r_factor, dx, dy, nx, ny, self.W_loc)
+        self.W_analyses = []
+        self.W_forecasts = []
 
-        W_scale = np.maximum(W_combined, 1)
+        for g in range(len(self.groups)):
 
-        self.W_analysis = W_combined/W_scale
-        self.W_forecast = np.ones_like(W_scale) - self.W_analysis
+            # Construct global analysis and forecast weights
+            W_combined = ETKFOcean.getCombinedWeights(self.drifter_positions[self.groups[g]], self.r_factor, dx, dy, nx, ny, self.W_loc)
 
+            W_scale = np.maximum(W_combined, 1)
+
+            W_analysis = W_combined/W_scale
+            W_forecast = np.ones_like(W_scale) - W_analysis
+
+            self.W_analyses.append(W_analysis)
+            self.W_forecasts.append(W_forecast)
+
+
+
+    def initializeGroups(self, r_factor):
+        # Get drifter position
+        self.drifter_positions = self.ensemble.observeTrueState()[:,0:2]
+
+        xdim = self.ensemble.getDx() * self.ensemble.getNx()
+        ydim = self.ensemble.getDy() * self.ensemble.getNy() 
+
+        N_y = self.drifter_positions.shape[0]
+
+        # Assembling observation distance matrix
+        obs_dist_mat = np.zeros((N_y, N_y))
+        for i in range(N_y):
+            for j in range(N_y):
+                dx = np.abs(self.drifter_positions[i][0] - self.drifter_positions[j][0])
+                if dx > xdim/2:
+                    dx = xdim - dx
+                dy = np.abs(self.drifter_positions[i][1] - self.drifter_positions[j][1])
+                if dy > ydim/2:
+                    dy = ydim - dy 
+                obs_dist_mat[i,j] = np.sqrt(dx**2+dy**2)
+        # Heavy diagonal such that 0-distances are above every threshold
+        np.fill_diagonal(obs_dist_mat, np.sqrt(xdim**2 + ydim**2))
+
+        # Groups of "un-correlated" observation
+        self.groups = list([list(np.arange(N_y, dtype=int))])
+        # Observations are assumed to be uncorrelated, if distance bigger than threshold
+        threshold = 1.5 * r_factor * self.ensemble.particles[0].dx
+
+        g = 0 
+        while obs_dist_mat[np.ix_(self.groups[g],self.groups[g])].min() < threshold:
+            while obs_dist_mat[np.ix_(self.groups[g],self.groups[g])].min() < threshold:
+                mask = np.ix_(self.groups[g],self.groups[g])
+                idx2move = self.groups[g][np.where(obs_dist_mat[mask] == obs_dist_mat[mask].min())[1][0]]
+                self.groups[g] = list(np.delete(self.groups[g], np.where(self.groups[g] == idx2move)))
+                if len(self.groups)<g+2: 
+                    self.groups.append([idx2move])
+                else:
+                    self.groups[g+1].append(idx2move)
+            g = g + 1 
 
 
     def LETKF(self, ensemble=None, r_factor=0.0):
@@ -509,8 +551,10 @@ class ETKFOcean:
         if r_factor > 0.0 and r_factor != self.localScale:
             self.r_factor = r_factor
             self.W_loc = None
+            self.groups = None
 
-        if self.W_loc is None:
+        if self.groups is None:
+            self.initializeGroups( r_factor=self.r_factor )
             self.initializeLocalPatches( r_factor=self.r_factor )
 
         # Precalculate rolling (for StaticBuoys this just have to be once)
@@ -541,99 +585,107 @@ class ETKFOcean:
         X_f_loc = np.zeros((3*N_x_local, self.N_e_active))
         X_f_loc_pert = np.zeros((3*N_x_local, self.N_e_active))
 
-        # Loop over all d
-        for d in range(self.drifter_positions.shape[0]):
-    
-            L, xroll, yroll = self.all_Ls[d], self.all_xrolls[d], self.all_yrolls[d]
+        for g in range(len(self.groups)):
 
-            # LOCAL ARRAY FOR FORECAST (basically extracting local values from global array)
-            X_f_loc_tmp[:,:,:] = X_f[:,:,L]           # shape: (N_e_active, 3, N_x_local)
-            X_f_loc_pert_tmp[:,:,:] = X_f_pert[:,:,L] # shape: (N_e_active, 3, N_x_local)
-            X_f_loc_mean_tmp[:,:] = X_f_mean[:,L]   # shape: (3, N_x_local))
+            # Loop over all d
+            for d in self.groups[g]:
+        
+                L, xroll, yroll = self.all_Ls[d], self.all_xrolls[d], self.all_yrolls[d]
 
-            
-            # Roll local array (this should not change anything here!)
-            if not (xroll == 0 and yroll == 0):
-                rolling_shape = (self.N_e_active, 3, self.W_loc.shape[0], self.W_loc.shape[1]) # roll around axis 2 and 3
-                X_f_loc_tmp[:,:,:] = np.roll(np.roll(X_f_loc_tmp.reshape(rolling_shape), shift=-yroll, axis=2 ), shift=-xroll, axis=3).reshape((self.N_e_active, 3, N_x_local))
-                X_f_loc_pert_tmp[:,:,:] = np.roll(np.roll(X_f_loc_pert_tmp.reshape(rolling_shape), shift=-yroll, axis=2 ), shift=-xroll, axis=3).reshape((self.N_e_active, 3, N_x_local))
+                # LOCAL ARRAY FOR FORECAST (basically extracting local values from global array)
+                X_f_loc_tmp[:,:,:] = X_f[:,:,L]           # shape: (N_e_active, 3, N_x_local)
+                X_f_loc_pert_tmp[:,:,:] = X_f_pert[:,:,L] # shape: (N_e_active, 3, N_x_local)
+                X_f_loc_mean_tmp[:,:] = X_f_mean[:,L]   # shape: (3, N_x_local))
 
-                mean_rolling_shape = (3, self.W_loc.shape[0], self.W_loc.shape[1]) # roll around axis 1 and 2
-                X_f_loc_mean_tmp[:,:] = np.roll(np.roll(X_f_loc_mean_tmp.reshape(mean_rolling_shape), shift=-yroll, axis=1 ), shift=-xroll, axis=2).reshape((3, N_x_local))
-            
-            
-            # FROM LOCAL ARRAY TO LOCAL VECTOR FOR FORECAST (we concatinate eta, hu and hv components)
-            X_f_loc_mean = np.append(X_f_loc_mean_tmp[0,:],np.append(X_f_loc_mean_tmp[1,:],X_f_loc_mean_tmp[2,:]))
-            X_f_loc = X_f_loc_tmp.reshape((self.N_e_active, 3*N_x_local)).T
-            X_f_loc_pert = X_f_loc_pert_tmp.reshape((self.N_e_active, 3*N_x_local)).T
-            
                 
-            # Local observations
-            HX_f_loc_mean = HX_f_mean[d,:]
-            HX_f_loc_pert = HX_f_pert[:,d,:].T
-
-            ############LETKF
-
-            # Rinv 
-            Rinv = np.linalg.inv(self.ensemble.getObservationCov())
-
-            # D
-            y_loc = self.ensemble.observeTrueState()[d,2:4].T
-            D = y_loc - HX_f_loc_mean
-
-            # Inflation
-            if self.inflation_factor == 0.0:
-                # Adaptive inflation following Sætrom and Omre (2013)
-                # where the factor is calculated and applied locally
-                inflation_factor = np.sqrt(1 + np.trace(Rinv @ np.outer(D,D))/(self.N_e_active-2))
-                forgetting_factor = 1/(inflation_factor**2)
-                print("Ensemble inflation: ", inflation_factor)
-            else:
-                forgetting_factor = 1/(self.inflation_factor**2)
-
-            # P 
-            A1 = (self.N_e_active-1) * forgetting_factor * np.eye(self.N_e_active)
-            A2 = HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv @ HX_f_loc_pert[:,ensemble.particlesActive]
-            A = A1 + A2
-
-            P = np.linalg.inv(A)
-
-            # K 
-            K = X_f_loc_pert @ P @ HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv
-
-            # local analysis
-            X_a_loc_mean = X_f_loc_mean + K @ D
-
-            sigma, V = np.linalg.eigh( (self.N_e_active-1) * P )
-            X_a_loc_pert = X_f_loc_pert @ V @ np.diag( np.sqrt( np.real(sigma) ) ) @ V.T
-
-            X_a_loc = X_a_loc_pert 
-            for j in range(self.N_e_active):
-                X_a_loc[:,j] += X_a_loc_mean
-                
-
-            # FROM LOCAL VECTOR TO GLOBAL ARRAY (we fill the global X_a with the *weighted* local values)
-            # eta, hu, hv
-            for i in range(3):
-                # Calculate weighted local analysis
-                weighted_X_a_loc = X_a_loc[i*N_x_local:(i+1)*N_x_local,:]*(np.tile(self.W_loc.flatten().T, (self.N_e_active, 1)).T)
-                # Here, we use np.tile(W_loc.flatten().T, (N_e_active, 1)).T to repeat W_loc as column vector N_e_active times 
-                
+                # Roll local array (this should not change anything here!)
                 if not (xroll == 0 and yroll == 0):
-                    weighted_X_a_loc = np.roll(np.roll(weighted_X_a_loc[:,:].reshape((self.W_loc.shape[0], self.W_loc.shape[1], self.N_e_active)), 
-                                                                                    shift=yroll, axis=0 ), 
-                                                    shift=xroll, axis=1)
+                    rolling_shape = (self.N_e_active, 3, self.W_loc.shape[0], self.W_loc.shape[1]) # roll around axis 2 and 3
+                    X_f_loc_tmp[:,:,:] = np.roll(np.roll(X_f_loc_tmp.reshape(rolling_shape), shift=-yroll, axis=2 ), shift=-xroll, axis=3).reshape((self.N_e_active, 3, N_x_local))
+                    X_f_loc_pert_tmp[:,:,:] = np.roll(np.roll(X_f_loc_pert_tmp.reshape(rolling_shape), shift=-yroll, axis=2 ), shift=-xroll, axis=3).reshape((self.N_e_active, 3, N_x_local))
+
+                    mean_rolling_shape = (3, self.W_loc.shape[0], self.W_loc.shape[1]) # roll around axis 1 and 2
+                    X_f_loc_mean_tmp[:,:] = np.roll(np.roll(X_f_loc_mean_tmp.reshape(mean_rolling_shape), shift=-yroll, axis=1 ), shift=-xroll, axis=2).reshape((3, N_x_local))
                 
-                X_a[:,i,L] += weighted_X_a_loc.reshape(self.W_loc.shape[0]*self.W_loc.shape[1], self.N_e_active).T
-        # (end loop over all observations)
+                
+                # FROM LOCAL ARRAY TO LOCAL VECTOR FOR FORECAST (we concatinate eta, hu and hv components)
+                X_f_loc_mean = np.append(X_f_loc_mean_tmp[0,:],np.append(X_f_loc_mean_tmp[1,:],X_f_loc_mean_tmp[2,:]))
+                X_f_loc = X_f_loc_tmp.reshape((self.N_e_active, 3*N_x_local)).T
+                X_f_loc_pert = X_f_loc_pert_tmp.reshape((self.N_e_active, 3*N_x_local)).T
+                
+                    
+                # Local observations
+                HX_f_loc_mean = HX_f_mean[d,:]
+                HX_f_loc_pert = HX_f_pert[:,d,:].T
 
-        # COMBINING (the already weighted) ANALYSIS WITH THE FORECAST
-        X_new = np.zeros_like(X_f) #TODO: Optimize
-        for e in range(self.N_e_active):
-            for i in range(3):
-                X_new[e][i] = self.W_forecast*X_f[e][i] + X_a[e][i]
+                ############LETKF
 
-        self.uploadAnalysis(X_new)
+                # Rinv 
+                Rinv = np.linalg.inv(self.ensemble.getObservationCov())
+
+                # D
+                y_loc = self.ensemble.observeTrueState()[d,2:4].T
+                D = y_loc - HX_f_loc_mean
+
+                # Inflation
+                if self.inflation_factor == 0.0:
+                    # Adaptive inflation following Sætrom and Omre (2013)
+                    # where the factor is calculated and applied locally
+                    inflation_factor = np.sqrt(1 + np.trace(Rinv @ np.outer(D,D))/(self.N_e_active-2))
+                    forgetting_factor = 1/(inflation_factor**2)
+                    print("Ensemble inflation: ", inflation_factor)
+                else:
+                    forgetting_factor = 1/(self.inflation_factor**2)
+
+                # P 
+                A1 = (self.N_e_active-1) * forgetting_factor * np.eye(self.N_e_active)
+                A2 = HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv @ HX_f_loc_pert[:,ensemble.particlesActive]
+                A = A1 + A2
+
+                P = np.linalg.inv(A)
+
+                # K 
+                K = X_f_loc_pert @ P @ HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv
+
+                # local analysis
+                X_a_loc_mean = X_f_loc_mean + K @ D
+
+                sigma, V = np.linalg.eigh( (self.N_e_active-1) * P )
+                X_a_loc_pert = X_f_loc_pert @ V @ np.diag( np.sqrt( np.real(sigma) ) ) @ V.T
+
+                X_a_loc = X_a_loc_pert 
+                for j in range(self.N_e_active):
+                    X_a_loc[:,j] += X_a_loc_mean
+                    
+
+                # FROM LOCAL VECTOR TO GLOBAL ARRAY (we fill the global X_a with the *weighted* local values)
+                # eta, hu, hv
+                for i in range(3):
+                    # Calculate weighted local analysis
+                    weighted_X_a_loc = X_a_loc[i*N_x_local:(i+1)*N_x_local,:]*(np.tile(self.W_loc.flatten().T, (self.N_e_active, 1)).T)
+                    # Here, we use np.tile(W_loc.flatten().T, (N_e_active, 1)).T to repeat W_loc as column vector N_e_active times 
+                    
+                    if not (xroll == 0 and yroll == 0):
+                        weighted_X_a_loc = np.roll(np.roll(weighted_X_a_loc[:,:].reshape((self.W_loc.shape[0], self.W_loc.shape[1], self.N_e_active)), 
+                                                                                        shift=yroll, axis=0 ), 
+                                                        shift=xroll, axis=1)
+                    
+                    X_a[:,i,L] += weighted_X_a_loc.reshape(self.W_loc.shape[0]*self.W_loc.shape[1], self.N_e_active).T
+            # (end loop over all observations)
+
+            # COMBINING (the already weighted) ANALYSIS WITH THE FORECAST
+            X_new = np.zeros_like(X_f)
+            for e in range(self.N_e_active):
+                for i in range(3):
+                    X_new[e][i] = self.W_forecasts[g]*X_f[e][i] + X_a[e][i]
+
+            self.uploadAnalysis(X_new)
+
+            # Reset global variables
+            X_f, X_f_mean, X_f_pert = self.giveX_f_global()
+            HX_f_mean, HX_f_pert = self.giveHX_f_global()
+            X_a = np.zeros_like(X_f)
+        # (end loop over all groups)
 
 
 
