@@ -410,8 +410,11 @@ class ETKFOcean:
         for y in range(local_ny):
             for x in range(local_nx):
                 loc = np.array([(x+0.5)*dx, (y+0.5)*dy])
-                weights[y,x] = min(1, ETKFOcean.distGC(obs_loc, loc, scale_r*dx, nx*dx, ny*dy))
-                            
+                if np.linalg.norm(obs_loc - loc) > 1.5*scale_r*dx:
+                    weights[y,x] = 0
+                else:
+                    weights[y,x] = min(1, ETKFOcean.distGC(obs_loc, loc, scale_r*dx, nx*dx, ny*dy))
+                                
         return weights
             
 
@@ -512,7 +515,7 @@ class ETKFOcean:
         # Groups of "un-correlated" observation
         self.groups = list([list(np.arange(N_y, dtype=int))])
         # Observations are assumed to be uncorrelated, if distance bigger than threshold
-        threshold = 1.5 * r_factor * self.ensemble.particles[0].dx
+        threshold = 2.0 * 1.5 * r_factor * self.ensemble.particles[0].dx
 
         g = 0 
         while obs_dist_mat[np.ix_(self.groups[g],self.groups[g])].min() < threshold:
@@ -636,6 +639,7 @@ class ETKFOcean:
                     print("Ensemble inflation: ", inflation_factor)
                 else:
                     forgetting_factor = 1/(self.inflation_factor**2)
+                    #print("Ensemble inflation: ", self.inflation_factor)
 
                 # P 
                 A1 = (self.N_e_active-1) * forgetting_factor * np.eye(self.N_e_active)
