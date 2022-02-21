@@ -330,7 +330,7 @@ for day in range(numDays):
 
                 ensemble.registerStateSample(drifter_cells)
 
-                ensemble.deactivateDegeneratedParticles(0.75*dt_ref, 1.25*dt_ref)
+                ensemble.deactivateDegeneratedParticles(0.5*dt_ref, 1.5*dt_ref)
 
                 # Done minutes
 
