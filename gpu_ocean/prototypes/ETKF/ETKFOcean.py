@@ -23,6 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 import numpy as np
+import scipy as scipy
 import time
 import logging
 from SWESimulators import DataAssimilationUtils as dautils
@@ -539,6 +540,8 @@ class ETKFOcean:
         Then it overwrites the initially defined member ensemble
         """
 
+        ref_time = time.time()
+      
         # Check and update parameters of ensemble
         if ensemble is not None:
             assert(self.N_e == ensemble.getNumParticles()), "ensemble changed size"
@@ -588,9 +591,19 @@ class ETKFOcean:
         X_f_loc = np.zeros((3*N_x_local, self.N_e_active))
         X_f_loc_pert = np.zeros((3*N_x_local, self.N_e_active))
 
+
+        def printTime(msg):
+            t = time.time()
+            #print("\t{:02.4f} s: ".format(t-ref_time) + msg)
+
+        printOnce = True
+
+        printTime("pre-proc done")
         for g in range(len(self.groups)):
 
             # Loop over all d
+            printTime("starting group " + str(g) + " with " + str(len(self.groups[g])) + " observations")
+            d_counter = 0
             for d in self.groups[g]:
         
                 L, xroll, yroll = self.all_Ls[d], self.all_xrolls[d], self.all_yrolls[d]
@@ -624,7 +637,7 @@ class ETKFOcean:
                 ############LETKF
 
                 # Rinv 
-                Rinv = np.linalg.inv(self.ensemble.getObservationCov())
+                Rinv = scipy.linalg.inv(self.ensemble.getObservationCov())
 
                 # D
                 y_loc = self.ensemble.observeTrueState()[d,2:4].T
@@ -647,6 +660,9 @@ class ETKFOcean:
                 A = A1 + A2
 
                 P = np.linalg.inv(A)
+                if printOnce:
+                    print("Size of A: ", P.shape)
+                    printOnce = False
 
                 # K 
                 K = X_f_loc_pert @ P @ HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv
@@ -654,7 +670,7 @@ class ETKFOcean:
                 # local analysis
                 X_a_loc_mean = X_f_loc_mean + K @ D
 
-                sigma, V = np.linalg.eigh( (self.N_e_active-1) * P )
+                sigma, V = scipy.linalg.eigh( (self.N_e_active-1) * P )
                 X_a_loc_pert = X_f_loc_pert @ V @ np.diag( np.sqrt( np.real(sigma) ) ) @ V.T
 
                 X_a_loc = X_a_loc_pert 
@@ -675,7 +691,15 @@ class ETKFOcean:
                                                         shift=xroll, axis=1)
                     
                     X_a[:,i,L] += weighted_X_a_loc.reshape(self.W_loc.shape[0]*self.W_loc.shape[1], self.N_e_active).T
+            
+                #if d_counter < 3:
+                printTime("Done obs " + str(d))
+                #if xroll != 0 or yroll != 0:
+                #    print("\t\t^- is shifted " + str((xroll, yroll)))
+                
+                d_counter += 1
             # (end loop over all observations)
+            printTime("Done observations in group")
 
             # COMBINING (the already weighted) ANALYSIS WITH THE FORECAST
             X_new = np.zeros_like(X_f)
@@ -689,7 +713,10 @@ class ETKFOcean:
             X_f, X_f_mean, X_f_pert = self.giveX_f_global()
             HX_f_mean, HX_f_pert = self.giveHX_f_global()
             X_a = np.zeros_like(X_f)
+
+            printTime("Done group " + str(g))
         # (end loop over all groups)
+        printTime("Done all groups")
 
 
 
