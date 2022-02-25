@@ -642,19 +642,20 @@ class ETKFOcean:
                     #print("Ensemble inflation: ", self.inflation_factor)
 
                 # P 
-                A1 = (self.N_e_active-1) * forgetting_factor * np.eye(self.N_e_active)
+                A1 = (self.N_e_active-1) * np.eye(self.N_e_active)
+                A1_inflated = (self.N_e_active-1) * forgetting_factor * np.eye(self.N_e_active)
                 A2 = HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv @ HX_f_loc_pert[:,ensemble.particlesActive]
                 A = A1 + A2
 
-                P = np.linalg.inv(A)
+                #P = np.linalg.inv(A)
 
                 # K 
-                K = X_f_loc_pert @ P @ HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv
+                K = X_f_loc_pert @ np.linalg.inv(A1 + A2) @ HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv
 
                 # local analysis
                 X_a_loc_mean = X_f_loc_mean + K @ D
 
-                sigma, V = np.linalg.eigh( (self.N_e_active-1) * P )
+                sigma, V = np.linalg.eigh( (self.N_e_active-1) * np.linalg.inv(A1_inflated + A2) )
                 X_a_loc_pert = X_f_loc_pert @ V @ np.diag( np.sqrt( np.real(sigma) ) ) @ V.T
 
                 X_a_loc = X_a_loc_pert 
