@@ -643,25 +643,40 @@ class ETKFOcean:
 
                 # P 
                 A1 = (self.N_e_active-1) * np.eye(self.N_e_active)
-                A1_inflated = (self.N_e_active-1) * forgetting_factor * np.eye(self.N_e_active)
                 A2 = HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv @ HX_f_loc_pert[:,ensemble.particlesActive]
                 A = A1 + A2
 
-                #P = np.linalg.inv(A)
+                P = np.linalg.inv(A)
 
                 # K 
-                K = X_f_loc_pert @ np.linalg.inv(A1 + A2) @ HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv
+                K = X_f_loc_pert @ P @ HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv
 
                 # local analysis
                 X_a_loc_mean = X_f_loc_mean + K @ D
 
-                sigma, V = np.linalg.eigh( (self.N_e_active-1) * np.linalg.inv(A1_inflated + A2) )
+                sigma, V = np.linalg.eigh( (self.N_e_active-1) * P )
                 X_a_loc_pert = X_f_loc_pert @ V @ np.diag( np.sqrt( np.real(sigma) ) ) @ V.T
 
                 X_a_loc = X_a_loc_pert 
                 for j in range(self.N_e_active):
                     X_a_loc[:,j] += X_a_loc_mean
-                    
+
+                # Inflation for hu and hv (but eta unchanged)
+                if forgetting_factor != 1.0:
+                    A1_inflated = (self.N_e_active-1) * forgetting_factor * np.eye(self.N_e_active)
+                    P_inflated = np.linalg.inv(A1_inflated + A2)
+
+                    K_inflated = X_f_loc_pert @ P_inflated @ HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv
+
+                    X_a_loc_mean_inflated = X_f_loc_mean + K_inflated @ D
+
+                    sigma_inflated, V_inflated = np.linalg.eigh( (self.N_e_active-1) * P )
+                    X_a_loc_pert_inflated = X_f_loc_pert @ V_inflated @ np.diag( np.sqrt( np.real(sigma_inflated) ) ) @ V_inflated.T
+
+                    X_a_loc[N_x_local:,:] = X_a_loc_pert_inflated[N_x_local:,:]
+                    for j in range(self.N_e_active):
+                        X_a_loc[N_x_local:,j] += X_a_loc_mean_inflated[N_x_local:]
+
 
                 # FROM LOCAL VECTOR TO GLOBAL ARRAY (we fill the global X_a with the *weighted* local values)
                 # eta, hu, hv
