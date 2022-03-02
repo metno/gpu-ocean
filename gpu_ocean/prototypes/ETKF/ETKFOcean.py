@@ -23,7 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 import numpy as np
-import scipy as scipy
+import scipy
 import time
 import logging
 from SWESimulators import DataAssimilationUtils as dautils
@@ -492,7 +492,10 @@ class ETKFOcean:
 
     def initializeGroups(self, r_factor):
         # Get drifter position
-        self.drifter_positions = self.ensemble.observeTrueState()[:,0:2]
+        if self.ensemble.observation_type == dautils.ObservationType.StaticBuoys:
+            self.drifter_positions = self.ensemble.observeTrueDrifters()
+        else:
+            self.drifter_positions = self.ensemble.observeTrueState()[:,0:2]
 
         xdim = self.ensemble.getDx() * self.ensemble.getNx()
         ydim = self.ensemble.getDy() * self.ensemble.getNy() 
@@ -530,18 +533,14 @@ class ETKFOcean:
                     self.groups[g+1].append(idx2move)
             g = g + 1 
 
-
-    def LETKF(self, ensemble=None, r_factor=0.0):
+    def _prepare_LETKF(self, ensemble=None, r_factor=0.0):
         """
-        Performing the analysis phase of the ETKF.
-        Particles are observed and the analysis state is calculated and uploaded!
-
-        ensemble: for better readability of the script when ETKF is called the ensemble can be passed again.
-        Then it overwrites the initially defined member ensemble
+        Internal preprocessing for computing the LETKF analysis.
+        This function will update, if neccessary, the class member variables for
+         - ensemble
+         - local weight kernels
+         - localization groups
         """
-
-        ref_time = time.time()
-      
         # Check and update parameters of ensemble
         if ensemble is not None:
             assert(self.N_e == ensemble.getNumParticles()), "ensemble changed size"
@@ -553,6 +552,7 @@ class ETKFOcean:
 
             self.N_e_active = ensemble.getNumActiveParticles()
 
+
         # Update localisation if needed
         if r_factor > 0.0 and r_factor != self.localScale:
             self.r_factor = r_factor
@@ -562,6 +562,7 @@ class ETKFOcean:
         if self.groups is None:
             self.initializeGroups( r_factor=self.r_factor )
             self.initializeLocalPatches( r_factor=self.r_factor )
+
 
         # Precalculate rolling (for StaticBuoys this just have to be once)
         if self.ensemble.observation_type == dautils.ObservationType.StaticBuoys and self.all_Ls is None:
@@ -575,6 +576,20 @@ class ETKFOcean:
                     ETKFOcean.getLocalIndices(self.drifter_positions[d,:], self.r_factor, \
                         self.ensemble.dx, self.ensemble.dy, self.ensemble.nx, self.ensemble.ny)
 
+
+
+
+    def LETKF(self, ensemble=None, r_factor=0.0):
+        """
+        Performing the analysis phase of the ETKF.
+        Particles are observed and the analysis state is calculated and uploaded!
+
+        ensemble: for better readability of the script when ETKF is called the ensemble can be passed again.
+        Then it overwrites the initially defined member ensemble
+        """
+
+        self._prepare_LETKF(ensemble=ensemble, r_factor=r_factor)
+    
         # Get global forecast information 
         X_f, X_f_mean, X_f_pert = self.giveX_f_global()
         HX_f_mean, HX_f_pert = self.giveHX_f_global()
@@ -591,19 +606,11 @@ class ETKFOcean:
         X_f_loc = np.zeros((3*N_x_local, self.N_e_active))
         X_f_loc_pert = np.zeros((3*N_x_local, self.N_e_active))
 
+        X_a_loc_pert = None
 
-        def printTime(msg):
-            t = time.time()
-            #print("\t{:02.4f} s: ".format(t-ref_time) + msg)
-
-        printOnce = True
-
-        printTime("pre-proc done")
         for g in range(len(self.groups)):
 
             # Loop over all d
-            printTime("starting group " + str(g) + " with " + str(len(self.groups[g])) + " observations")
-            d_counter = 0
             for d in self.groups[g]:
         
                 L, xroll, yroll = self.all_Ls[d], self.all_xrolls[d], self.all_yrolls[d]
@@ -649,7 +656,7 @@ class ETKFOcean:
                     # where the factor is calculated and applied locally
                     inflation_factor = np.sqrt(1 + np.trace(Rinv @ np.outer(D,D))/(self.N_e_active-2))
                     forgetting_factor = 1/(inflation_factor**2)
-                    print("Ensemble inflation: ", inflation_factor)
+                    #print("Ensemble inflation: ", inflation_factor)
                 else:
                     forgetting_factor = 1/(self.inflation_factor**2)
                     #print("Ensemble inflation: ", self.inflation_factor)
@@ -659,23 +666,29 @@ class ETKFOcean:
                 A2 = HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv @ HX_f_loc_pert[:,ensemble.particlesActive]
                 A = A1 + A2
 
-                P = np.linalg.inv(A)
-                if printOnce:
-                    print("Size of A: ", P.shape)
-                    printOnce = False
 
-                # K 
-                K = X_f_loc_pert @ P @ HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv
+                # --- START of the SVD/inv block
+                # Use the solve function instead of P = inv(A)
+                K = X_f_loc_pert @ np.linalg.solve(A, HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv)
 
                 # local analysis
                 X_a_loc_mean = X_f_loc_mean + K @ D
 
-                sigma, V = scipy.linalg.eigh( (self.N_e_active-1) * P )
-                X_a_loc_pert = X_f_loc_pert @ V @ np.diag( np.sqrt( np.real(sigma) ) ) @ V.T
+                # if 
+                #   sigma, V = eigh(inv(A)) 
+                # then 
+                #   sigma_inv, V = eigh(A)
+                sigma_inv, V = scipy.linalg.eigh( (1./(self.N_e_active-1)) * A )
+
+                X_a_loc_pert = X_f_loc_pert @ V @ np.diag( np.sqrt( 1/np.real(sigma_inv)) ) @ V.T
+
+                # --- END of the SVD/inv block
 
                 X_a_loc = X_a_loc_pert 
                 for j in range(self.N_e_active):
                     X_a_loc[:,j] += X_a_loc_mean
+
+                
                     
 
                 # FROM LOCAL VECTOR TO GLOBAL ARRAY (we fill the global X_a with the *weighted* local values)
@@ -692,15 +705,8 @@ class ETKFOcean:
                     
                     X_a[:,i,L] += weighted_X_a_loc.reshape(self.W_loc.shape[0]*self.W_loc.shape[1], self.N_e_active).T
             
-                #if d_counter < 3:
-                printTime("Done obs " + str(d))
-                #if xroll != 0 or yroll != 0:
-                #    print("\t\t^- is shifted " + str((xroll, yroll)))
-                
-                d_counter += 1
             # (end loop over all observations)
-            printTime("Done observations in group")
-
+        
             # COMBINING (the already weighted) ANALYSIS WITH THE FORECAST
             X_new = np.zeros_like(X_f)
             for e in range(self.N_e_active):
@@ -714,10 +720,8 @@ class ETKFOcean:
             HX_f_mean, HX_f_pert = self.giveHX_f_global()
             X_a = np.zeros_like(X_f)
 
-            printTime("Done group " + str(g))
         # (end loop over all groups)
-        printTime("Done all groups")
-
+    
 
 
     def giveX_f_global(self):
@@ -725,22 +729,25 @@ class ETKFOcean:
         Download recent particle states
         """
 
-        X_f = np.zeros((self.N_e_active,3,self.ensemble.ny,self.ensemble.nx))
+        X_f = np.zeros((self.N_e_active,3,self.ensemble.ny,self.ensemble.nx), dtype=np.float32)
 
         idx = 0
         for e in range(self.N_e):
             if self.ensemble.particlesActive[e]:
-                eta, hu, hv = self.ensemble.particles[e].download(interior_domain_only=True)
-                X_f[idx,0,:,:] = eta 
-                X_f[idx,1,:,:] = hu
-                X_f[idx,2,:,:] = hv
+                X_f[idx,0,:,:], X_f[idx,1,:,:], X_f[idx,2,:,:] = self.ensemble.particles[e].download(interior_domain_only=True)
+                #eta, hu, hv = self.ensemble.particles[e].download(interior_domain_only=True)
+                #X_f[idx,0,:,:] = eta 
+                #X_f[idx,1,:,:] = hu
+                #X_f[idx,2,:,:] = hv
                 idx += 1
 
-        X_f_mean = 1/self.N_e_active * np.sum(X_f,axis=0)
+        X_f_mean = np.mean(X_f, axis=0)
+        #X_f_mean = 1/self.N_e_active * np.sum(X_f,axis=0)
 
-        X_f_pert = np.zeros_like( X_f )
-        for e in range(self.N_e_active):
-            X_f_pert[e,:,:,:] = X_f[e,:,:,:] - X_f_mean
+        X_f_pert = X_f - X_f_mean
+        #X_f_pert = np.zeros_like( X_f )
+        #for e in range(self.N_e_active):
+        #    X_f_pert[e,:,:,:] = X_f[e,:,:,:] - X_f_mean
 
         return X_f, X_f_mean, X_f_pert
 
