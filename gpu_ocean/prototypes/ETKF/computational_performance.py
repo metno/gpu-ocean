@@ -100,16 +100,25 @@ device_name = gpu_ctx.cuda_device.name()
 methods = ["MC", "IEWPF2", "LETKF"]
 ensemble_sizes = [50, 100, 250]
 
-performance = np.zeros((3,3,72))
+numDays = 1 
+numHours = 1
+numFiveMin = 3
+
+performance = np.zeros((3,3,numDays*numHours))
 
 for m in range(len(methods)):
-    method = methods[m]
+    method = methods[m].lower()
+    print("----------------------------------")
+    print(time.strftime("%H:%M:%S",time.gmtime()) + ": Running " + method)
     for e in range(len(ensemble_sizes)):
+        ensemble_size = ensemble_sizes[e]
         ###--------------------------
         # Initiate the ensemble
+        print(time.strftime("%H:%M:%S",time.gmtime()) + ": Ensemble size " + str(ensemble_size))
+        print("Initializing ensemble...")
 
         ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx, 
-                                                        ensemble_sizes[e],                                                
+                                                        ensemble_size,                                                
                                                         ensemble_init_path, 
                                                         truth_path,                                                
                                                         1.0,
@@ -118,35 +127,37 @@ for m in range(len(methods)):
                                                         write_netcdf_directory = destination_dir,
                                                         observation_type=dautils.ObservationType.StaticBuoys)
 
-        # Configure observations according to the selected drifters:
-        ensemble.configureObservations(drifterSet=[], 
-                                    observationInterval = 1,
-                                    buoy_area = "all")
-
 
         ### -------------------------------
         # Initialize DA class (if needed)
-        #
+        print("Initializing data assimilation...")
         if method.startswith('iewpf'):
             iewpf = IEWPFOcean.IEWPFOcean(ensemble)
+            print("... IEWPF loaded")
         elif method.startswith('etkf') or method.startswith('letkf'):
             etkf = ETKFOcean.ETKFOcean(ensemble)
+            print("... LETKF loaded")
+        else:
+            print("... MC does not require a DA class.")
 
         ### ----------------------------------------------
         #   DATA ASSIMILATION
         #
+        print(time.strftime("%H:%M:%S", time.gmtime()) + ": Starting simulation")
         h = 0
 
         obstime = 3*24*60*60 # time in seconds (starting after spin-up phase)
-        for day in range(3):
+        for day in range(numDays):
             
+            gpu_ctx.synchronize()    
             tic = time.time()
             
-            for hour in range(24):
+            for hour in range(numHours):
                 
-                for fiveMin in range(12):
-                    
+                for fiveMin in range(numFiveMin):
+                                    
                     for minute in range(5):
+    
                         obstime += 60
                         if method == 'iewpf2':
                             ensemble.stepToObservation(obstime, model_error_final_step=(minute<4))
@@ -159,17 +170,19 @@ for m in range(len(methods)):
                                     etkf.ETKF(ensemble)
                                 if method == 'letkf':
                                     etkf.LETKF(ensemble)
+                    print("Simulation at " + time.strftime("%j %H:%M:%S", time.gmtime(obstime)))
                     # Done minute
                 # Done five minutes
             # Done hour
+            gpu_ctx.synchronize()    
             toc = time.time()
+
             performance[m,e,h] = toc - tic
             h = h+1 
                 
-
+        print("Cleaning...")
         # Clean up simulation and close netcdf file
         ensemble.cleanUp()
 
 
-
-
+np.save(destination_dir+"computation_times", performance)
