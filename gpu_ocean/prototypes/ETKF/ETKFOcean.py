@@ -23,6 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 import numpy as np
+import scipy
 import time
 import logging
 from SWESimulators import DataAssimilationUtils as dautils
@@ -491,7 +492,10 @@ class ETKFOcean:
 
     def initializeGroups(self, r_factor):
         # Get drifter position
-        self.drifter_positions = self.ensemble.observeTrueState()[:,0:2]
+        if self.ensemble.observation_type == dautils.ObservationType.StaticBuoys:
+            self.drifter_positions = self.ensemble.observeTrueDrifters()
+        else:
+            self.drifter_positions = self.ensemble.observeTrueState()[:,0:2]
 
         xdim = self.ensemble.getDx() * self.ensemble.getNx()
         ydim = self.ensemble.getDy() * self.ensemble.getNy() 
@@ -529,16 +533,14 @@ class ETKFOcean:
                     self.groups[g+1].append(idx2move)
             g = g + 1 
 
-
-    def LETKF(self, ensemble=None, r_factor=0.0):
+    def _prepare_LETKF(self, ensemble=None, r_factor=0.0):
         """
-        Performing the analysis phase of the ETKF.
-        Particles are observed and the analysis state is calculated and uploaded!
-
-        ensemble: for better readability of the script when ETKF is called the ensemble can be passed again.
-        Then it overwrites the initially defined member ensemble
+        Internal preprocessing for computing the LETKF analysis.
+        This function will update, if neccessary, the class member variables for
+         - ensemble
+         - local weight kernels
+         - localization groups
         """
-
         # Check and update parameters of ensemble
         if ensemble is not None:
             assert(self.N_e == ensemble.getNumParticles()), "ensemble changed size"
@@ -550,6 +552,7 @@ class ETKFOcean:
 
             self.N_e_active = ensemble.getNumActiveParticles()
 
+
         # Update localisation if needed
         if r_factor > 0.0 and r_factor != self.localScale:
             self.r_factor = r_factor
@@ -559,6 +562,7 @@ class ETKFOcean:
         if self.groups is None:
             self.initializeGroups( r_factor=self.r_factor )
             self.initializeLocalPatches( r_factor=self.r_factor )
+
 
         # Precalculate rolling (for StaticBuoys this just have to be once)
         if self.ensemble.observation_type == dautils.ObservationType.StaticBuoys and self.all_Ls is None:
@@ -572,24 +576,54 @@ class ETKFOcean:
                     ETKFOcean.getLocalIndices(self.drifter_positions[d,:], self.r_factor, \
                         self.ensemble.dx, self.ensemble.dy, self.ensemble.nx, self.ensemble.ny)
 
+
+
+
+    def LETKF(self, ensemble=None, r_factor=0.0):
+        """
+        Performing the analysis phase of the ETKF.
+        Particles are observed and the analysis state is calculated and uploaded!
+
+        ensemble: for better readability of the script when ETKF is called the ensemble can be passed again.
+        Then it overwrites the initially defined member ensemble
+        """
+
+        self._prepare_LETKF(ensemble=ensemble, r_factor=r_factor)
+    
         # Get global forecast information 
-        X_f, X_f_mean, X_f_pert = self.giveX_f_global()
-        HX_f_mean, HX_f_pert = self.giveHX_f_global()
+        #X_f, X_f_mean, X_f_pert = self.giveX_f_global()
+        #HX_f_mean, HX_f_pert = self.giveHX_f_global()
 
         # Prepare global anlysis
-        X_a = np.zeros_like(X_f)
+        #X_a = np.zeros_like(X_f)
 
         # Prepare local ETKF analysis
+        X_f      = np.zeros((self.N_e_active,3,self.ensemble.ny,self.ensemble.nx), dtype=np.float32)
+        X_f_mean = np.zeros((                3,self.ensemble.ny,self.ensemble.nx), dtype=np.float32)
+        X_f_pert = np.zeros((self.N_e_active,3,self.ensemble.ny,self.ensemble.nx), dtype=np.float32)
+        
         N_x_local = self.W_loc.shape[0]*self.W_loc.shape[1] 
-        X_f_loc_tmp = np.zeros((self.N_e_active, 3, N_x_local))
+        X_f_loc_tmp      = np.zeros((self.N_e_active, 3, N_x_local))
         X_f_loc_pert_tmp = np.zeros((self.N_e_active, 3, N_x_local))
         X_f_loc_mean_tmp = np.zeros((3, N_x_local))
             
-        X_f_loc = np.zeros((3*N_x_local, self.N_e_active))
+        X_f_loc      = np.zeros((3*N_x_local, self.N_e_active))
         X_f_loc_pert = np.zeros((3*N_x_local, self.N_e_active))
 
-        for g in range(len(self.groups)):
+        X_a_loc_pert = None
 
+        observations = self.ensemble.observeTrueState()
+        
+        
+        for g in range(len(self.groups)):
+          
+            # Reset global variables
+            self.giveX_f_global(X_f, X_f_mean, X_f_pert, download_X_f=(g==0))
+            HX_f_mean, HX_f_pert = self.giveHX_f_global(X_f, observations)
+            X_a = np.zeros_like(X_f)
+            
+                
+            
             # Loop over all d
             for d in self.groups[g]:
         
@@ -613,8 +647,8 @@ class ETKFOcean:
                 
                 # FROM LOCAL ARRAY TO LOCAL VECTOR FOR FORECAST (we concatinate eta, hu and hv components)
                 X_f_loc_mean = np.append(X_f_loc_mean_tmp[0,:],np.append(X_f_loc_mean_tmp[1,:],X_f_loc_mean_tmp[2,:]))
-                X_f_loc = X_f_loc_tmp.reshape((self.N_e_active, 3*N_x_local)).T
-                X_f_loc_pert = X_f_loc_pert_tmp.reshape((self.N_e_active, 3*N_x_local)).T
+                X_f_loc[:,:] = X_f_loc_tmp.reshape((self.N_e_active, 3*N_x_local)).T
+                X_f_loc_pert[:,:] = X_f_loc_pert_tmp.reshape((self.N_e_active, 3*N_x_local)).T
                 
                     
                 # Local observations
@@ -624,10 +658,11 @@ class ETKFOcean:
                 ############LETKF
 
                 # Rinv 
-                Rinv = np.linalg.inv(self.ensemble.getObservationCov())
+                Rinv = scipy.linalg.inv(self.ensemble.getObservationCov())
 
                 # D
-                y_loc = self.ensemble.observeTrueState()[d,2:4].T
+                #y_loc = self.ensemble.observeTrueState()[d,2:4].T
+                y_loc = observations[d, 2:4].T
                 D = y_loc - HX_f_loc_mean
 
                 # Inflation
@@ -636,7 +671,7 @@ class ETKFOcean:
                     # where the factor is calculated and applied locally
                     inflation_factor = np.sqrt(1 + np.trace(Rinv @ np.outer(D,D))/(self.N_e_active-2))
                     forgetting_factor = 1/(inflation_factor**2)
-                    print("Ensemble inflation: ", inflation_factor)
+                    #print("Ensemble inflation: ", inflation_factor)
                 else:
                     forgetting_factor = 1/(self.inflation_factor**2)
                     #print("Ensemble inflation: ", self.inflation_factor)
@@ -646,16 +681,23 @@ class ETKFOcean:
                 A2 = HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv @ HX_f_loc_pert[:,ensemble.particlesActive]
                 A = A1 + A2
 
-                P = np.linalg.inv(A)
 
-                # K 
-                K = X_f_loc_pert @ P @ HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv
+                # --- START of the SVD/inv block
+                # Use the solve function instead of P = inv(A)
+                K = X_f_loc_pert @ np.linalg.solve(A, HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv)
 
                 # local analysis
                 X_a_loc_mean = X_f_loc_mean + K @ D
 
-                sigma, V = np.linalg.eigh( (self.N_e_active-1) * P )
-                X_a_loc_pert = X_f_loc_pert @ V @ np.diag( np.sqrt( np.real(sigma) ) ) @ V.T
+                # if 
+                #   sigma, V = eigh(inv(A)) 
+                # then 
+                #   sigma_inv, V = eigh(A)
+                sigma_inv, V = scipy.linalg.eigh( (1./(self.N_e_active-1)) * A )
+
+                X_a_loc_pert = X_f_loc_pert @ V @ np.diag( np.sqrt( 1/np.real(sigma_inv)) ) @ V.T
+
+                # --- END of the SVD/inv block
 
                 X_a_loc = X_a_loc_pert 
                 for j in range(self.N_e_active):
@@ -664,14 +706,14 @@ class ETKFOcean:
                 # Inflation for hu and hv (but eta unchanged)
                 if forgetting_factor != 1.0:
                     A1_inflated = (self.N_e_active-1) * forgetting_factor * np.eye(self.N_e_active)
-                    P_inflated = np.linalg.inv(A1_inflated + A2)
+                    A_inflated = A1_inflated + A2
 
-                    K_inflated = X_f_loc_pert @ P_inflated @ HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv
+                    K_inflated = X_f_loc_pert @ np.linalg.solve(A_inflated, HX_f_loc_pert[:,ensemble.particlesActive].T @ Rinv)
 
                     X_a_loc_mean_inflated = X_f_loc_mean + K_inflated @ D
 
-                    sigma_inflated, V_inflated = np.linalg.eigh( (self.N_e_active-1) * P )
-                    X_a_loc_pert_inflated = X_f_loc_pert @ V_inflated @ np.diag( np.sqrt( np.real(sigma_inflated) ) ) @ V_inflated.T
+                    sigma_inv_inflated, V_inflated =  scipy.linalg.eigh( (1./(self.N_e_active-1)) * A_inflated )
+                    X_a_loc_pert_inflated = X_f_loc_pert @ V_inflated @ np.diag( np.sqrt( 1/np.real(sigma_inv_inflated) ) ) @ V_inflated.T
 
                     X_a_loc[N_x_local:,:] = X_a_loc_pert_inflated[N_x_local:,:]
                     for j in range(self.N_e_active):
@@ -691,62 +733,102 @@ class ETKFOcean:
                                                         shift=xroll, axis=1)
                     
                     X_a[:,i,L] += weighted_X_a_loc.reshape(self.W_loc.shape[0]*self.W_loc.shape[1], self.N_e_active).T
+            
             # (end loop over all observations)
-
+        
             # COMBINING (the already weighted) ANALYSIS WITH THE FORECAST
             X_new = np.zeros_like(X_f)
             for e in range(self.N_e_active):
                 for i in range(3):
                     X_new[e][i] = self.W_forecasts[g]*X_f[e][i] + X_a[e][i]
 
-            self.uploadAnalysis(X_new)
+            X_f = X_new        
+            #self.uploadAnalysis(X_new)
 
             # Reset global variables
-            X_f, X_f_mean, X_f_pert = self.giveX_f_global()
-            HX_f_mean, HX_f_pert = self.giveHX_f_global()
-            X_a = np.zeros_like(X_f)
+            #X_f, X_f_mean, X_f_pert = self.giveX_f_global()
+            #HX_f_mean, HX_f_pert = self.giveHX_f_global()
+            #X_a = np.zeros_like(X_f)
+
         # (end loop over all groups)
+        
+        self.uploadAnalysis(X_f)
 
 
 
-    def giveX_f_global(self):
+    def giveX_f_global(self, X_f, X_f_mean, X_f_pert, download_X_f=True):
         """
-        Download recent particle states
+        Download recent particle states if needed, and compute X_f_mean and X_f_pert.
         """
+        #Using provided arrays to avoid additional memory allocations
 
-        X_f = np.zeros((self.N_e_active,3,self.ensemble.ny,self.ensemble.nx))
+        #X_f = np.zeros((self.N_e_active,3,self.ensemble.ny,self.ensemble.nx), dtype=np.float32)
 
-        idx = 0
-        for e in range(self.N_e):
-            if self.ensemble.particlesActive[e]:
-                eta, hu, hv = self.ensemble.particles[e].download(interior_domain_only=True)
-                X_f[idx,0,:,:] = eta 
-                X_f[idx,1,:,:] = hu
-                X_f[idx,2,:,:] = hv
-                idx += 1
+        if download_X_f:
+            idx = 0
+            for e in range(self.N_e):
+                if self.ensemble.particlesActive[e]:
+                    X_f[idx,0,:,:], X_f[idx,1,:,:], X_f[idx,2,:,:] = self.ensemble.particles[e].download(interior_domain_only=True)
+                    #eta, hu, hv = self.ensemble.particles[e].download(interior_domain_only=True)
+                    #X_f[idx,0,:,:] = eta 
+                    #X_f[idx,1,:,:] = hu
+                    #X_f[idx,2,:,:] = hv
+                    idx += 1
 
-        X_f_mean = 1/self.N_e_active * np.sum(X_f,axis=0)
+        X_f_mean[:,:,:] = np.mean(X_f, axis=0)
+        #X_f_mean = 1/self.N_e_active * np.sum(X_f,axis=0)
 
-        X_f_pert = np.zeros_like( X_f )
-        for e in range(self.N_e_active):
-            X_f_pert[e,:,:,:] = X_f[e,:,:,:] - X_f_mean
+        X_f_pert[:,:,:,:] = X_f - X_f_mean
+        #X_f_pert = np.zeros_like( X_f )
+        #for e in range(self.N_e_active):
+        #    X_f_pert[e,:,:,:] = X_f[e,:,:,:] - X_f_mean
 
-        return X_f, X_f_mean, X_f_pert
+        #return X_f, X_f_mean, X_f_pert
 
-    def giveHX_f_global(self):
+    def giveHX_f_global(self, X_f, observations):
         """
         Observe particles 
         """
 
-        HX_f = self.ensemble.observeParticles()
-
+        HX_f = self.observe_particles_from_X_f(X_f, observations)
+        
+        #HX_f = self.ensemble.observeParticles()
+        #HX_f_old = self.ensemble.observeParticles()
+        #print('Abs max diff HX_f: ', np.max(np.abs(HX_f - HX_f_old)))
+        
         HX_f_mean = 1/self.N_e_active * np.nansum(HX_f, axis=0)
 
         HX_f_pert = HX_f - HX_f_mean
 
         return HX_f_mean, HX_f_pert
 
+    def observe_particles_from_X_f(self, X_f, observations):
+        assert(self.ensemble.observation_type == dautils.ObservationType.StaticBuoys), 'Only implemented for StaticBuoys'
+        assert(self.N_d == observations.shape[0]), 'mismatch between observations and N_d' 
+        
+        # X_f = np.zeros((self.N_e_active,3,self.ensemble.ny,self.ensemble.nx), dtype=np.float32)
 
+        active_particles = X_f.shape[0]
+        observedParticles = np.empty((active_particles, self.N_d, 2))
+        
+        for d in range(self.N_d):
+            id_x = np.int(np.floor(observations[d,0]/self.ensemble.dx))
+            id_y = np.int(np.floor(observations[d,1]/self.ensemble.dy))
+
+            #for p in range(X_f.shape[0]):
+                # Downloading ocean state without ghost cells
+                #eta, hu, hv = self.downloadParticleOceanState(p)
+                #observedParticles[p,d,0] = hu[id_y, id_x]
+                #observedParticles[p,d,1] = hv[id_y, id_x]
+                
+             #   observedParticles[p,d,0] = X_f[p, 1, id_y, id_x]
+             #   observedParticles[p,d,1] = X_f[p, 2, id_y, id_x]
+                
+            observedParticles[:, d, 0] = X_f[:, 1, id_y, id_x]
+            observedParticles[:, d, 1] = X_f[:, 2, id_y, id_x]
+
+        return observedParticles
+        
     def uploadAnalysis(self, X_new):
         # Upload analysis
         idx = 0
