@@ -278,6 +278,10 @@ class Observation:
                     self.read_buoy[i] = self.buoy_indices[i,0] < self.nx/2
             elif area == 'all':
                 self.read_buoy = [True]*self.buoy_indices.shape[0]
+            elif area == 'sparse':
+                # Only working for the scenario where the buoys are 25 cells regularly apart 
+                for i in range(len(self.buoy_indices)):
+                    self.read_buoy[i] = (self.buoy_indices[i,0] % 50 == 0) and (self.buoy_indices[i,1] % 50 == 0)
             else:
                 assert(area == 'all'), 'Invalid area. Must be all, south or west'
                 

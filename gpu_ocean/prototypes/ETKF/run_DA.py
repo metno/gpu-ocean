@@ -49,7 +49,7 @@ parser.add_argument('--inflation_factor', type=float, default=1.0)
 parser.add_argument('--observation_interval', type=int, default=1)
 parser.add_argument('--observation_variance', type=float, default=1.0)
 parser.add_argument('--observation_type', type=str, default='buoys')
-parser.add_argument('--buoy_area', type=str, default='all')
+parser.add_argument('--buoy_area', type=str, default='sparse')
 if host == "ppi":
     parser.add_argument('--media_dir', type=str, default='/lustre/storeB/users/florianb/forecasting_results/')
 elif host == "havvarsel":
