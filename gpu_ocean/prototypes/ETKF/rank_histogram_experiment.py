@@ -33,7 +33,10 @@ current_dir = os.getcwd()
 if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../SWESimulators'))):
         sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../')))
 
-        
+host = os.uname()[1] 
+if host in ["r740-5hdn2s2-ag-gcompute", "r740-5hcv2s2-ag-gcompute", "r740-dsxm2t2-ag-gcompute", "r740-dsws2t2-ag-gcompute"]:
+    host = "ppi"
+
 #--------------------------------------------------------------
 # PARAMETERS
 #--------------------------------------------------------------
@@ -43,7 +46,7 @@ if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../SWESimulators'
 import argparse
 parser = argparse.ArgumentParser(description='Generate an ensemble.')
 parser.add_argument('--experiments', type=int, default=1000)
-parser.add_argument('--output_folder', type=str, default="/sintef/rank_histogram_experiments")
+parser.add_argument('--output_folder', type=str, default="")
 parser.add_argument('--method', type=str, default='LETKF')
 parser.add_argument('--scale_w', type=float, default=1.0)
 parser.add_argument('--iewpf2beta', type=float, default=None)
@@ -74,15 +77,31 @@ elif args.experiments < 1:
 ###-----------------------------------------
 ## Define files for ensemble and truth.
 ##
-ensemble_init_path = os.path.abspath('/sintef/data/ensemble_init/')
-assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101, \
+if host == "ppi":
+    ensemble_init_path = '/lustre/storeB/users/florianb/data/ensemble_init/'
+elif host == "havvarsel":
+    ensemble_init_path = '/sintef/data/ensemble_init/'
+else:
+    ensemble_init_path = 'Give path here'
+assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101,\
     "Ensemble init folder has wrong number of files: " + str(len(os.listdir(ensemble_init_path)))
 
-truth_path = os.path.abspath('/sintef/data/true_state/')
-assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3, \
+if host == "ppi":
+    truth_path = '/lustre/storeB/users/florianb/data/true_state/'
+elif host == "havvarsel":
+    truth_path = '/sintef/data/true_state/'
+else:
+    truth_path = 'Give path here'
+assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3,\
     "Truth folder has wrong number of files"
 
+
 media_dir = args.output_folder
+if host == "ppi":
+    media_dir = '/lustre/storeB/users/florianb/rank_histogram_experiments'
+elif host == "havvarsel":
+    media_dir = '/sintef/rank_histogram_experiments'
+
 timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
 destination_dir = os.path.join(media_dir, "rank_histogram_experiments_" +  timestamp + "/")
 os.makedirs(destination_dir)
