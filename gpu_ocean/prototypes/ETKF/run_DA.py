@@ -46,6 +46,7 @@ parser = argparse.ArgumentParser(description='Generate an ensemble.')
 parser.add_argument('-N', '--ensemble_size', type=int, default=100)
 parser.add_argument('--method', type=str, default='LETKF')
 parser.add_argument('--inflation_factor', type=float, default=1.0)
+parser.add_argument('--scale_w', type=float, default=1.0)
 parser.add_argument('--observation_interval', type=int, default=1)
 parser.add_argument('--observation_variance', type=float, default=1.0)
 parser.add_argument('--observation_type', type=str, default='buoys')
@@ -271,7 +272,7 @@ elif method.startswith('enkf'):
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class EnKFOcean initiated", True)
 elif method.startswith('etkf') or method.startswith('letkf'):
-    etkf = ETKFOcean.ETKFOcean(ensemble, args.inflation_factor)
+    etkf = ETKFOcean.ETKFOcean(ensemble, args.inflation_factor, args.scale_w)
     toc = time.time()
     log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class ETKFOcean initiated", True)
 else:

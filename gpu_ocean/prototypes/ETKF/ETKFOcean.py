@@ -40,7 +40,7 @@ class ETKFOcean:
             
     """
 
-    def __init__(self, ensemble, inflation_factor=1.0):
+    def __init__(self, ensemble, inflation_factor=1.0, scale_w = 1.0):
         """
         Copying the ensemble to the member variables 
         and deducing frequently used ensemble quantities
@@ -60,6 +60,7 @@ class ETKFOcean:
 
         # Parameter for inflation
         self.inflation_factor = inflation_factor
+        self.scale_w = scale_w
 
         # Parameters and variables for localisation
         self.r_factor = 15.0
@@ -396,7 +397,7 @@ class ETKFOcean:
 
 
     @staticmethod
-    def getLocalWeightShape(scale_r, dx, dy, nx, ny):
+    def getLocalWeightShape(scale_r, dx, dy, nx, ny, scale_w=1.0):
         """
         Gives a local stencil with weights based on the distGC
         """
@@ -416,11 +417,11 @@ class ETKFOcean:
                 else:
                     weights[y,x] = min(1, ETKFOcean.distGC(obs_loc, loc, scale_r*dx, nx*dx, ny*dy))
                                 
-        return weights
+        return scale_w * weights
             
 
     @staticmethod
-    def getCombinedWeights(observation_positions, scale_r, dx, dy, nx, ny, W_loc):
+    def getCombinedWeights(observation_positions, scale_r, dx, dy, nx, ny, W_loc, scale_w=1.0):
         
         W_scale = np.zeros((ny, nx))
         
@@ -431,7 +432,7 @@ class ETKFOcean:
             return None
 
         # Get the shape of the local weights (drifter independent)
-        W_loc = ETKFOcean.getLocalWeightShape(scale_r, dx, dy, nx, ny)
+        W_loc = ETKFOcean.getLocalWeightShape(scale_r, dx, dy, nx, ny, scale_w)
         
         for d in range(num_drifters):
             # Get local mapping for drifter 
@@ -470,7 +471,7 @@ class ETKFOcean:
             self.r_factor = r_factor
 
         # Construct local stencil
-        self.W_loc = ETKFOcean.getLocalWeightShape(self.r_factor, dx, dy, nx, ny)
+        self.W_loc = ETKFOcean.getLocalWeightShape(self.r_factor, dx, dy, nx, ny, self.scale_w)
 
         self.W_analyses = []
         self.W_forecasts = []
@@ -478,7 +479,7 @@ class ETKFOcean:
         for g in range(len(self.groups)):
 
             # Construct global analysis and forecast weights
-            W_combined = ETKFOcean.getCombinedWeights(self.drifter_positions[self.groups[g]], self.r_factor, dx, dy, nx, ny, self.W_loc)
+            W_combined = ETKFOcean.getCombinedWeights(self.drifter_positions[self.groups[g]], self.r_factor, dx, dy, nx, ny, self.W_loc, self.scale_w)
 
             W_scale = np.maximum(W_combined, 1)
 

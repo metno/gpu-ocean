@@ -43,8 +43,9 @@ if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../SWESimulators'
 import argparse
 parser = argparse.ArgumentParser(description='Generate an ensemble.')
 parser.add_argument('--experiments', type=int, default=1000)
-parser.add_argument('--output_folder', type=str, default="/lustre/storeB/users/florianb/rank_histogram_experiments")
+parser.add_argument('--output_folder', type=str, default="/sintef/rank_histogram_experiments")
 parser.add_argument('--method', type=str, default='LETKF')
+parser.add_argument('--scale_w', type=float, default=1.0)
 parser.add_argument('--iewpf2beta', type=float, default=None)
 parser.add_argument('--observation_variance', type=float, default=1)
 
@@ -53,7 +54,7 @@ const_args = {
     'method' : 'iewpf',
     'observation_interval' : 1,
     'observation_type' : 'buoys',
-    'buoy_area' : 'all'
+    'buoy_area' : 'sparse'
 }
 
 
@@ -73,11 +74,11 @@ elif args.experiments < 1:
 ###-----------------------------------------
 ## Define files for ensemble and truth.
 ##
-ensemble_init_path = os.path.abspath('/lustre/storeB/users/florianb/data/ensemble_init/')
+ensemble_init_path = os.path.abspath('/sintef/data/ensemble_init/')
 assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101, \
     "Ensemble init folder has wrong number of files: " + str(len(os.listdir(ensemble_init_path)))
 
-truth_path = os.path.abspath('/lustre/storeB/users/florianb/data/true_state/')
+truth_path = os.path.abspath('/sintef/data/true_state/')
 assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3, \
     "Truth folder has wrong number of files"
 
@@ -270,7 +271,7 @@ for run_id in range(args.experiments):
                                                     ensemble_init_path, truth_path, \
                                                     args.observation_variance,
                                                     cont_write_netcdf = False,
-                                                    use_lcg = use_lcg,
+                                                    use_lcg = False, xorwow_seed = np.random.randint(10000),
                                                     observation_type=observation_type,
                                                     randomize_initial_ensemble=randomize_initial_ensemble)
 
@@ -290,7 +291,7 @@ for run_id in range(args.experiments):
             log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class initiated", True)
         elif method == 'etkf' or method == 'letkf':
             tic = time.time()
-            etkf = ETKFOcean.ETKFOcean(ensemble)
+            etkf = ETKFOcean.ETKFOcean(ensemble, scale_w=args.scale_w)
             toc = time.time()
             log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class initiated", True)
 
