@@ -100,9 +100,9 @@ device_name = gpu_ctx.cuda_device.name()
 methods = ["MC", "IEWPF2", "LETKF"]
 ensemble_sizes = [50, 100, 250]
 
-numDays = 1 
-numHours = 1
-numFiveMin = 3
+numDays = 2
+numHours = 24
+numFiveMin = 12
 
 performance = np.zeros((3,3,numDays*numHours))
 
@@ -126,6 +126,8 @@ for m in range(len(methods)):
                                                         use_lcg = False, xorwow_seed = np.random.randint(1,10000),
                                                         write_netcdf_directory = destination_dir,
                                                         observation_type=dautils.ObservationType.StaticBuoys)
+
+        ensemble.configureObservations(buoy_area = "sparse")
 
 
         ### -------------------------------
@@ -170,10 +172,10 @@ for m in range(len(methods)):
                                     etkf.ETKF(ensemble)
                                 if method == 'letkf':
                                     etkf.LETKF(ensemble)
-                    print("Simulation at " + time.strftime("%j %H:%M:%S", time.gmtime(obstime)))
                     # Done minute
                 # Done five minutes
             # Done hour
+            print("Simulation at " + time.strftime("%j %H:%M:%S", time.gmtime(obstime)))
             gpu_ctx.synchronize()    
             toc = time.time()
 
