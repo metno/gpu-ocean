@@ -47,6 +47,8 @@ class EnKFOcean:
         and deducing frequently used ensemble quantities
         """
 
+        assert (True, "No localisation implemented and the plain EnKF has shown to work poorly")
+
         self.ensemble = ensemble
         
         self.N_e = ensemble.getNumParticles()
