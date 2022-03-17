@@ -23,13 +23,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ####################################################################
 
+output_dir="tmp/forecasts_$(date +%Y_%m_%d-%H_%M_%S)"
+echo $output_dir
+
 gpuoceanpython=python
 
 which $gpuoceanpython
 
 # IWEPF2
-$gpuoceanpython run_experiment.py -N 100 --method iewpf2 --buoy_area sparse
+$gpuoceanpython run_experiment.py -N 100 --method iewpf2 --media_dir $output_dir
 
 # LETKF
-$gpuoceanpython run_experiment.py -N 100 --method letkf --buoy_area sparse
+$gpuoceanpython run_experiment.py -N 100 --method letkf --media_dir $output_dir
 
