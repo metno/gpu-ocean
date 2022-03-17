@@ -28,13 +28,15 @@ import subprocess
 
 import numpy as np
 
-current_dir = os.path.dirname(os.path.realpath(__file__))
+current_dir = os.getcwd()
 
 if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../../SWESimulators'))):
         sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../../')))
 
+host = os.uname()[1] 
+if host in ["r740-5hdn2s2-ag-gcompute", "r740-5hcv2s2-ag-gcompute", "r740-dsxm2t2-ag-gcompute", "r740-dsws2t2-ag-gcompute"]:
+    host = "ppi"
 
-        
 #--------------------------------------------------------------
 # PARAMETERS
 #--------------------------------------------------------------
@@ -43,17 +45,19 @@ if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../../SWESimulato
 
 import argparse
 parser = argparse.ArgumentParser(description='Generate an ensemble.')
-parser.add_argument('--experiments', type=int, default=None)
-parser.add_argument('--output_folder', type=str, default="rank_histogram_experiments")
+parser.add_argument('--experiments', type=int, default=1000)
+parser.add_argument('--output_folder', type=str, default="")
 parser.add_argument('--method', type=str, default='iewpf2')
+parser.add_argument('--scale_w', type=float, default=1.0)
+parser.add_argument('--iewpf2beta', type=float, default=None)
 parser.add_argument('--observation_variance', type=float, default=1)
 
 const_args = {
     'ensemble_size' : 40,
-    #'method' : 'iewpf2',
+    'method' : 'iewpf',
     'observation_interval' : 1,
     'observation_type' : 'buoys',
-    'buoy_area' : 'west'
+    'buoy_area' : 'sparse'
 }
 
 
@@ -73,15 +77,31 @@ elif args.experiments < 1:
 ###-----------------------------------------
 ## Define files for ensemble and truth.
 ##
-ensemble_init_path = os.path.abspath('../../../../data/ensemble_init/')
-assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101, \
+if host == "ppi":
+    ensemble_init_path = '/lustre/storeB/users/florianb/data/ensemble_init/'
+elif host == "havvarsel":
+    ensemble_init_path = '/sintef/data/ensemble_init/'
+else:
+    ensemble_init_path = 'Give path here'
+assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101,\
     "Ensemble init folder has wrong number of files: " + str(len(os.listdir(ensemble_init_path)))
 
-truth_path = os.path.abspath('../../../../data/true_state/')
-assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3, \
+if host == "ppi":
+    truth_path = '/lustre/storeB/users/florianb/data/true_state/'
+elif host == "havvarsel":
+    truth_path = '/sintef/data/true_state/'
+else:
+    truth_path = 'Give path here'
+assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3,\
     "Truth folder has wrong number of files"
 
+
 media_dir = args.output_folder
+if host == "ppi":
+    media_dir = '/lustre/storeB/users/florianb/rank_histogram_experiments'
+elif host == "havvarsel":
+    media_dir = '/sintef/rank_histogram_experiments'
+
 timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
 destination_dir = os.path.join(media_dir, "rank_histogram_experiments_" +  timestamp + "/")
 os.makedirs(destination_dir)
@@ -122,6 +142,10 @@ logParams()
 method = str(args.method).lower()
 if method == 'iewpf2':
     log(' ----> Using IEWPF 2 stage method')
+elif method == 'etkf':
+    log(' ----> Using ETKF method')
+elif method == 'letkf':
+    log(' ----> Using ETKF method with localisation')
 elif method == 'none':
     log(' ----> No data assimilation')
 else:
@@ -155,6 +179,7 @@ from SWESimulators import Common
 from SWESimulators import EnsembleFromFiles, Observation
 # For data assimilation:
 from SWESimulators import IEWPFOcean
+from SWESimulators import ETKFOcean
 # For ObservationType:
 from SWESimulators import DataAssimilationUtils as dautils
 # For generating new truths
@@ -226,146 +251,177 @@ for run_id in range(args.experiments):
     
     log('----------- Rank histogram experiment ' + str(run_id) + " ---------------------------")
     
-    
-    ### Generating a new truth
-    tic = time.time()
-    truth_name = 'truth_run_' + str(run_id).zfill(4) + '_attempt_'
-    truth_path = None
-    truth_attempt = 0
-    while truth_path is None:
-        log('Generating truth - attempt ' + str(truth_attempt))
-        try:
-            truth_path = djeutils.generateTruth(gpu_ctx, destination_dir,
-                                                duration_in_days=3,
-                                                duration_in_hours=numHours+forecastHours,
-                                                folder_name=truth_name+str(truth_attempt))
-        except Exception as e:
-            truth_attempt += 1
-            log('Got exception in truth: ' + str(e))
-            
-    toc = time.time()
-    log("{:02.4f} s: ".format(toc-tic) + "Generated truth " + str(truth_path))
-            
-    
-    
-    ## TODO: Perturb truth. 
-    #  In the truth, add a new column as perturbed_observation
-    #  and use a boolean parameter in get_observation to select 
-    #  perturbed or true observations
-    
-    ### Initialize ensemble
-    tic = time.time()
-    ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx, ensemble_size, \
-                                                   ensemble_init_path, truth_path, \
-                                                   args.observation_variance,
-                                                   cont_write_netcdf = False,
-                                                   use_lcg = use_lcg,
-                                                   observation_type=observation_type,
-                                                   randomize_initial_ensemble=randomize_initial_ensemble)
+    try: 
+        ### Generating a new truth
+        tic = time.time()
+        truth_name = 'truth_run_' + str(run_id).zfill(4) + '_attempt_'
+        truth_path = None
+        truth_attempt = 0
 
-    # Configure observations according to the selected drifters/buoys:
-    ensemble.configureObservations(observationInterval = const_args['observation_interval'],
-                                   buoy_area = const_args['buoy_area'])
-    
-    toc = time.time()
-    log("{:02.4f} s: ".format(toc-tic) + "Ensemble is loaded and created", True)
-    
-    
-    # Initialize IEWPF class (if needed)
-    tic = time.time()
-    iewpf = IEWPFOcean.IEWPFOcean(ensemble)
-    toc = time.time()
-    log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class initiated", True)
-    
-    obstime = 3*24*60*60
+        truth_path = djeutils.generateTruth(gpu_ctx, destination_dir,
+                                            duration_in_days=3,
+                                            duration_in_hours=numHours+forecastHours,
+                                            folder_name=truth_name+str(truth_attempt))
 
-    da_tic = time.time()
-    
-    ### DATA ASSIMILATION 
-    log('-------- Starting data assimilation ')
-
-    for hour in range(numHours+forecastHours):
-        time_in_hours = hour + 1
-        
-        for fiveMin in range(12):
-
-            drifter_cells = ensemble.getDrifterCells()
-                
-            for minute in range(5):
-                obstime += 60
-
-                forecast_instead_of_da = (time_in_hours in hours_to_store and fiveMin == 11) or time_in_hours > numHours
-                apply_model_error = minute < 4 or forecast_instead_of_da or method=='none'
-
-                ensemble.stepToObservation(obstime, model_error_final_step=apply_model_error)
-
-                if minute == 4 and not forecast_instead_of_da and method=='iewpf2':
-                    iewpf.iewpf_2stage(ensemble, perform_step=False)
-                
-                #ensemble.registerStateSample(drifter_cells)
-            # Done minutes
-
-        # Done five minutes
+        while truth_path is None:
+            log('Generating truth - attempt ' + str(truth_attempt))
+            try:
+                truth_path = djeutils.generateTruth(gpu_ctx, destination_dir,
+                                                    duration_in_days=3,
+                                                    duration_in_hours=numHours+forecastHours,
+                                                    folder_name=truth_name+str(truth_attempt))
+            except Exception as e:
+                truth_attempt += 1
+                log('Got exception in truth: ' + str(e))
                 
         toc = time.time()
-        log("{:04.1f} s: ".format(toc-da_tic) + " Done simulating hour " + str(time_in_hours))
+        log("{:02.4f} s: ".format(toc-tic) + "Generated truth " + str(truth_path))
+                
         
-        num_active_particles = ensemble.getNumActiveParticles()
-        if num_active_particles < ensemble_size:
-            log('-------> Found dead particles! Only ' + str(num_active_particles) + ' of ' + str(ensemble_size) + ' active.')
-            outfile = experiment_filename(run_id, time_in_hours)
-            outfile = outfile.replace('.npz', '.txt')
-            np.savetxt(outfile, [obstime])
-            break 
         
-        if time_in_hours in hours_to_store:
-            log('-------> Storing ensemble ensemble data at hour ' + str(time_in_hours))
+        ## TODO: Perturb truth. 
+        #  In the truth, add a new column as perturbed_observation
+        #  and use a boolean parameter in get_observation to select 
+        #  perturbed or true observations
+        
+        ### Initialize ensemble
+        tic = time.time()
+        ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx, ensemble_size, \
+                                                    ensemble_init_path, truth_path, \
+                                                    args.observation_variance,
+                                                    cont_write_netcdf = False,
+                                                    use_lcg = False, xorwow_seed = np.random.randint(10000),
+                                                    observation_type=observation_type,
+                                                    randomize_initial_ensemble=randomize_initial_ensemble)
 
-            outfile = experiment_filename(run_id, time_in_hours)
-            log('-------> outfile: ' + outfile)
+        # Configure observations according to the selected drifters/buoys:
+        ensemble.configureObservations(observationInterval = const_args['observation_interval'],
+                                    buoy_area = const_args['buoy_area'])
+        
+        toc = time.time()
+        log("{:02.4f} s: ".format(toc-tic) + "Ensemble is loaded and created", True)
+        
+        
+        # Initialize IEWPF class (if needed)
+        if method == 'iewpf2':
+            tic = time.time()
+            iewpf = IEWPFOcean.IEWPFOcean(ensemble, beta=args.iewpf2beta)
+            toc = time.time()
+            log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class initiated", True)
+        elif method == 'etkf' or method == 'letkf':
+            tic = time.time()
+            etkf = ETKFOcean.ETKFOcean(ensemble, scale_w=args.scale_w)
+            toc = time.time()
+            log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class initiated", True)
+
+        obstime = 3*24*60*60
+
+        da_tic = time.time()
+        
+        ### DATA ASSIMILATION 
+        log('-------- Starting data assimilation ')
+
+        for hour in range(numHours+forecastHours):
+            time_in_hours = hour + 1
             
-            hu  = np.zeros((ensemble.ny, ensemble_size))
-            hv  = np.zeros((ensemble.ny, ensemble_size))
-            eta = np.zeros((ensemble.ny, ensemble_size))
+            for fiveMin in range(12):
 
-            ### Store the results
-            for particle_id in range(ensemble_size):
+                drifter_cells = ensemble.getDrifterCells()
+                    
+                for minute in range(5):
+                    obstime += 60
 
-                p_eta, p_hu, p_hv  = ensemble.downloadParticleOceanState(particle_id)
+                    forecast_instead_of_da = (time_in_hours in hours_to_store and fiveMin == 11) or time_in_hours > numHours
+                    apply_model_error = minute < 4 or forecast_instead_of_da or method=='none'
 
-                hu[:, particle_id]  = p_hu[:, x_index]
-                hv[:, particle_id]  = p_hv[:, x_index]
-                eta[:, particle_id] = p_eta[:, x_index]
+                    if method == 'iewpf2':
+                        ensemble.stepToObservation(obstime, model_error_final_step=apply_model_error)
+                        if minute == 4 and not forecast_instead_of_da:
+                            iewpf.iewpf_2stage(ensemble, perform_step=False)
+                    elif method == 'etkf':
+                        ensemble.stepToObservation(obstime)
+                        if minute == 4 and not forecast_instead_of_da:
+                            etkf.ETKF(ensemble)
+                    elif method == 'letkf':
+                        ensemble.stepToObservation(obstime)
+                        if minute == 4 and not forecast_instead_of_da:
+                            etkf.LETKF(ensemble)
+                    
+                    #ensemble.registerStateSample(drifter_cells)
+                # Done minutes
 
+            # Done five minutes
+                    
+            toc = time.time()
+            log("{:04.1f} s: ".format(toc-da_tic) + " Done simulating hour " + str(time_in_hours))
             
-            ## TODO: Add observed truth to npz file
-            observations = ensemble.observeTrueState()
-            observation_variance = ensemble.getObservationVariance()
+            num_active_particles = ensemble.getNumActiveParticles()
+            if num_active_particles < ensemble_size:
+                log('-------> Found dead particles! Only ' + str(num_active_particles) + ' of ' + str(ensemble_size) + ' active.')
+                outfile = experiment_filename(run_id, time_in_hours)
+                outfile = outfile.replace('.npz', '.txt')
+                np.savetxt(outfile, [obstime])
+                break 
             
-            ### Store truth
-            true_eta, true_hu, true_hv, true_t = ensemble.true_state_reader.getTimeStep(time_in_hours)
-            true_eta = true_eta[:, x_index]
-            true_hu  = true_hu[:, x_index]
-            true_hv  = true_hv[:, x_index]
-            
-            np.savez(outfile, t=obstime,
-                     eta=eta, hu=hu, hv=hv,
-                     true_eta=true_eta, true_hu=true_hu, true_hv=true_hv,
-                     observations=observations, observation_variance=observation_variance)
-        # end if time_in_hours in hours_to_store
-    
-    # Done hours
-    toc = time.time()
-    log("{:04.1f} s: ".format(toc-da_tic) + " Rank histogram experiment stored at time " + str(obstime))
-    
-    
-    # Clean up simulation and close netcdf file
-    tic = time.time()
-    sim = None
-    ensemble.cleanUp()
-    toc = time.time()
-    log("\n{:02.4f} s: ".format(toc-tic) + "Clean up simulator done.")
-    log("{:07.1f} s".format(toc-master_tic) + " since starting the program.")
+            if time_in_hours in hours_to_store:
+                log('-------> Storing ensemble ensemble data at hour ' + str(time_in_hours))
+
+                outfile = experiment_filename(run_id, time_in_hours)
+                log('-------> outfile: ' + outfile)
+                
+                hu  = np.zeros((ensemble.ny, ensemble_size))
+                hv  = np.zeros((ensemble.ny, ensemble_size))
+                eta = np.zeros((ensemble.ny, ensemble_size))
+
+                ### Store the results
+                for particle_id in range(ensemble_size):
+
+                    p_eta, p_hu, p_hv  = ensemble.downloadParticleOceanState(particle_id)
+
+                    hu[:, particle_id]  = p_hu[:, x_index]
+                    hv[:, particle_id]  = p_hv[:, x_index]
+                    eta[:, particle_id] = p_eta[:, x_index]
+
+                
+                ## TODO: Add observed truth to npz file
+                observations = ensemble.observeTrueState()
+                observation_variance = ensemble.getObservationVariance()
+                
+                ### Store truth
+                true_eta, true_hu, true_hv, true_t = ensemble.true_state_reader.getTimeStep(time_in_hours)
+                true_eta = true_eta[:, x_index]
+                true_hu  = true_hu[:, x_index]
+                true_hv  = true_hv[:, x_index]
+                
+                np.savez(outfile, t=obstime,
+                        eta=eta, hu=hu, hv=hv,
+                        true_eta=true_eta, true_hu=true_hu, true_hv=true_hv,
+                        observations=observations, observation_variance=observation_variance)
+            # end if time_in_hours in hours_to_store
+        
+        # Done hours
+        toc = time.time()
+        log("{:04.1f} s: ".format(toc-da_tic) + " Rank histogram experiment stored at time " + str(obstime))
+        
+        
+        # Clean up simulation and close netcdf file
+        tic = time.time()
+        sim = None
+        ensemble.cleanUp()
+        toc = time.time()
+        log("\n{:02.4f} s: ".format(toc-tic) + "Clean up simulator done.")
+        log("{:07.1f} s".format(toc-master_tic) + " since starting the program.")
+
+    except Exception as e:
+        log('EXPERIMENT FAILED: '+str(e))
+        # Clean up simulation and close netcdf file
+        tic = time.time()
+        sim = None
+        ensemble.cleanUp()
+        toc = time.time()
+        log("\n{:02.4f} s: ".format(toc-tic) + "Clean up simulator done.")
+        log("{:07.1f} s".format(toc-master_tic) + " since starting the program.")
+        
 
 log('Done! Only checking is left. There should be a "yes, done" in the next line')
 

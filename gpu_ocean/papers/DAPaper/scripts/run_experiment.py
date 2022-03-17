@@ -26,13 +26,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import sys, os, json, datetime, time, shutil
 import numpy as np
 
-current_dir = os.path.dirname(os.path.realpath(__file__))
+current_dir = os.getcwd()
 
 if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../../SWESimulators'))):
         sys.path.insert(0, os.path.abspath(os.path.join(current_dir, '../../../')))
 
+# Knonw hosts: havvarsel, PPI.
+host = os.uname()[1] 
+if host in ["r740-5hdn2s2-ag-gcompute", "r740-5hcv2s2-ag-gcompute", "r740-dsxm2t2-ag-gcompute", "r740-dsws2t2-ag-gcompute"]:
+    host = "ppi"
 
-        
 #--------------------------------------------------------------
 # PARAMETERS
 #--------------------------------------------------------------
@@ -40,21 +43,30 @@ if os.path.isdir(os.path.abspath(os.path.join(current_dir, '../../../SWESimulato
 
 import argparse
 parser = argparse.ArgumentParser(description='Generate an ensemble.')
-parser.add_argument('-N', '--ensemble_size', type=int, default=None)
+parser.add_argument('-N', '--ensemble_size', type=int, default=100)
 parser.add_argument('--method', type=str, default='iewpf2')
+parser.add_argument('--inflation_factor', type=float, default=1.0)
+parser.add_argument('--scale_w', type=float, default=1.0)
 parser.add_argument('--observation_interval', type=int, default=1)
 parser.add_argument('--observation_variance', type=float, default=1.0)
-parser.add_argument('--observation_type', type=str, default='drifters')
+parser.add_argument('--observation_type', type=str, default='buoys')
 parser.add_argument('--buoy_area', type=str, default='all')
-parser.add_argument('--media_dir', type=str, default='forecasting_results/')
-
+if host == "ppi":
+    parser.add_argument('--media_dir', type=str, default='/lustre/storeB/users/florianb/forecasting_results/')
+elif host == "havvarsel":
+    parser.add_argument('--media_dir', type=str, default='/sintef/forecasting_results/')
+else:
+    parser.add_argument('--media_dir', type=str)
 parser.add_argument('--num_days', type=int, default=7) 
 parser.add_argument('--num_hours', type=int, default=24) 
 parser.add_argument('--forecast_days', type=int, default=3)
 parser.add_argument('--profiling', action='store_true')
 
+parser.add_argument('--seed', type=int, default=np.randint(10000))
+parser.add_argument('--iewpf2beta', type=float, default=None)
 
 args = parser.parse_args()
+
 
 # Checking input args
 if args.ensemble_size is None:
@@ -65,15 +77,27 @@ elif args.ensemble_size < 1:
 
 profiling = args.profiling
 
+
 ###-----------------------------------------
 ## Define files for ensemble and truth.
 ##
-ensemble_init_path = os.path.abspath('../presented_data/ensemble_init/')
-assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101, \
+
+if host == "ppi":
+    ensemble_init_path = '/lustre/storeB/users/florianb/data/ensemble_init/'
+elif host == "havvarsel":
+    ensemble_init_path = '/sintef/data/ensemble_init/'
+else:
+    ensemble_init_path = 'Give path here'
+assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101,\
     "Ensemble init folder has wrong number of files: " + str(len(os.listdir(ensemble_init_path)))
 
-truth_path = os.path.abspath('../presented_data/true_state/')
-assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3, \
+if host == "ppi":
+    truth_path = '/lustre/storeB/users/florianb/data/true_state/'
+elif host == "havvarsel":
+    truth_path = '/sintef/data/true_state/'
+else:
+    truth_path = 'Give path here'
+assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3,\
     "Truth folder has wrong number of files"
 
 
@@ -124,6 +148,12 @@ logParams()
 method = str(args.method).lower()
 if method == 'iewpf2':
     log(' ----> Using IEWPF 2 stage method')
+elif method == 'enkf':
+    log(' ----> Using EnKF')
+elif method == 'etkf':
+    log(' ----> Using ETKF')
+elif method == 'letkf':
+    log(' ----> Using ETKF with localisation')
 elif method == 'none':
     log(' ----> No data assimilation')
 else:
@@ -132,13 +162,14 @@ else:
     
     
 # Time parameters
-start_time      =  3*24*60*60 #  3 days
-simulation_time = 10*24*60*60 # 10 days (three days spin up is prior to this)fa
-end_time        = 13*24*60*60 # 13 days
+start_time      =  3*24*60*60 #  3 days in seconds
+simulation_time = 10*24*60*60 # 10 days in seconds (three days spin up is prior to this)fa
+end_time        = 13*24*60*60 # 13 days in seconds
 
 
 # Based on truth from June 25th 2019
-drifterSet = [ 2,  7, 12, 24, 29, 35, 41, 48, 53, 60]
+drifterSet = [ 2, 7, 12, 24, 29, 35, 41, 48, 53, 60]
+#drifterSet = [ 2, 24, 60]
 
 # Log extra information for the ensemble state for the following cells:
 extraCells = np.array([[254, 241], # Cross with two trajectories
@@ -164,6 +195,10 @@ from SWESimulators import Common
 from SWESimulators import EnsembleFromFiles, Observation
 # For data assimilation:
 from SWESimulators import IEWPFOcean
+# The prototyping packages:
+#import EnKFOcean #(different prototype folder)
+from SWESimulators import ETKFOcean
+from SWESimulators import SkillScore
 # For forcasting:
 from SWESimulators import GPUDrifterCollection
 # For ObservationType:
@@ -192,17 +227,20 @@ elif args.observation_type == 'all_drifters':
     drifterSet = 'all'
     log('Using all drifters for DA experiment')
 
-    
+print(observation_type)
+
 cont_write_netcdf = True and not profiling
 
 tic = time.time()
-ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx, args.ensemble_size, \
-                                               ensemble_init_path, truth_path, \
-                                               args.observation_variance,
-                                               cont_write_netcdf = cont_write_netcdf,
-                                               use_lcg = True,
-                                               write_netcdf_directory = destination_dir,
-                                               observation_type=observation_type)
+ensemble = EnsembleFromFiles.EnsembleFromFiles(gpu_ctx, 
+                                                args.ensemble_size,                                                
+                                                ensemble_init_path, 
+                                                truth_path,                                                
+                                                args.observation_variance,
+                                                cont_write_netcdf = cont_write_netcdf,
+                                                use_lcg = False, xorwow_seed = args.seed,
+                                                write_netcdf_directory = destination_dir,
+                                                observation_type=observation_type)
 
 # Configure observations according to the selected drifters:
 ensemble.configureObservations(drifterSet=drifterSet, 
@@ -217,28 +255,38 @@ if args.observation_type == 'buoys':
     log(str(ensemble.observations.read_buoy))
 
 
+dt_ref = ensemble.particles[-1].dt
+
+
 ### -------------------------------
-# Initialize IEWPF class (if needed)
+# Initialize DA class (if needed)
 #
 tic = time.time()
 iewpf = None
 if method.startswith('iewpf'):
-    iewpf = IEWPFOcean.IEWPFOcean(ensemble)
+    iewpf = IEWPFOcean.IEWPFOcean(ensemble, beta=args.iewpf2beta, write_betas=True)
     toc = time.time()
-    log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class initiated", True)
+    log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class IEWPFOcean initiated", True)
+elif method.startswith('enkf'):
+    enkf = EnKFOcean.EnKFOcean(ensemble, args.inflation_factor)
+    toc = time.time()
+    log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class EnKFOcean initiated", True)
+elif method.startswith('etkf') or method.startswith('letkf'):
+    etkf = ETKFOcean.ETKFOcean(ensemble, args.inflation_factor, args.scale_w)
+    toc = time.time()
+    log("{:02.4f} s: ".format(toc-tic) + "Data assimilation class ETKFOcean initiated", True)
 else:
     toc = time.time()
-    log("{:02.4f} s: ".format(toc-tic) + "Skipping creation of IEWPF as the method is not used", True)
+    log("{:02.4f} s: ".format(toc-tic) + "Skipping creation of a DA class", True)
 
-    
-
-    
+scores = ["MSE", "bias", "CRPS"]
+skillScore = SkillScore.SkillScore(ensemble, scores)
 
 ### ----------------------------------------------
 #   DATA ASSIMILATION
 #
 
-obstime = 3*24*60*60
+obstime = start_time # time in seconds (starting after spin-up phase)
 
 master_tic = time.time()
 
@@ -253,7 +301,6 @@ log('--- numHours:      ' + str(numHours))
 log('--- forecast_days: ' + str(forecast_days))
 log('---------------------------------------------') 
 
-
 for day in range(numDays):
     log('-------- Starting day ' + str(day))
     
@@ -263,23 +310,31 @@ for day in range(numDays):
             
             drifter_cells = ensemble.getDrifterCells()
             
-            if method == "iewpf2":
-                for minute in range(5):
-                    obstime += 60
+            for minute in range(5):
+                obstime += 60
+                if method == 'iewpf2':
                     ensemble.stepToObservation(obstime, model_error_final_step=(minute<4))
-
                     if minute == 4:
+                        skillScore.assess(ensemble, perturb=True)
                         iewpf.iewpf_2stage(ensemble, perform_step=False)
+                else:
+                    ensemble.stepToObservation(obstime)
+                    if minute == 4:
+                        skillScore.assess(ensemble)
+                        if method == 'enkf':
+                            enkf.EnKF(ensemble)
+                        if method == 'etkf':
+                            etkf.ETKF(ensemble)
+                        if method == 'letkf':
+                            etkf.LETKF(ensemble)
+                    
 
-                    ensemble.registerStateSample(drifter_cells)
+                ensemble.registerStateSample(drifter_cells)
+
+                ensemble.deactivateDegeneratedParticles(0.5*dt_ref, 1.5*dt_ref)
+
                 # Done minutes
-            elif method == "none":
-                for minute in range(5):
-                    obstime += 60
-                    ensemble.stepToObservation(obstime, model_error_final_step=True)
-                    ensemble.registerStateSample(drifter_cells)
-                # Done minutes
-                
+
         # Done five minutes
     
         toc = time.time()
@@ -289,9 +344,14 @@ for day in range(numDays):
     ensemble.dumpParticleInfosToFile(particleInfoPrefix)
     
     ensemble.writeEnsembleToNetCDF()
+
+if method == "iewpf2":
+    np.savetxt(os.path.join(destination_dir, 'IEWPF2betas.txt'), iewpf.betas)
     
 # Done days
-
+avg_scores = skillScore.evaluate(destination_dir)
+for score in scores: 
+    log("Skill score (" + score + ") = " + str(avg_scores[score]))
 
 
 ### -------------------------------------------------
@@ -309,10 +369,10 @@ forecast_start_time = obstime
 drifter_start_positions = ensemble.observeTrueDrifters(applyDrifterSet=False, ignoreBuoys=True)
 num_drifters = len(drifter_start_positions)
 
-forecast_end_time = forecast_start_time + forecast_days*24*60*60
+forecast_end_time = forecast_start_time + forecast_days*numHours*60*60
 
 observation_intervals = 5*60
-netcdf_intervals = 24*60*60
+netcdf_intervals = numHours*60*60
 
 netcdf_iterations = int((forecast_end_time - forecast_start_time)/netcdf_intervals)
 observations_iterations = int(netcdf_intervals/observation_intervals)
@@ -350,7 +410,6 @@ for particle_id in range(ensemble.getNumParticles()):
                 # Store observation
                 observations.add_observation_from_sim(sim)
 
-
             sim.writeState()
 
         # Write forecast to file    
@@ -364,7 +423,7 @@ for particle_id in range(ensemble.getNumParticles()):
         log("Skipping forecast for particle " + str(particle_id) + ", as this particle is dead")
 
 
-            
+
 # Clean up simulation and close netcdf file
 tic = time.time()
 sim = None
@@ -380,10 +439,6 @@ if not profiling:
     assert(forecast_end_time == 13*24*60*60), 'Forecast did not reach goal time'
 
 log('Yes, done!')
-
-
-exit(0)
-
 
 
 
