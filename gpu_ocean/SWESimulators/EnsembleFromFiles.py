@@ -63,11 +63,12 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                  true_state_directory,
                  observation_variance,
                  cont_write_netcdf=False,
-                 use_lcg = False,
+                 use_lcg = False, xorwow_seed = None,
                  write_netcdf_directory = None,
                  observation_type = dautils.ObservationType.UnderlyingFlow,
                  randomize_initial_ensemble=False,
-                 compensate_for_eta = True):
+                 compensate_for_eta = True,
+                 time0=None):
         """
         Initalizing ensemble from files.
         
@@ -136,6 +137,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         # Flag to writing ensemble simulation result to file:
         self.cont_write_netcdf = cont_write_netcdf
         self.use_lcg = use_lcg
+        self.xorwow_seed = xorwow_seed
         
         # We will not simulate the true state, but read it from file:
         self.simulate_true_state = False
@@ -143,7 +145,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.observation_type = observation_type
         
         ### Then, call appropriate helper functions for initialization of ensemble and true states
-        self._initializeEnsembleFromFile(randomize_initial_ensemble)
+        self._initializeEnsembleFromFile(randomize_initial_ensemble, time0)
         self._initializeTruthFromFile() 
         
         self.compensate_for_eta = compensate_for_eta
@@ -176,7 +178,7 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self._particleInfoExtraCells = None
         
         
-    def _initializeEnsembleFromFile(self, randomize_initial_ensemble):
+    def _initializeEnsembleFromFile(self, randomize_initial_ensemble,time0):
         num_files = len(self.ensemble_init_nc_files)
         file_ids = np.arange(self.numParticles) % num_files
         if randomize_initial_ensemble:
@@ -198,11 +200,18 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
             if self.cont_write_netcdf:
                 filename_only = "ensemble_member_" + str(particle_id).zfill(4) + ".nc"
                 new_netcdf_filename = os.path.join(self.write_netcdf_directory, filename_only)
+                
+            if self.xorwow_seed is not None:
+                xorwow_seed = self.xorwow_seed + particle_id
+            else:
+                xorwow_seed = None
+
             self.particles[particle_id] = CDKLM16.CDKLM16.fromfilename(self.gpu_ctx, 
                                                                        self.ensemble_init_nc_files[file_id],
                                                                        cont_write_netcdf=self.cont_write_netcdf,
                                                                        new_netcdf_filename=new_netcdf_filename,
-                                                                       use_lcg=self.use_lcg)
+                                                                       use_lcg=self.use_lcg, xorwow_seed=xorwow_seed,
+                                                                       time0=time0)
 
     def _initializeParticleInfo(self):
         self.particleInfos = [None]*self.numParticles
@@ -384,6 +393,18 @@ class EnsembleFromFiles(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
         self.particlesActive[particle_id] = False
 
+    def deactivateDegeneratedParticles(self, dt_min, dt_max=0.0):
+        '''
+        Deactivating a particle in the ensemble 
+        if the model time step exceeds dt_min or dt_max (if provided)
+        '''
+        for p in range(self.numParticles):
+            if self.particlesActive[p]:
+                dt = self.particles[p].dt 
+                if dt < dt_min:
+                    self.deactivateParticle(p, "dt < dt_min")
+                if dt_max > 0.0 and dt > dt_max:
+                    self.deactivateParticle(p, "dt > dt_max")
     
     def writeEnsembleToNetCDF(self):
         for p in range(self.getNumParticles()):

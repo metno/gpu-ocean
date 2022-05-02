@@ -27,6 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from matplotlib import pyplot as plt
 import numpy as np
 
+import pycuda.gpuarray 
 import pycuda.driver as cuda
 from pycuda.curandom import XORWOWRandomNumberGenerator
 
@@ -49,7 +50,7 @@ class OceanStateNoise(object):
                  boundaryConditions, staggered,
                  soar_q0=None, soar_L=None,
                  interpolation_factor = 1,
-                 use_lcg=False,
+                 use_lcg=False, xorwow_seed = None,
                  angle=np.array([[0]], dtype=np.float32),
                  coriolis_f=np.array([[0]], dtype=np.float32),
                  block_width=16, block_height=16):
@@ -137,7 +138,14 @@ class OceanStateNoise(object):
             self.host_seed = self.host_seed.astype(np.uint64, order='C')
         
         if not self.use_lcg:
-            self.rng = XORWOWRandomNumberGenerator()
+            if xorwow_seed is not None:
+                def set_seeder(N, seed):
+                    seedarr = pycuda.gpuarray.ones_like(pycuda.gpuarray.zeros(N, dtype=np.int32), dtype=np.int32) * seed
+                    return seedarr
+
+                self.rng = XORWOWRandomNumberGenerator( lambda N: set_seeder(N,xorwow_seed))
+            else:
+                self.rng = XORWOWRandomNumberGenerator()
         else:
             self.seed = Common.CUDAArray2D(gpu_stream, self.seed_nx, self.seed_ny, 0, 0, self.host_seed, double_precision=True, integers=True)
         
@@ -293,7 +301,7 @@ class OceanStateNoise(object):
         gc.collect()
         
     @classmethod
-    def fromsim(cls, sim, soar_q0=None, soar_L=None, interpolation_factor=1, use_lcg=False,
+    def fromsim(cls, sim, soar_q0=None, soar_L=None, interpolation_factor=1, use_lcg=False, xorwow_seed=None,
                 block_width=16, block_height=16):
         staggered = False
         if isinstance(sim, FBL.FBL) or isinstance(sim, CTCS.CTCS):
@@ -305,7 +313,7 @@ class OceanStateNoise(object):
                    interpolation_factor=interpolation_factor,
                    angle=sim.angle_texref.get_array(),
                    coriolis_f=sim.coriolis_texref.get_array(),
-                   use_lcg=use_lcg,
+                   use_lcg=use_lcg, xorwow_seed=xorwow_seed,
                    block_width=block_width, block_height=block_height)
 
     def getSeed(self):

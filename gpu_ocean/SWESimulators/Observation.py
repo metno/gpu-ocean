@@ -55,6 +55,9 @@ class Observation:
         
         All observations are based on velocities (u, v) and equilibrium ocean
         depth H. There are therefore no observations of eta.
+
+        domain_size_x : size of simulation domain in x-direction in meters
+        domain_size_y : size of simulation domain in y-direction in meters
         """
         
         self.observation_type = observation_type
@@ -259,7 +262,7 @@ class Observation:
             while x < self.nx:
                 if self.land_mask is None:
                     buoy_indices.append([x, y])
-                if not self.land_mask[y, x]:
+                elif self.land_mask[y, x]:
                     buoy_indices.append([x, y])
                 x = x + frequency_x
             y = y + frequency_y
@@ -275,6 +278,10 @@ class Observation:
                     self.read_buoy[i] = self.buoy_indices[i,0] < self.nx/2
             elif area == 'all':
                 self.read_buoy = [True]*self.buoy_indices.shape[0]
+            elif area == 'sparse':
+                # Only working for the scenario where the buoys are 25 cells regularly apart 
+                for i in range(len(self.buoy_indices)):
+                    self.read_buoy[i] = (self.buoy_indices[i,0] % 50 == 0) and (self.buoy_indices[i,1] % 50 == 0)
             else:
                 assert(area == 'all'), 'Invalid area. Must be all, south or west'
                 

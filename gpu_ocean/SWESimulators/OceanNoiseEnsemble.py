@@ -50,21 +50,25 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     def __init__(self, gpu_ctx, numParticles, sim, 
                  num_drifters = 1,
                  observation_type=dautils.ObservationType.DrifterPosition,
+                 buoys_positions = None,
                  observation_variance = None, 
                  observation_variance_factor = 5.0,
                  initialization_variance_factor_drifter_position = 0.0,
                  initialization_variance_factor_ocean_field = 0.0,
-                 compensate_for_eta = True):
+                 compensate_for_eta = True,
+                 ensemble_small_scale_perturbation=True):
         """
         Class that holds an ensemble of ocean states. All ensemble members are initiated 
         as perturbations of a given input simulator, and the true state is also a perturbation
-        of the input simulator and is run along side the ense
+        of the input simulator and is run along side the ensemble
 
         gpu_ctx: GPU context
         numParticles: Number of particles, also known as number of ensemble members
         sim: A simulator which represent the initial state of all particles
         num_drifters = 1: Number of drifters that provide us observations
         observation_type: ObservationType enumerator object
+        buoys_positions: For bouys-type observation the positions should be served 
+            in the format [[x1,y1],...,[xD,yD]] where xi and yi are given in meter
         observation_variance: Can be a scalar or a covariance matrix
         observation_variance_factor: If observation_variance is not provided, the 
             observation_variance will be (observation_variance_factor*dx)**2
@@ -84,6 +88,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.obs_index = self.numParticles
         
         self.simType = 'CDKLM16'
+        self.ensemble_small_scale_perturbation = ensemble_small_scale_perturbation
         
         self.t = 0.0
         
@@ -91,7 +96,12 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.observation_type = observation_type
         self.prev_observation = None
         self.compensate_for_eta = compensate_for_eta
-        
+
+        if self.observation_type == dautils.ObservationType.StaticBuoys:
+            if buoys_positions is not None:
+                assert( len(buoys_positions)==num_drifters ), "number of given buoys positions does not match the specified num_drifters" 
+        self.buoys_positions = buoys_positions
+
         self.observation_buffer = None
                 
         # Observations are stored as [ [t^n, [[x_i^n, y_i^n]] ] ]
@@ -105,6 +115,12 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.rmseUnderDrifter_eta = []
         self.rmseUnderDrifter_hu = []
         self.rmseUnderDrifter_hv = []
+        self.rmseMeanUnderDrifter_eta = []
+        self.rmseMeanUnderDrifter_hu = []
+        self.rmseMeanUnderDrifter_hv = []
+        self.rmseWeightedUnderDrifter_eta = []
+        self.rmseWeightedUnderDrifter_hu = []
+        self.rmseWeightedUnderDrifter_hv = []
         self.rUnderDrifter_eta = []
         self.rUnderDrifter_hu = []
         self.rUnderDrifter_hv = []
@@ -116,14 +132,24 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                      observation_variance_factor = observation_variance_factor,
                                      initialization_variance_factor_drifter_position = initialization_variance_factor_drifter_position,
                                      initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field)        
-        self._init(driftersPerOceanModel=num_drifters)
+        self._init(driftersPerOceanModel=num_drifters, 
+                buoys_positions=self.buoys_positions)
         
         # Create gpu kernels and buffers:
         self._setupGPU()
         
                 
         # Put the initial positions into the observation array
-        self._addObservation(self.observeTrueDrifters())  
+        # (For static buoys the cell ids of the positions are extracted and stored,
+        # the self.buoys_postions are either given as input or sampled in _init)
+        if self.observation_type == dautils.ObservationType.StaticBuoys:
+            self.buoys_ids = np.empty((len(self.buoys_positions),2)).astype(int)
+            for d in range(len(self.buoys_positions)):
+                self.buoys_ids[d][0] = np.int(np.floor(self.buoys_positions[d][0]/self.dx))
+                self.buoys_ids[d][1] = np.int(np.floor(self.buoys_positions[d][1]/self.dy))
+
+        self._addObservation(self.observeTrueDrifters()) 
+        
         
         # Store mean water_depth, and whether the equilibrium depth is constant across the domain
         H = self.particles[0].downloadBathymetry()[1][2:-2, 2:-2] # H in cell centers
@@ -190,7 +216,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         
         self.small_scale_perturbation = sim.small_scale_perturbation
         self.small_scale_perturbation_amplitude = None
-        self.small_scale_perturbation_interpolation_factor = None
+        self.small_scale_perturbation_interpolation_factor = 1.0
         
         if self.small_scale_perturbation:
             self.small_scale_perturbation_amplitude = sim.small_scale_model_error.soar_q0
@@ -237,7 +263,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         # perturbation
         self.initialization_variance_factor_ocean_field = initialization_variance_factor_ocean_field
         
-    def _init(self, driftersPerOceanModel=1):
+    def _init(self, driftersPerOceanModel=1, buoys_positions=None):
         """
         Initiating the ensemble by perturbing the input simulator and attaching drifters
         """
@@ -252,7 +278,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                                 self.g, self.f, self.r, \
                                                 boundary_conditions=self.boundaryConditions, \
                                                 write_netcdf=False, \
-                                                small_scale_perturbation=True, \
+                                                small_scale_perturbation=self.ensemble_small_scale_perturbation, \
                                                 small_scale_perturbation_amplitude=self.small_scale_perturbation_amplitude,
                                                 small_scale_perturbation_interpolation_factor=self.small_scale_perturbation_interpolation_factor)
             
@@ -265,6 +291,14 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                                                  boundaryConditions=self.boundaryConditions,
                                                  initialization_cov_drifters=self.initialization_cov_drifters,
                                                  domain_size_x=self.nx*self.dx, domain_size_y=self.ny*self.dy)
+            
+            # for static buoys set positions as specified by input or get the sampled position
+            if self.observation_type == dautils.ObservationType.StaticBuoys:
+                if buoys_positions is not None:
+                    drifters.setDrifterPositions(buoys_positions)
+                elif buoys_positions is None:
+                    self.buoys_positions = drifters.getDrifterPositions()
+
             self.particles[i].attachDrifters(drifters)
           
         # Initialize and attach drifters to all particles.
@@ -388,7 +422,7 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         return self.particles[self.obs_index].drifters.getDrifterPositions()
         
         
-    def observeTrueState(self):
+    def observeTrueState(self, apply_observation_error=True):
         """
         Applying the observation operator on the syntetic true state.
         The observation should be in state space, and therefore consists of 
@@ -422,6 +456,10 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                 
                 hu = u*depth
                 hv = v*depth
+
+                if apply_observation_error:
+                    hu += np.random.normal(scale=np.sqrt(self.observation_variance))
+                    hv += np.random.normal(scale=np.sqrt(self.observation_variance))
                 
                 trueState[d,:] = np.array([x, y , hu, hv])
             return trueState
@@ -440,15 +478,39 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
                 eta, hu, hv = self.downloadParticleOceanState(self.obs_index)
                 true_hu = hu[id_y, id_x]
                 true_hv = hv[id_y, id_x]
+
+                if apply_observation_error:
+                    true_hu += np.random.normal(scale=np.sqrt(self.observation_variance))
+                    true_hv += np.random.normal(scale=np.sqrt(self.observation_variance))
                 
                 trueState[d,:] = np.array([x, y, true_hu, true_hv])
             return trueState
 
+        elif self.observation_type == dautils.ObservationType.StaticBuoys:
+            trueState = np.empty((self.driftersPerOceanModel, 4))
+            for d in range(self.driftersPerOceanModel):
+                id_x = self.buoys_ids[d][0]
+                id_y = self.buoys_ids[d][1]
+                # Downloading ocean state without ghost cells
+                eta, hu, hv = self.downloadParticleOceanState(self.obs_index)
+                true_hu = hu[id_y, id_x]
+                true_hv = hv[id_y, id_x]
+
+                if apply_observation_error:
+                    true_hu += np.random.normal(scale=np.sqrt(self.observation_variance))
+                    true_hv += np.random.normal(scale=np.sqrt(self.observation_variance))
+                
+                trueState[d,:] = np.array([self.buoys_positions[d][0], self.buoys_positions[d][1], true_hu, true_hv])
+            return trueState
+
     def step(self, t, stochastic_particles=True, stochastic_truth=True):
         """
-        Function which makes all particles step until time t.
+        Function which makes all particles (including truth) step until time t.
         apply_stochastic_term: Boolean value for whether the stochastic
-            perturbation (if any) should be applied.
+            perturbation (if any) should be applied: 
+            small_scale_perturbation in the simulator after every model time step
+            by adding a SOAR generated random fields to the state 
+            using OceanNoiseState.perturbSim(...)
         """
         for p in range(self.getNumParticles()+1):
             #print "Starting sim " + str(p)
@@ -548,9 +610,14 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
     def getEnsembleVarAndRMSEUnderDrifter(self, t, allDrifters=False):
         """
         Putting entries in the statistical arrays for single cells.
+        1. unbiased estimate of variance 
+        2. root mean square error compared to the truth (rmse_truth)
+        3. rmse_truth normalized by the norm of the truth
+        4. ratio of variance and rmse_truth 
+        by default considering the first drifter only
         """
         
-        drifter_pos = self.observeTrueDrifters()[0,:]
+        drifter_pos = self.observeTrueState()[0][0:2]
         
         # downloadTrueOceanState and downloadParticleOceanState gives us interior domain only,
         # and no ghost cells.
@@ -569,6 +636,9 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         eta_rmse = 0.0
         hu_rmse = 0.0
         hv_rmse = 0.0
+        eta_rmse_weighted = 0.0
+        hu_rmse_weighted = 0.0
+        hv_rmse_weighted = 0.0
         eta_sigma = 0.0
         hu_sigma = 0.0
         hv_sigma = 0.0
@@ -588,11 +658,19 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         eta_mean = eta_mean/numNonZeros
         hu_mean = hu_mean/numNonZeros
         hv_mean = hv_mean/numNonZeros
+
+        eta_rmse = np.sqrt(eta_rmse/numNonZeros)
+        hu_rmse  = np.sqrt( hu_rmse/numNonZeros)
+        hv_rmse  = np.sqrt( hv_rmse/numNonZeros)
         
         # RMSE according to the paper draft
-        eta_rmse = np.sqrt((eta_true - eta_mean)**2)
-        hu_rmse  = np.sqrt((hu_true  - hu_mean )**2)
-        hv_rmse  = np.sqrt((hv_true  - hv_mean )**2)
+        eta_rmse_mean = np.sqrt((eta_true - eta_mean)**2)
+        hu_rmse_mean  = np.sqrt((hu_true  - hu_mean )**2)
+        hv_rmse_mean  = np.sqrt((hv_true  - hv_mean )**2)
+
+        eta_rmse_weighted = eta_rmse/abs(eta_true)
+        hu_rmse_weighted  = hu_rmse/abs(hu_true)
+        hv_rmse_weighted  = hv_rmse/abs(hv_true)
         
         numNonZeros = 0
         for p in range(self.getNumParticles()):
@@ -617,6 +695,12 @@ class OceanNoiseEnsemble(BaseOceanStateEnsemble.BaseOceanStateEnsemble):
         self.rmseUnderDrifter_eta.append(eta_rmse)
         self.rmseUnderDrifter_hu.append(hu_rmse)
         self.rmseUnderDrifter_hv.append(hv_rmse)
+        self.rmseMeanUnderDrifter_eta.append(eta_rmse_mean)
+        self.rmseMeanUnderDrifter_hu.append(hu_rmse_mean)
+        self.rmseMeanUnderDrifter_hv.append(hv_rmse_mean)
+        self.rmseWeightedUnderDrifter_eta.append(eta_rmse_weighted)
+        self.rmseWeightedUnderDrifter_hu.append(hu_rmse_weighted)
+        self.rmseWeightedUnderDrifter_hv.append(hv_rmse_weighted)
         self.rUnderDrifter_eta.append(eta_r)
         self.rUnderDrifter_hu.append(hu_r)
         self.rUnderDrifter_hv.append(hv_r)

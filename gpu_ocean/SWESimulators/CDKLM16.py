@@ -69,6 +69,7 @@ class CDKLM16(Simulator.Simulator):
                  model_time_step=None,
                  reportGeostrophicEquilibrium=False, \
                  use_lcg=False, \
+                 xorwow_seed = None, \
                  write_netcdf=False, \
                  comm=None, \
                  local_particle_id=0, \
@@ -359,7 +360,7 @@ class CDKLM16(Simulator.Simulator):
             self.small_scale_model_error = OceanStateNoise.OceanStateNoise.fromsim(self, 
                                                                                    soar_q0=small_scale_perturbation_amplitude,
                                                                                    interpolation_factor=small_scale_perturbation_interpolation_factor,
-                                                                                   use_lcg=use_lcg,
+                                                                                   use_lcg=use_lcg, xorwow_seed=xorwow_seed,
                                                                                    block_width=block_width_model_error, 
                                                                                    block_height=block_height_model_error)
     
@@ -407,7 +408,7 @@ class CDKLM16(Simulator.Simulator):
         gc.collect()
            
     @classmethod
-    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True, use_lcg=False, new_netcdf_filename=None):
+    def fromfilename(cls, gpu_ctx, filename, cont_write_netcdf=True, use_lcg=False, xorwow_seed = None, new_netcdf_filename=None, time0=None):
         """
         Initialize and hotstart simulation from nc-file.
         cont_write_netcdf: Continue to write the results after each superstep to a new netCDF file
@@ -426,7 +427,10 @@ class CDKLM16(Simulator.Simulator):
         H = sim_reader.getH();
         
         # get last timestep (including simulation time of last timestep)
-        eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
+        if time0 is None:
+            eta0, hu0, hv0, time0 = sim_reader.getLastTimeStep()
+        else:
+            eta0, hu0, hv0, time0 = sim_reader.getStateAtTime(time0)
         
         # For some reason, some old netcdf had 3-dimensional bathymetry.
         # This fix ensures that we only use a valid H
@@ -449,13 +453,14 @@ class CDKLM16(Simulator.Simulator):
             'g': sim_reader.get("g"),
             'f': sim_reader.get("coriolis_force"),
             'r': sim_reader.get("bottom_friction_r"),
-            't': time0,
+            't': float(time0),
             'theta': sim_reader.get("minmod_theta"),
             'rk_order': sim_reader.get("time_integrator"),
             'coriolis_beta': sim_reader.get("coriolis_beta"),
             # 'y_zero_reference_cell': sim_reader.get("y_zero_reference_cell"), # TODO - UPDATE WITH NEW API
             'write_netcdf': cont_write_netcdf,
             'use_lcg': use_lcg,
+            'xorwow_seed' : xorwow_seed,
             'netcdf_filename': new_netcdf_filename
         }    
         
@@ -490,11 +495,10 @@ class CDKLM16(Simulator.Simulator):
         """
         Function which steps n timesteps.
         apply_stochastic_term: Boolean value for whether the stochastic
-            perturbation (if any) should be applied.
+            perturbation (if any) should be applied after every simulation time step
+            by adding SOAR-generated random fields using OceanNoiseState.perturbSim(...)
         """
         
-            
-
         if self.t == 0:
             self.bc_kernel.update_bc_values(self.gpu_stream, self.t)
             self.bc_kernel.boundaryCondition(self.gpu_stream, \

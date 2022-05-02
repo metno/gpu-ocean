@@ -73,11 +73,11 @@ elif args.experiments < 1:
 ###-----------------------------------------
 ## Define files for ensemble and truth.
 ##
-ensemble_init_path = os.path.abspath('../presented_data/ensemble_init/')
+ensemble_init_path = os.path.abspath('../../../../data/ensemble_init/')
 assert len(os.listdir(ensemble_init_path)) == 100 or len(os.listdir(ensemble_init_path)) == 101, \
     "Ensemble init folder has wrong number of files: " + str(len(os.listdir(ensemble_init_path)))
 
-truth_path = os.path.abspath('../presented_data/true_state/')
+truth_path = os.path.abspath('../../../../data/true_state/')
 assert len(os.listdir(truth_path)) == 2 or len(os.listdir(truth_path)) == 3, \
     "Truth folder has wrong number of files"
 

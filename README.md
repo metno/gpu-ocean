@@ -50,6 +50,10 @@ We recommend that you set up your python environment using the package manager C
     ```
     pip3 install --trusted-host files.pythonhosted.org --no-deps -U pycuda
     ```
+- Installing latex for plotting
+    ```
+    sudo apt-get install texlive-latex-base texlive-latex-extra texlive-fonts-recommended dvipng cm-super
+    ```
 
 You should now be able to start a jupyter notebook server, open one of our notebooks, select the conda environment 'gpuocean' as kernel, and run the code. 
 
